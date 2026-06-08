@@ -79,7 +79,8 @@ function buildPersonaSystemPrompt(
 ${styleGuide}
 - 1回の発言は**必ず2〜3文以内**に収める。長い演説は絶対に禁止。
 - 必ず直前の誰かの発言を受けて、その内容に具体的に反応する。
-- 自分の立場や主張を一方的に述べるのではなく、相手の言葉に応じて対話する。
+- **発言の冒頭で相手の名前を呼んではいけない**（「○○さんのおっしゃる通り」「○○さんが言ったように」などは禁止）。
+- 自分の信念・立場に基づいて反論・疑問を呈することを恐れない。相手の意見に同意しない場合は、はっきりそう言う。同意一辺倒は不自然。
 
 ## ペルソナプロフィール
 - 名前: ${persona.name}
@@ -171,7 +172,7 @@ export class PersonaAgentService {
         tool_choice: { type: 'tool', name: 'submit_turn' },
         messages: [{
           role: 'user',
-          content: `討論の現在の状況:\n\n${formatHistory(recentHistory)}\n\n${persona.name}として、**直前の発言に2〜3文で短く返答してください**。演説や長い説明は禁止です。相手の言葉に具体的に反応してください。信念に変化があればbeliefChangeTypeを指定してください。addressedToPersonaIdは、特定の参加者に直接質問する場合のみ指定し、それ以外は省略してください。`,
+          content: `討論の現在の状況:\n\n${formatHistory(recentHistory)}\n\n${persona.name}として、**直前の発言に2〜3文で短く返答してください**。演説や長い説明は禁止。冒頭で相手の名前を呼ぶことも禁止。自分の立場から見て納得できない点があれば反論してください。信念に変化があればbeliefChangeTypeを指定してください。addressedToPersonaIdは、特定の参加者に直接質問する場合のみ指定し、それ以外は省略してください。`,
         }],
       });
 
