@@ -12,17 +12,73 @@ import type {
   PipelineError,
 } from '../types/index.js';
 
+type ExperienceLevel = 'young' | 'mid' | 'veteran';
+type AuthorityLevel = 'general' | 'mid' | 'high';
+
+const VETERAN_KEYWORDS = ['ベテラン', 'シニア', '管理職', '教授', '博士', '専門家', '研究者'];
+const YOUNG_KEYWORDS = ['新入', '学生', 'インターン', '若手', '研修'];
+const HIGH_AUTHORITY_KEYWORDS = ['経営', '社長', 'CEO', '代表', '部長', '局長', '院長', '教授', '有識者', '専門家', '弁護士', '医師', '研究者'];
+const MID_AUTHORITY_KEYWORDS = ['主任', '係長', '課長', 'マネージャー', '管理'];
+
+function estimateExperienceLevel(age: number, occupation: string): ExperienceLevel {
+  if (YOUNG_KEYWORDS.some(kw => occupation.includes(kw)) || age <= 30) return 'young';
+  if (VETERAN_KEYWORDS.some(kw => occupation.includes(kw)) || age >= 55) return 'veteran';
+  return 'mid';
+}
+
+function estimateAuthorityLevel(stakeholderRole: string): AuthorityLevel {
+  if (HIGH_AUTHORITY_KEYWORDS.some(kw => stakeholderRole.includes(kw))) return 'high';
+  if (MID_AUTHORITY_KEYWORDS.some(kw => stakeholderRole.includes(kw))) return 'mid';
+  return 'general';
+}
+
+export function buildSpeechStyleGuide(persona: PersonaAttributes & { gender?: string }): string {
+  const expLevel = estimateExperienceLevel(persona.age, persona.occupation);
+  const authLevel = estimateAuthorityLevel(persona.stakeholderRole);
+  const lines: string[] = [];
+
+  lines.push('これは口語の対話であり、書き言葉（「〜だ」「〜である」「〜ではない」調）は使わない。');
+
+  if (expLevel === 'young') {
+    lines.push('「〜かな？」「〜ですよね？」「〜じゃないですか」など口語の疑問形を自然に用いる。');
+    lines.push('経験が少ない若手として、断言より確認・質問を多く使う。');
+  } else if (expLevel === 'veteran') {
+    lines.push('豊富な経験を基に自信を持って話す（「〜ですよ」「〜だよね」「〜じゃないですか」）。');
+    lines.push('業界用語・専門語彙を自然に交え、経験談（「〜のとき実際に〜」）を活用する。');
+  } else {
+    lines.push('「〜ですね」「〜だと思います」など断言と確認のバランスを保つ口語で話す。');
+    lines.push('具体的な事例を示しながら意見を述べる。');
+  }
+
+  if (authLevel === 'high') {
+    lines.push('権威ある立場として自信を持って発言する。「〜ですよ」「〜だよね」「〜じゃないかな」「〜というのはどう？」など口語で断言し、謙遜表現（「〜かもしれません」）は避ける。');
+  } else if (authLevel === 'mid') {
+    lines.push('組織内の立場を反映し、現場と管理側の視点を行き来しながら「〜ですね」「〜だと思います」で話す。');
+  } else {
+    lines.push('遠慮がちに発言し、「〜ではないかと思いますが」「〜なんじゃないですかね」などの表現を自然に使う。');
+  }
+
+  lines.push('画一的なビジネス敬語（「〜でございます」「〜存じます」）は避ける。');
+
+  if (persona.gender) {
+    lines.push(`${persona.gender}としての自然な語感を大切に、ただし性別による過度な役割固定は避ける。`);
+  }
+
+  return lines.join('\n');
+}
+
 function buildPersonaSystemPrompt(
-  persona: PersonaAttributes,
+  persona: PersonaAttributes & { gender?: string },
   interviewRecord: string,
   currentBelief: string
 ): string {
+  const styleGuide = buildSpeechStyleGuide(persona);
   return `あなたは以下のペルソナとして討論に参加しています。このペルソナの視点・価値観・経験に忠実に発言してください。他のペルソナの内部状態（信念ドキュメントや取材レコード）は参照しないでください。
 
 ## 発言スタイルの厳守事項
+${styleGuide}
 - 1回の発言は**必ず2〜3文以内**に収める。長い演説は絶対に禁止。
 - 必ず直前の誰かの発言を受けて、その内容に具体的に反応する。
-- 「〜と思います」「〜ではないでしょうか」などの短い口語体で話す。
 - 自分の立場や主張を一方的に述べるのではなく、相手の言葉に応じて対話する。
 
 ## ペルソナプロフィール
@@ -41,36 +97,39 @@ ${interviewRecord}
 ${currentBelief}`;
 }
 
-const TURN_TOOL: Anthropic.Tool = {
-  name: 'submit_turn',
-  description: 'ペルソナとして討論の1ターン分の発言を提出する',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      content: { type: 'string', description: 'ペルソナの発言テキスト（2〜3文以内。直前の発言を受けた短い返答）' },
-      beliefChangeType: {
-        type: 'string',
-        enum: ['opinion_change', 'partial_acceptance'],
-        description:
-          '信念変化タイプ: opinion_change=立場・結論が完全に変わる場合、partial_acceptance=他の意見の一部を受け入れる場合。変化なしの場合は省略する',
+function buildTurnTool(styleGuide: string): Anthropic.Tool {
+  const styleSummary = styleGuide.split('\n')[0];
+  return {
+    name: 'submit_turn',
+    description: 'ペルソナとして討論の1ターン分の発言を提出する',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        content: { type: 'string', description: `ペルソナの発言テキスト（2〜3文以内。直前の発言を受けた短い返答。語り口: ${styleSummary}）` },
+        beliefChangeType: {
+          type: 'string',
+          enum: ['opinion_change', 'partial_acceptance'],
+          description:
+            '信念変化タイプ: opinion_change=立場・結論が完全に変わる場合、partial_acceptance=他の意見の一部を受け入れる場合。変化なしの場合は省略する',
+        },
+        beliefChangeSummary: {
+          type: 'string',
+          description: '信念変化の理由・概要（beliefChangeTypeを指定した場合のみ記入）',
+        },
+        beliefChangeUpdatedBelief: {
+          type: 'string',
+          description: '変化後の信念ドキュメント（Markdown形式。beliefChangeTypeを指定した場合のみ記入）',
+        },
+        addressedToPersonaId: {
+          type: 'string',
+          description:
+            '返答を求める特定のペルソナのID。そのペルソナに直接質問する場合のみ指定する。反論・同意・感想など応答を強制しない発言では省略する',
+        },
       },
-      beliefChangeSummary: {
-        type: 'string',
-        description: '信念変化の理由・概要（beliefChangeTypeを指定した場合のみ記入）',
-      },
-      beliefChangeUpdatedBelief: {
-        type: 'string',
-        description: '変化後の信念ドキュメント（Markdown形式。beliefChangeTypeを指定した場合のみ記入）',
-      },
-      addressedToPersonaId: {
-        type: 'string',
-        description:
-          '次に話してほしいペルソナのID。特定の参加者の発言に直接返答する場合に指定する。明確な宛先がない場合は省略する',
-      },
+      required: ['content'],
     },
-    required: ['content'],
-  },
-};
+  };
+}
 
 const POST_DEBATE_COMMENT_TOOL: Anthropic.Tool = {
   name: 'submit_post_debate_comment',
@@ -103,15 +162,16 @@ export class PersonaAgentService {
   ): Promise<Result<AgentTurnResult, PipelineError>> {
     try {
       const recentHistory = history.slice(-20);
+      const styleGuide = buildSpeechStyleGuide(persona);
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.PERSONA_TURN,
         system: buildPersonaSystemPrompt(persona, interviewRecord, currentBelief),
-        tools: [TURN_TOOL],
+        tools: [buildTurnTool(styleGuide)],
         tool_choice: { type: 'tool', name: 'submit_turn' },
         messages: [{
           role: 'user',
-          content: `討論の現在の状況:\n\n${formatHistory(recentHistory)}\n\n${persona.name}として、**直前の発言に2〜3文で短く返答してください**。演説や長い説明は禁止です。相手の言葉に具体的に反応してください。信念に変化があればbeliefChangeTypeを指定し、特定の参加者への返答であればaddressedToPersonaIdを指定してください。`,
+          content: `討論の現在の状況:\n\n${formatHistory(recentHistory)}\n\n${persona.name}として、**直前の発言に2〜3文で短く返答してください**。演説や長い説明は禁止です。相手の言葉に具体的に反応してください。信念に変化があればbeliefChangeTypeを指定してください。addressedToPersonaIdは、特定の参加者に直接質問する場合のみ指定し、それ以外は省略してください。`,
         }],
       });
 

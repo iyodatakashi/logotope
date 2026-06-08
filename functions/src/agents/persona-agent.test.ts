@@ -5,7 +5,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 }));
 
 import Anthropic from '@anthropic-ai/sdk';
-import { PersonaAgentService } from './persona-agent.js';
+import { PersonaAgentService, buildSpeechStyleGuide } from './persona-agent.js';
 import type { PersonaAttributes, ConversationTurn } from '../types/index.js';
 
 const mockCreate = vi.fn();
@@ -59,6 +59,177 @@ beforeEach(() => {
   vi.mocked(Anthropic).mockImplementation(() => ({
     messages: { create: mockCreate },
   }) as unknown as Anthropic);
+});
+
+describe('buildSpeechStyleGuide', () => {
+  const base = {
+    id: 'p1',
+    background: '特になし',
+    interests: '特になし',
+    stanceDirection: 'neutral' as const,
+  };
+
+  it('若手ペルソナ: 口語体・疑問形の語り口指針を含む', () => {
+    const persona: PersonaAttributes = {
+      ...base,
+      stakeholderRole: '一般市民',
+      name: '若者',
+      age: 22,
+      occupation: '会社員（入社2年目）',
+    };
+    const guide = buildSpeechStyleGuide(persona);
+    expect(guide).toBeTruthy();
+    expect(guide.split('\n').length).toBeGreaterThanOrEqual(3);
+    expect(guide.split('\n').length).toBeLessThanOrEqual(5);
+    expect(guide).toMatch(/口語|疑問形|若手|経験が少/);
+  });
+
+  it('ベテランペルソナ: 経験・断言の語り口指針を含む', () => {
+    const persona: PersonaAttributes = {
+      ...base,
+      stakeholderRole: '現場職',
+      name: '田中',
+      age: 58,
+      occupation: 'ベテランエンジニア',
+    };
+    const guide = buildSpeechStyleGuide(persona);
+    expect(guide).toBeTruthy();
+    expect(guide).toMatch(/経験|断言|専門|ベテラン/);
+  });
+
+  it('経営者ペルソナ: 断言的・謙遜なしの語り口指針を含む', () => {
+    const persona: PersonaAttributes = {
+      ...base,
+      stakeholderRole: '経営者',
+      name: '鈴木',
+      age: 50,
+      occupation: '代表取締役',
+    };
+    const guide = buildSpeechStyleGuide(persona);
+    expect(guide).toBeTruthy();
+    expect(guide).toMatch(/断言|謙遜|自信|権威/);
+  });
+
+  it('gender あり: 例外なく動作し非空文字列を返す', () => {
+    const persona: PersonaAttributes & { gender?: string } = {
+      ...base,
+      stakeholderRole: '患者',
+      name: '山田',
+      age: 40,
+      occupation: '主婦',
+      gender: '女性',
+    };
+    const guide = buildSpeechStyleGuide(persona);
+    expect(typeof guide).toBe('string');
+    expect(guide.length).toBeGreaterThan(0);
+  });
+
+  it('gender なし: 例外なく動作し非空文字列を返す', () => {
+    const persona: PersonaAttributes = {
+      ...base,
+      stakeholderRole: '患者',
+      name: '佐藤',
+      age: 40,
+      occupation: '会社員',
+    };
+    const guide = buildSpeechStyleGuide(persona);
+    expect(typeof guide).toBe('string');
+    expect(guide.length).toBeGreaterThan(0);
+  });
+
+  it('属性が変わると語り口指針も変わる', () => {
+    const young: PersonaAttributes = {
+      ...base,
+      stakeholderRole: '一般市民',
+      name: '若者',
+      age: 22,
+      occupation: '大学生',
+    };
+    const veteran: PersonaAttributes = {
+      ...base,
+      stakeholderRole: '専門家',
+      name: '老人',
+      age: 65,
+      occupation: 'ベテラン教授',
+    };
+    expect(buildSpeechStyleGuide(young)).not.toBe(buildSpeechStyleGuide(veteran));
+  });
+});
+
+describe('task 1.2: スタイルガイドのシステムプロンプトとツール定義への統合', () => {
+  let service: PersonaAgentService;
+
+  const youngPersona: PersonaAttributes = {
+    id: 'y1',
+    stakeholderRole: '一般市民',
+    name: '若者',
+    age: 22,
+    occupation: '大学生',
+    background: '特になし',
+    interests: '特になし',
+    stanceDirection: 'neutral',
+  };
+
+  const executivePersona: PersonaAttributes = {
+    id: 'e1',
+    stakeholderRole: '経営者',
+    name: '社長',
+    age: 55,
+    occupation: '代表取締役',
+    background: '特になし',
+    interests: '特になし',
+    stanceDirection: 'pro',
+  };
+
+  beforeEach(() => {
+    service = new PersonaAgentService();
+    mockCreate.mockResolvedValue({
+      content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言。' } }],
+    });
+  });
+
+  it('発言スタイルセクション先頭（2〜3文以内より前）に語り口指針が含まれる', async () => {
+    await service.generateTurn(youngPersona, 'belief', 'interview', []);
+
+    const system: string = mockCreate.mock.calls[0][0].system;
+    const sectionStart = system.indexOf('## 発言スタイルの厳守事項');
+    const styleIdx = system.indexOf('口語', sectionStart);
+    const constraintIdx = system.indexOf('2〜3文以内', sectionStart);
+
+    expect(styleIdx).toBeGreaterThan(sectionStart);
+    expect(styleIdx).toBeLessThan(constraintIdx);
+  });
+
+  it('若手ペルソナのシステムプロンプトに口語・疑問形スタイルが含まれる', async () => {
+    await service.generateTurn(youngPersona, 'belief', 'interview', []);
+    expect(mockCreate.mock.calls[0][0].system).toMatch(/口語|疑問形/);
+  });
+
+  it('経営者ペルソナのシステムプロンプトに断言的スタイルが含まれる', async () => {
+    await service.generateTurn(executivePersona, 'belief', 'interview', []);
+    expect(mockCreate.mock.calls[0][0].system).toMatch(/断言|謙遜|権威/);
+  });
+
+  it('若手と経営者ペルソナでシステムプロンプトの語り口指針が異なる', async () => {
+    await service.generateTurn(youngPersona, 'belief', 'interview', []);
+    const youngSystem: string = mockCreate.mock.calls[0][0].system;
+    mockCreate.mockClear();
+
+    await service.generateTurn(executivePersona, 'belief', 'interview', []);
+    const execSystem: string = mockCreate.mock.calls[0][0].system;
+
+    expect(youngSystem).not.toBe(execSystem);
+  });
+
+  it('TURN_TOOL の content フィールド説明に語り口スタイルが含まれる', async () => {
+    await service.generateTurn(youngPersona, 'belief', 'interview', []);
+
+    const tools = mockCreate.mock.calls[0][0].tools;
+    const submitTurn = tools.find((t: { name: string }) => t.name === 'submit_turn');
+    const contentDesc: string = submitTurn.input_schema.properties.content.description;
+
+    expect(contentDesc).toMatch(/口語|疑問形|語り口/);
+  });
 });
 
 describe('PersonaAgentService DI', () => {
