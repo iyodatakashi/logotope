@@ -126,7 +126,8 @@ export class FacilitatorAgentService {
   async selectNextSpeaker(
     history: ConversationTurn[],
     personas: PersonaAttributes[],
-    silenceMap: Map<string, number>
+    silenceMap: Map<string, number>,
+    excludePersonaId?: string
   ): Promise<Result<string, PipelineError>> {
     try {
       const silenceInfo = Array.from(silenceMap.entries())
@@ -135,6 +136,16 @@ export class FacilitatorAgentService {
           return `${name}: ${count}ターン沈黙`;
         })
         .join(', ');
+
+      let exclusionNote = '';
+      if (excludePersonaId) {
+        const excludedName = personas.find(p => p.id === excludePersonaId)?.name ?? excludePersonaId;
+        if (personas.length === 1) {
+          exclusionNote = `\n\n※ 参加者が1名（${excludedName}のみ）のため、直前発言者の除外ルールを無視してください。`;
+        } else {
+          exclusionNote = `\n\n注意: 直前の発言者は${excludedName}です。他に候補がある限り、${excludedName}は選ばないこと。`;
+        }
+      }
 
       const recentHistory = history.slice(-10);
       const response = await this.client.messages.create({
@@ -145,7 +156,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'select_speaker' },
         messages: [{
           role: 'user',
-          content: `直前の発言に最も応答しそうなペルソナを1名選んでください。\n\n会話履歴（最新${recentHistory.length}件）:\n${formatHistory(recentHistory)}\n\n参加者:\n${formatPersonas(personas)}\n\n沈黙状況: ${silenceInfo || 'なし'}`,
+          content: `直前の発言に最も応答しそうなペルソナを1名選んでください。${exclusionNote}\n\n会話履歴（最新${recentHistory.length}件）:\n${formatHistory(recentHistory)}\n\n参加者:\n${formatPersonas(personas)}\n\n沈黙状況: ${silenceInfo || 'なし'}`,
         }],
       });
 
@@ -166,9 +177,15 @@ export class FacilitatorAgentService {
 
   async evaluateIntervention(
     history: ConversationTurn[],
-    personas: PersonaAttributes[]
+    personas: PersonaAttributes[],
+    speakCount: Map<string, number> = new Map()
   ): Promise<Result<FacilitatorIntervention, PipelineError>> {
     try {
+      const speakCountInfo = personas
+        .map(p => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
+        .join(', ');
+      const speakCountNote = `\n\n累計発言数: ${speakCountInfo}\ninviteの場合、発言数が少なく現在の論点との関連性が高い人を優先して選ぶこと。`;
+
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_INTERVENTION,
@@ -177,7 +194,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'evaluate_intervention' },
         messages: [{
           role: 'user',
-          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}\n\n介入基準：\n- 同じ論点を繰り返している → topic_shift（新しい具体的な問いを立てて転換）\n- 発言していない参加者がいる → invite（その人に具体的な問いを向ける）\n- 議論が十分に深まった → close\n- まだ活発に議論中 → shouldIntervene=false\n\ntopic_shiftやinviteの場合、contentは必ず「〜についてはどうですか？」のような具体的な問いかけにする。`,
+          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${speakCountNote}\n\n介入基準：\n- 同じ論点を繰り返している → topic_shift（新しい具体的な問いを立てて転換）\n- 発言していない参加者がいる → invite（その人に具体的な問いを向ける）\n- 議論が十分に深まった → close\n- まだ活発に議論中 → shouldIntervene=false\n\ntopic_shiftやinviteの場合、contentは必ず「〜についてはどうですか？」のような具体的な問いかけにする。`,
         }],
       });
 

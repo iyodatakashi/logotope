@@ -197,6 +197,42 @@ describe('FacilitatorAgentService', () => {
     });
   });
 
+  describe('selectNextSpeaker - task 2.1: excludePersonaId オプション', () => {
+    it('excludePersonaId 指定時、プロンプトに直前発言者の名前と除外指示が含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'select_speaker', input: { personaId: 'p2' } }],
+      });
+
+      await service.selectNextSpeaker(testHistory, testPersonas, new Map(), 'p1');
+
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).toMatch(/田中太郎/);
+      expect(msg).toMatch(/選ばない/);
+    });
+
+    it('personas.length === 1 かつ excludePersonaId 指定時、除外ルール無視の旨がプロンプトに含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'select_speaker', input: { personaId: 'p1' } }],
+      });
+
+      await service.selectNextSpeaker(testHistory, [testPersonas[0]], new Map(), 'p1');
+
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).toMatch(/除外.*無視|無視.*除外|候補がない/);
+    });
+
+    it('excludePersonaId 未指定時、除外指示がプロンプトに含まれない', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'select_speaker', input: { personaId: 'p2' } }],
+      });
+
+      await service.selectNextSpeaker(testHistory, testPersonas, new Map());
+
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).not.toMatch(/選ばない/);
+    });
+  });
+
   describe('evaluateIntervention', () => {
     it('when shouldIntervene=false, content is undefined', async () => {
       mockCreate.mockResolvedValue({
@@ -277,6 +313,47 @@ describe('FacilitatorAgentService', () => {
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error.code).toBe('AI_API_ERROR');
+    });
+  });
+
+  describe('evaluateIntervention - task 2.2: speakCount 拡張', () => {
+    it('speakCount 指定時、プロンプトに各ペルソナの累計発言数が含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+      });
+
+      const speakCount = new Map([['p1', 5], ['p2', 2], ['p3', 0]]);
+      await service.evaluateIntervention(testHistory, testPersonas, speakCount);
+
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).toMatch(/田中太郎.*5|5.*田中太郎/);
+      expect(msg).toMatch(/山田次郎.*0|0.*山田次郎/);
+    });
+
+    it('speakCount 指定時、発言数の少ない人をinviteで優先する指示が含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+      });
+
+      const speakCount = new Map([['p1', 3], ['p2', 1]]);
+      await service.evaluateIntervention(testHistory, testPersonas, speakCount);
+
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).toMatch(/発言数.*優先|優先.*invite/);
+    });
+
+    it('shouldIntervene=false 時、speakCount があっても戻り値に影響しない', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+      });
+
+      const speakCount = new Map([['p1', 10], ['p2', 0]]);
+      const result = await service.evaluateIntervention(testHistory, testPersonas, speakCount);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.shouldIntervene).toBe(false);
+      expect(result.value.content).toBeUndefined();
     });
   });
 
