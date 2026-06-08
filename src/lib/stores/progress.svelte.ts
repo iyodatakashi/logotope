@@ -10,7 +10,9 @@ export function createProgressStore(topicId: string) {
 		const ref = doc(db, 'debate_progress', topicId);
 		unsubscribe = onSnapshot(ref, (snap) => {
 			if (snap.exists()) {
-				progress = snap.data() as ProgressState;
+				const data = snap.data() as ProgressState & { debugLog?: string };
+				if (data.debugLog) console.log('[debate]', data.debugLog);
+				progress = data;
 			}
 		});
 	}

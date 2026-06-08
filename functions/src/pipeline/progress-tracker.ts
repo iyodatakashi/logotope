@@ -23,4 +23,11 @@ export class ProgressTrackerService {
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
   }
+
+  async debugLog(topicId: string, message: string): Promise<void> {
+    await this.doc(topicId).set({
+      debugLog: message,
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+  }
 }

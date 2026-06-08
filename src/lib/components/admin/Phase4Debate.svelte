@@ -26,6 +26,31 @@
 	let loading = $state(true);
 	let error = $state('');
 	let publishUrl = $state('');
+	let debating = $state(false);
+	let fetchingTurns = $state(false);
+
+	async function refreshTurns() {
+		if (fetchingTurns) return;
+		fetchingTurns = true;
+		try {
+			const data = await api.getAdminDebate(topicId);
+			if (data.turns && data.turns.length > 0) {
+				sessionId = data.id;
+				turns = data.turns as Turn[];
+			}
+		} catch {
+			/* 無視 */
+		} finally {
+			fetchingTurns = false;
+		}
+	}
+
+	$effect(() => {
+		const n = completedTurns;
+		if (debating && n > 0) {
+			void refreshTurns();
+		}
+	});
 
 	async function load() {
 		try {
@@ -40,6 +65,7 @@
 			/* セッション未存在 */
 		}
 		try {
+			debating = true;
 			const result = await api.startDebate(topicId);
 			sessionId = result.debateSessionId;
 			const data = await api.getAdminDebate(topicId);
@@ -48,6 +74,7 @@
 			error = e instanceof Error ? e.message : '処理に失敗しました';
 		} finally {
 			loading = false;
+			debating = false;
 		}
 	}
 
@@ -95,7 +122,9 @@
 				（ターン {completedTurns} / {totalTurns}）
 			{/if}
 		</p>
-	{:else if turns.length > 0}
+	{/if}
+
+	{#if turns.length > 0}
 		<div class="turns">
 			{#each turns as turn (turn.id)}
 				<div class="turn" class:facilitator={turn.speakerType === 'facilitator'}>
