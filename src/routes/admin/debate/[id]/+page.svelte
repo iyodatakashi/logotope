@@ -14,8 +14,10 @@
 	const progressStore = createProgressStore(topicId);
 
 	let topicTitle = $state('');
+	let topicStatus = $state('');
 
-	const status = $derived(progressStore.progress?.status ?? '');
+	// Firestore ドキュメントが存在しない間はAPIのステータスをフォールバックとして使用
+	const status = $derived(progressStore.progress?.status ?? topicStatus);
 
 	onMount(() => {
 		const unsubAuth = onAuthStateChanged(auth, async (user) => {
@@ -23,6 +25,7 @@
 				progressStore.start();
 				const topic = await getTopic(topicId);
 				topicTitle = topic.title;
+				topicStatus = topic.status;
 			}
 		});
 		return () => {
@@ -47,7 +50,7 @@
 		<Phase2Personas {topicId} {topicTitle} />
 	{:else if status === 'interviewing'}
 		<Phase3Interviews {topicId} {topicTitle} />
-	{:else if status === 'debating' || status === 'completed'}
+	{:else if status === 'debating' || status === 'completed' || status === 'published'}
 		<Phase4Debate {topicId} {topicTitle} />
 	{:else}
 		<p class="loading">読み込み中...</p>
