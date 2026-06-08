@@ -1,0 +1,22 @@
+I0607 19:30:40.318885   19130 load.go:31] Reloading schema and connectors...
+I0607 19:30:40.330668   19130 control.go:100] [projects/emulator/locations/emulator/services/logotope 7396] UpdateResources(): done
+Main schema: sources: schema/schema.gql [2380B] 
+Connector "logotope": sources: connector/mutations.gql [4705B] connector/queries.gql [4156B] 
+I0607 19:30:40.345957   19130 codegen.go:101] [connector "logotope" javascriptSdk] Generating sources into "/Users/iyoda/Documents/workspace/Web_Workspace/logotope/src/dataconnect-generated"
+I0607 19:30:40.354784   19130 collector.go:107] schema extensions wrote into "/Users/iyoda/Documents/workspace/Web_Workspace/logotope/dataconnect/.dataconnect/schema"
+Generated sources: main/mutation.gql [29445B] prelude.gql [80888B] main/implicit.gql [2829B] main/input.gql [86204B] main/relation.gql [40432B] main/query.gql [10738B] 
+I0607 19:30:40.356561   19130 collector.go:107] connector "logotope" javascriptSdk wrote into "/Users/iyoda/Documents/workspace/Web_Workspace/logotope/src/dataconnect-generated"
+Generated sources: index.d.ts [37272B] esm/index.esm.js [19353B] esm/package.json [17B] index.cjs.js [22070B] package.json [616B] .guides/usage.md [2660B] .guides/setup.md [584B] .guides/config.json [236B] README.md [162173B] 
+I0607 19:30:40.356856   19130 installsdk.go:55] Package @dataconnect/generated is already installed. Skipping installation
+I0607 19:30:40.356868   19130 load.go:109] Finished reloading
+I0607 19:30:40.356941   19130 dev.go:104] Listening on address (HTTP + gRPC): 127.0.0.1:9399
+I0607 19:30:40.356995   19130 dev.go:104] Listening on address (HTTP + gRPC): [::1]:9399
+I0607 19:30:43.249656   19130 control.go:100] [projects/emulator/locations/emulator/services/logotope 6477] UpdateResources(): done
+Main schema: sources: schema/schema.gql [2380B] 
+Connector "logotope": sources: connector/mutations.gql [4705B] connector/queries.gql [4156B] 
+I0607 19:30:43.256111   19130 configure_emulator.go:21] ConfigureEmulator successed
+Request: service_id: "logotope"
+connection_string: "postgres://127.0.0.1:5432/fdcdb?sslmode=disable"
+database: "fdcdb"
+
+Response: 

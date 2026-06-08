@@ -1,0 +1,2696 @@
+"""
+✨ `DebateSession_KeyOutput` returns the primary key fields of table type `DebateSession`.
+
+It has the same format as `DebateSession_Key`, but is only used as mutation return value.
+"""
+scalar DebateSession_KeyOutput
+"""
+✨ `DebateTopic_KeyOutput` returns the primary key fields of table type `DebateTopic`.
+
+It has the same format as `DebateTopic_Key`, but is only used as mutation return value.
+"""
+scalar DebateTopic_KeyOutput
+"""
+✨ `DebateTurn_KeyOutput` returns the primary key fields of table type `DebateTurn`.
+
+It has the same format as `DebateTurn_Key`, but is only used as mutation return value.
+"""
+scalar DebateTurn_KeyOutput
+"""
+✨ `PersonaBelief_KeyOutput` returns the primary key fields of table type `PersonaBelief`.
+
+It has the same format as `PersonaBelief_Key`, but is only used as mutation return value.
+"""
+scalar PersonaBelief_KeyOutput
+"""
+✨ `PersonaInterview_KeyOutput` returns the primary key fields of table type `PersonaInterview`.
+
+It has the same format as `PersonaInterview_Key`, but is only used as mutation return value.
+"""
+scalar PersonaInterview_KeyOutput
+"""
+✨ `PersonaProfile_KeyOutput` returns the primary key fields of table type `PersonaProfile`.
+
+It has the same format as `PersonaProfile_Key`, but is only used as mutation return value.
+"""
+scalar PersonaProfile_KeyOutput
+"""
+✨ `PostDebateComment_KeyOutput` returns the primary key fields of table type `PostDebateComment`.
+
+It has the same format as `PostDebateComment_Key`, but is only used as mutation return value.
+"""
+scalar PostDebateComment_KeyOutput
+"""
+✨ `StakeholderMap_KeyOutput` returns the primary key fields of table type `StakeholderMap`.
+
+It has the same format as `StakeholderMap_Key`, but is only used as mutation return value.
+"""
+scalar StakeholderMap_KeyOutput
+"""
+✨ Generated data input type for table 'DebateSession'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input DebateSession_Data {
+  """
+  ✨ Generated from Field `DebateSession`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `DebateSession`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateSession`.`topicId` of type `UUID!`
+  """
+  topicId: UUID
+  """
+  ✨ `_expr` server value variant of `topicId` (✨ Generated from Field `DebateSession`.`topicId` of type `UUID!`)
+  """
+  topicId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateSession`.`topic` of type `DebateTopic!`
+  """
+  topic: DebateTopic_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateSession`.`completedAt` of type `Timestamp`
+  """
+  completedAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `completedAt` (✨ Generated from Field `DebateSession`.`completedAt` of type `Timestamp`)
+  """
+  completedAt_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `completedAt` (✨ Generated from Field `DebateSession`.`completedAt` of type `Timestamp`)
+  """
+  completedAt_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `completedAt` (✨ Generated from Field `DebateSession`.`completedAt` of type `Timestamp`)
+  """
+  completedAt_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateSession`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `DebateSession`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `DebateSession`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `DebateSession`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateSession`.`publishedAt` of type `Timestamp`
+  """
+  publishedAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `publishedAt` (✨ Generated from Field `DebateSession`.`publishedAt` of type `Timestamp`)
+  """
+  publishedAt_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `publishedAt` (✨ Generated from Field `DebateSession`.`publishedAt` of type `Timestamp`)
+  """
+  publishedAt_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `publishedAt` (✨ Generated from Field `DebateSession`.`publishedAt` of type `Timestamp`)
+  """
+  publishedAt_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateSession`.`status` of type `String!`
+  """
+  status: String
+  """
+  ✨ `_expr` server value variant of `status` (✨ Generated from Field `DebateSession`.`status` of type `String!`)
+  """
+  status_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns` of type `Int`
+  """
+  totalTurns: Int
+  """
+  ✨ `_expr` server value variant of `totalTurns` (✨ Generated from Field `DebateSession`.`totalTurns` of type `Int`)
+  """
+  totalTurns_expr: Int_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `totalTurns` (✨ Generated from Field `DebateSession`.`totalTurns` of type `Int`)
+  """
+  totalTurns_update: [Int_Update!] @fdc_forbiddenInVariables
+}
+"""
+✨ Generated filter input type for table 'DebateSession'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input DebateSession_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [DebateSession_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: DebateSession_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [DebateSession_Filter!]
+  """
+  ✨ Generated from Field `DebateSession`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`topicId` of type `UUID!`
+  """
+  topicId: UUID_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`topic` of type `DebateTopic!`
+  """
+  topic: DebateTopic_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`completedAt` of type `Timestamp`
+  """
+  completedAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`publishedAt` of type `Timestamp`
+  """
+  publishedAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`status` of type `String!`
+  """
+  status: String_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns` of type `Int`
+  """
+  totalTurns: Int_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`debateTurns_on_session` of type `[DebateTurn!]!`
+  """
+  debateTurns_on_session: DebateTurn_ListFilter
+  """
+  ✨ Generated from Field `DebateSession`.`postDebateComments_on_session` of type `[PostDebateComment!]!`
+  """
+  postDebateComments_on_session: PostDebateComment_ListFilter
+}
+"""
+✨ Generated first-row input type for table 'DebateSession'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input DebateSession_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [DebateSession_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: DebateSession_Filter
+}
+"""
+✨ Generated having input type for table 'DebateSession'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input DebateSession_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [DebateSession_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: DebateSession_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [DebateSession_Having!]
+  """
+  ✨ Generated from Field `DebateSession`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`completedAt_count` of type `Int!`
+  """
+  completedAt_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`publishedAt_count` of type `Int!`
+  """
+  publishedAt_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`status_count` of type `Int!`
+  """
+  status_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`topicId_count` of type `Int!`
+  """
+  topicId_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns_count` of type `Int!`
+  """
+  totalTurns_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns_sum` of type `Int`
+  """
+  totalTurns_sum: Int_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns_avg` of type `Float`
+  """
+  totalTurns_avg: Float_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`completedAt_min` of type `Timestamp`
+  """
+  completedAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`publishedAt_min` of type `Timestamp`
+  """
+  publishedAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns_min` of type `Int`
+  """
+  totalTurns_min: Int_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`completedAt_max` of type `Timestamp`
+  """
+  completedAt_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`publishedAt_max` of type `Timestamp`
+  """
+  publishedAt_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns_max` of type `Int`
+  """
+  totalTurns_max: Int_Filter
+}
+"""
+✨ Generated key input type for table 'DebateSession'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input DebateSession_Key {
+  """
+  ✨ Generated from Field `DebateSession`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `DebateSession`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'DebateSession'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input DebateSession_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: DebateSession_Filter
+}
+"""
+✨ Generated order input type for table 'DebateSession'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input DebateSession_Order {
+  """
+  ✨ Generated from Field `DebateSession`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`topicId` of type `UUID!`
+  """
+  topicId: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`topic` of type `DebateTopic!`
+  """
+  topic: DebateTopic_Order
+  """
+  ✨ Generated from Field `DebateSession`.`completedAt` of type `Timestamp`
+  """
+  completedAt: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`publishedAt` of type `Timestamp`
+  """
+  publishedAt: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`status` of type `String!`
+  """
+  status: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns` of type `Int`
+  """
+  totalTurns: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`completedAt_count` of type `Int!`
+  """
+  completedAt_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`publishedAt_count` of type `Int!`
+  """
+  publishedAt_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`status_count` of type `Int!`
+  """
+  status_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`topicId_count` of type `Int!`
+  """
+  topicId_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns_count` of type `Int!`
+  """
+  totalTurns_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns_sum` of type `Int`
+  """
+  totalTurns_sum: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns_avg` of type `Float`
+  """
+  totalTurns_avg: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`completedAt_min` of type `Timestamp`
+  """
+  completedAt_min: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`publishedAt_min` of type `Timestamp`
+  """
+  publishedAt_min: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns_min` of type `Int`
+  """
+  totalTurns_min: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`completedAt_max` of type `Timestamp`
+  """
+  completedAt_max: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`publishedAt_max` of type `Timestamp`
+  """
+  publishedAt_max: OrderDirection
+  """
+  ✨ Generated from Field `DebateSession`.`totalTurns_max` of type `Int`
+  """
+  totalTurns_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'DebateTopic'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input DebateTopic_Data {
+  """
+  ✨ Generated from Field `DebateTopic`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `DebateTopic`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTopic`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `DebateTopic`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `DebateTopic`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `DebateTopic`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTopic`.`status` of type `String!`
+  """
+  status: String
+  """
+  ✨ `_expr` server value variant of `status` (✨ Generated from Field `DebateTopic`.`status` of type `String!`)
+  """
+  status_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTopic`.`title` of type `String!`
+  """
+  title: String
+  """
+  ✨ `_expr` server value variant of `title` (✨ Generated from Field `DebateTopic`.`title` of type `String!`)
+  """
+  title_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTopic`.`updatedAt` of type `Timestamp!`
+  """
+  updatedAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `updatedAt` (✨ Generated from Field `DebateTopic`.`updatedAt` of type `Timestamp!`)
+  """
+  updatedAt_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `updatedAt` (✨ Generated from Field `DebateTopic`.`updatedAt` of type `Timestamp!`)
+  """
+  updatedAt_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `updatedAt` (✨ Generated from Field `DebateTopic`.`updatedAt` of type `Timestamp!`)
+  """
+  updatedAt_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+}
+"""
+✨ Generated filter input type for table 'DebateTopic'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input DebateTopic_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [DebateTopic_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: DebateTopic_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [DebateTopic_Filter!]
+  """
+  ✨ Generated from Field `DebateTopic`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`status` of type `String!`
+  """
+  status: String_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`title` of type `String!`
+  """
+  title: String_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`updatedAt` of type `Timestamp!`
+  """
+  updatedAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`personaProfiles_on_topic` of type `[PersonaProfile!]!`
+  """
+  personaProfiles_on_topic: PersonaProfile_ListFilter
+  """
+  ✨ Generated from Field `DebateTopic`.`debateSession_on_topic` of type `DebateSession`
+  """
+  debateSession_on_topic: DebateSession_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`stakeholderMap_on_topic` of type `StakeholderMap`
+  """
+  stakeholderMap_on_topic: StakeholderMap_Filter
+}
+"""
+✨ Generated first-row input type for table 'DebateTopic'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input DebateTopic_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [DebateTopic_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: DebateTopic_Filter
+}
+"""
+✨ Generated having input type for table 'DebateTopic'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input DebateTopic_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [DebateTopic_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: DebateTopic_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [DebateTopic_Having!]
+  """
+  ✨ Generated from Field `DebateTopic`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`status_count` of type `Int!`
+  """
+  status_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`title_count` of type `Int!`
+  """
+  title_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`updatedAt_count` of type `Int!`
+  """
+  updatedAt_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`updatedAt_min` of type `Timestamp`
+  """
+  updatedAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateTopic`.`updatedAt_max` of type `Timestamp`
+  """
+  updatedAt_max: Timestamp_Filter
+}
+"""
+✨ Generated key input type for table 'DebateTopic'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input DebateTopic_Key {
+  """
+  ✨ Generated from Field `DebateTopic`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `DebateTopic`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'DebateTopic'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input DebateTopic_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: DebateTopic_Filter
+}
+"""
+✨ Generated order input type for table 'DebateTopic'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input DebateTopic_Order {
+  """
+  ✨ Generated from Field `DebateTopic`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`status` of type `String!`
+  """
+  status: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`title` of type `String!`
+  """
+  title: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`updatedAt` of type `Timestamp!`
+  """
+  updatedAt: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`status_count` of type `Int!`
+  """
+  status_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`title_count` of type `Int!`
+  """
+  title_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`updatedAt_count` of type `Int!`
+  """
+  updatedAt_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`updatedAt_min` of type `Timestamp`
+  """
+  updatedAt_min: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: OrderDirection
+  """
+  ✨ Generated from Field `DebateTopic`.`updatedAt_max` of type `Timestamp`
+  """
+  updatedAt_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'DebateTurn'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input DebateTurn_Data {
+  """
+  ✨ Generated from Field `DebateTurn`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `DebateTurn`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTurn`.`personaId` of type `UUID`
+  """
+  personaId: UUID
+  """
+  ✨ `_expr` server value variant of `personaId` (✨ Generated from Field `DebateTurn`.`personaId` of type `UUID`)
+  """
+  personaId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTurn`.`sessionId` of type `UUID!`
+  """
+  sessionId: UUID
+  """
+  ✨ `_expr` server value variant of `sessionId` (✨ Generated from Field `DebateTurn`.`sessionId` of type `UUID!`)
+  """
+  sessionId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTurn`.`persona` of type `PersonaProfile`
+  """
+  persona: PersonaProfile_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTurn`.`session` of type `DebateSession!`
+  """
+  session: DebateSession_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTurn`.`content` of type `String!`
+  """
+  content: String
+  """
+  ✨ `_expr` server value variant of `content` (✨ Generated from Field `DebateTurn`.`content` of type `String!`)
+  """
+  content_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTurn`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `DebateTurn`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `DebateTurn`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `DebateTurn`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTurn`.`speakerType` of type `String!`
+  """
+  speakerType: String
+  """
+  ✨ `_expr` server value variant of `speakerType` (✨ Generated from Field `DebateTurn`.`speakerType` of type `String!`)
+  """
+  speakerType_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex` of type `Int!`
+  """
+  turnIndex: Int
+  """
+  ✨ `_expr` server value variant of `turnIndex` (✨ Generated from Field `DebateTurn`.`turnIndex` of type `Int!`)
+  """
+  turnIndex_expr: Int_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `turnIndex` (✨ Generated from Field `DebateTurn`.`turnIndex` of type `Int!`)
+  """
+  turnIndex_update: [Int_Update!] @fdc_forbiddenInVariables
+}
+"""
+✨ Generated filter input type for table 'DebateTurn'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input DebateTurn_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [DebateTurn_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: DebateTurn_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [DebateTurn_Filter!]
+  """
+  ✨ Generated from Field `DebateTurn`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`personaId` of type `UUID`
+  """
+  personaId: UUID_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`sessionId` of type `UUID!`
+  """
+  sessionId: UUID_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`persona` of type `PersonaProfile`
+  """
+  persona: PersonaProfile_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`session` of type `DebateSession!`
+  """
+  session: DebateSession_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`content` of type `String!`
+  """
+  content: String_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`speakerType` of type `String!`
+  """
+  speakerType: String_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex` of type `Int!`
+  """
+  turnIndex: Int_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`personaBeliefs_on_triggeredByTurn` of type `[PersonaBelief!]!`
+  """
+  personaBeliefs_on_triggeredByTurn: PersonaBelief_ListFilter
+}
+"""
+✨ Generated first-row input type for table 'DebateTurn'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input DebateTurn_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [DebateTurn_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: DebateTurn_Filter
+}
+"""
+✨ Generated having input type for table 'DebateTurn'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input DebateTurn_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [DebateTurn_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: DebateTurn_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [DebateTurn_Having!]
+  """
+  ✨ Generated from Field `DebateTurn`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`content_count` of type `Int!`
+  """
+  content_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`personaId_count` of type `Int!`
+  """
+  personaId_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`sessionId_count` of type `Int!`
+  """
+  sessionId_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`speakerType_count` of type `Int!`
+  """
+  speakerType_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex_count` of type `Int!`
+  """
+  turnIndex_count: Int_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex_sum` of type `Int`
+  """
+  turnIndex_sum: Int_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex_avg` of type `Float`
+  """
+  turnIndex_avg: Float_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex_min` of type `Int`
+  """
+  turnIndex_min: Int_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex_max` of type `Int`
+  """
+  turnIndex_max: Int_Filter
+}
+"""
+✨ Generated key input type for table 'DebateTurn'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input DebateTurn_Key {
+  """
+  ✨ Generated from Field `DebateTurn`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `DebateTurn`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'DebateTurn'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input DebateTurn_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: DebateTurn_Filter
+}
+"""
+✨ Generated order input type for table 'DebateTurn'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input DebateTurn_Order {
+  """
+  ✨ Generated from Field `DebateTurn`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`personaId` of type `UUID`
+  """
+  personaId: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`sessionId` of type `UUID!`
+  """
+  sessionId: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`persona` of type `PersonaProfile`
+  """
+  persona: PersonaProfile_Order
+  """
+  ✨ Generated from Field `DebateTurn`.`session` of type `DebateSession!`
+  """
+  session: DebateSession_Order
+  """
+  ✨ Generated from Field `DebateTurn`.`content` of type `String!`
+  """
+  content: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`speakerType` of type `String!`
+  """
+  speakerType: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex` of type `Int!`
+  """
+  turnIndex: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`content_count` of type `Int!`
+  """
+  content_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`personaId_count` of type `Int!`
+  """
+  personaId_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`sessionId_count` of type `Int!`
+  """
+  sessionId_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`speakerType_count` of type `Int!`
+  """
+  speakerType_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex_count` of type `Int!`
+  """
+  turnIndex_count: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex_sum` of type `Int`
+  """
+  turnIndex_sum: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex_avg` of type `Float`
+  """
+  turnIndex_avg: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex_min` of type `Int`
+  """
+  turnIndex_min: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: OrderDirection
+  """
+  ✨ Generated from Field `DebateTurn`.`turnIndex_max` of type `Int`
+  """
+  turnIndex_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'PersonaBelief'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input PersonaBelief_Data {
+  """
+  ✨ Generated from Field `PersonaBelief`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `PersonaBelief`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaBelief`.`personaId` of type `UUID!`
+  """
+  personaId: UUID
+  """
+  ✨ `_expr` server value variant of `personaId` (✨ Generated from Field `PersonaBelief`.`personaId` of type `UUID!`)
+  """
+  personaId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaBelief`.`triggeredByTurnId` of type `UUID`
+  """
+  triggeredByTurnId: UUID
+  """
+  ✨ `_expr` server value variant of `triggeredByTurnId` (✨ Generated from Field `PersonaBelief`.`triggeredByTurnId` of type `UUID`)
+  """
+  triggeredByTurnId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaBelief`.`persona` of type `PersonaProfile!`
+  """
+  persona: PersonaProfile_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaBelief`.`triggeredByTurn` of type `DebateTurn`
+  """
+  triggeredByTurn: DebateTurn_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaBelief`.`changeSummary` of type `String`
+  """
+  changeSummary: String
+  """
+  ✨ `_expr` server value variant of `changeSummary` (✨ Generated from Field `PersonaBelief`.`changeSummary` of type `String`)
+  """
+  changeSummary_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaBelief`.`changeType` of type `String`
+  """
+  changeType: String
+  """
+  ✨ `_expr` server value variant of `changeType` (✨ Generated from Field `PersonaBelief`.`changeType` of type `String`)
+  """
+  changeType_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaBelief`.`content` of type `String!`
+  """
+  content: String
+  """
+  ✨ `_expr` server value variant of `content` (✨ Generated from Field `PersonaBelief`.`content` of type `String!`)
+  """
+  content_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaBelief`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `PersonaBelief`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `PersonaBelief`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `PersonaBelief`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaBelief`.`version` of type `Int!`
+  """
+  version: Int
+  """
+  ✨ `_expr` server value variant of `version` (✨ Generated from Field `PersonaBelief`.`version` of type `Int!`)
+  """
+  version_expr: Int_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `version` (✨ Generated from Field `PersonaBelief`.`version` of type `Int!`)
+  """
+  version_update: [Int_Update!] @fdc_forbiddenInVariables
+}
+"""
+✨ Generated filter input type for table 'PersonaBelief'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input PersonaBelief_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [PersonaBelief_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: PersonaBelief_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [PersonaBelief_Filter!]
+  """
+  ✨ Generated from Field `PersonaBelief`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`personaId` of type `UUID!`
+  """
+  personaId: UUID_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`triggeredByTurnId` of type `UUID`
+  """
+  triggeredByTurnId: UUID_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`persona` of type `PersonaProfile!`
+  """
+  persona: PersonaProfile_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`triggeredByTurn` of type `DebateTurn`
+  """
+  triggeredByTurn: DebateTurn_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`changeSummary` of type `String`
+  """
+  changeSummary: String_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`changeType` of type `String`
+  """
+  changeType: String_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`content` of type `String!`
+  """
+  content: String_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`version` of type `Int!`
+  """
+  version: Int_Filter
+}
+"""
+✨ Generated first-row input type for table 'PersonaBelief'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input PersonaBelief_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [PersonaBelief_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: PersonaBelief_Filter
+}
+"""
+✨ Generated having input type for table 'PersonaBelief'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input PersonaBelief_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [PersonaBelief_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: PersonaBelief_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [PersonaBelief_Having!]
+  """
+  ✨ Generated from Field `PersonaBelief`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`changeSummary_count` of type `Int!`
+  """
+  changeSummary_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`changeType_count` of type `Int!`
+  """
+  changeType_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`content_count` of type `Int!`
+  """
+  content_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`personaId_count` of type `Int!`
+  """
+  personaId_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`triggeredByTurnId_count` of type `Int!`
+  """
+  triggeredByTurnId_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`version_count` of type `Int!`
+  """
+  version_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`version_sum` of type `Int`
+  """
+  version_sum: Int_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`version_avg` of type `Float`
+  """
+  version_avg: Float_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`version_min` of type `Int`
+  """
+  version_min: Int_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+  """
+  ✨ Generated from Field `PersonaBelief`.`version_max` of type `Int`
+  """
+  version_max: Int_Filter
+}
+"""
+✨ Generated key input type for table 'PersonaBelief'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input PersonaBelief_Key {
+  """
+  ✨ Generated from Field `PersonaBelief`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `PersonaBelief`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'PersonaBelief'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input PersonaBelief_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: PersonaBelief_Filter
+}
+"""
+✨ Generated order input type for table 'PersonaBelief'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input PersonaBelief_Order {
+  """
+  ✨ Generated from Field `PersonaBelief`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`personaId` of type `UUID!`
+  """
+  personaId: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`triggeredByTurnId` of type `UUID`
+  """
+  triggeredByTurnId: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`persona` of type `PersonaProfile!`
+  """
+  persona: PersonaProfile_Order
+  """
+  ✨ Generated from Field `PersonaBelief`.`triggeredByTurn` of type `DebateTurn`
+  """
+  triggeredByTurn: DebateTurn_Order
+  """
+  ✨ Generated from Field `PersonaBelief`.`changeSummary` of type `String`
+  """
+  changeSummary: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`changeType` of type `String`
+  """
+  changeType: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`content` of type `String!`
+  """
+  content: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`version` of type `Int!`
+  """
+  version: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`changeSummary_count` of type `Int!`
+  """
+  changeSummary_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`changeType_count` of type `Int!`
+  """
+  changeType_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`content_count` of type `Int!`
+  """
+  content_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`personaId_count` of type `Int!`
+  """
+  personaId_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`triggeredByTurnId_count` of type `Int!`
+  """
+  triggeredByTurnId_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`version_count` of type `Int!`
+  """
+  version_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`version_sum` of type `Int`
+  """
+  version_sum: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`version_avg` of type `Float`
+  """
+  version_avg: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`version_min` of type `Int`
+  """
+  version_min: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: OrderDirection
+  """
+  ✨ Generated from Field `PersonaBelief`.`version_max` of type `Int`
+  """
+  version_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'PersonaInterview'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input PersonaInterview_Data {
+  """
+  ✨ Generated from Field `PersonaInterview`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `PersonaInterview`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaInterview`.`personaId` of type `UUID!`
+  """
+  personaId: UUID
+  """
+  ✨ `_expr` server value variant of `personaId` (✨ Generated from Field `PersonaInterview`.`personaId` of type `UUID!`)
+  """
+  personaId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaInterview`.`persona` of type `PersonaProfile!`
+  """
+  persona: PersonaProfile_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaInterview`.`completedAt` of type `Timestamp`
+  """
+  completedAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `completedAt` (✨ Generated from Field `PersonaInterview`.`completedAt` of type `Timestamp`)
+  """
+  completedAt_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `completedAt` (✨ Generated from Field `PersonaInterview`.`completedAt` of type `Timestamp`)
+  """
+  completedAt_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `completedAt` (✨ Generated from Field `PersonaInterview`.`completedAt` of type `Timestamp`)
+  """
+  completedAt_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaInterview`.`errorMessage` of type `String`
+  """
+  errorMessage: String
+  """
+  ✨ `_expr` server value variant of `errorMessage` (✨ Generated from Field `PersonaInterview`.`errorMessage` of type `String`)
+  """
+  errorMessage_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaInterview`.`interviewRecord` of type `String!`
+  """
+  interviewRecord: String
+  """
+  ✨ `_expr` server value variant of `interviewRecord` (✨ Generated from Field `PersonaInterview`.`interviewRecord` of type `String!`)
+  """
+  interviewRecord_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaInterview`.`status` of type `String!`
+  """
+  status: String
+  """
+  ✨ `_expr` server value variant of `status` (✨ Generated from Field `PersonaInterview`.`status` of type `String!`)
+  """
+  status_expr: String_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated filter input type for table 'PersonaInterview'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input PersonaInterview_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [PersonaInterview_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: PersonaInterview_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [PersonaInterview_Filter!]
+  """
+  ✨ Generated from Field `PersonaInterview`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`personaId` of type `UUID!`
+  """
+  personaId: UUID_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`persona` of type `PersonaProfile!`
+  """
+  persona: PersonaProfile_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`completedAt` of type `Timestamp`
+  """
+  completedAt: Timestamp_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`errorMessage` of type `String`
+  """
+  errorMessage: String_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`interviewRecord` of type `String!`
+  """
+  interviewRecord: String_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`status` of type `String!`
+  """
+  status: String_Filter
+}
+"""
+✨ Generated first-row input type for table 'PersonaInterview'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input PersonaInterview_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [PersonaInterview_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: PersonaInterview_Filter
+}
+"""
+✨ Generated having input type for table 'PersonaInterview'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input PersonaInterview_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [PersonaInterview_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: PersonaInterview_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [PersonaInterview_Having!]
+  """
+  ✨ Generated from Field `PersonaInterview`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`completedAt_count` of type `Int!`
+  """
+  completedAt_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`errorMessage_count` of type `Int!`
+  """
+  errorMessage_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`interviewRecord_count` of type `Int!`
+  """
+  interviewRecord_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`personaId_count` of type `Int!`
+  """
+  personaId_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`status_count` of type `Int!`
+  """
+  status_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`completedAt_min` of type `Timestamp`
+  """
+  completedAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `PersonaInterview`.`completedAt_max` of type `Timestamp`
+  """
+  completedAt_max: Timestamp_Filter
+}
+"""
+✨ Generated key input type for table 'PersonaInterview'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input PersonaInterview_Key {
+  """
+  ✨ Generated from Field `PersonaInterview`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `PersonaInterview`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'PersonaInterview'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input PersonaInterview_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: PersonaInterview_Filter
+}
+"""
+✨ Generated order input type for table 'PersonaInterview'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input PersonaInterview_Order {
+  """
+  ✨ Generated from Field `PersonaInterview`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`personaId` of type `UUID!`
+  """
+  personaId: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`persona` of type `PersonaProfile!`
+  """
+  persona: PersonaProfile_Order
+  """
+  ✨ Generated from Field `PersonaInterview`.`completedAt` of type `Timestamp`
+  """
+  completedAt: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`errorMessage` of type `String`
+  """
+  errorMessage: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`interviewRecord` of type `String!`
+  """
+  interviewRecord: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`status` of type `String!`
+  """
+  status: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`completedAt_count` of type `Int!`
+  """
+  completedAt_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`errorMessage_count` of type `Int!`
+  """
+  errorMessage_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`interviewRecord_count` of type `Int!`
+  """
+  interviewRecord_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`personaId_count` of type `Int!`
+  """
+  personaId_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`status_count` of type `Int!`
+  """
+  status_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`completedAt_min` of type `Timestamp`
+  """
+  completedAt_min: OrderDirection
+  """
+  ✨ Generated from Field `PersonaInterview`.`completedAt_max` of type `Timestamp`
+  """
+  completedAt_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'PersonaProfile'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input PersonaProfile_Data {
+  """
+  ✨ Generated from Field `PersonaProfile`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `PersonaProfile`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaProfile`.`topicId` of type `UUID!`
+  """
+  topicId: UUID
+  """
+  ✨ `_expr` server value variant of `topicId` (✨ Generated from Field `PersonaProfile`.`topicId` of type `UUID!`)
+  """
+  topicId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaProfile`.`topic` of type `DebateTopic!`
+  """
+  topic: DebateTopic_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaProfile`.`age` of type `Int!`
+  """
+  age: Int
+  """
+  ✨ `_expr` server value variant of `age` (✨ Generated from Field `PersonaProfile`.`age` of type `Int!`)
+  """
+  age_expr: Int_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `age` (✨ Generated from Field `PersonaProfile`.`age` of type `Int!`)
+  """
+  age_update: [Int_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaProfile`.`approved` of type `Boolean!`
+  """
+  approved: Boolean
+  """
+  ✨ `_expr` server value variant of `approved` (✨ Generated from Field `PersonaProfile`.`approved` of type `Boolean!`)
+  """
+  approved_expr: Boolean_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaProfile`.`background` of type `String!`
+  """
+  background: String
+  """
+  ✨ `_expr` server value variant of `background` (✨ Generated from Field `PersonaProfile`.`background` of type `String!`)
+  """
+  background_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaProfile`.`interests` of type `String!`
+  """
+  interests: String
+  """
+  ✨ `_expr` server value variant of `interests` (✨ Generated from Field `PersonaProfile`.`interests` of type `String!`)
+  """
+  interests_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaProfile`.`name` of type `String!`
+  """
+  name: String
+  """
+  ✨ `_expr` server value variant of `name` (✨ Generated from Field `PersonaProfile`.`name` of type `String!`)
+  """
+  name_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaProfile`.`occupation` of type `String!`
+  """
+  occupation: String
+  """
+  ✨ `_expr` server value variant of `occupation` (✨ Generated from Field `PersonaProfile`.`occupation` of type `String!`)
+  """
+  occupation_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder` of type `Int!`
+  """
+  sortOrder: Int
+  """
+  ✨ `_expr` server value variant of `sortOrder` (✨ Generated from Field `PersonaProfile`.`sortOrder` of type `Int!`)
+  """
+  sortOrder_expr: Int_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `sortOrder` (✨ Generated from Field `PersonaProfile`.`sortOrder` of type `Int!`)
+  """
+  sortOrder_update: [Int_Update!] @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaProfile`.`stakeholderRole` of type `String!`
+  """
+  stakeholderRole: String
+  """
+  ✨ `_expr` server value variant of `stakeholderRole` (✨ Generated from Field `PersonaProfile`.`stakeholderRole` of type `String!`)
+  """
+  stakeholderRole_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PersonaProfile`.`stanceDirection` of type `String!`
+  """
+  stanceDirection: String
+  """
+  ✨ `_expr` server value variant of `stanceDirection` (✨ Generated from Field `PersonaProfile`.`stanceDirection` of type `String!`)
+  """
+  stanceDirection_expr: String_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated filter input type for table 'PersonaProfile'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input PersonaProfile_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [PersonaProfile_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: PersonaProfile_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [PersonaProfile_Filter!]
+  """
+  ✨ Generated from Field `PersonaProfile`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`topicId` of type `UUID!`
+  """
+  topicId: UUID_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`topic` of type `DebateTopic!`
+  """
+  topic: DebateTopic_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`age` of type `Int!`
+  """
+  age: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`approved` of type `Boolean!`
+  """
+  approved: Boolean_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`background` of type `String!`
+  """
+  background: String_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`interests` of type `String!`
+  """
+  interests: String_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`name` of type `String!`
+  """
+  name: String_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`occupation` of type `String!`
+  """
+  occupation: String_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder` of type `Int!`
+  """
+  sortOrder: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`stakeholderRole` of type `String!`
+  """
+  stakeholderRole: String_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`stanceDirection` of type `String!`
+  """
+  stanceDirection: String_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`debateTurns_on_persona` of type `[DebateTurn!]!`
+  """
+  debateTurns_on_persona: DebateTurn_ListFilter
+  """
+  ✨ Generated from Field `PersonaProfile`.`personaBeliefs_on_persona` of type `[PersonaBelief!]!`
+  """
+  personaBeliefs_on_persona: PersonaBelief_ListFilter
+  """
+  ✨ Generated from Field `PersonaProfile`.`postDebateComments_on_persona` of type `[PostDebateComment!]!`
+  """
+  postDebateComments_on_persona: PostDebateComment_ListFilter
+  """
+  ✨ Generated from Field `PersonaProfile`.`personaInterview_on_persona` of type `PersonaInterview`
+  """
+  personaInterview_on_persona: PersonaInterview_Filter
+}
+"""
+✨ Generated first-row input type for table 'PersonaProfile'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input PersonaProfile_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [PersonaProfile_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: PersonaProfile_Filter
+}
+"""
+✨ Generated having input type for table 'PersonaProfile'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input PersonaProfile_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [PersonaProfile_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: PersonaProfile_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [PersonaProfile_Having!]
+  """
+  ✨ Generated from Field `PersonaProfile`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`age_count` of type `Int!`
+  """
+  age_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`approved_count` of type `Int!`
+  """
+  approved_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`background_count` of type `Int!`
+  """
+  background_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`interests_count` of type `Int!`
+  """
+  interests_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`name_count` of type `Int!`
+  """
+  name_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`occupation_count` of type `Int!`
+  """
+  occupation_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder_count` of type `Int!`
+  """
+  sortOrder_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`stakeholderRole_count` of type `Int!`
+  """
+  stakeholderRole_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`stanceDirection_count` of type `Int!`
+  """
+  stanceDirection_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`topicId_count` of type `Int!`
+  """
+  topicId_count: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`age_sum` of type `Int`
+  """
+  age_sum: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder_sum` of type `Int`
+  """
+  sortOrder_sum: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`age_avg` of type `Float`
+  """
+  age_avg: Float_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder_avg` of type `Float`
+  """
+  sortOrder_avg: Float_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`age_min` of type `Int`
+  """
+  age_min: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder_min` of type `Int`
+  """
+  sortOrder_min: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`age_max` of type `Int`
+  """
+  age_max: Int_Filter
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder_max` of type `Int`
+  """
+  sortOrder_max: Int_Filter
+}
+"""
+✨ Generated key input type for table 'PersonaProfile'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input PersonaProfile_Key {
+  """
+  ✨ Generated from Field `PersonaProfile`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `PersonaProfile`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'PersonaProfile'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input PersonaProfile_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: PersonaProfile_Filter
+}
+"""
+✨ Generated order input type for table 'PersonaProfile'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input PersonaProfile_Order {
+  """
+  ✨ Generated from Field `PersonaProfile`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`topicId` of type `UUID!`
+  """
+  topicId: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`topic` of type `DebateTopic!`
+  """
+  topic: DebateTopic_Order
+  """
+  ✨ Generated from Field `PersonaProfile`.`age` of type `Int!`
+  """
+  age: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`approved` of type `Boolean!`
+  """
+  approved: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`background` of type `String!`
+  """
+  background: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`interests` of type `String!`
+  """
+  interests: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`name` of type `String!`
+  """
+  name: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`occupation` of type `String!`
+  """
+  occupation: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder` of type `Int!`
+  """
+  sortOrder: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`stakeholderRole` of type `String!`
+  """
+  stakeholderRole: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`stanceDirection` of type `String!`
+  """
+  stanceDirection: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`age_count` of type `Int!`
+  """
+  age_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`approved_count` of type `Int!`
+  """
+  approved_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`background_count` of type `Int!`
+  """
+  background_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`interests_count` of type `Int!`
+  """
+  interests_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`name_count` of type `Int!`
+  """
+  name_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`occupation_count` of type `Int!`
+  """
+  occupation_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder_count` of type `Int!`
+  """
+  sortOrder_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`stakeholderRole_count` of type `Int!`
+  """
+  stakeholderRole_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`stanceDirection_count` of type `Int!`
+  """
+  stanceDirection_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`topicId_count` of type `Int!`
+  """
+  topicId_count: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`age_sum` of type `Int`
+  """
+  age_sum: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder_sum` of type `Int`
+  """
+  sortOrder_sum: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`age_avg` of type `Float`
+  """
+  age_avg: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder_avg` of type `Float`
+  """
+  sortOrder_avg: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`age_min` of type `Int`
+  """
+  age_min: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder_min` of type `Int`
+  """
+  sortOrder_min: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`age_max` of type `Int`
+  """
+  age_max: OrderDirection
+  """
+  ✨ Generated from Field `PersonaProfile`.`sortOrder_max` of type `Int`
+  """
+  sortOrder_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'PostDebateComment'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input PostDebateComment_Data {
+  """
+  ✨ Generated from Field `PostDebateComment`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `PostDebateComment`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PostDebateComment`.`personaId` of type `UUID!`
+  """
+  personaId: UUID
+  """
+  ✨ `_expr` server value variant of `personaId` (✨ Generated from Field `PostDebateComment`.`personaId` of type `UUID!`)
+  """
+  personaId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PostDebateComment`.`sessionId` of type `UUID!`
+  """
+  sessionId: UUID
+  """
+  ✨ `_expr` server value variant of `sessionId` (✨ Generated from Field `PostDebateComment`.`sessionId` of type `UUID!`)
+  """
+  sessionId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PostDebateComment`.`persona` of type `PersonaProfile!`
+  """
+  persona: PersonaProfile_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PostDebateComment`.`session` of type `DebateSession!`
+  """
+  session: DebateSession_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PostDebateComment`.`content` of type `String!`
+  """
+  content: String
+  """
+  ✨ `_expr` server value variant of `content` (✨ Generated from Field `PostDebateComment`.`content` of type `String!`)
+  """
+  content_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder` of type `Int!`
+  """
+  sortOrder: Int
+  """
+  ✨ `_expr` server value variant of `sortOrder` (✨ Generated from Field `PostDebateComment`.`sortOrder` of type `Int!`)
+  """
+  sortOrder_expr: Int_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `sortOrder` (✨ Generated from Field `PostDebateComment`.`sortOrder` of type `Int!`)
+  """
+  sortOrder_update: [Int_Update!] @fdc_forbiddenInVariables
+}
+"""
+✨ Generated filter input type for table 'PostDebateComment'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input PostDebateComment_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [PostDebateComment_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: PostDebateComment_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [PostDebateComment_Filter!]
+  """
+  ✨ Generated from Field `PostDebateComment`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`personaId` of type `UUID!`
+  """
+  personaId: UUID_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`sessionId` of type `UUID!`
+  """
+  sessionId: UUID_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`persona` of type `PersonaProfile!`
+  """
+  persona: PersonaProfile_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`session` of type `DebateSession!`
+  """
+  session: DebateSession_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`content` of type `String!`
+  """
+  content: String_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder` of type `Int!`
+  """
+  sortOrder: Int_Filter
+}
+"""
+✨ Generated first-row input type for table 'PostDebateComment'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input PostDebateComment_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [PostDebateComment_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: PostDebateComment_Filter
+}
+"""
+✨ Generated having input type for table 'PostDebateComment'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input PostDebateComment_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [PostDebateComment_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: PostDebateComment_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [PostDebateComment_Having!]
+  """
+  ✨ Generated from Field `PostDebateComment`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`content_count` of type `Int!`
+  """
+  content_count: Int_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`personaId_count` of type `Int!`
+  """
+  personaId_count: Int_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`sessionId_count` of type `Int!`
+  """
+  sessionId_count: Int_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder_count` of type `Int!`
+  """
+  sortOrder_count: Int_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder_sum` of type `Int`
+  """
+  sortOrder_sum: Int_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder_avg` of type `Float`
+  """
+  sortOrder_avg: Float_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder_min` of type `Int`
+  """
+  sortOrder_min: Int_Filter
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder_max` of type `Int`
+  """
+  sortOrder_max: Int_Filter
+}
+"""
+✨ Generated key input type for table 'PostDebateComment'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input PostDebateComment_Key {
+  """
+  ✨ Generated from Field `PostDebateComment`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `PostDebateComment`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'PostDebateComment'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input PostDebateComment_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: PostDebateComment_Filter
+}
+"""
+✨ Generated order input type for table 'PostDebateComment'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input PostDebateComment_Order {
+  """
+  ✨ Generated from Field `PostDebateComment`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`personaId` of type `UUID!`
+  """
+  personaId: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`sessionId` of type `UUID!`
+  """
+  sessionId: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`persona` of type `PersonaProfile!`
+  """
+  persona: PersonaProfile_Order
+  """
+  ✨ Generated from Field `PostDebateComment`.`session` of type `DebateSession!`
+  """
+  session: DebateSession_Order
+  """
+  ✨ Generated from Field `PostDebateComment`.`content` of type `String!`
+  """
+  content: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder` of type `Int!`
+  """
+  sortOrder: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`content_count` of type `Int!`
+  """
+  content_count: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`personaId_count` of type `Int!`
+  """
+  personaId_count: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`sessionId_count` of type `Int!`
+  """
+  sessionId_count: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder_count` of type `Int!`
+  """
+  sortOrder_count: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder_sum` of type `Int`
+  """
+  sortOrder_sum: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder_avg` of type `Float`
+  """
+  sortOrder_avg: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder_min` of type `Int`
+  """
+  sortOrder_min: OrderDirection
+  """
+  ✨ Generated from Field `PostDebateComment`.`sortOrder_max` of type `Int`
+  """
+  sortOrder_max: OrderDirection
+}
+"""
+✨ Generated data input type for table 'StakeholderMap'. It includes all necessary fields for creating or upserting rows into table.
+"""
+input StakeholderMap_Data {
+  """
+  ✨ Generated from Field `StakeholderMap`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `StakeholderMap`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `StakeholderMap`.`topicId` of type `UUID!`
+  """
+  topicId: UUID
+  """
+  ✨ `_expr` server value variant of `topicId` (✨ Generated from Field `StakeholderMap`.`topicId` of type `UUID!`)
+  """
+  topicId_expr: UUID_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `StakeholderMap`.`topic` of type `DebateTopic!`
+  """
+  topic: DebateTopic_Key @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `StakeholderMap`.`approved` of type `Boolean!`
+  """
+  approved: Boolean
+  """
+  ✨ `_expr` server value variant of `approved` (✨ Generated from Field `StakeholderMap`.`approved` of type `Boolean!`)
+  """
+  approved_expr: Boolean_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `StakeholderMap`.`content` of type `String!`
+  """
+  content: String
+  """
+  ✨ `_expr` server value variant of `content` (✨ Generated from Field `StakeholderMap`.`content` of type `String!`)
+  """
+  content_expr: String_Expr @fdc_forbiddenInVariables
+  """
+  ✨ Generated from Field `StakeholderMap`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp
+  """
+  ✨ `_expr` server value variant of `createdAt` (✨ Generated from Field `StakeholderMap`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_expr: Timestamp_Expr @fdc_forbiddenInVariables
+  """
+  ✨ `_time` server value variant of `createdAt` (✨ Generated from Field `StakeholderMap`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_time: Timestamp_Relative @fdc_forbiddenInVariables
+  """
+  ✨ `_update` server value variant of `createdAt` (✨ Generated from Field `StakeholderMap`.`createdAt` of type `Timestamp!`)
+  """
+  createdAt_update: [Timestamp_Update!] @fdc_forbiddenInVariables
+}
+"""
+✨ Generated filter input type for table 'StakeholderMap'. This input allows filtering objects using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input StakeholderMap_Filter {
+  """
+  Apply multiple filter conditions using `AND` logic.
+  """
+  _and: [StakeholderMap_Filter!]
+  """
+  Negate the result of the provided filter condition.
+  """
+  _not: StakeholderMap_Filter
+  """
+  Apply multiple filter conditions using `OR` logic.
+  """
+  _or: [StakeholderMap_Filter!]
+  """
+  ✨ Generated from Field `StakeholderMap`.`id` of type `UUID!`
+  """
+  id: UUID_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`topicId` of type `UUID!`
+  """
+  topicId: UUID_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`topic` of type `DebateTopic!`
+  """
+  topic: DebateTopic_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`approved` of type `Boolean!`
+  """
+  approved: Boolean_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`content` of type `String!`
+  """
+  content: String_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: Timestamp_Filter
+}
+"""
+✨ Generated first-row input type for table 'StakeholderMap'. This input selects the first row matching the filter criteria, ordered according to the specified conditions.
+"""
+input StakeholderMap_FirstRow {
+  """
+  Order the result by the specified fields.
+  """
+  orderBy: [StakeholderMap_Order!]
+  """
+  Filters rows based on the specified conditions.
+  """
+  where: StakeholderMap_Filter
+}
+"""
+✨ Generated having input type for table 'StakeholderMap'. This input allows you to filter groups during aggregate queries using various conditions. Use `_or`, `_and`, and `_not` to compose complex filters.
+"""
+input StakeholderMap_Having {
+  """
+  Apply multiple Having conditions using `AND` logic.
+  """
+  _and: [StakeholderMap_Having!]
+  """
+  Whether to apply DISTINCT to the aggregate function.
+  """
+  _distinct: Boolean
+  """
+  Negate the result of the provided Having condition.
+  """
+  _not: StakeholderMap_Having
+  """
+  Apply multiple Having conditions using `OR` logic.
+  """
+  _or: [StakeholderMap_Having!]
+  """
+  ✨ Generated from Field `StakeholderMap`.`_count` of type `Int!`
+  """
+  _count: Int_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`approved_count` of type `Int!`
+  """
+  approved_count: Int_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`content_count` of type `Int!`
+  """
+  content_count: Int_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: Int_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`id_count` of type `Int!`
+  """
+  id_count: Int_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`topicId_count` of type `Int!`
+  """
+  topicId_count: Int_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: Timestamp_Filter
+  """
+  ✨ Generated from Field `StakeholderMap`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: Timestamp_Filter
+}
+"""
+✨ Generated key input type for table 'StakeholderMap'. It represents the primary key fields used to uniquely identify a row in the table.
+"""
+input StakeholderMap_Key {
+  """
+  ✨ Generated from Field `StakeholderMap`.`id` of type `UUID!`
+  """
+  id: UUID
+  """
+  ✨ `_expr` server value variant of `id` (✨ Generated from Field `StakeholderMap`.`id` of type `UUID!`)
+  """
+  id_expr: UUID_Expr @fdc_forbiddenInVariables
+}
+"""
+✨ Generated list filter input type for table 'StakeholderMap'. This input applies filtering logic based on the count or existence of related objects that matches certain criteria.
+"""
+input StakeholderMap_ListFilter {
+  """
+  The desired number of objects that match the condition (defaults to at least one).
+  """
+  count: Int_Filter = {gt:0}
+  """
+  Condition of the related objects to filter for.
+  """
+  exist: StakeholderMap_Filter
+}
+"""
+✨ Generated order input type for table 'StakeholderMap'. This input defines the sorting order of rows in query results based on one or more fields.
+"""
+input StakeholderMap_Order {
+  """
+  ✨ Generated from Field `StakeholderMap`.`id` of type `UUID!`
+  """
+  id: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`topicId` of type `UUID!`
+  """
+  topicId: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`topic` of type `DebateTopic!`
+  """
+  topic: DebateTopic_Order
+  """
+  ✨ Generated from Field `StakeholderMap`.`approved` of type `Boolean!`
+  """
+  approved: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`content` of type `String!`
+  """
+  content: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`createdAt` of type `Timestamp!`
+  """
+  createdAt: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`_count` of type `Int!`
+  """
+  _count: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`approved_count` of type `Int!`
+  """
+  approved_count: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`content_count` of type `Int!`
+  """
+  content_count: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`createdAt_count` of type `Int!`
+  """
+  createdAt_count: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`id_count` of type `Int!`
+  """
+  id_count: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`topicId_count` of type `Int!`
+  """
+  topicId_count: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`createdAt_min` of type `Timestamp`
+  """
+  createdAt_min: OrderDirection
+  """
+  ✨ Generated from Field `StakeholderMap`.`createdAt_max` of type `Timestamp`
+  """
+  createdAt_max: OrderDirection
+}

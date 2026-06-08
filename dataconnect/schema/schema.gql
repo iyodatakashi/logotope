@@ -1,0 +1,77 @@
+type DebateTopic @table {
+  id: UUID! @default(expr: "uuidV4()")
+  title: String! @col(dataType: "varchar(500)")
+  status: String! @col(dataType: "varchar(50)")
+  createdAt: Timestamp! @default(expr: "request.time")
+  updatedAt: Timestamp! @default(expr: "request.time")
+}
+
+type StakeholderMap @table {
+  id: UUID! @default(expr: "uuidV4()")
+  topic: DebateTopic! @unique
+  approved: Boolean! @default(value: false)
+  content: String!
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type PersonaProfile @table @index(fields: ["topicId"]) {
+  id: UUID! @default(expr: "uuidV4()")
+  topic: DebateTopic!
+  stakeholderRole: String! @col(dataType: "varchar(200)")
+  name: String! @col(dataType: "varchar(100)")
+  age: Int!
+  occupation: String! @col(dataType: "varchar(200)")
+  background: String!
+  interests: String!
+  stanceDirection: String! @col(dataType: "varchar(50)")
+  approved: Boolean! @default(value: false)
+  sortOrder: Int!
+}
+
+type PersonaInterview @table {
+  id: UUID! @default(expr: "uuidV4()")
+  persona: PersonaProfile! @unique
+  interviewRecord: String!
+  status: String! @col(dataType: "varchar(50)")
+  errorMessage: String
+  completedAt: Timestamp
+}
+
+type DebateSession @table {
+  id: UUID! @default(expr: "uuidV4()")
+  topic: DebateTopic! @unique
+  status: String! @col(dataType: "varchar(50)")
+  totalTurns: Int
+  createdAt: Timestamp! @default(expr: "request.time")
+  completedAt: Timestamp
+  publishedAt: Timestamp
+}
+
+type DebateTurn @table @unique(fields: ["sessionId", "turnIndex"]) @index(fields: ["sessionId", "turnIndex"]) {
+  id: UUID! @default(expr: "uuidV4()")
+  session: DebateSession!
+  turnIndex: Int!
+  speakerType: String! @col(dataType: "varchar(20)")
+  persona: PersonaProfile
+  content: String!
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type PersonaBelief @table @unique(fields: ["personaId", "version"]) @index(fields: ["personaId", "version"]) {
+  id: UUID! @default(expr: "uuidV4()")
+  persona: PersonaProfile!
+  version: Int!
+  content: String!
+  changeType: String @col(dataType: "varchar(30)")
+  changeSummary: String
+  triggeredByTurn: DebateTurn
+  createdAt: Timestamp! @default(expr: "request.time")
+}
+
+type PostDebateComment @table @index(fields: ["sessionId", "sortOrder"]) {
+  id: UUID! @default(expr: "uuidV4()")
+  session: DebateSession!
+  persona: PersonaProfile!
+  content: String!
+  sortOrder: Int!
+}

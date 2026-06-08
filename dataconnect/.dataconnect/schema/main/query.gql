@@ -1,0 +1,426 @@
+extend type Query {
+  """
+  ✨ Look up a single `DebateSession` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  debateSession(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: DebateSession_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: DebateSession_FirstRow
+  ): DebateSession @fdc_generated(from: "DebateSession", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `DebateTopic` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  debateTopic(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: DebateTopic_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: DebateTopic_FirstRow
+  ): DebateTopic @fdc_generated(from: "DebateTopic", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `DebateTurn` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  debateTurn(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: DebateTurn_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: DebateTurn_FirstRow
+  ): DebateTurn @fdc_generated(from: "DebateTurn", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `PersonaBelief` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  personaBelief(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: PersonaBelief_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: PersonaBelief_FirstRow
+  ): PersonaBelief @fdc_generated(from: "PersonaBelief", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `PersonaInterview` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  personaInterview(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: PersonaInterview_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: PersonaInterview_FirstRow
+  ): PersonaInterview @fdc_generated(from: "PersonaInterview", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `PersonaProfile` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  personaProfile(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: PersonaProfile_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: PersonaProfile_FirstRow
+  ): PersonaProfile @fdc_generated(from: "PersonaProfile", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `PostDebateComment` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  postDebateComment(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: PostDebateComment_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: PostDebateComment_FirstRow
+  ): PostDebateComment @fdc_generated(from: "PostDebateComment", purpose: QUERY_SINGLE)
+  """
+  ✨ Look up a single `StakeholderMap` based on `id`, `key` or `first` and return selected fields (or `null` if not found).
+  """
+  stakeholderMap(
+    """
+    The unique ID of the object.
+    """
+    id: UUID
+
+    """
+    The key used to identify the object.
+    """
+    key: StakeholderMap_Key
+
+    """
+    Fetch the first row based on the filters and ordering.
+    """
+    first: StakeholderMap_FirstRow
+  ): StakeholderMap @fdc_generated(from: "StakeholderMap", purpose: QUERY_SINGLE)
+  """
+  ✨ List `DebateSession` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  debateSessions(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: DebateSession_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [DebateSession_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: DebateSession_Having
+  ): [DebateSession!]! @fdc_generated(from: "DebateSession", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `DebateTopic` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  debateTopics(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: DebateTopic_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [DebateTopic_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: DebateTopic_Having
+  ): [DebateTopic!]! @fdc_generated(from: "DebateTopic", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `DebateTurn` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  debateTurns(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: DebateTurn_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [DebateTurn_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: DebateTurn_Having
+  ): [DebateTurn!]! @fdc_generated(from: "DebateTurn", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `PersonaBelief` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  personaBeliefs(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: PersonaBelief_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [PersonaBelief_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: PersonaBelief_Having
+  ): [PersonaBelief!]! @fdc_generated(from: "PersonaBelief", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `PersonaInterview` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  personaInterviews(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: PersonaInterview_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [PersonaInterview_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: PersonaInterview_Having
+  ): [PersonaInterview!]! @fdc_generated(from: "PersonaInterview", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `PersonaProfile` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  personaProfiles(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: PersonaProfile_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [PersonaProfile_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: PersonaProfile_Having
+  ): [PersonaProfile!]! @fdc_generated(from: "PersonaProfile", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `PostDebateComment` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  postDebateComments(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: PostDebateComment_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [PostDebateComment_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: PostDebateComment_Having
+  ): [PostDebateComment!]! @fdc_generated(from: "PostDebateComment", purpose: QUERY_MULTIPLE)
+  """
+  ✨ List `StakeholderMap` objects in the table and return selected fields, optionally filtered by `where` conditions
+  """
+  stakeholderMaps(
+    """
+    Filter condition to narrow down the query results.
+    """
+    where: StakeholderMap_Filter
+
+    """
+    Order the query results by specific fields.
+    """
+    orderBy: [StakeholderMap_Order!]
+
+    """
+    Number of rows to skip before starting to return the results.
+    """
+    offset: Int
+
+    """
+    Maximum number of rows to return (defaults to 100 rows).
+    """
+    limit: Int = 100
+
+    """
+    Set to true to return distinct results.
+    """
+    distinct: Boolean = false
+
+    """
+    Filter condition to apply to the groups of aggregate queries.
+    """
+    having: StakeholderMap_Having
+  ): [StakeholderMap!]! @fdc_generated(from: "StakeholderMap", purpose: QUERY_MULTIPLE)
+}
