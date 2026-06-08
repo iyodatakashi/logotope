@@ -35,6 +35,7 @@ export interface ConversationTurn {
   turnId: string;
   turnIndex: number;
   speakerType: SpeakerType;
+  personaId?: string;
   speakerName: string;
   speakerRole: string;
   content: string;
