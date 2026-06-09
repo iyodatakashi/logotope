@@ -58,9 +58,7 @@
 		started = true;
 		starting = true;
 		error = '';
-		for (const personaId of personaIds) {
-			await runInterview(topicId, personaId).catch(() => undefined);
-		}
+		await Promise.all(personaIds.map((personaId) => runInterview(topicId, personaId).catch(() => undefined)));
 		starting = false;
 	}
 
