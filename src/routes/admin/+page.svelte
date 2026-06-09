@@ -4,12 +4,10 @@
 	import { Button } from '@14ch/svelte-ui';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import { auth } from '$lib/firebase.js';
-	import { listTopics } from '$lib/api/topics.js';
-	import type { TopicSummary, DebateStatus } from '$lib/types/index.js';
+	import { createTopicsStore } from '$lib/stores/topics.svelte.js';
+	import type { DebateStatus } from '$lib/types/index.js';
 
-	let topics = $state<TopicSummary[]>([]);
-	let loading = $state(true);
-	let error = $state('');
+	const topicsStore = createTopicsStore();
 
 	const statusLabel: Record<DebateStatus, string> = {
 		pending: '未着手',
@@ -22,19 +20,13 @@
 	};
 
 	onMount(() => {
-		return onAuthStateChanged(auth, async (user) => {
-			if (user) {
-				try {
-					topics = await listTopics();
-				} catch {
-					error = 'テーマ一覧の取得に失敗しました';
-				} finally {
-					loading = false;
-				}
-			} else {
-				loading = false;
-			}
+		const unsub = onAuthStateChanged(auth, (user) => {
+			if (user) topicsStore.start();
 		});
+		return () => {
+			unsub();
+			topicsStore.stop();
+		};
 	});
 </script>
 
@@ -49,15 +41,13 @@
 		</div>
 	</header>
 
-	{#if loading}
+	{#if !topicsStore.isLoaded}
 		<p>読み込み中...</p>
-	{:else if error}
-		<p class="error">{error}</p>
-	{:else if topics.length === 0}
+	{:else if topicsStore.topics.length === 0}
 		<p class="empty">テーマがありません。新しいテーマを作成してください。</p>
 	{:else}
 		<ul class="topic-list">
-			{#each topics as topic (topic.id)}
+			{#each topicsStore.topics as topic (topic.id)}
 				<li class="topic-card">
 					<a href={`/admin/debate/${topic.id}`}>
 						<span class="title">{topic.title}</span>
@@ -118,6 +108,5 @@
 	.status-debating { background: #bbdefb; color: #1565c0; }
 	.status-completed { background: #c8e6c9; color: #2e7d32; }
 	.status-published { background: #b39ddb; color: #4527a0; }
-	.error { color: #d32f2f; }
 	.empty { color: #757575; }
 </style>

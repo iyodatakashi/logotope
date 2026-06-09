@@ -1,12 +1,37 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { collection, query, where, onSnapshot } from 'firebase/firestore';
+	import { db } from '$lib/firebase.js';
 	import DebateCard from '$lib/components/public/DebateCard.svelte';
-	import type { PublishedDebateSummary } from '$lib/types/index.js';
+	import type { TopicDoc, PublishedDebateSummary } from '$lib/types/index.js';
 
-	interface Props {
-		data: { debates: PublishedDebateSummary[] };
-	}
+	let debates = $state<PublishedDebateSummary[]>([]);
+	let loaded = $state(false);
 
-	let { data }: Props = $props();
+	onMount(() => {
+		const q = query(collection(db, 'topics'), where('status', '==', 'published'));
+		const unsub = onSnapshot(q, (snap) => {
+			const raw = snap.docs
+				.map((d) => {
+					const data = d.data() as TopicDoc;
+					return {
+						debate: {
+							id: d.id,
+							topicTitle: data.title,
+							personaCount: data.personaCount ?? 0,
+							publishedAt:
+								data.publishedAt?.toDate().toISOString() ??
+								data.updatedAt.toDate().toISOString()
+						} as PublishedDebateSummary,
+						ts: data.publishedAt?.seconds ?? data.updatedAt.seconds
+					};
+				})
+				.sort((a, b) => b.ts - a.ts);
+			debates = raw.map(({ debate }) => debate);
+			loaded = true;
+		});
+		return unsub;
+	});
 </script>
 
 <svelte:head>
@@ -28,11 +53,13 @@
 		<p class="tagline">AIが多様な立場の意見を公平に可視化する討論プラットフォーム</p>
 	</header>
 
-	{#if data.debates.length === 0}
+	{#if !loaded}
+		<p class="empty">読み込み中...</p>
+	{:else if debates.length === 0}
 		<p class="empty">公開された討論はまだありません。</p>
 	{:else}
 		<ul class="debate-list">
-			{#each data.debates as debate (debate.id)}
+			{#each debates as debate (debate.id)}
 				<li>
 					<DebateCard {debate} />
 				</li>

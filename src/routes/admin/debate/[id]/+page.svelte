@@ -4,32 +4,29 @@
 	import { onAuthStateChanged } from 'firebase/auth';
 	import { auth } from '$lib/firebase.js';
 	import { createProgressStore } from '$lib/stores/progress.svelte.js';
+	import { createTopicStore } from '$lib/stores/topic.svelte.js';
 	import Phase1Stakeholders from '$lib/components/admin/Phase1Stakeholders.svelte';
 	import Phase2Personas from '$lib/components/admin/Phase2Personas.svelte';
 	import Phase3Interviews from '$lib/components/admin/Phase3Interviews.svelte';
 	import Phase4Debate from '$lib/components/admin/Phase4Debate.svelte';
-	import { getTopic } from '$lib/api/topics.js';
 
 	const topicId = page.params.id as string;
+	const topicStore = createTopicStore(topicId);
 	const progressStore = createProgressStore(topicId);
 
-	let topicTitle = $state('');
-	let topicStatus = $state('');
-
-	// Firestore ドキュメントが存在しない間はAPIのステータスをフォールバックとして使用
-	const status = $derived(progressStore.progress?.status ?? topicStatus);
+	const status = $derived(topicStore.topic?.status ?? '');
+	const topicTitle = $derived(topicStore.topic?.title ?? '');
 
 	onMount(() => {
-		const unsubAuth = onAuthStateChanged(auth, async (user) => {
+		const unsubAuth = onAuthStateChanged(auth, (user) => {
 			if (user) {
+				topicStore.start();
 				progressStore.start();
-				const topic = await getTopic(topicId);
-				topicTitle = topic.title;
-				topicStatus = topic.status;
 			}
 		});
 		return () => {
 			unsubAuth();
+			topicStore.stop();
 			progressStore.stop();
 		};
 	});

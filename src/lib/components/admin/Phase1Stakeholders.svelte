@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { createProgressStore } from '$lib/stores/progress.svelte.js';
-	import * as api from '$lib/api/topics.js';
+	import { createTopicStore } from '$lib/stores/topic.svelte.js';
+	import { generateStakeholders } from '$lib/api/topics.js';
 
 	interface Props {
 		topicId: string;
@@ -9,56 +10,51 @@
 	}
 	let { topicId, topicTitle }: Props = $props();
 
+	const topicStore = createTopicStore(topicId);
 	const progressStore = createProgressStore(topicId);
 
-	interface Stakeholder {
-		id: string;
-		role: string;
-		stanceDirection: string;
-		minorityLevel: number;
-		rationale: string;
-	}
-
-	let stakeholders = $state<Stakeholder[]>([]);
-	let loading = $state(true);
+	let generating = $state(false);
+	let started = $state(false);
 	let error = $state('');
 
-	async function load() {
-		try {
-			const data = (await api.getStakeholders(topicId)) as Stakeholder[];
-			if (data.length > 0) {
-				stakeholders = data;
-				loading = false;
-				return;
-			}
-		} catch {
-			/* データ未存在 */
+	const stakeholders = $derived(topicStore.topic?.stakeholders?.items ?? []);
+	const isRunning = $derived(generating);
+	const isStopped = $derived(!!error && !generating);
+
+	$effect(() => {
+		if (topicStore.isLoaded && stakeholders.length === 0 && !started) {
+			void doGenerate();
 		}
+	});
+
+	async function doGenerate() {
+		started = true;
+		generating = true;
+		error = '';
 		try {
-			await api.generateStakeholders(topicId);
-			stakeholders = (await api.getStakeholders(topicId)) as Stakeholder[];
+			await generateStakeholders(topicId);
 		} catch (e) {
 			error = e instanceof Error ? e.message : '処理に失敗しました';
 		} finally {
-			loading = false;
+			generating = false;
 		}
 	}
 
 	async function handleApprove() {
-		loading = true;
-		error = '';
 		try {
-			await api.approveStakeholders(topicId);
+			await topicStore.approveStakeholders();
 		} catch (e) {
 			error = e instanceof Error ? e.message : '操作に失敗しました';
-			loading = false;
 		}
 	}
 
 	onMount(() => {
+		topicStore.start();
 		progressStore.start();
-		load();
-		return () => progressStore.stop();
+		return () => {
+			topicStore.stop();
+			progressStore.stop();
+		};
 	});
 </script>
 
@@ -66,34 +62,38 @@
 	<h2>フェーズ 1: ステークホルダー調査</h2>
 	<p class="topic">{topicTitle}</p>
 
-	{#if loading}
-		<p class="step" role="status">{progressStore.progress?.currentStep ?? '処理中...'}</p>
-	{:else if error}
-		<p class="error" role="alert">{error}</p>
-	{:else}
+	{#if isStopped}
+		<p class="status-stopped" role="alert">処理停止: {error}</p>
+	{:else if isRunning}
+		<p class="step" role="status">{progressStore.progress?.currentStep ?? '分析中...'}</p>
+	{/if}
+
+	{#if stakeholders.length > 0}
 		<ul class="list">
-			{#each stakeholders as s (s.id)}
+			{#each stakeholders as s, i (i)}
 				<li class="item">
 					<div class="item-header">
 						<strong>{s.role}</strong>
 						<span class="badge">{s.stanceDirection}</span>
 						<span class="minor">マイノリティ度: {s.minorityLevel}</span>
 					</div>
-					<p class="rationale">{s.rationale}</p>
+					<p class="rationale">{s.reason}</p>
 				</li>
 			{/each}
 		</ul>
-		<div class="actions">
-			<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
-		</div>
+		{#if !isRunning && !isStopped}
+			<div class="actions">
+				<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
+			</div>
+		{/if}
 	{/if}
 </section>
 
 <style>
 	section { padding: 16px; }
 	.topic { color: #555; margin-bottom: 16px; }
-	.step { color: #555; font-style: italic; }
-	.error { color: #d32f2f; }
+	.step { color: #1565c0; font-style: italic; }
+	.status-stopped { color: #e65100; font-weight: 600; }
 	.list { list-style: none; padding: 0; }
 	.item { padding: 12px; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 8px; }
 	.item-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

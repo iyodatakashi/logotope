@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { createTopic } from '$lib/api/topics.js';
+	import { createTopicsStore } from '$lib/stores/topics.svelte.js';
 	import TopicForm from '$lib/components/admin/TopicForm.svelte';
 
+	const topicsStore = createTopicsStore();
 	let submitting = $state(false);
 	let error = $state('');
 
@@ -10,7 +11,7 @@
 		submitting = true;
 		error = '';
 		try {
-			const { topicId } = await createTopic(title);
+			const topicId = await topicsStore.createTopic(title);
 			goto(`/admin/debate/${topicId}`);
 		} catch {
 			error = 'テーマの作成に失敗しました。再試行してください。';

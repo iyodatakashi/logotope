@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { createProgressStore } from '$lib/stores/progress.svelte.js';
-	import * as api from '$lib/api/topics.js';
+	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
+	import { createTopicStore } from '$lib/stores/topic.svelte.js';
+	import { createSessionStore } from '$lib/stores/session.svelte.js';
+	import { startDebate } from '$lib/api/topics.js';
 
 	interface Props {
 		topicId: string;
@@ -9,79 +12,74 @@
 	}
 	let { topicId, topicTitle }: Props = $props();
 
+	const sessionStore = createSessionStore(topicId);
+	const personasStore = createPersonasStore(topicId);
+	const topicStore = createTopicStore(topicId);
 	const progressStore = createProgressStore(topicId);
 
-	interface Turn {
-		id: string;
-		turnIndex: number;
-		speakerType: string;
-		speakerName: string;
-		speakerRole: string;
-		content: string;
-		beliefChangesTriggered: { personaName: string; changeType: string; changeSummary: string }[];
-	}
-
-	let sessionId = $state('');
-	let turns = $state<Turn[]>([]);
-	let loading = $state(true);
+	let starting = $state(false);
+	let started = $state(false);
 	let error = $state('');
 	let publishUrl = $state('');
-	let debating = $state(false);
-	let fetchingTurns = $state(false);
 
-	async function refreshTurns() {
-		if (fetchingTurns) return;
-		fetchingTurns = true;
-		try {
-			const data = await api.getAdminDebate(topicId);
-			if (data.turns && data.turns.length > 0) {
-				sessionId = data.id;
-				turns = data.turns as Turn[];
-			}
-		} catch {
-			/* 無視 */
-		} finally {
-			fetchingTurns = false;
-		}
-	}
+	const personaMap = $derived(new Map(personasStore.personas.map((p) => [p.id, p])));
+
+	const turns = $derived(
+		(sessionStore.session?.turns ?? [])
+			.slice()
+			.sort((a, b) => a.turnIndex - b.turnIndex)
+			.map((t) => {
+				const persona = t.personaId ? personaMap.get(t.personaId) : null;
+				return {
+					id: t.id,
+					turnIndex: t.turnIndex,
+					speakerType: t.speakerType,
+					speakerName: persona?.name ?? 'ファシリテーター',
+					speakerRole: persona?.stakeholderRole ?? '',
+					content: t.content,
+					beliefChangesTriggered: personasStore.personas.flatMap((p) =>
+						(p.beliefs ?? [])
+							.filter((b) => b.triggeredByTurnId === t.id)
+							.map((b) => ({
+								personaName: p.name,
+								changeType: b.changeType ?? '',
+								changeSummary: b.changeSummary ?? ''
+							}))
+					)
+				};
+			})
+	);
+
+	const loading = $derived(!sessionStore.isLoaded || starting);
+	const completedTurns = $derived(turns.length);
+	const totalTurns = $derived(
+		sessionStore.session?.totalTurns ?? progressStore.progress?.total ?? 0
+	);
+	const isStopped = $derived(!!error && !starting);
 
 	$effect(() => {
-		const n = completedTurns;
-		if (debating && n > 0) {
-			void refreshTurns();
+		if (sessionStore.isLoaded && !sessionStore.session && !started) {
+			void doStart();
 		}
 	});
 
-	async function load() {
+	async function doStart() {
+		started = true;
+		starting = true;
+		error = '';
 		try {
-			const data = await api.getAdminDebate(topicId);
-			if (data.turns && data.turns.length > 0) {
-				sessionId = data.id;
-				turns = data.turns as Turn[];
-				loading = false;
-				return;
-			}
-		} catch {
-			/* セッション未存在 */
-		}
-		try {
-			debating = true;
-			const result = await api.startDebate(topicId);
-			sessionId = result.debateSessionId;
-			const data = await api.getAdminDebate(topicId);
-			turns = (data.turns ?? []) as Turn[];
+			await startDebate(topicId);
 		} catch (e) {
 			error = e instanceof Error ? e.message : '処理に失敗しました';
 		} finally {
-			loading = false;
-			debating = false;
+			starting = false;
 		}
 	}
 
 	async function handleBack() {
 		error = '';
 		try {
-			await api.resetToPhase3(topicId);
+			await topicStore.resetToPhase3();
 		} catch (e) {
 			error = e instanceof Error ? e.message : '操作に失敗しました';
 		}
@@ -90,20 +88,24 @@
 	async function handlePublish() {
 		error = '';
 		try {
-			const result = await api.publishDebate(sessionId);
-			publishUrl = result.url;
+			await topicStore.publishDebate();
+			publishUrl = `/debate/${topicId}`;
 		} catch (e) {
 			error = e instanceof Error ? e.message : '公開に失敗しました';
 		}
 	}
 
-	const completedTurns = $derived(progressStore.progress?.completed ?? 0);
-	const totalTurns = $derived(progressStore.progress?.total ?? 0);
-
 	onMount(() => {
+		sessionStore.start();
+		personasStore.start();
+		topicStore.start();
 		progressStore.start();
-		load();
-		return () => progressStore.stop();
+		return () => {
+			sessionStore.stop();
+			personasStore.stop();
+			topicStore.stop();
+			progressStore.stop();
+		};
 	});
 </script>
 
@@ -111,16 +113,12 @@
 	<h2>フェーズ 4: ディベート</h2>
 	<p class="topic">{topicTitle}</p>
 
-	{#if error}
-		<p class="error" role="alert">{error}</p>
-	{/if}
-
-	{#if loading}
+	{#if isStopped}
+		<p class="status-stopped" role="alert">討論停止: {error}</p>
+	{:else if loading}
 		<p class="step" role="status">
 			{progressStore.progress?.currentStep ?? '討論中...'}
-			{#if totalTurns > 0}
-				（ターン {completedTurns} / {totalTurns}）
-			{/if}
+			{#if totalTurns > 0}（ターン {completedTurns} / {totalTurns}）{/if}
 		</p>
 	{/if}
 
@@ -164,8 +162,8 @@
 <style>
 	section { padding: 16px; }
 	.topic { color: #555; margin-bottom: 16px; }
-	.step { color: #555; font-style: italic; }
-	.error { color: #d32f2f; }
+	.step { color: #1565c0; font-style: italic; }
+	.status-stopped { color: #e65100; font-weight: 600; }
 	.turns { display: flex; flex-direction: column; gap: 8px; }
 	.turn { padding: 12px; border-left: 4px solid #e0e0e0; }
 	.turn.facilitator { border-left-color: #1565c0; background: #f8f9ff; }
