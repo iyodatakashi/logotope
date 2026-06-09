@@ -1,14 +1,7 @@
-import { getDataConnect } from 'firebase-admin/data-connect';
+import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { nanoid } from 'nanoid';
 
-const connectorConfig = {
-  location: 'asia-northeast1',
-  serviceId: 'logotope',
-  connector: 'logotope',
-};
-
-function dc() {
-  return getDataConnect(connectorConfig);
-}
+const db = () => getFirestore();
 
 // ---- Types ----
 
@@ -45,16 +38,6 @@ export interface PersonaBelief {
   createdAt: string;
 }
 
-export interface DebateTurn {
-  id: string;
-  sessionId: string;
-  turnIndex: number;
-  speakerType: string;
-  personaId?: string | null;
-  content: string;
-  createdAt: string;
-}
-
 export interface DebateSession {
   id: string;
   topicId: string;
@@ -65,53 +48,24 @@ export interface DebateSession {
   publishedAt?: string | null;
 }
 
-// ---- Topic ----
-
-export async function createTopic(title: string): Promise<{ id: string }> {
-  const result = await dc().executeMutation('CreateDebateTopic', { title });
-  return (result.data as { debateTopic_insert: { id: string } }).debateTopic_insert;
-}
-
-export async function updateTopicStatus(id: string, status: string): Promise<void> {
-  await dc().executeMutation('UpdateDebateTopicStatus', { id, status });
-}
-
-export async function listTopics(): Promise<DebateTopic[]> {
-  const result = await dc().executeQuery('GetTopics');
-  return (result.data as { debateTopics: DebateTopic[] }).debateTopics;
-}
-
-export async function getTopicById(id: string): Promise<DebateTopic | null> {
-  const result = await dc().executeQuery('GetTopicById', { id });
-  return (result.data as { debateTopic: DebateTopic | null }).debateTopic;
-}
-
-// ---- StakeholderMap ----
-
-export interface StakeholderMap {
+export interface DebateTurn {
   id: string;
-  topicId: string;
+  sessionId: string;
+  turnIndex: number;
+  speakerType: string;
+  personaId?: string | null;
   content: string;
-  approved: boolean;
   createdAt: string;
 }
 
-export async function getStakeholderMapByTopicId(topicId: string): Promise<StakeholderMap | null> {
-  const result = await dc().executeQuery('GetStakeholderMapByTopicId', { topicId });
-  const maps = (result.data as { stakeholderMaps: StakeholderMap[] }).stakeholderMaps;
-  return maps[0] ?? null;
+export interface PersonaInterview {
+  id: string;
+  personaId: string;
+  interviewRecord: string;
+  status: string;
+  errorMessage?: string | null;
+  completedAt?: string | null;
 }
-
-export async function createStakeholderMap(topicId: string, content: string): Promise<{ id: string }> {
-  const result = await dc().executeMutation('CreateStakeholderMap', { topicId, content });
-  return (result.data as { stakeholderMap_insert: { id: string } }).stakeholderMap_insert;
-}
-
-export async function approveStakeholderMap(id: string): Promise<void> {
-  await dc().executeMutation('ApproveStakeholderMap', { id });
-}
-
-// ---- PersonaProfile ----
 
 export interface CreatePersonaProfileParams {
   topicId: string;
@@ -125,52 +79,8 @@ export interface CreatePersonaProfileParams {
   sortOrder: number;
 }
 
-export async function createPersonaProfile(params: CreatePersonaProfileParams): Promise<{ id: string }> {
-  const result = await dc().executeMutation('CreatePersonaProfile', params);
-  return (result.data as { personaProfile_insert: { id: string } }).personaProfile_insert;
-}
-
-export async function approvePersonaProfiles(topicId: string): Promise<void> {
-  await dc().executeMutation('ApprovePersonaProfiles', { topicId });
-}
-
-export async function getPersonasByTopicId(topicId: string): Promise<PersonaProfile[]> {
-  const result = await dc().executeQuery('GetPersonasByTopicId', { topicId });
-  return (result.data as { personaProfiles: PersonaProfile[] }).personaProfiles;
-}
-
-export async function getApprovedPersonasByTopicId(topicId: string): Promise<PersonaProfile[]> {
-  const result = await dc().executeQuery('GetApprovedPersonasByTopicId', { topicId });
-  return (result.data as { personaProfiles: PersonaProfile[] }).personaProfiles;
-}
-
-// ---- PersonaInterview ----
-
-export async function createPersonaInterview(personaId: string, interviewRecord: string): Promise<{ id: string }> {
-  const result = await dc().executeMutation('CreatePersonaInterview', { personaId, interviewRecord });
-  return (result.data as { personaInterview_insert: { id: string } }).personaInterview_insert;
-}
-
-export async function createCompletedPersonaInterview(personaId: string, interviewRecord: string): Promise<{ id: string }> {
-  const result = await dc().executeMutation('CreateCompletedPersonaInterview', { personaId, interviewRecord });
-  return (result.data as { personaInterview_insert: { id: string } }).personaInterview_insert;
-}
-
-export async function createErrorPersonaInterview(personaId: string, errorMessage: string): Promise<void> {
-  await dc().executeMutation('CreateErrorPersonaInterview', { personaId, errorMessage });
-}
-
-export async function completePersonaInterview(id: string, interviewRecord: string): Promise<void> {
-  await dc().executeMutation('CompletePersonaInterview', { id, interviewRecord });
-}
-
-export async function updatePersonaInterviewStatus(id: string, status: string, errorMessage?: string): Promise<void> {
-  await dc().executeMutation('UpdatePersonaInterviewStatus', { id, status, errorMessage });
-}
-
-// ---- PersonaBelief ----
-
 export interface CreatePersonaBeliefParams {
+  topicId: string;
   personaId: string;
   version: number;
   content: string;
@@ -178,39 +88,6 @@ export interface CreatePersonaBeliefParams {
   changeSummary?: string;
   triggeredByTurnId?: string;
 }
-
-export async function createPersonaBelief(params: CreatePersonaBeliefParams): Promise<{ id: string }> {
-  const result = await dc().executeMutation('CreatePersonaBelief', params);
-  return (result.data as { personaBelief_insert: { id: string } }).personaBelief_insert;
-}
-
-export async function getPersonaBeliefsByPersonaId(personaId: string): Promise<PersonaBelief[]> {
-  const result = await dc().executeQuery('GetPersonaBeliefsByPersonaId', { personaId });
-  return (result.data as { personaBeliefs: PersonaBelief[] }).personaBeliefs;
-}
-
-// ---- DebateSession ----
-
-export async function createDebateSession(topicId: string): Promise<{ id: string }> {
-  const result = await dc().executeMutation('CreateDebateSession', { topicId });
-  return (result.data as { debateSession_insert: { id: string } }).debateSession_insert;
-}
-
-export async function completeDebateSession(id: string, totalTurns: number): Promise<void> {
-  await dc().executeMutation('CompleteDebateSession', { id, totalTurns });
-}
-
-export async function publishDebateSession(id: string): Promise<void> {
-  await dc().executeMutation('PublishDebateSession', { id });
-}
-
-export async function getDebateSessionByTopicId(topicId: string): Promise<DebateSession | null> {
-  const result = await dc().executeQuery('GetDebateSessionByTopicId', { topicId });
-  const sessions = (result.data as { debateSessions: DebateSession[] }).debateSessions;
-  return sessions[0] ?? null;
-}
-
-// ---- DebateTurn ----
 
 export interface CreateDebateTurnParams {
   sessionId: string;
@@ -220,69 +97,6 @@ export interface CreateDebateTurnParams {
   content: string;
 }
 
-export async function createDebateTurn(params: CreateDebateTurnParams): Promise<{ id: string }> {
-  const result = await dc().executeMutation('CreateDebateTurn', params);
-  return (result.data as { debateTurn_insert: { id: string } }).debateTurn_insert;
-}
-
-export async function getDebateTurnsBySessionId(sessionId: string): Promise<DebateTurn[]> {
-  const result = await dc().executeQuery('GetDebateTurnsBySessionId', { sessionId });
-  return (result.data as { debateTurns: DebateTurn[] }).debateTurns;
-}
-
-// ---- PersonaInterview (getter) ----
-
-export interface PersonaInterview {
-  id: string;
-  personaId: string;
-  interviewRecord: string;
-  status: string;
-  errorMessage?: string | null;
-  completedAt?: string | null;
-}
-
-export async function getPersonaInterviewByPersonaId(personaId: string): Promise<PersonaInterview | null> {
-  const result = await dc().executeQuery('GetPersonaInterviewByPersonaId', { personaId });
-  const interviews = (result.data as { personaInterviews: PersonaInterview[] }).personaInterviews;
-  return interviews[0] ?? null;
-}
-
-export async function getDebateSessionById(id: string): Promise<DebateSession | null> {
-  const result = await dc().executeQuery('GetDebateSessionById', { id });
-  const sessions = (result.data as { debateSessions: DebateSession[] }).debateSessions;
-  return sessions[0] ?? null;
-}
-
-export async function deletePersonaProfilesByTopicId(topicId: string): Promise<void> {
-  await dc().executeMutation('DeletePersonaProfilesByTopicId', { topicId });
-}
-
-export async function deletePersonaInterviewsByTopicId(topicId: string): Promise<void> {
-  await dc().executeMutation('DeletePersonaInterviewsByTopicId', { topicId });
-}
-
-export async function deletePersonaBeliefsByTopicId(topicId: string): Promise<void> {
-  await dc().executeMutation('DeletePersonaBeliefsByTopicId', { topicId });
-}
-
-export async function deleteDebateSessionByTopicId(topicId: string): Promise<void> {
-  await dc().executeMutation('DeleteDebateSessionByTopicId', { topicId });
-}
-
-export async function deleteDebateTurnsBySession(sessionId: string): Promise<void> {
-  await dc().executeMutation('DeleteDebateTurnsBySession', { sessionId });
-}
-
-export async function deletePostDebateCommentsBySession(sessionId: string): Promise<void> {
-  await dc().executeMutation('DeletePostDebateCommentsBySession', { sessionId });
-}
-
-export async function deleteDebateSession(id: string): Promise<void> {
-  await dc().executeMutation('DeleteDebateSession', { id });
-}
-
-// ---- PostDebateComment ----
-
 export interface CreatePostDebateCommentParams {
   sessionId: string;
   personaId: string;
@@ -290,34 +104,256 @@ export interface CreatePostDebateCommentParams {
   sortOrder: number;
 }
 
-export interface PostDebateComment {
+// ---- Internal helpers ----
+
+const personaDocRef = (topicId: string, personaId: string) =>
+  db().doc(`topics/${topicId}/personas/${personaId}`);
+
+// ---- Write functions (AI pipeline) ----
+
+export const updateTopicStatus = async (id: string, status: string): Promise<void> => {
+  await db().doc(`topics/${id}`).update({ status, updatedAt: Timestamp.now() });
+};
+
+export const createStakeholderMap = async (topicId: string, content: string): Promise<{ id: string }> => {
+  const parsed = JSON.parse(content) as { items: unknown[]; approved?: boolean };
+  await db().doc(`topics/${topicId}`).update({
+    stakeholders: {
+      items: parsed.items,
+      approved: parsed.approved ?? false,
+      createdAt: Timestamp.now(),
+    },
+    updatedAt: Timestamp.now(),
+  });
+  return { id: topicId };
+};
+
+export const createPersonaProfile = async (params: CreatePersonaProfileParams): Promise<{ id: string }> => {
+  const id = nanoid();
+  await db().doc(`topics/${params.topicId}/personas/${id}`).set({
+    id,
+    topicId: params.topicId,
+    stakeholderRole: params.stakeholderRole,
+    name: params.name,
+    age: params.age,
+    occupation: params.occupation,
+    background: params.background,
+    interests: params.interests,
+    stanceDirection: params.stanceDirection,
+    approved: false,
+    sortOrder: params.sortOrder,
+    beliefs: [],
+    createdAt: Timestamp.now(),
+  });
+  return { id };
+};
+
+export const queuePersonaInterview = async (topicId: string, personaId: string): Promise<void> => {
+  await personaDocRef(topicId, personaId).update({ interview: { status: 'queued' } });
+};
+
+export const startPersonaInterview = async (topicId: string, personaId: string): Promise<void> => {
+  await personaDocRef(topicId, personaId).update({ interview: { status: 'in_progress' } });
+};
+
+export const createCompletedPersonaInterview = async (topicId: string, personaId: string, interviewRecord: string): Promise<{ id: string }> => {
+  await personaDocRef(topicId, personaId).update({
+    interview: {
+      interviewRecord,
+      status: 'completed',
+      completedAt: Timestamp.now(),
+    },
+  });
+  return { id: personaId };
+};
+
+export const createErrorPersonaInterview = async (topicId: string, personaId: string, errorMessage: string): Promise<void> => {
+  await personaDocRef(topicId, personaId).update({
+    interview: {
+      status: 'error',
+      errorMessage,
+    },
+  });
+};
+
+export const createPersonaBelief = async (params: CreatePersonaBeliefParams): Promise<{ id: string }> => {
+  const ref = personaDocRef(params.topicId, params.personaId);
+  const id = nanoid();
+  const belief: Record<string, unknown> = {
+    id,
+    version: params.version,
+    content: params.content,
+    createdAt: Timestamp.now(),
+  };
+  if (params.changeType !== undefined) belief.changeType = params.changeType;
+  if (params.changeSummary !== undefined) belief.changeSummary = params.changeSummary;
+  if (params.triggeredByTurnId !== undefined) belief.triggeredByTurnId = params.triggeredByTurnId;
+
+  await ref.update({
+    beliefs: FieldValue.arrayUnion(belief),
+  });
+  return { id };
+};
+
+export const createDebateSession = async (topicId: string): Promise<{ id: string }> => {
+  const sessionRef = db().doc(`topics/${topicId}/sessions/0`);
+  const snap = await sessionRef.get();
+  if (!snap.exists) {
+    await sessionRef.set({
+      status: 'debating',
+      createdAt: Timestamp.now(),
+      turns: [],
+      postDebateComments: [],
+    });
+  }
+  return { id: topicId };
+};
+
+export const completeDebateSession = async (id: string, totalTurns: number): Promise<void> => {
+  await db().doc(`topics/${id}/sessions/0`).update({
+    status: 'completed',
+    totalTurns,
+    completedAt: Timestamp.now(),
+  });
+};
+
+export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<{ id: string }> => {
+  const id = nanoid();
+  const turn: Record<string, unknown> = {
+    id,
+    turnIndex: params.turnIndex,
+    speakerType: params.speakerType,
+    content: params.content,
+    createdAt: Timestamp.now(),
+  };
+  if (params.personaId !== undefined) turn.personaId = params.personaId;
+
+  await db().doc(`topics/${params.sessionId}/sessions/0`).update({
+    turns: FieldValue.arrayUnion(turn),
+  });
+  return { id };
+};
+
+export const createPostDebateComment = async (params: CreatePostDebateCommentParams): Promise<{ id: string }> => {
+  const id = nanoid();
+  await db().doc(`topics/${params.sessionId}/sessions/0`).update({
+    postDebateComments: FieldValue.arrayUnion({
+      id,
+      personaId: params.personaId,
+      content: params.content,
+      sortOrder: params.sortOrder,
+    }),
+  });
+  return { id };
+};
+
+export interface StakeholderMap {
   id: string;
-  sessionId: string;
-  personaId: string;
+  topicId: string;
   content: string;
-  sortOrder: number;
+  approved: boolean;
+  createdAt: string;
 }
 
-export async function createPostDebateComment(params: CreatePostDebateCommentParams): Promise<{ id: string }> {
-  const result = await dc().executeMutation('CreatePostDebateComment', params);
-  return (result.data as { postDebateComment_insert: { id: string } }).postDebateComment_insert;
-}
+export const getStakeholderMapByTopicId = async (topicId: string): Promise<StakeholderMap | null> => {
+  const snap = await db().doc(`topics/${topicId}`).get();
+  if (!snap.exists) return null;
+  const data = snap.data() as { stakeholders?: { items: unknown[]; approved: boolean; createdAt: Timestamp } };
+  if (!data.stakeholders) return null;
+  return {
+    id: topicId,
+    topicId,
+    content: JSON.stringify(data.stakeholders.items),
+    approved: data.stakeholders.approved,
+    createdAt: data.stakeholders.createdAt.toDate().toISOString(),
+  };
+};
 
-export async function getPostDebateCommentsBySessionId(sessionId: string): Promise<PostDebateComment[]> {
-  const result = await dc().executeQuery('GetPostDebateCommentsBySessionId', { sessionId });
-  return (result.data as { postDebateComments: PostDebateComment[] }).postDebateComments;
-}
+export const getPersonasByTopicId = async (topicId: string): Promise<PersonaProfile[]> => {
+  const snap = await db().collection(`topics/${topicId}/personas`).orderBy('sortOrder', 'asc').get();
+  return snap.docs.map((docSnap) => {
+    const data = docSnap.data() as PersonaProfile;
+    return { ...data, id: docSnap.id };
+  });
+};
 
-// ---- PublishedSession ----
+export const getDebateSessionByTopicId = async (topicId: string): Promise<DebateSession | null> => {
+  const snap = await db().doc(`topics/${topicId}/sessions/0`).get();
+  if (!snap.exists) return null;
+  const data = snap.data() as { status: string; totalTurns?: number; createdAt: Timestamp; completedAt?: Timestamp; publishedAt?: Timestamp };
+  return {
+    id: topicId,
+    topicId,
+    status: data.status,
+    totalTurns: data.totalTurns ?? null,
+    createdAt: data.createdAt.toDate().toISOString(),
+    completedAt: data.completedAt?.toDate().toISOString() ?? null,
+    publishedAt: data.publishedAt?.toDate().toISOString() ?? null,
+  };
+};
 
-export interface PublishedSessionSummary {
-  id: string;
-  topicTitle: string;
-  personaCount: number;
-  publishedAt: string;
-}
+export const getDebateSessionById = async (id: string): Promise<DebateSession | null> => {
+  return getDebateSessionByTopicId(id);
+};
 
-export async function getPublishedSessions(): Promise<PublishedSessionSummary[]> {
-  const result = await dc().executeQuery('GetPublishedSessions');
-  return (result.data as { publishedSessions: PublishedSessionSummary[] }).publishedSessions;
-}
+export const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[]> => {
+  const snap = await db().doc(`topics/${sessionId}/sessions/0`).get();
+  if (!snap.exists) return [];
+  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; content: string; createdAt: Timestamp }> };
+  return (data.turns ?? []).map((t) => ({
+    id: t.id,
+    sessionId,
+    turnIndex: t.turnIndex,
+    speakerType: t.speakerType,
+    personaId: t.personaId ?? null,
+    content: t.content,
+    createdAt: t.createdAt.toDate().toISOString(),
+  }));
+};
+
+export const getPersonaBeliefsByPersonaId = async (topicId: string, personaId: string): Promise<PersonaBelief[]> => {
+  const snap = await personaDocRef(topicId, personaId).get();
+  if (!snap.exists) return [];
+  const data = snap.data() as { beliefs?: Array<{ id: string; version: number; content: string; changeType?: string; changeSummary?: string; triggeredByTurnId?: string; createdAt: Timestamp }> };
+  return (data.beliefs ?? []).map((b) => ({
+    id: b.id,
+    personaId,
+    version: b.version,
+    content: b.content,
+    changeType: b.changeType ?? null,
+    changeSummary: b.changeSummary ?? null,
+    triggeredByTurnId: b.triggeredByTurnId ?? null,
+    createdAt: b.createdAt.toDate().toISOString(),
+  }));
+};
+
+export const getPersonaInterviewByPersonaId = async (topicId: string, personaId: string): Promise<PersonaInterview | null> => {
+  const snap = await personaDocRef(topicId, personaId).get();
+  if (!snap.exists) return null;
+  const data = snap.data() as { interview?: { interviewRecord: string; status: string; errorMessage?: string; completedAt?: Timestamp } };
+  if (!data.interview) return null;
+  return {
+    id: personaId,
+    personaId,
+    interviewRecord: data.interview.interviewRecord,
+    status: data.interview.status,
+    errorMessage: data.interview.errorMessage ?? null,
+    completedAt: data.interview.completedAt?.toDate().toISOString() ?? null,
+  };
+};
+
+// ---- Read functions (AI pipeline internal) ----
+
+export const getTopicById = async (id: string): Promise<DebateTopic | null> => {
+  const snap = await db().doc(`topics/${id}`).get();
+  if (!snap.exists) return null;
+  const data = snap.data() as { title: string; status: string; createdAt: Timestamp; updatedAt: Timestamp };
+  return {
+    id: snap.id,
+    title: data.title,
+    status: data.status,
+    createdAt: data.createdAt.toDate().toISOString(),
+    updatedAt: data.updatedAt.toDate().toISOString(),
+  };
+};
+

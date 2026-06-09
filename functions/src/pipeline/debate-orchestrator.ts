@@ -184,21 +184,21 @@ export class DebateOrchestratorService {
     const topic = await repo.getTopicById(topicId);
     if (!topic) throw new Error(`Topic not found: ${topicId}`);
 
-    const profiles = await repo.getApprovedPersonasByTopicId(topicId);
+    const profiles = (await repo.getPersonasByTopicId(topicId)).filter((p) => p.approved);
     const personas = profiles.map(toPersonaAttributes);
 
     const currentBeliefs = new Map<string, { content: string; version: number }>();
     const interviewRecords = new Map<string, string>();
 
     for (const p of personas) {
-      const beliefs = await repo.getPersonaBeliefsByPersonaId(p.id);
+      const beliefs = await repo.getPersonaBeliefsByPersonaId(topicId, p.id);
       const latest = beliefs.reduce(
         (best, b) => b.version > best.version ? b : best,
         beliefs[0]
       );
       currentBeliefs.set(p.id, { content: latest?.content ?? '', version: latest?.version ?? 0 });
 
-      const interview = await repo.getPersonaInterviewByPersonaId(p.id);
+      const interview = await repo.getPersonaInterviewByPersonaId(topicId, p.id);
       interviewRecords.set(p.id, interview?.interviewRecord ?? '');
     }
 
@@ -365,6 +365,7 @@ export class DebateOrchestratorService {
         const bc = turnResult.value.beliefChange;
         const newVersion = belief.version + 1;
         await repo.createPersonaBelief({
+          topicId,
           personaId: persona.id,
           version: newVersion,
           content: bc.updatedBelief,
