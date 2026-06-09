@@ -61,8 +61,10 @@ export function shouldEvaluateIntervention(
   interventionInterval: number
 ): boolean {
   const maxSilence = Math.max(0, ...silenceMap.values());
-  if (maxSilence > personasCount) return true;
   if (turnsSinceFacilitator >= interventionInterval) return true;
+  // silence trigger only fires when someone has been ignored for a full interval
+  // (using personasCount threshold causes cascade: facilitator → A → facilitator → B → ...)
+  if (maxSilence >= interventionInterval && turnsSinceFacilitator >= Math.ceil(interventionInterval / 2)) return true;
   return false;
 }
 
@@ -496,6 +498,7 @@ export class DebateOrchestratorService {
     while (chapterTurnCount < maxChapterTurns && state.currentTurnIndex < globalTurnCap) {
       // 1. Determine next speaker
       let nextPersonaId: string;
+      let nextSpeechMode: 'reaction' | 'full' = 'full';
       const pendingAddress = state.lastAddressedPersonaId;
       state.lastAddressedPersonaId = undefined;
       const MAX_CONSECUTIVE_DIRECT = 3;
@@ -504,13 +507,15 @@ export class DebateOrchestratorService {
         && state.consecutiveDirectExchanges < MAX_CONSECUTIVE_DIRECT;
       if (fromDirectAddress) {
         nextPersonaId = pendingAddress!;
+        nextSpeechMode = 'full'; // directly addressed → respond substantively
         state.consecutiveDirectExchanges++;
       } else {
         const speakerResult = await this.facilitator.selectNextSpeaker(
           state.history, personas, state.silenceMap, state.lastSpeakerId
         );
         if (!speakerResult.ok) throw new Error(pipelineErrorMessage(speakerResult.error));
-        nextPersonaId = speakerResult.value;
+        nextPersonaId = speakerResult.value.personaId;
+        nextSpeechMode = speakerResult.value.speechMode;
         if (nextPersonaId === state.lastSpeakerId && personas.length > 1) {
           nextPersonaId = personas.find(p => p.id !== state.lastSpeakerId)!.id;
         }
@@ -522,7 +527,7 @@ export class DebateOrchestratorService {
       if (!fromDirectAddress && shouldEvaluateIntervention(state.silenceMap, personas.length, turnsSinceFacilitator, interventionInterval)) {
         evaluateParticipationBalance(state.speakCount, personas);
         const interventionResult = await this.facilitator.evaluateIntervention(
-          state.history, personas, state.speakCount, chapter
+          state.history.filter(t => t.turnIndex >= chapter.startTurnIndex), personas, state.speakCount, chapter
         );
         if (!interventionResult.ok) throw new Error(pipelineErrorMessage(interventionResult.error));
 
@@ -544,6 +549,7 @@ export class DebateOrchestratorService {
           if (iv.targetPersonaId && personas.some(p => p.id === iv.targetPersonaId)) {
             if (iv.targetPersonaId !== state.lastSpeakerId || personas.length === 1) {
               nextPersonaId = iv.targetPersonaId;
+              nextSpeechMode = 'full'; // facilitator called on them directly
             }
           }
         }
@@ -559,17 +565,18 @@ export class DebateOrchestratorService {
       const belief = state.currentBeliefs.get(persona.id)!;
       const interviewRecord = interviewRecords.get(persona.id) ?? '';
 
-      // 4. Generate persona turn
+      // 4. Generate persona turn (pass only current chapter's history to keep focus)
+      const chapterHistory = state.history.filter(t => t.turnIndex >= chapter.startTurnIndex);
       const turnResult = await this.personaAgent.generateTurn(
-        persona, belief.content, interviewRecord, state.history, chapter
+        persona, belief.content, interviewRecord, chapterHistory, chapter, nextSpeechMode as 'reaction' | 'full'
       );
       if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
-      // 5. Save persona turn with chapterIndex
+      // 5. Save persona turn with chapterIndex and speechMode
       const savedTurn = await repo.createDebateTurn({
         sessionId, turnIndex: state.currentTurnIndex, speakerType: 'persona',
         personaId: persona.id, content: turnResult.value.content ?? '',
-        chapterIndex,
+        chapterIndex, speechMode: nextSpeechMode,
       });
 
       // 6. Update history
@@ -616,12 +623,14 @@ export class DebateOrchestratorService {
       state.currentTurnIndex++;
       chapterTurnCount++;
 
-      // 10. Check chapter end after reaching target
-      //     Gate: all personas must have spoken at least minSpeaksPerPersonaInChapter times
+      // 10. Check chapter end
       const allPersonasSpoke = personas.every(
         p => (chapterSpeaks.get(p.id) ?? 0) >= minSpeaksPerPersonaInChapter
       );
-      if (chapterTurnCount >= targetTurnsPerChapter && allPersonasSpoke) {
+
+      // LLM check at 75% of target: detect repetition/exhaustion early
+      const earlyCheckAt = Math.ceil(targetTurnsPerChapter * 0.75);
+      if (chapterTurnCount >= earlyCheckAt && allPersonasSpoke) {
         const chapterHistory = state.history.filter(h => h.turnIndex >= chapter.startTurnIndex);
         const endResult = await this.facilitator.evaluateChapterEnd(chapterHistory, chapter);
         if (endResult.ok && endResult.value) {
@@ -649,21 +658,39 @@ export class DebateOrchestratorService {
     const nextChapter = chapters[currentChapterIndex + 1];
     const recentHistory = state.history.slice(-10);
 
-    const transitionResult = await this.facilitator.generateChapterTransition(
-      recentHistory, chapter, nextChapter
-    );
-    if (transitionResult.ok) {
+    // Turn 1: summary of current chapter (chapterIndex = current)
+    const summaryResult = await this.facilitator.generateChapterSummary(recentHistory, chapter);
+    if (summaryResult.ok) {
       await repo.createDebateTurn({
         sessionId, turnIndex: state.currentTurnIndex, speakerType: 'facilitator',
-        content: transitionResult.value,
+        content: summaryResult.value, chapterIndex: currentChapterIndex,
       });
       state.history.push({
-        turnId: `chapter-transition-${currentChapterIndex}`, turnIndex: state.currentTurnIndex,
+        turnId: `chapter-summary-${currentChapterIndex}`, turnIndex: state.currentTurnIndex,
         speakerType: 'facilitator', speakerName: 'ファシリテーター', speakerRole: '',
-        content: transitionResult.value,
+        content: summaryResult.value,
       });
       state.lastFacilitatorTurnIndex = state.currentTurnIndex;
       state.currentTurnIndex++;
+    }
+
+    // Turn 2: introduction of next chapter (chapterIndex = next)
+    // DebateViewer inserts the next chapter heading before this turn
+    if (nextChapter) {
+      const introResult = await this.facilitator.generateChapterIntroduction(nextChapter);
+      if (introResult.ok) {
+        await repo.createDebateTurn({
+          sessionId, turnIndex: state.currentTurnIndex, speakerType: 'facilitator',
+          content: introResult.value, chapterIndex: nextChapter.index,
+        });
+        state.history.push({
+          turnId: `chapter-intro-${nextChapter.index}`, turnIndex: state.currentTurnIndex,
+          speakerType: 'facilitator', speakerName: 'ファシリテーター', speakerRole: '',
+          content: introResult.value,
+        });
+        state.lastFacilitatorTurnIndex = state.currentTurnIndex;
+        state.currentTurnIndex++;
+      }
     }
   }
 }

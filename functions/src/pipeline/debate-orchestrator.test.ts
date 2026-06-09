@@ -39,12 +39,13 @@ const testPersonaProfiles = [
 function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}) {
   return {
     generateOpening: vi.fn().mockResolvedValue({ ok: true, value: { content: '討論を始めます。', firstPersonaId: 'p1' } }),
-    selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: 'p2' }),
+    selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2', speechMode: 'full' } }),
     evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
     generateClosing: vi.fn().mockResolvedValue({ ok: true, value: 'お疲れ様でした。' }),
     generateChapters: vi.fn().mockResolvedValue({ ok: false, error: { code: 'AI_API_ERROR', message: 'mock', retryable: true } }),
     evaluateChapterEnd: vi.fn().mockResolvedValue({ ok: true, value: false }),
-    generateChapterTransition: vi.fn().mockResolvedValue({ ok: true, value: '次の章へ移ります。' }),
+    generateChapterSummary: vi.fn().mockResolvedValue({ ok: true, value: '章のまとめです。' }),
+    generateChapterIntroduction: vi.fn().mockResolvedValue({ ok: true, value: '次の章へ移ります。' }),
     ...overrides,
   } as unknown as FacilitatorAgentService;
 }
@@ -156,7 +157,7 @@ describe('DebateOrchestratorService', () => {
       // Turns return no addressedToPersonaId → selectNextSpeaker is called
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
-        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: 'p2' }),
+        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2', speechMode: 'full' } }),
       });
       const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
 
@@ -395,8 +396,18 @@ describe('DebateOrchestratorService', () => {
   describe('task 3.2: shouldEvaluateIntervention', () => {
     // shouldEvaluateIntervention(silenceMap, personasCount, turnsSinceFacilitator, interventionInterval)
 
-    it('緊急沈黙（silenceMap 最大値 > personasCount）→ true', () => {
-      expect(shouldEvaluateIntervention(new Map([['p1', 3], ['p2', 1]]), 2, 3, 8)).toBe(true);
+    it('沈黙がインターバル以上かつ半インターバル以上経過 → true', () => {
+      // maxSilence(8) >= interventionInterval(8) AND turnsSinceFacilitator(4) >= ceil(8/2)=4
+      expect(shouldEvaluateIntervention(new Map([['p1', 8], ['p2', 1]]), 2, 4, 8)).toBe(true);
+    });
+
+    it('沈黙がインターバル以上でも直後（クールダウン中）は false', () => {
+      // maxSilence(8) >= 8 but turnsSinceFacilitator(2) < ceil(8/2)=4 → false (prevents cascade)
+      expect(shouldEvaluateIntervention(new Map([['p1', 8], ['p2', 1]]), 2, 2, 8)).toBe(false);
+    });
+
+    it('沈黙が personasCount を超えるだけでは発火しない（旧カスケード防止）', () => {
+      expect(shouldEvaluateIntervention(new Map([['p1', 3], ['p2', 1]]), 2, 3, 8)).toBe(false);
     });
 
     it('最大間隔超過（turnsSinceFacilitator >= interventionInterval）→ true', () => {
@@ -422,7 +433,7 @@ describe('DebateOrchestratorService', () => {
         evaluateIntervention: vi.fn()
           .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: false } })
           .mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
-        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: 'p2' }),
+        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2', speechMode: 'full' } }),
       });
       const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
 
@@ -623,11 +634,13 @@ describe('DebateOrchestratorService', () => {
     });
 
     it('task 7.2: evaluateChapterEnd が常に false でも 150% 到達後に強制遷移する', async () => {
-      const generateChapterTransition = vi.fn().mockResolvedValue({ ok: true, value: '強制遷移発言。' });
+      const generateChapterSummary = vi.fn().mockResolvedValue({ ok: true, value: '強制遷移まとめ。' });
+      const generateChapterIntroduction = vi.fn().mockResolvedValue({ ok: true, value: '強制遷移導入。' });
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
         evaluateChapterEnd: vi.fn().mockResolvedValue({ ok: true, value: false }), // never end naturally
-        generateChapterTransition,
+        generateChapterSummary,
+        generateChapterIntroduction,
       });
       // turnsPerChapter=2 → maxChapterTurns=ceil(2*1.5)=3
       const service = new DebateOrchestratorService(
@@ -638,7 +651,7 @@ describe('DebateOrchestratorService', () => {
       await service.run('session-1', 't1');
 
       // evaluateChapterEnd never returned true, but forced transition still fires
-      expect(generateChapterTransition).toHaveBeenCalled();
+      expect(generateChapterSummary).toHaveBeenCalled();
       expect(mockFacilitator.generateClosing).toHaveBeenCalledOnce();
     });
   });

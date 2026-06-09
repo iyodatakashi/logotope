@@ -32,13 +32,18 @@ const OPENING_TOOL: Anthropic.Tool = {
 
 const SELECT_SPEAKER_TOOL: Anthropic.Tool = {
   name: 'select_speaker',
-  description: '次に発言すべきペルソナのIDを選択する（発言は生成しない。サイレントルーティングのみ）',
+  description: '次に発言すべきペルソナのIDと発言モードを選択する（発言は生成しない。サイレントルーティングのみ）',
   input_schema: {
     type: 'object' as const,
     properties: {
       personaId: { type: 'string', description: '次に発言させるペルソナのID' },
+      speechMode: {
+        type: 'string',
+        enum: ['reaction', 'full'],
+        description: 'このペルソナの発言モード。reaction=相槌・短い反応（会話が自然に流れている、前発言を受け止めるだけでよい場合）/ full=意見・論点・根拠をしっかり述べる（この章でまだ発言が少ない、直接問われている、反論・新論点がある場合）',
+      },
     },
-    required: ['personaId'],
+    required: ['personaId', 'speechMode'],
   },
 };
 
@@ -107,13 +112,14 @@ const SUBMIT_CHAPTERS_TOOL: Anthropic.Tool = {
 
 const EVALUATE_CHAPTER_END_TOOL: Anthropic.Tool = {
   name: 'evaluate_chapter_end',
-  description: '現章の議論が出尽くしたか判定する',
+  description: '現章の議論で繰り返しが始まっているか判定する',
   input_schema: {
     type: 'object' as const,
     properties: {
-      shouldEnd: { type: 'boolean', description: '章を終了すべきか' },
+      shouldEnd: { type: 'boolean', description: '章を終了すべきか（同じ主張・論点が繰り返されていれば true）' },
+      reason: { type: 'string', description: '判定理由（繰り返されている論点の概要、または継続すべき理由）' },
     },
-    required: ['shouldEnd'],
+    required: ['shouldEnd', 'reason'],
   },
 };
 
@@ -195,7 +201,7 @@ export class FacilitatorAgentService {
     personas: PersonaAttributes[],
     silenceMap: Map<string, number>,
     excludePersonaId?: string
-  ): Promise<Result<string, PipelineError>> {
+  ): Promise<Result<{ personaId: string; speechMode: 'reaction' | 'full' }, PipelineError>> {
     try {
       const silenceInfo = Array.from(silenceMap.entries())
         .map(([id, count]) => {
@@ -223,7 +229,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'select_speaker' },
         messages: [{
           role: 'user',
-          content: `直前の発言に最も応答しそうなペルソナを1名選んでください。${exclusionNote}\n\n会話履歴（最新${recentHistory.length}件）:\n${formatHistory(recentHistory)}\n\n参加者:\n${formatPersonas(personas)}\n\n沈黙状況: ${silenceInfo || 'なし'}`,
+          content: `直前の発言に最も応答しそうなペルソナを1名選んでください。${exclusionNote}\n\n会話履歴（最新${recentHistory.length}件）:\n${formatHistory(recentHistory)}\n\n参加者:\n${formatPersonas(personas)}\n\n沈黙状況: ${silenceInfo || 'なし'}\n\nspeechMode は**デフォルト reaction**。full を選ぶのは「直接名指しで問われた」「明確な反論・新しい視点・具体的な根拠を述べる必要がある」場合のみ。それ以外はすべて reaction。`,
         }],
       });
 
@@ -234,8 +240,8 @@ export class FacilitatorAgentService {
         return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true } };
       }
 
-      const { personaId } = toolBlock.input as { personaId: string };
-      return { ok: true, value: personaId };
+      const { personaId, speechMode } = toolBlock.input as { personaId: string; speechMode: 'reaction' | 'full' };
+      return { ok: true, value: { personaId, speechMode } };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
@@ -254,7 +260,7 @@ export class FacilitatorAgentService {
         .join(', ');
       const speakCountNote = `\n\n累計発言数: ${speakCountInfo}\ninviteの場合、発言数が少なく現在の論点との関連性が高い人を優先して選ぶこと。`;
       const chapterContext = currentChapter
-        ? `\n\n現在の章「${currentChapter.title}」のフォーカス: ${currentChapter.focusQuestion}`
+        ? `\n\n【この章のミッション】「${currentChapter.title}」\nフォーカス問い: ${currentChapter.focusQuestion}\n司会の役割: この章の間、会話が常にこのフォーカス問いに関連するよう誘導する。`
         : '';
 
       const response = await this.client.messages.create({
@@ -265,7 +271,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'evaluate_intervention' },
         messages: [{
           role: 'user',
-          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${speakCountNote}\n\n介入基準：\n- 同じ論点を繰り返している → topic_shift（新しい具体的な問いを立てて転換）\n- 発言していない参加者がいる → invite（その人に具体的な問いを向ける）\n- 議論が十分に深まった → close\n- まだ活発に議論中 → shouldIntervene=false\n\ntopic_shiftやinviteの場合、contentは必ず「〜についてはどうですか？」のような具体的な問いかけにする。`,
+          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${speakCountNote}\n\n介入基準（優先順）：\n1. 会話がこの章のフォーカス問いから外れている → topic_shift（フォーカス問いに引き戻す具体的な問いかけ）\n2. 同じ論点を繰り返している → topic_shift（フォーカス問いの別の角度から問いかけ）\n3. 発言していない参加者がいる → invite（その人にフォーカス問いに関連した問いを向ける）\n4. この章のフォーカスについて十分に掘り下がった → close\n5. フォーカスに沿って活発に議論中 → shouldIntervene=false\n\ntopic_shiftやinviteのcontentは必ず「〜についてはどうですか？」「〜という点から見るとどうでしょう？」のように、この章のフォーカス問いに関連した具体的な問いかけにする。`,
         }],
       });
 
@@ -366,12 +372,12 @@ export class FacilitatorAgentService {
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_END,
-        system: NEUTRALITY_SYSTEM_PROMPT,
+        system: '討論コンテンツの編集者として、この章を終了するか判断してください。「まだ議論できる余地がある」ではなく「最低限の目標が達成されたか」を基準に、積極的にshouldEnd=trueを返してください。',
         tools: [EVALUATE_CHAPTER_END_TOOL],
         tool_choice: { type: 'tool', name: 'evaluate_chapter_end' },
         messages: [{
           role: 'user',
-          content: `章「${chapter.title}」（フォーカス: ${chapter.focusQuestion}）について、このフォーカスに関する主要な意見が出尽くしたか判定してください。\n\n会話履歴:\n${formatHistory(chapterHistory)}`,
+          content: `章「${chapter.title}」（フォーカス: ${chapter.focusQuestion}）の会話（${chapterHistory.length}ターン）を評価してください。\n\n**以下のどちらか一方でも当てはまれば shouldEnd=true**:\n1. 各参加者が少なくとも一度はフォーカス問いに関する自分の立場・見解を述べた\n2. 直近2〜3発言が以前と同じ主張の繰り返しで新しい内容がない\n\n「完全に議論が尽きた」かどうかではありません。「最低限の内容が出揃ったか」で判断してください。\n\n会話履歴:\n${formatHistory(chapterHistory)}`,
         }],
       });
 
@@ -390,16 +396,11 @@ export class FacilitatorAgentService {
     }
   }
 
-  async generateChapterTransition(
+  async generateChapterSummary(
     recentHistory: ConversationTurn[],
-    currentChapter: DebateChapter,
-    nextChapter: DebateChapter | undefined
+    currentChapter: DebateChapter
   ): Promise<Result<string, PipelineError>> {
     try {
-      const nextChapterContext = nextChapter
-        ? `次章「${nextChapter.title}」のフォーカス: ${nextChapter.focusQuestion}`
-        : '（これは最終章です。次の章はありません）';
-
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
@@ -408,7 +409,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'generate_chapter_transition' },
         messages: [{
           role: 'user',
-          content: `現在の章「${currentChapter.title}」の議論をまとめ、${nextChapter ? '次の章へ橋渡しする発言' : '最終章のまとめ発言'}を生成してください。\n\n${nextChapterContext}\n\n直近の会話:\n${formatHistory(recentHistory.slice(-10))}`,
+          content: `章「${currentChapter.title}」の議論をまとめる発言を生成してください。次の章への言及は不要です。この章で出た主な意見・対立点を簡潔にまとめてください。\n\n直近の会話:\n${formatHistory(recentHistory.slice(-10))}`,
         }],
       });
 
@@ -416,9 +417,38 @@ export class FacilitatorAgentService {
         (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
       );
       if (!toolBlock) {
-        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true } };
+        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in summary response', retryable: true } };
       }
+      const { content } = toolBlock.input as { content: string };
+      return { ok: true, value: content };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+    }
+  }
 
+  async generateChapterIntroduction(
+    nextChapter: DebateChapter
+  ): Promise<Result<string, PipelineError>> {
+    try {
+      const response = await this.client.messages.create({
+        model: AI_MODELS.SONNET,
+        max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
+        system: NEUTRALITY_SYSTEM_PROMPT,
+        tools: [GENERATE_CHAPTER_TRANSITION_TOOL],
+        tool_choice: { type: 'tool', name: 'generate_chapter_transition' },
+        messages: [{
+          role: 'user',
+          content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、このフォーカス問いについて参加者に問いかける形で始めてください。\n\nフォーカス: ${nextChapter.focusQuestion}`,
+        }],
+      });
+
+      const toolBlock = response.content.find(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+      );
+      if (!toolBlock) {
+        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in introduction response', retryable: true } };
+      }
       const { content } = toolBlock.input as { content: string };
       return { ok: true, value: content };
     } catch (err) {

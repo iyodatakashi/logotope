@@ -97,7 +97,7 @@ describe('FacilitatorAgentService', () => {
       await service.generateOpening('AI規制', testPersonas);
 
       const call = mockCreate.mock.calls[0][0];
-      expect(call.system).toMatch(/中立/);
+      expect(call.system).toMatch(/特定の立場への誘導は禁止/);
     });
 
     it('neutrality constraint forbids inducement to specific conclusions', async () => {
@@ -142,7 +142,7 @@ describe('FacilitatorAgentService', () => {
         content: [{
           type: 'tool_use',
           name: 'select_speaker',
-          input: { personaId: 'p2' },
+          input: { personaId: 'p2', speechMode: 'full' },
         }],
       });
 
@@ -150,8 +150,8 @@ describe('FacilitatorAgentService', () => {
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(typeof result.value).toBe('string');
-      expect(result.value).toBe('p2');
+      expect(result.value.personaId).toBe('p2');
+      expect(result.value.speechMode).toBe('full');
     });
 
     it('system prompt contains neutrality constraint', async () => {
@@ -159,14 +159,14 @@ describe('FacilitatorAgentService', () => {
         content: [{
           type: 'tool_use',
           name: 'select_speaker',
-          input: { personaId: 'p3' },
+          input: { personaId: 'p3', speechMode: 'reaction' },
         }],
       });
 
       await service.selectNextSpeaker(testHistory, testPersonas, new Map());
 
       const call = mockCreate.mock.calls[0][0];
-      expect(call.system).toMatch(/中立/);
+      expect(call.system).toMatch(/特定の立場への誘導は禁止/);
     });
 
     it('passes silence map info to the API', async () => {
@@ -174,7 +174,7 @@ describe('FacilitatorAgentService', () => {
         content: [{
           type: 'tool_use',
           name: 'select_speaker',
-          input: { personaId: 'p3' },
+          input: { personaId: 'p3', speechMode: 'reaction' },
         }],
       });
 
@@ -464,16 +464,16 @@ describe('FacilitatorAgentService', () => {
     });
   });
 
-  describe('generateChapterTransition - task 3.2', () => {
+  describe('generateChapterSummary / generateChapterIntroduction - task 3.2', () => {
     const currentChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 1 };
     const nextChapter: DebateChapter = { index: 1, title: '対立', focusQuestion: '最も意見が分かれる点は？', startTurnIndex: 8 };
 
-    it('次章がある場合に遷移発言テキストを返す', async () => {
+    it('generateChapterSummary: 現章のまとめ発言テキストを返す', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'generate_chapter_transition', input: { content: '次のテーマへ移ります。' } }],
+        content: [{ type: 'tool_use', name: 'generate_chapter_transition', input: { content: '導入章のまとめです。' } }],
       });
 
-      const result = await service.generateChapterTransition(testHistory, currentChapter, nextChapter);
+      const result = await service.generateChapterSummary(testHistory, currentChapter);
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -481,22 +481,22 @@ describe('FacilitatorAgentService', () => {
       expect(result.value.length).toBeGreaterThan(0);
     });
 
-    it('nextChapter が undefined（最終章）でも発言を生成できる', async () => {
+    it('generateChapterIntroduction: 次章の導入発言テキストを返す', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'generate_chapter_transition', input: { content: '最終章のまとめです。' } }],
+        content: [{ type: 'tool_use', name: 'generate_chapter_transition', input: { content: '次のテーマへ移ります。' } }],
       });
 
-      const result = await service.generateChapterTransition(testHistory, currentChapter, undefined);
+      const result = await service.generateChapterIntroduction(nextChapter);
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value).toBeTruthy();
     });
 
-    it('AI エラー時に PipelineError を返す', async () => {
+    it('generateChapterSummary: AI エラー時に PipelineError を返す', async () => {
       mockCreate.mockRejectedValue(new Error('API error'));
 
-      const result = await service.generateChapterTransition(testHistory, currentChapter, undefined);
+      const result = await service.generateChapterSummary(testHistory, currentChapter);
 
       expect(result.ok).toBe(false);
       if (result.ok) return;
@@ -589,7 +589,7 @@ describe('FacilitatorAgentService', () => {
       await service.generateClosing(testHistory, new Map());
 
       const call = mockCreate.mock.calls[0][0];
-      expect(call.system).toMatch(/中立/);
+      expect(call.system).toMatch(/特定の立場への誘導は禁止/);
     });
 
     it('returns error result when Claude API fails', async () => {
