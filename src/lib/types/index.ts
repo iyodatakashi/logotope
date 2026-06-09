@@ -147,6 +147,7 @@ export interface TurnDoc {
   content: string;
   createdAt: Timestamp;
   chapterIndex?: number;
+  speechMode?: 'reaction' | 'full';
 }
 
 export interface PostDebateCommentDoc {

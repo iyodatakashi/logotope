@@ -59,6 +59,7 @@ export interface DebateTurn {
   content: string;
   createdAt: string;
   chapterIndex?: number;
+  speechMode?: 'reaction' | 'full';
 }
 
 export interface PersonaInterview {
@@ -99,6 +100,7 @@ export interface CreateDebateTurnParams {
   personaId?: string;
   content: string;
   chapterIndex?: number;
+  speechMode?: 'reaction' | 'full';
 }
 
 export interface CreatePostDebateCommentParams {
@@ -232,6 +234,7 @@ export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<
   };
   if (params.personaId !== undefined) turn.personaId = params.personaId;
   if (params.chapterIndex !== undefined) turn.chapterIndex = params.chapterIndex;
+  if (params.speechMode !== undefined) turn.speechMode = params.speechMode;
 
   await db().doc(`topics/${params.sessionId}/sessions/0`).update({
     turns: FieldValue.arrayUnion(turn),

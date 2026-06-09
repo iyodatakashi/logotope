@@ -78,7 +78,7 @@ function buildPersonaSystemPrompt(
 
 ## 発言スタイルの厳守事項
 ${styleGuide}
-- 1回の発言は**必ず2〜3文以内**に収める。長い演説は絶対に禁止。
+- 発言は **reaction（相槌・短い反応）** か **full（意見・論点をしっかり述べる）** のどちらかで行う。会話の流れに応じて自然に使い分けること。演説禁止。
 - 必ず直前の誰かの発言を受けて、その内容に具体的に反応する。
 - **発言の冒頭で相手の名前を呼んではいけない**（「○○さんのおっしゃる通り」「○○さんが言ったように」などは禁止）。
 - 自分の信念・立場に基づいて反論・疑問を呈することを恐れない。相手の意見に同意しない場合は、はっきりそう言う。同意一辺倒は不自然。
@@ -107,7 +107,12 @@ function buildTurnTool(styleGuide: string): Anthropic.Tool {
     input_schema: {
       type: 'object' as const,
       properties: {
-        content: { type: 'string', description: `ペルソナの発言テキスト（2〜3文以内。直前の発言を受けた短い返答。語り口: ${styleSummary}）` },
+        speechMode: {
+          type: 'string',
+          enum: ['reaction', 'full'],
+          description: 'まずこれを決める。**デフォルトは reaction**（相槌・短い反応・一言同意など10〜25文字）。full を選ぶのは「新しい論点・根拠・具体例を初めて持ち出すとき」または「本格的に反論するとき」のみ。それ以外はすべて reaction。',
+        },
+        content: { type: 'string', description: `発言テキスト。reaction なら10〜25文字の短い反応のみ。full なら意見・根拠をしっかり述べる（最大200文字）。語り口: ${styleSummary}` },
         beliefChangeType: {
           type: 'string',
           enum: ['opinion_change', 'partial_acceptance'],
@@ -128,7 +133,7 @@ function buildTurnTool(styleGuide: string): Anthropic.Tool {
             '返答を求める特定のペルソナのID。そのペルソナに直接質問する場合のみ指定する。反論・同意・感想など応答を強制しない発言では省略する',
         },
       },
-      required: ['content'],
+      required: ['speechMode', 'content'],
     },
   };
 }
@@ -161,24 +166,27 @@ export class PersonaAgentService {
     currentBelief: string,
     interviewRecord: string,
     history: ConversationTurn[],
-    currentChapter?: DebateChapter
+    currentChapter?: DebateChapter,
+    speechMode?: 'reaction' | 'full'
   ): Promise<Result<AgentTurnResult, PipelineError>> {
     try {
       const recentHistory = history.slice(-20);
       const styleGuide = buildSpeechStyleGuide(persona);
       const chapterContext = currentChapter
-        ? `\n\n現在の章「${currentChapter.title}」のフォーカス: ${currentChapter.focusQuestion}`
+        ? `\n\n【この章のフォーカス】「${currentChapter.title}」: ${currentChapter.focusQuestion}`
         : '';
+      const mode = speechMode ?? 'reaction';
+      const commonInstructions = `冒頭で相手の名前を呼ぶことは禁止。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
+      const userContent = mode === 'reaction'
+        ? `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}\n\n${persona.name}として、直前の発言への短い反応を返してください。speechMode=reaction（固定）。10〜25文字の相槌・同意・疑問・一言反論など。${commonInstructions}`
+        : `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}\n\n${persona.name}として、意見・論点・根拠をしっかり述べてください。speechMode=full（固定）。最大200文字。${commonInstructions}`;
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.PERSONA_TURN,
         system: buildPersonaSystemPrompt(persona, interviewRecord, currentBelief),
         tools: [buildTurnTool(styleGuide)],
         tool_choice: { type: 'tool', name: 'submit_turn' },
-        messages: [{
-          role: 'user',
-          content: `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}\n\n${persona.name}として、**直前の発言に2〜3文で短く返答してください**。演説や長い説明は禁止。冒頭で相手の名前を呼ぶことも禁止。自分の立場から見て納得できない点があれば反論してください。信念に変化があればbeliefChangeTypeを指定してください。addressedToPersonaIdは、特定の参加者に直接質問する場合のみ指定し、それ以外は省略してください。`,
-        }],
+        messages: [{ role: 'user', content: userContent }],
       });
 
       const toolBlock = response.content.find(

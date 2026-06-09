@@ -188,13 +188,13 @@ describe('task 1.2: スタイルガイドのシステムプロンプトとツー
     });
   });
 
-  it('発言スタイルセクション先頭（2〜3文以内より前）に語り口指針が含まれる', async () => {
+  it('発言スタイルセクション先頭（発言の長さルールより前）に語り口指針が含まれる', async () => {
     await service.generateTurn(youngPersona, 'belief', 'interview', []);
 
     const system: string = mockCreate.mock.calls[0][0].system;
     const sectionStart = system.indexOf('## 発言スタイルの厳守事項');
     const styleIdx = system.indexOf('口語', sectionStart);
-    const constraintIdx = system.indexOf('2〜3文以内', sectionStart);
+    const constraintIdx = system.indexOf('reaction', sectionStart);
 
     expect(styleIdx).toBeGreaterThan(sectionStart);
     expect(styleIdx).toBeLessThan(constraintIdx);

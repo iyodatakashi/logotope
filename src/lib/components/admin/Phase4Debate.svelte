@@ -35,6 +35,7 @@
 					speakerName: persona?.name ?? 'ファシリテーター',
 					speakerRole: persona?.stakeholderRole ?? '',
 					content: t.content,
+					speechMode: t.speechMode,
 					beliefChangesTriggered: personasStore.personas.flatMap((p) =>
 						(p.beliefs ?? [])
 							.filter((b) => b.triggeredByTurnId === t.id)
@@ -137,6 +138,9 @@
 						{#if turn.speakerRole}
 							<span class="role">({turn.speakerRole})</span>
 						{/if}
+						{#if turn.speechMode}
+							<span class="speech-mode">[{turn.speechMode}]</span>
+						{/if}
 					</div>
 					<p class="content">{turn.content}</p>
 					{#if turn.beliefChangesTriggered.length > 0}
@@ -175,6 +179,8 @@
 	.turn.facilitator { border-left-color: #1565c0; background: #f8f9ff; }
 	.speaker { margin-bottom: 4px; }
 	.role { color: #757575; font-size: 0.875rem; margin-left: 4px; }
+	.speech-mode { font-size: 0.75rem; margin-left: 6px; color: #fff; background: #888; padding: 1px 5px; border-radius: 3px; }
+	.speech-mode:has(+ *) { /* nothing */ }
 	.content { margin: 0; line-height: 1.6; }
 	.beliefs { margin-top: 8px; font-size: 0.85rem; color: #555; list-style: none; padding: 0; }
 	.publish-success { background: #e8f5e9; padding: 16px; border-radius: 8px; margin-top: 16px; }
