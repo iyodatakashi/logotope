@@ -78,3 +78,89 @@ export interface ProgressState {
   total: number;
   updatedAt: string;
 }
+
+// --- Firestore Document Types ---
+
+import type { Timestamp } from 'firebase/firestore';
+
+export interface StakeholderDoc {
+  role: string;
+  reason: string;
+  mainInterests: string[];
+  stanceDirection: string;
+  minorityLevel: string;
+}
+
+export interface TopicDoc {
+  id: string;
+  title: string;
+  status: DebateStatus;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  publishedAt?: Timestamp;
+  personaCount?: number;
+  stakeholders?: {
+    items: StakeholderDoc[];
+    approved: boolean;
+    createdAt: Timestamp;
+  };
+}
+
+export interface InterviewDoc {
+  interviewRecord?: string;
+  status: 'queued' | 'in_progress' | 'completed' | 'error';
+  errorMessage?: string;
+  completedAt?: Timestamp;
+}
+
+export interface BeliefDoc {
+  id: string;
+  version: number;
+  content: string;
+  changeType?: BeliefChangeType;
+  changeSummary?: string;
+  triggeredByTurnId?: string;
+  createdAt: Timestamp;
+}
+
+export interface PersonaDoc {
+  id: string;
+  topicId: string;
+  stakeholderRole: string;
+  name: string;
+  age: number;
+  occupation: string;
+  background: string;
+  interests: string;
+  stanceDirection: string;
+  approved: boolean;
+  sortOrder: number;
+  interview?: InterviewDoc;
+  beliefs: BeliefDoc[];
+}
+
+export interface TurnDoc {
+  id: string;
+  turnIndex: number;
+  speakerType: SpeakerType;
+  personaId?: string;
+  content: string;
+  createdAt: Timestamp;
+}
+
+export interface PostDebateCommentDoc {
+  id: string;
+  personaId: string;
+  content: string;
+  sortOrder: number;
+}
+
+export interface SessionDoc {
+  status: DebateStatus;
+  totalTurns?: number;
+  createdAt: Timestamp;
+  completedAt?: Timestamp;
+  publishedAt?: Timestamp;
+  turns: TurnDoc[];
+  postDebateComments: PostDebateCommentDoc[];
+}
