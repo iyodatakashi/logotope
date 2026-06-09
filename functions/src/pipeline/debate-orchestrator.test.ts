@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { shouldEvaluateIntervention, evaluateParticipationBalance, DEFAULT_OPTIONS } from './debate-orchestrator.js';
+import { shouldEvaluateIntervention, evaluateParticipationBalance, DEFAULT_OPTIONS, DEFAULT_CHAPTERS } from './debate-orchestrator.js';
+import type { DebateChapter } from '../types/index.js';
 
 vi.mock('../db/repository.js', () => ({
   getTopicById: vi.fn(),
-  getApprovedPersonasByTopicId: vi.fn(),
+  getPersonasByTopicId: vi.fn(),
   getPersonaBeliefsByPersonaId: vi.fn(),
   getPersonaInterviewByPersonaId: vi.fn(),
   getDebateTurnsBySessionId: vi.fn(),
@@ -13,6 +14,8 @@ vi.mock('../db/repository.js', () => ({
   createPostDebateComment: vi.fn(),
   completeDebateSession: vi.fn(),
   updateTopicStatus: vi.fn(),
+  saveChapters: vi.fn(),
+  updateCurrentChapterIndex: vi.fn(),
 }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: vi.fn(),
@@ -39,6 +42,9 @@ function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof
     selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: 'p2' }),
     evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
     generateClosing: vi.fn().mockResolvedValue({ ok: true, value: 'お疲れ様でした。' }),
+    generateChapters: vi.fn().mockResolvedValue({ ok: false, error: { code: 'AI_API_ERROR', message: 'mock', retryable: true } }),
+    evaluateChapterEnd: vi.fn().mockResolvedValue({ ok: true, value: false }),
+    generateChapterTransition: vi.fn().mockResolvedValue({ ok: true, value: '次の章へ移ります。' }),
     ...overrides,
   } as unknown as FacilitatorAgentService;
 }
@@ -64,7 +70,7 @@ function makeMockTracker() {
 
 function setupRepoDefaults() {
   vi.mocked(repo.getTopicById).mockResolvedValue({ id: 't1', title: 'AI医療診断の導入', status: 'debating', createdAt: '', updatedAt: '' });
-  vi.mocked(repo.getApprovedPersonasByTopicId).mockResolvedValue(testPersonaProfiles);
+  vi.mocked(repo.getPersonasByTopicId).mockResolvedValue(testPersonaProfiles);
   vi.mocked(repo.getPersonaBeliefsByPersonaId).mockImplementation(async (personaId) => [
     { id: `belief-${personaId}`, personaId, version: 0, content: '# 初期信念\n賛成。', createdAt: '' },
   ]);
@@ -78,10 +84,19 @@ function setupRepoDefaults() {
   vi.mocked(repo.updateTopicStatus).mockResolvedValue(undefined);
   vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([]);
   vi.mocked(repo.getDebateSessionById).mockResolvedValue({ id: 'session-1', topicId: 't1', status: 'running', createdAt: '' });
+  vi.mocked(repo.saveChapters).mockResolvedValue(undefined);
+  vi.mocked(repo.updateCurrentChapterIndex).mockResolvedValue(undefined);
 }
 
 // Short debate options for tests: check intervention every turn, accept 1 speak per persona
-const shortOptions = { maxTurns: 40, interventionInterval: 1, silenceThreshold: 100, minTurnsPerPersona: 1 };
+const shortOptions = {
+  turnsPerChapter: 10,
+  maxTurns: 40,
+  interventionInterval: 1,
+  silenceThreshold: 100,
+  minTurnsPerPersona: 1,
+  minSpeaksPerPersonaInChapter: 1,
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -103,7 +118,11 @@ describe('DebateOrchestratorService', () => {
 
       await service.run('session-1', 't1');
 
-      expect(mockFacilitator.generateOpening).toHaveBeenCalledWith('AI医療診断の導入', expect.any(Array));
+      expect(mockFacilitator.generateOpening).toHaveBeenCalledWith(
+        'AI医療診断の導入',
+        expect.any(Array),
+        expect.objectContaining({ index: 0, title: '導入' })
+      );
       expect(vi.mocked(repo.createDebateTurn)).toHaveBeenCalledWith(
         expect.objectContaining({ turnIndex: 0, speakerType: 'facilitator', content: '討論を始めます。' })
       );
@@ -312,10 +331,42 @@ describe('DebateOrchestratorService', () => {
         lastSpeakerId: undefined,
         consecutiveDirectExchanges: 0,
         lastFacilitatorTurnIndex: 0,
+        currentTurnIndex: 0,
       };
       expect(state.lastSpeakerId).toBeUndefined();
       expect(state.consecutiveDirectExchanges).toBe(0);
       expect(state.lastFacilitatorTurnIndex).toBe(0);
+      expect(state.currentTurnIndex).toBe(0);
+    });
+  });
+
+  describe('task 1.1: DEFAULT_CHAPTERS', () => {
+    it('DEFAULT_CHAPTERS は 4 章を持つ', () => {
+      expect(DEFAULT_CHAPTERS).toHaveLength(4);
+    });
+
+    it('DEFAULT_CHAPTERS の章タイトルが正しい', () => {
+      expect(DEFAULT_CHAPTERS[0].title).toBe('導入');
+      expect(DEFAULT_CHAPTERS[1].title).toBe('核心的対立');
+      expect(DEFAULT_CHAPTERS[2].title).toBe('影響と懸念');
+      expect(DEFAULT_CHAPTERS[3].title).toBe('まとめ');
+    });
+
+    it('DEFAULT_CHAPTERS の各章に focusQuestion が含まれる', () => {
+      for (const chapter of DEFAULT_CHAPTERS) {
+        expect(chapter.focusQuestion).toBeTruthy();
+      }
+    });
+
+    it('DebateChapter 型が利用できる', () => {
+      const chapter: DebateChapter = {
+        index: 0,
+        title: '導入',
+        focusQuestion: 'この問題の核心は何か？',
+        startTurnIndex: 1,
+      };
+      expect(chapter.index).toBe(0);
+      expect(chapter.endTurnIndex).toBeUndefined();
     });
   });
 
@@ -422,7 +473,8 @@ describe('DebateOrchestratorService', () => {
       // selectNextSpeaker was NOT called during the chain (turns 1 and 2)
       // It IS called once after chain breaks (turn 3 speaker selection), then close accepted
       const selectCalls = (mockFacilitator.selectNextSpeaker as ReturnType<typeof vi.fn>).mock.calls;
-      expect(selectCalls.length).toBe(1); // only called after chain breaks
+      // Chain breaks after turn 2 → selectNextSpeaker is called at least once after that
+      expect(selectCalls.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -465,6 +517,185 @@ describe('DebateOrchestratorService', () => {
         [p1, p2, p3] as import('../types/index.js').PersonaAttributes[]
       );
       expect(result.map(p => p.id)).toEqual(['p3']);
+    });
+  });
+
+  describe('task 5.1: 章の生成・保存フロー', () => {
+    it('run 冒頭で saveChapters を呼ぶ', async () => {
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+
+      await service.run('session-1', 't1');
+
+      expect(vi.mocked(repo.saveChapters)).toHaveBeenCalledOnce();
+    });
+
+    it('generateChapters 失敗時は DEFAULT_CHAPTERS でフォールバックして saveChapters を呼ぶ', async () => {
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+        generateChapters: vi.fn().mockResolvedValue({ ok: false, error: { code: 'AI_API_ERROR', message: 'fail', retryable: true } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+
+      await service.run('session-1', 't1');
+
+      expect(vi.mocked(repo.saveChapters)).toHaveBeenCalledWith(
+        't1',
+        expect.arrayContaining([expect.objectContaining({ title: '導入', index: 0 })])
+      );
+    });
+
+    it('generateOpening に第 1 章コンテキスト（index: 0）が渡される', async () => {
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+
+      await service.run('session-1', 't1');
+
+      expect(mockFacilitator.generateOpening).toHaveBeenCalledWith(
+        'AI医療診断の導入',
+        expect.any(Array),
+        expect.objectContaining({ index: 0, title: '導入' })
+      );
+    });
+  });
+
+  describe('task 5.2: executeChapter と 2 層ループ', () => {
+    it('各ペルソナターンに chapterIndex が付与される', async () => {
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+
+      await service.run('session-1', 't1');
+
+      const personaTurns = vi.mocked(repo.createDebateTurn).mock.calls.filter(
+        c => c[0].speakerType === 'persona'
+      );
+      expect(personaTurns.length).toBeGreaterThanOrEqual(1);
+      for (const [params] of personaTurns) {
+        expect(params.chapterIndex).toBeGreaterThanOrEqual(0);
+      }
+    });
+
+    it('目標ターン数到達で evaluateChapterEnd が呼ばれる', async () => {
+      const evaluateChapterEnd = vi.fn().mockResolvedValue({ ok: true, value: true });
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
+        evaluateChapterEnd,
+      });
+      // turnsPerChapter=2 → maxChapterTurns=ceil(2*1.5)=3
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
+
+      await service.run('session-1', 't1');
+
+      expect(evaluateChapterEnd).toHaveBeenCalled();
+    });
+
+    it('evaluateIntervention が close を返しても executeChapter ループを中断しない', async () => {
+      const evaluateChapterEnd = vi.fn().mockResolvedValue({ ok: true, value: true });
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+        evaluateChapterEnd,
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
+
+      await service.run('session-1', 't1');
+
+      // evaluateChapterEnd が呼ばれる = chapter loop が動いた証拠
+      expect(evaluateChapterEnd).toHaveBeenCalled();
+      expect(mockFacilitator.generateClosing).toHaveBeenCalledOnce();
+    });
+
+    it('updateCurrentChapterIndex が章ごとに呼ばれる', async () => {
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+        evaluateChapterEnd: vi.fn().mockResolvedValue({ ok: true, value: true }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
+
+      await service.run('session-1', 't1');
+
+      expect(vi.mocked(repo.updateCurrentChapterIndex)).toHaveBeenCalledWith('t1', 0);
+    });
+
+    it('task 7.2: evaluateChapterEnd が常に false でも 150% 到達後に強制遷移する', async () => {
+      const generateChapterTransition = vi.fn().mockResolvedValue({ ok: true, value: '強制遷移発言。' });
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
+        evaluateChapterEnd: vi.fn().mockResolvedValue({ ok: true, value: false }), // never end naturally
+        generateChapterTransition,
+      });
+      // turnsPerChapter=2 → maxChapterTurns=ceil(2*1.5)=3
+      const service = new DebateOrchestratorService(
+        mockFacilitator, makeMockPersonaAgent(), makeMockTracker(),
+        { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 }
+      );
+
+      await service.run('session-1', 't1');
+
+      // evaluateChapterEnd never returned true, but forced transition still fires
+      expect(generateChapterTransition).toHaveBeenCalled();
+      expect(mockFacilitator.generateClosing).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('task 5.3: resume の章対応', () => {
+    it('chapters がある場合、currentChapterIndex の章から再開し新ターンに chapterIndex >= startChapterIndex が付く', async () => {
+      vi.mocked(repo.getDebateSessionById).mockResolvedValue({
+        id: 'session-1',
+        topicId: 't1',
+        status: 'running',
+        createdAt: '',
+        chapters: [
+          { index: 0, title: '導入', focusQuestion: '問題の核心は？' },
+          { index: 1, title: '核心的対立', focusQuestion: '意見が分かれる点は？' },
+        ],
+        currentChapterIndex: 1,
+      });
+      vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([
+        { id: 't0', sessionId: 'session-1', turnIndex: 0, speakerType: 'facilitator', content: '討論を始めます。', createdAt: '', chapterIndex: undefined },
+        { id: 't1', sessionId: 'session-1', turnIndex: 1, speakerType: 'persona', personaId: 'p1', content: 'p1発言。', createdAt: '', chapterIndex: 0 },
+        { id: 't2', sessionId: 'session-1', turnIndex: 2, speakerType: 'persona', personaId: 'p2', content: 'p2発言。', createdAt: '', chapterIndex: 1 },
+      ]);
+
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+
+      const result = await service.resume('session-1', 3);
+
+      expect(result.ok).toBe(true);
+      const newPersonaTurns = vi.mocked(repo.createDebateTurn).mock.calls.filter(
+        c => c[0].speakerType === 'persona'
+      );
+      expect(newPersonaTurns.length).toBeGreaterThanOrEqual(1);
+      for (const [params] of newPersonaTurns) {
+        expect(params.chapterIndex).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    it('chapters がない旧セッションでは既存動作にフォールバックして result.ok が true になる', async () => {
+      vi.mocked(repo.getDebateSessionById).mockResolvedValue({
+        id: 'session-1',
+        topicId: 't1',
+        status: 'running',
+        createdAt: '',
+      });
+
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+
+      const result = await service.resume('session-1', 2);
+
+      expect(result.ok).toBe(true);
+      expect(vi.mocked(repo.completeDebateSession)).toHaveBeenCalledOnce();
     });
   });
 

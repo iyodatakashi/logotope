@@ -78,6 +78,14 @@ export interface FacilitatorIntervention {
   targetPersonaId?: string;
 }
 
+export interface DebateChapter {
+  index: number;
+  title: string;
+  focusQuestion: string;
+  startTurnIndex: number;
+  endTurnIndex?: number;
+}
+
 export type PipelineError =
   | { code: 'AI_API_ERROR'; message: string; retryable: boolean }
   | { code: 'VALIDATION_ERROR'; message: string; field?: string }

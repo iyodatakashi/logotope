@@ -6,6 +6,7 @@ import type {
   PersonaAttributes,
   FacilitatorOpeningResult,
   FacilitatorIntervention,
+  DebateChapter,
   Result,
   PipelineError,
 } from '../types/index.js';
@@ -66,6 +67,68 @@ const INTERVENTION_TOOL: Anthropic.Tool = {
   },
 };
 
+const SUBMIT_ISSUES_TOOL: Anthropic.Tool = {
+  name: 'submit_issues',
+  description: '討論テーマとペルソナ一覧から討論論点を洗い出す',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      issues: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '5〜10件の討論論点（各論点を1〜2文で記述）',
+      },
+    },
+    required: ['issues'],
+  },
+};
+
+const SUBMIT_CHAPTERS_TOOL: Anthropic.Tool = {
+  name: 'submit_chapters',
+  description: '洗い出した論点を章立てに整理する（目安3〜6章）',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      chapters: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: '章タイトル' },
+            focusQuestion: { type: 'string', description: '討論フォーカス問い' },
+          },
+          required: ['title', 'focusQuestion'],
+        },
+      },
+    },
+    required: ['chapters'],
+  },
+};
+
+const EVALUATE_CHAPTER_END_TOOL: Anthropic.Tool = {
+  name: 'evaluate_chapter_end',
+  description: '現章の議論が出尽くしたか判定する',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      shouldEnd: { type: 'boolean', description: '章を終了すべきか' },
+    },
+    required: ['shouldEnd'],
+  },
+};
+
+const GENERATE_CHAPTER_TRANSITION_TOOL: Anthropic.Tool = {
+  name: 'generate_chapter_transition',
+  description: '章の遷移発言または最終章のまとめ発言を生成する',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      content: { type: 'string', description: 'ファシリテーターの遷移発言テキスト' },
+    },
+    required: ['content'],
+  },
+};
+
 const CLOSING_TOOL: Anthropic.Tool = {
   name: 'submit_closing',
   description: '討論のクロージング発言を提出する',
@@ -93,9 +156,13 @@ export class FacilitatorAgentService {
 
   async generateOpening(
     topicTitle: string,
-    personas: PersonaAttributes[]
+    personas: PersonaAttributes[],
+    firstChapter?: DebateChapter
   ): Promise<Result<FacilitatorOpeningResult, PipelineError>> {
     try {
+      const chapterContext = firstChapter
+        ? `\n\n第1章「${firstChapter.title}」のフォーカス: ${firstChapter.focusQuestion}`
+        : '';
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_OPENING,
@@ -104,7 +171,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'submit_opening' },
         messages: [{
           role: 'user',
-          content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}\n\n冒頭発言（2〜3文）の構成：\n1. このテーマで最も対立しそうな具体的な論点を一つ選んで問いかける（例：「まず〇〇という点について伺いたいのですが」）\n2. 最初の発言者にその問いを向ける\n\n「議論を始めましょう」などの抽象的な言葉は禁止。必ず具体的な問いで始める。firstPersonaIdには必ず上記リストのIDを使用してください。`,
+          content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${chapterContext}\n\n冒頭発言（2〜3文）の構成：\n1. このテーマで最も対立しそうな具体的な論点を一つ選んで問いかける（例：「まず〇〇という点について伺いたいのですが」）\n2. 最初の発言者にその問いを向ける\n\n「議論を始めましょう」などの抽象的な言葉は禁止。必ず具体的な問いで始める。firstPersonaIdには必ず上記リストのIDを使用してください。`,
         }],
       });
 
@@ -178,13 +245,17 @@ export class FacilitatorAgentService {
   async evaluateIntervention(
     history: ConversationTurn[],
     personas: PersonaAttributes[],
-    speakCount: Map<string, number> = new Map()
+    speakCount: Map<string, number> = new Map(),
+    currentChapter?: DebateChapter
   ): Promise<Result<FacilitatorIntervention, PipelineError>> {
     try {
       const speakCountInfo = personas
         .map(p => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
         .join(', ');
       const speakCountNote = `\n\n累計発言数: ${speakCountInfo}\ninviteの場合、発言数が少なく現在の論点との関連性が高い人を優先して選ぶこと。`;
+      const chapterContext = currentChapter
+        ? `\n\n現在の章「${currentChapter.title}」のフォーカス: ${currentChapter.focusQuestion}`
+        : '';
 
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
@@ -194,7 +265,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'evaluate_intervention' },
         messages: [{
           role: 'user',
-          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${speakCountNote}\n\n介入基準：\n- 同じ論点を繰り返している → topic_shift（新しい具体的な問いを立てて転換）\n- 発言していない参加者がいる → invite（その人に具体的な問いを向ける）\n- 議論が十分に深まった → close\n- まだ活発に議論中 → shouldIntervene=false\n\ntopic_shiftやinviteの場合、contentは必ず「〜についてはどうですか？」のような具体的な問いかけにする。`,
+          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${speakCountNote}\n\n介入基準：\n- 同じ論点を繰り返している → topic_shift（新しい具体的な問いを立てて転換）\n- 発言していない参加者がいる → invite（その人に具体的な問いを向ける）\n- 議論が十分に深まった → close\n- まだ活発に議論中 → shouldIntervene=false\n\ntopic_shiftやinviteの場合、contentは必ず「〜についてはどうですか？」のような具体的な問いかけにする。`,
         }],
       });
 
@@ -220,6 +291,136 @@ export class FacilitatorAgentService {
       }
 
       return { ok: true, value: intervention };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+    }
+  }
+
+  async generateChapters(
+    topicTitle: string,
+    personas: PersonaAttributes[]
+  ): Promise<Result<DebateChapter[], PipelineError>> {
+    try {
+      // Step 1: 論点洗い出し
+      const issuesResponse = await this.client.messages.create({
+        model: AI_MODELS.SONNET,
+        max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
+        system: NEUTRALITY_SYSTEM_PROMPT,
+        tools: [SUBMIT_ISSUES_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_issues' },
+        messages: [{
+          role: 'user',
+          content: `テーマ「${topicTitle}」について、以下のペルソナが討論する際に取り上げるべき重要な論点を5〜10件洗い出してください。\n\n参加者:\n${formatPersonas(personas)}\n\n各論点は1〜2文で具体的に記述してください。`,
+        }],
+      });
+
+      const issuesBlock = issuesResponse.content.find(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+      );
+      if (!issuesBlock) {
+        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in issues response', retryable: true } };
+      }
+      const { issues } = issuesBlock.input as { issues: string[] };
+
+      // Step 2: 章構造化
+      const chaptersResponse = await this.client.messages.create({
+        model: AI_MODELS.SONNET,
+        max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_STRUCTURE,
+        system: NEUTRALITY_SYSTEM_PROMPT,
+        tools: [SUBMIT_CHAPTERS_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_chapters' },
+        messages: [{
+          role: 'user',
+          content: `以下の論点をもとに、討論の章立てを3〜6章に整理してください。\n\n論点一覧:\n${issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n各章に「章タイトル」と「その章で議論すべき具体的なフォーカス問い」を設定してください。\n\n構成の原則: 第1章は参加者が共通して話せる一般論・問題の概観から始め、章を追うごとに具体的な対立点や深いテーマへ掘り下げる「広い問いから深い問いへのファネル構造」にしてください。`,
+        }],
+      });
+
+      const chaptersBlock = chaptersResponse.content.find(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+      );
+      if (!chaptersBlock) {
+        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in chapters response', retryable: true } };
+      }
+      const { chapters } = chaptersBlock.input as { chapters: Array<{ title: string; focusQuestion: string }> };
+
+      const debateChapters: DebateChapter[] = chapters.map((c, i) => ({
+        index: i,
+        title: c.title,
+        focusQuestion: c.focusQuestion,
+        startTurnIndex: 0,
+      }));
+
+      return { ok: true, value: debateChapters };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+    }
+  }
+
+  async evaluateChapterEnd(
+    chapterHistory: ConversationTurn[],
+    chapter: DebateChapter
+  ): Promise<Result<boolean, PipelineError>> {
+    try {
+      const response = await this.client.messages.create({
+        model: AI_MODELS.SONNET,
+        max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_END,
+        system: NEUTRALITY_SYSTEM_PROMPT,
+        tools: [EVALUATE_CHAPTER_END_TOOL],
+        tool_choice: { type: 'tool', name: 'evaluate_chapter_end' },
+        messages: [{
+          role: 'user',
+          content: `章「${chapter.title}」（フォーカス: ${chapter.focusQuestion}）について、このフォーカスに関する主要な意見が出尽くしたか判定してください。\n\n会話履歴:\n${formatHistory(chapterHistory)}`,
+        }],
+      });
+
+      const toolBlock = response.content.find(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+      );
+      if (!toolBlock) {
+        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true } };
+      }
+
+      const { shouldEnd } = toolBlock.input as { shouldEnd: boolean };
+      return { ok: true, value: shouldEnd };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+    }
+  }
+
+  async generateChapterTransition(
+    recentHistory: ConversationTurn[],
+    currentChapter: DebateChapter,
+    nextChapter: DebateChapter | undefined
+  ): Promise<Result<string, PipelineError>> {
+    try {
+      const nextChapterContext = nextChapter
+        ? `次章「${nextChapter.title}」のフォーカス: ${nextChapter.focusQuestion}`
+        : '（これは最終章です。次の章はありません）';
+
+      const response = await this.client.messages.create({
+        model: AI_MODELS.SONNET,
+        max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
+        system: NEUTRALITY_SYSTEM_PROMPT,
+        tools: [GENERATE_CHAPTER_TRANSITION_TOOL],
+        tool_choice: { type: 'tool', name: 'generate_chapter_transition' },
+        messages: [{
+          role: 'user',
+          content: `現在の章「${currentChapter.title}」の議論をまとめ、${nextChapter ? '次の章へ橋渡しする発言' : '最終章のまとめ発言'}を生成してください。\n\n${nextChapterContext}\n\n直近の会話:\n${formatHistory(recentHistory.slice(-10))}`,
+        }],
+      });
+
+      const toolBlock = response.content.find(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+      );
+      if (!toolBlock) {
+        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true } };
+      }
+
+      const { content } = toolBlock.input as { content: string };
+      return { ok: true, value: content };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };

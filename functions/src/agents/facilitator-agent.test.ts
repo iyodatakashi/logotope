@@ -6,7 +6,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 import Anthropic from '@anthropic-ai/sdk';
 import { FacilitatorAgentService } from './facilitator-agent.js';
-import type { PersonaAttributes, ConversationTurn } from '../types/index.js';
+import type { PersonaAttributes, ConversationTurn, DebateChapter } from '../types/index.js';
 
 const mockCreate = vi.fn();
 
@@ -354,6 +354,203 @@ describe('FacilitatorAgentService', () => {
       if (!result.ok) return;
       expect(result.value.shouldIntervene).toBe(false);
       expect(result.value.content).toBeUndefined();
+    });
+  });
+
+  describe('generateChapters - task 3.1', () => {
+    const chapterResult = {
+      chapters: [
+        { title: '導入', focusQuestion: 'この問題の核心は何か？' },
+        { title: '対立', focusQuestion: '最も意見が分かれる点は？' },
+      ],
+    };
+
+    it('2回のAI呼び出しを経てDebateChapter[]を返す', async () => {
+      mockCreate
+        .mockResolvedValueOnce({
+          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: ['論点1', '論点2', '論点3'] } }],
+        })
+        .mockResolvedValueOnce({
+          content: [{ type: 'tool_use', name: 'submit_chapters', input: chapterResult }],
+        });
+
+      const result = await service.generateChapters('AI規制', testPersonas);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value).toHaveLength(2);
+      expect(result.value[0].title).toBe('導入');
+      expect(result.value[0].index).toBe(0);
+      expect(result.value[1].index).toBe(1);
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it('Step 1（submit_issues）失敗時にPipelineErrorを返す', async () => {
+      mockCreate.mockRejectedValueOnce(new Error('API error'));
+
+      const result = await service.generateChapters('AI規制', testPersonas);
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe('AI_API_ERROR');
+    });
+
+    it('Step 2（submit_chapters）失敗時にPipelineErrorを返す', async () => {
+      mockCreate
+        .mockResolvedValueOnce({
+          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: ['論点1'] } }],
+        })
+        .mockRejectedValueOnce(new Error('Step 2 error'));
+
+      const result = await service.generateChapters('AI規制', testPersonas);
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe('AI_API_ERROR');
+    });
+
+    it('Step 2 の user メッセージに Step 1 の論点が含まれる', async () => {
+      mockCreate
+        .mockResolvedValueOnce({
+          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: ['論点X', '論点Y'] } }],
+        })
+        .mockResolvedValueOnce({
+          content: [{ type: 'tool_use', name: 'submit_chapters', input: chapterResult }],
+        });
+
+      await service.generateChapters('AI規制', testPersonas);
+
+      const step2Msg: string = mockCreate.mock.calls[1][0].messages[0].content;
+      expect(step2Msg).toMatch(/論点X/);
+      expect(step2Msg).toMatch(/論点Y/);
+    });
+  });
+
+  describe('evaluateChapterEnd - task 3.2', () => {
+    const testChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 1 };
+
+    it('shouldEnd=true の場合 Result<true> を返す', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'evaluate_chapter_end', input: { shouldEnd: true } }],
+      });
+
+      const result = await service.evaluateChapterEnd(testHistory, testChapter);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value).toBe(true);
+    });
+
+    it('shouldEnd=false の場合 Result<false> を返す', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'evaluate_chapter_end', input: { shouldEnd: false } }],
+      });
+
+      const result = await service.evaluateChapterEnd(testHistory, testChapter);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value).toBe(false);
+    });
+
+    it('AI エラー時に PipelineError を返す', async () => {
+      mockCreate.mockRejectedValue(new Error('API error'));
+
+      const result = await service.evaluateChapterEnd(testHistory, testChapter);
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe('AI_API_ERROR');
+    });
+  });
+
+  describe('generateChapterTransition - task 3.2', () => {
+    const currentChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 1 };
+    const nextChapter: DebateChapter = { index: 1, title: '対立', focusQuestion: '最も意見が分かれる点は？', startTurnIndex: 8 };
+
+    it('次章がある場合に遷移発言テキストを返す', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'generate_chapter_transition', input: { content: '次のテーマへ移ります。' } }],
+      });
+
+      const result = await service.generateChapterTransition(testHistory, currentChapter, nextChapter);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(typeof result.value).toBe('string');
+      expect(result.value.length).toBeGreaterThan(0);
+    });
+
+    it('nextChapter が undefined（最終章）でも発言を生成できる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'generate_chapter_transition', input: { content: '最終章のまとめです。' } }],
+      });
+
+      const result = await service.generateChapterTransition(testHistory, currentChapter, undefined);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value).toBeTruthy();
+    });
+
+    it('AI エラー時に PipelineError を返す', async () => {
+      mockCreate.mockRejectedValue(new Error('API error'));
+
+      const result = await service.generateChapterTransition(testHistory, currentChapter, undefined);
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe('AI_API_ERROR');
+    });
+  });
+
+  describe('generateOpening - task 3.3: firstChapter コンテキスト', () => {
+    it('firstChapter を指定するとプロンプトに章タイトルとフォーカス問いが含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'submit_opening', input: { content: '開会します。', firstPersonaId: 'p1' } }],
+      });
+      const firstChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 1 };
+
+      await service.generateOpening('AI規制', testPersonas, firstChapter);
+
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).toMatch(/導入/);
+      expect(msg).toMatch(/この問題の核心は何か？/);
+    });
+
+    it('firstChapter なしでも動作する（後方互換性）', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'submit_opening', input: { content: '開会します。', firstPersonaId: 'p1' } }],
+      });
+
+      const result = await service.generateOpening('AI規制', testPersonas);
+
+      expect(result.ok).toBe(true);
+    });
+  });
+
+  describe('evaluateIntervention - task 3.3: currentChapter コンテキスト', () => {
+    it('currentChapter を指定するとプロンプトに章フォーカスが含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+      });
+      const currentChapter: DebateChapter = { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 5 };
+
+      await service.evaluateIntervention(testHistory, testPersonas, new Map(), currentChapter);
+
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).toMatch(/核心的対立/);
+      expect(msg).toMatch(/最も意見が分かれる点はどこか？/);
+    });
+
+    it('currentChapter なしでも動作する（後方互換性）', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+      });
+
+      const result = await service.evaluateIntervention(testHistory, testPersonas);
+
+      expect(result.ok).toBe(true);
     });
   });
 

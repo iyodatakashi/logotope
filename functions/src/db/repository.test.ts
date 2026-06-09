@@ -229,6 +229,49 @@ describe('createDebateTurn', () => {
       expect.objectContaining({ personaId: 'p1', speakerType: 'persona' })
     );
   });
+
+  it('includes chapterIndex in turn when provided', async () => {
+    await repo.createDebateTurn({
+      sessionId: 'topic-1', turnIndex: 2, speakerType: 'persona', personaId: 'p1', content: '発言', chapterIndex: 1,
+    });
+    expect(FieldValue.arrayUnion).toHaveBeenCalledWith(
+      expect.objectContaining({ chapterIndex: 1 })
+    );
+  });
+
+  it('omits chapterIndex from turn when not provided', async () => {
+    await repo.createDebateTurn({
+      sessionId: 'topic-1', turnIndex: 3, speakerType: 'facilitator', content: '介入',
+    });
+    const call = vi.mocked(FieldValue.arrayUnion).mock.calls[0][0] as Record<string, unknown>;
+    expect(call).not.toHaveProperty('chapterIndex');
+  });
+});
+
+// ---- saveChapters ----
+
+describe('saveChapters', () => {
+  it('updates sessions/0 with chapters array and currentChapterIndex: 0', async () => {
+    const chapters = [
+      { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？' },
+      { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？' },
+    ];
+    await repo.saveChapters('topic-1', chapters);
+    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0');
+    expect(mockDocRef.update).toHaveBeenCalledWith(
+      expect.objectContaining({ chapters, currentChapterIndex: 0 })
+    );
+  });
+});
+
+// ---- updateCurrentChapterIndex ----
+
+describe('updateCurrentChapterIndex', () => {
+  it('updates sessions/0.currentChapterIndex to the given value', async () => {
+    await repo.updateCurrentChapterIndex('topic-1', 2);
+    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0');
+    expect(mockDocRef.update).toHaveBeenCalledWith({ currentChapterIndex: 2 });
+  });
 });
 
 // ---- createPostDebateComment ----

@@ -46,6 +46,8 @@ export interface DebateSession {
   createdAt: string;
   completedAt?: string | null;
   publishedAt?: string | null;
+  chapters?: Array<{ index: number; title: string; focusQuestion: string }>;
+  currentChapterIndex?: number;
 }
 
 export interface DebateTurn {
@@ -56,6 +58,7 @@ export interface DebateTurn {
   personaId?: string | null;
   content: string;
   createdAt: string;
+  chapterIndex?: number;
 }
 
 export interface PersonaInterview {
@@ -95,6 +98,7 @@ export interface CreateDebateTurnParams {
   speakerType: string;
   personaId?: string;
   content: string;
+  chapterIndex?: number;
 }
 
 export interface CreatePostDebateCommentParams {
@@ -227,11 +231,29 @@ export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<
     createdAt: Timestamp.now(),
   };
   if (params.personaId !== undefined) turn.personaId = params.personaId;
+  if (params.chapterIndex !== undefined) turn.chapterIndex = params.chapterIndex;
 
   await db().doc(`topics/${params.sessionId}/sessions/0`).update({
     turns: FieldValue.arrayUnion(turn),
   });
   return { id };
+};
+
+export const saveChapters = async (
+  topicId: string,
+  chapters: ReadonlyArray<{ index: number; title: string; focusQuestion: string }>
+): Promise<void> => {
+  await db().doc(`topics/${topicId}/sessions/0`).update({
+    chapters: [...chapters],
+    currentChapterIndex: 0,
+  });
+};
+
+export const updateCurrentChapterIndex = async (
+  topicId: string,
+  index: number
+): Promise<void> => {
+  await db().doc(`topics/${topicId}/sessions/0`).update({ currentChapterIndex: index });
 };
 
 export const createPostDebateComment = async (params: CreatePostDebateCommentParams): Promise<{ id: string }> => {
@@ -280,7 +302,15 @@ export const getPersonasByTopicId = async (topicId: string): Promise<PersonaProf
 export const getDebateSessionByTopicId = async (topicId: string): Promise<DebateSession | null> => {
   const snap = await db().doc(`topics/${topicId}/sessions/0`).get();
   if (!snap.exists) return null;
-  const data = snap.data() as { status: string; totalTurns?: number; createdAt: Timestamp; completedAt?: Timestamp; publishedAt?: Timestamp };
+  const data = snap.data() as {
+    status: string;
+    totalTurns?: number;
+    createdAt: Timestamp;
+    completedAt?: Timestamp;
+    publishedAt?: Timestamp;
+    chapters?: Array<{ index: number; title: string; focusQuestion: string }>;
+    currentChapterIndex?: number;
+  };
   return {
     id: topicId,
     topicId,
@@ -289,6 +319,8 @@ export const getDebateSessionByTopicId = async (topicId: string): Promise<Debate
     createdAt: data.createdAt.toDate().toISOString(),
     completedAt: data.completedAt?.toDate().toISOString() ?? null,
     publishedAt: data.publishedAt?.toDate().toISOString() ?? null,
+    chapters: data.chapters,
+    currentChapterIndex: data.currentChapterIndex,
   };
 };
 
@@ -299,7 +331,7 @@ export const getDebateSessionById = async (id: string): Promise<DebateSession | 
 export const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[]> => {
   const snap = await db().doc(`topics/${sessionId}/sessions/0`).get();
   if (!snap.exists) return [];
-  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; content: string; createdAt: Timestamp }> };
+  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; content: string; createdAt: Timestamp; chapterIndex?: number }> };
   return (data.turns ?? []).map((t) => ({
     id: t.id,
     sessionId,
@@ -308,6 +340,7 @@ export const getDebateTurnsBySessionId = async (sessionId: string): Promise<Deba
     personaId: t.personaId ?? null,
     content: t.content,
     createdAt: t.createdAt.toDate().toISOString(),
+    chapterIndex: t.chapterIndex,
   }));
 };
 

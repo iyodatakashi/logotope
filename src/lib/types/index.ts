@@ -24,12 +24,19 @@ export interface PublishedDebateSummary {
   publishedAt: string;
 }
 
+export interface ChapterDoc {
+  index: number;
+  title: string;
+  focusQuestion: string;
+}
+
 export interface PublishedDebateDetail {
   id: string;
   topicTitle: string;
   personas: PersonaSummaryForViewer[];
   turns: PublishedTurn[];
   postDebateComments: PublishedComment[];
+  chapters?: ChapterDoc[];
 }
 
 export interface PersonaSummaryForViewer {
@@ -55,6 +62,7 @@ export interface PublishedTurn {
   speakerRole: string;
   content: string;
   beliefChangesTriggered: BeliefChangeTrigger[];
+  chapterIndex?: number;
 }
 
 export interface BeliefChangeTrigger {
@@ -138,6 +146,7 @@ export interface TurnDoc {
   personaId?: string;
   content: string;
   createdAt: Timestamp;
+  chapterIndex?: number;
 }
 
 export interface PostDebateCommentDoc {
@@ -155,4 +164,6 @@ export interface SessionDoc {
   publishedAt?: Timestamp;
   turns: TurnDoc[];
   postDebateComments: PostDebateCommentDoc[];
+  chapters?: ChapterDoc[];
+  currentChapterIndex?: number;
 }

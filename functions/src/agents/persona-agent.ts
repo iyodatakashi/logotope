@@ -8,6 +8,7 @@ import type {
   BeliefChangeEvent,
   BeliefChangeType,
   PostDebateCommentResult,
+  DebateChapter,
   Result,
   PipelineError,
 } from '../types/index.js';
@@ -159,11 +160,15 @@ export class PersonaAgentService {
     persona: PersonaAttributes,
     currentBelief: string,
     interviewRecord: string,
-    history: ConversationTurn[]
+    history: ConversationTurn[],
+    currentChapter?: DebateChapter
   ): Promise<Result<AgentTurnResult, PipelineError>> {
     try {
       const recentHistory = history.slice(-20);
       const styleGuide = buildSpeechStyleGuide(persona);
+      const chapterContext = currentChapter
+        ? `\n\n現在の章「${currentChapter.title}」のフォーカス: ${currentChapter.focusQuestion}`
+        : '';
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.PERSONA_TURN,
@@ -172,7 +177,7 @@ export class PersonaAgentService {
         tool_choice: { type: 'tool', name: 'submit_turn' },
         messages: [{
           role: 'user',
-          content: `討論の現在の状況:\n\n${formatHistory(recentHistory)}\n\n${persona.name}として、**直前の発言に2〜3文で短く返答してください**。演説や長い説明は禁止。冒頭で相手の名前を呼ぶことも禁止。自分の立場から見て納得できない点があれば反論してください。信念に変化があればbeliefChangeTypeを指定してください。addressedToPersonaIdは、特定の参加者に直接質問する場合のみ指定し、それ以外は省略してください。`,
+          content: `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}\n\n${persona.name}として、**直前の発言に2〜3文で短く返答してください**。演説や長い説明は禁止。冒頭で相手の名前を呼ぶことも禁止。自分の立場から見て納得できない点があれば反論してください。信念に変化があればbeliefChangeTypeを指定してください。addressedToPersonaIdは、特定の参加者に直接質問する場合のみ指定し、それ以外は省略してください。`,
         }],
       });
 

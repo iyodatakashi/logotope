@@ -64,7 +64,8 @@
 					speakerName: persona?.name ?? 'ファシリテーター',
 					speakerRole: persona?.stakeholderRole ?? '',
 					content: t.content,
-					beliefChangesTriggered
+					beliefChangesTriggered,
+					chapterIndex: t.chapterIndex
 				};
 			});
 
@@ -81,7 +82,7 @@
 				};
 			});
 
-		return { id: topic.id, topicTitle: topic.title, personas, turns, postDebateComments };
+		return { id: topic.id, topicTitle: topic.title, personas, turns, postDebateComments, chapters: session.chapters };
 	});
 
 	const personaNames = $derived(debate?.personas.map((p) => p.name).join('・') ?? '');

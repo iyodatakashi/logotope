@@ -6,7 +6,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 import Anthropic from '@anthropic-ai/sdk';
 import { PersonaAgentService, buildSpeechStyleGuide } from './persona-agent.js';
-import type { PersonaAttributes, ConversationTurn } from '../types/index.js';
+import type { PersonaAttributes, ConversationTurn, DebateChapter } from '../types/index.js';
 
 const mockCreate = vi.fn();
 
@@ -445,6 +445,54 @@ describe('PersonaAgentService', () => {
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error).toMatchObject({ code: 'AI_API_ERROR', retryable: true });
+    });
+  });
+
+  describe('generateTurn - task 4: currentChapter コンテキスト', () => {
+    it('currentChapter を指定すると user メッセージに章タイトルとフォーカス問いが含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言内容。' } }],
+      });
+      const currentChapter: DebateChapter = {
+        index: 1,
+        title: '核心的対立',
+        focusQuestion: '最も意見が分かれる点はどこか？',
+        startTurnIndex: 5,
+      };
+
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory, currentChapter);
+
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).toMatch(/核心的対立/);
+      expect(msg).toMatch(/最も意見が分かれる点はどこか？/);
+    });
+
+    it('currentChapter を指定しても system プロンプトは変わらない', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言内容。' } }],
+      });
+
+      // Call without chapter
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const systemWithout: string = mockCreate.mock.calls[0][0].system;
+      mockCreate.mockClear();
+
+      // Call with chapter
+      const currentChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: '核心は？', startTurnIndex: 1 };
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory, currentChapter);
+      const systemWith: string = mockCreate.mock.calls[0][0].system;
+
+      expect(systemWith).toBe(systemWithout);
+    });
+
+    it('currentChapter なしでも動作する（後方互換性）', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言内容。' } }],
+      });
+
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+
+      expect(result.ok).toBe(true);
     });
   });
 

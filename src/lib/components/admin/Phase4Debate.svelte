@@ -48,10 +48,17 @@
 			})
 	);
 
-	const loading = $derived(!sessionStore.isLoaded || starting);
+	const isDebating = $derived(sessionStore.session?.status === 'debating');
+	const loading = $derived(!sessionStore.isLoaded || starting || isDebating);
 	const completedTurns = $derived(turns.length);
 	const totalTurns = $derived(sessionStore.session?.totalTurns ?? 0);
 	const isStopped = $derived(!!error && !starting);
+
+	const chapters = $derived(sessionStore.session?.chapters ?? null);
+	const currentChapterIndex = $derived(sessionStore.session?.currentChapterIndex ?? null);
+	const currentChapter = $derived(
+		chapters && currentChapterIndex !== null ? chapters[currentChapterIndex] : null
+	);
 
 	$effect(() => {
 		if (sessionStore.isLoaded && !sessionStore.session && !started) {
@@ -111,8 +118,13 @@
 		<p class="status-stopped" role="alert">討論停止: {error}</p>
 	{:else if loading}
 		<p class="step" role="status">
-			討論中...
-			{#if totalTurns > 0}（ターン {completedTurns} / {totalTurns}）{/if}
+			{#if currentChapter}
+				第{(currentChapterIndex ?? 0) + 1}章「{currentChapter.title}」
+				{#if chapters}（第{(currentChapterIndex ?? 0) + 1}章 / 全{chapters.length}章）{/if}
+			{:else}
+				討論中...
+				{#if totalTurns > 0}（ターン {completedTurns} / {totalTurns}）{/if}
+			{/if}
 		</p>
 	{/if}
 
