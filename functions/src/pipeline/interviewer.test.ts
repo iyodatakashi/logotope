@@ -1,21 +1,24 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@anthropic-ai/sdk', () => ({ default: vi.fn() }));
-vi.mock('firebase-admin/data-connect', () => ({ getDataConnect: vi.fn() }));
+vi.mock('../db/repository.js', () => ({
+  createCompletedPersonaInterview: vi.fn().mockResolvedValue({ id: 'interview-1' }),
+  createPersonaBelief: vi.fn().mockResolvedValue({ id: 'belief-1' }),
+  createErrorPersonaInterview: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: vi.fn(),
   FieldValue: { serverTimestamp: vi.fn(() => 'SERVER_TIMESTAMP') },
 }));
 
 import Anthropic from '@anthropic-ai/sdk';
-import { getDataConnect } from 'firebase-admin/data-connect';
 import { getFirestore } from 'firebase-admin/firestore';
+import * as repo from '../db/repository.js';
 import { InterviewerService } from './interviewer.js';
 import { ProgressTrackerService } from './progress-tracker.js';
 import type { PersonaAttributes } from '../types/index.js';
 
 const mockCreate = vi.fn();
-const mockDc = { executeMutation: vi.fn(), executeQuery: vi.fn() };
 const mockSet = vi.fn().mockResolvedValue(undefined);
 const mockDoc = vi.fn(() => ({ set: mockSet }));
 
@@ -43,9 +46,10 @@ let service: InterviewerService;
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(Anthropic).mockImplementation(() => ({ messages: { create: mockCreate } }) as unknown as Anthropic);
-  vi.mocked(getDataConnect).mockReturnValue(mockDc as ReturnType<typeof getDataConnect>);
   vi.mocked(getFirestore).mockReturnValue({ collection: vi.fn(() => ({ doc: mockDoc })) } as ReturnType<typeof getFirestore>);
-  mockDc.executeMutation.mockResolvedValue({ data: { personaInterview_insert: { id: 'interview-1' }, personaBelief_insert: { id: 'belief-1' } } });
+  vi.mocked(repo.createCompletedPersonaInterview).mockResolvedValue({ id: 'interview-1' });
+  vi.mocked(repo.createPersonaBelief).mockResolvedValue({ id: 'belief-1' });
+  vi.mocked(repo.createErrorPersonaInterview).mockResolvedValue(undefined);
   service = new InterviewerService();
 });
 
@@ -96,12 +100,11 @@ describe('InterviewerService.interviewAll', () => {
 
     await service.interviewAll('topic-1', 'AI規制について', [mockPersonas[0]]);
 
-    expect(mockDc.executeMutation).toHaveBeenCalledWith(
-      'CreateCompletedPersonaInterview',
-      expect.objectContaining({ personaId: 'p-1' })
+    expect(vi.mocked(repo.createCompletedPersonaInterview)).toHaveBeenCalledWith(
+      'p-1',
+      expect.any(String)
     );
-    expect(mockDc.executeMutation).toHaveBeenCalledWith(
-      'CreatePersonaBelief',
+    expect(vi.mocked(repo.createPersonaBelief)).toHaveBeenCalledWith(
       expect.objectContaining({ personaId: 'p-1', version: 0 })
     );
   });
@@ -111,9 +114,9 @@ describe('InterviewerService.interviewAll', () => {
 
     await service.interviewAll('topic-1', 'AI規制について', [mockPersonas[0]]);
 
-    expect(mockDc.executeMutation).toHaveBeenCalledWith(
-      'CreateErrorPersonaInterview',
-      expect.objectContaining({ personaId: 'p-1' })
+    expect(vi.mocked(repo.createErrorPersonaInterview)).toHaveBeenCalledWith(
+      'p-1',
+      expect.any(String)
     );
   });
 });
@@ -121,7 +124,6 @@ describe('InterviewerService.interviewAll', () => {
 describe('InterviewerService.retryInterview', () => {
   it('returns ok with InterviewResult for single persona', async () => {
     mockCreate.mockResolvedValue(makeInterviewResponse('田中太郎'));
-    mockDc.executeMutation.mockResolvedValue({ data: { personaInterview_insert: { id: 'i-1' }, personaBelief_insert: { id: 'b-1' } } });
 
     const result = await service.retryInterview('topic-1', 'AI規制について', mockPersonas[0]);
 

@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@anthropic-ai/sdk', () => ({
   default: vi.fn(),
 }));
-vi.mock('firebase-admin/data-connect', () => ({
-  getDataConnect: vi.fn(),
+vi.mock('../db/repository.js', () => ({
+  updateTopicStatus: vi.fn().mockResolvedValue(undefined),
+  createStakeholderMap: vi.fn().mockResolvedValue({ id: 'sm-1' }),
 }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: vi.fn(),
@@ -12,13 +13,12 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import Anthropic from '@anthropic-ai/sdk';
-import { getDataConnect } from 'firebase-admin/data-connect';
 import { getFirestore } from 'firebase-admin/firestore';
+import * as repo from '../db/repository.js';
 import { StakeholderAnalyzerService } from './stakeholder-analyzer.js';
 import { ProgressTrackerService } from './progress-tracker.js';
 
 const mockCreate = vi.fn();
-const mockDc = { executeMutation: vi.fn(), executeQuery: vi.fn() };
 const mockSet = vi.fn().mockResolvedValue(undefined);
 const mockDoc = vi.fn(() => ({ set: mockSet }));
 
@@ -46,9 +46,8 @@ beforeEach(() => {
   vi.mocked(Anthropic).mockImplementation(() => ({
     messages: { create: mockCreate },
   }) as unknown as Anthropic);
-  vi.mocked(getDataConnect).mockReturnValue(mockDc as ReturnType<typeof getDataConnect>);
   vi.mocked(getFirestore).mockReturnValue({ collection: vi.fn(() => ({ doc: mockDoc })) } as ReturnType<typeof getFirestore>);
-  mockDc.executeMutation.mockResolvedValue({ data: { stakeholderMap_insert: { id: 'sm-1' } } });
+  vi.mocked(repo.createStakeholderMap).mockResolvedValue({ id: 'sm-1' });
   service = new StakeholderAnalyzerService();
 });
 
@@ -85,9 +84,9 @@ describe('StakeholderAnalyzerService', () => {
 
     await service.analyze('topic-1', 'AI規制について');
 
-    expect(mockDc.executeMutation).toHaveBeenCalledWith(
-      'CreateStakeholderMap',
-      expect.objectContaining({ topicId: 'topic-1' })
+    expect(vi.mocked(repo.createStakeholderMap)).toHaveBeenCalledWith(
+      'topic-1',
+      expect.any(String)
     );
   });
 

@@ -1,21 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@anthropic-ai/sdk', () => ({ default: vi.fn() }));
-vi.mock('firebase-admin/data-connect', () => ({ getDataConnect: vi.fn() }));
+vi.mock('../db/repository.js', () => ({
+  createPersonaProfile: vi.fn().mockResolvedValue({ id: 'persona-1' }),
+}));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: vi.fn(),
   FieldValue: { serverTimestamp: vi.fn(() => 'SERVER_TIMESTAMP') },
 }));
 
 import Anthropic from '@anthropic-ai/sdk';
-import { getDataConnect } from 'firebase-admin/data-connect';
 import { getFirestore } from 'firebase-admin/firestore';
+import * as repo from '../db/repository.js';
 import { PersonaGeneratorService } from './persona-generator.js';
 import { ProgressTrackerService } from './progress-tracker.js';
 import type { Stakeholder } from '../types/index.js';
 
 const mockCreate = vi.fn();
-const mockDc = { executeMutation: vi.fn(), executeQuery: vi.fn() };
 const mockSet = vi.fn().mockResolvedValue(undefined);
 const mockDoc = vi.fn(() => ({ set: mockSet }));
 
@@ -45,9 +46,8 @@ let service: PersonaGeneratorService;
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(Anthropic).mockImplementation(() => ({ messages: { create: mockCreate } }) as unknown as Anthropic);
-  vi.mocked(getDataConnect).mockReturnValue(mockDc as ReturnType<typeof getDataConnect>);
   vi.mocked(getFirestore).mockReturnValue({ collection: vi.fn(() => ({ doc: mockDoc })) } as ReturnType<typeof getFirestore>);
-  mockDc.executeMutation.mockResolvedValue({ data: { personaProfile_insert: { id: 'persona-1' } } });
+  vi.mocked(repo.createPersonaProfile).mockResolvedValue({ id: 'persona-1' });
   service = new PersonaGeneratorService();
 });
 
@@ -86,11 +86,10 @@ describe('PersonaGeneratorService', () => {
 
     await service.generate('topic-1', 'AI規制について', mockStakeholders);
 
-    expect(mockDc.executeMutation).toHaveBeenCalledWith(
-      'CreatePersonaProfile',
+    expect(vi.mocked(repo.createPersonaProfile)).toHaveBeenCalledWith(
       expect.objectContaining({ topicId: 'topic-1' })
     );
-    expect(mockDc.executeMutation).toHaveBeenCalledTimes(mockStakeholders.length);
+    expect(vi.mocked(repo.createPersonaProfile)).toHaveBeenCalledTimes(mockStakeholders.length);
   });
 
   it('throws when Claude API fails', async () => {

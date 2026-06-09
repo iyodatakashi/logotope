@@ -62,7 +62,7 @@ export class StakeholderAnalyzerService {
 
     const { stakeholders } = toolBlock.input as { stakeholders: Stakeholder[] };
 
-    await repo.createStakeholderMap(topicId, JSON.stringify(stakeholders));
+    await repo.createStakeholderMap(topicId, JSON.stringify({ items: stakeholders }));
 
     return { ok: true, value: stakeholders };
   }

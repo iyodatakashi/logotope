@@ -14,7 +14,6 @@ vi.mock('../db/repository.js', () => ({
   completeDebateSession: vi.fn(),
   updateTopicStatus: vi.fn(),
 }));
-vi.mock('firebase-admin/data-connect', () => ({ getDataConnect: vi.fn() }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: vi.fn(),
   FieldValue: { serverTimestamp: vi.fn(() => 'SERVER_TIMESTAMP') },
