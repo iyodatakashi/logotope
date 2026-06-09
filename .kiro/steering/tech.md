@@ -2,23 +2,23 @@
 
 ## Architecture
 
-Firebase App Hosting 上の SvelteKit（SSR）＋ Firebase Functions v2（AI パイプライン専用）＋ Firebase Data Connect（PostgreSQL）の3層構成。
+Firebase App Hosting 上の SvelteKit（SSR）＋ Firebase Functions v2（AI パイプライン専用）＋ Firestore の構成。
 
 - **公開ページ**（`/`・`/debate/[id]`）: SvelteKit SSR で配信し SEO に対応
 - **管理画面**（`/admin/**`）: Firebase Auth 保護のクライアントサイド SPA
-- **短時間 CRUD API**: SvelteKit `+server.ts` に実装（Functions を経由しない）
+- **データ読み書き**: Firestore Client SDK を直接使用（`src/lib/stores/` に集約）
 - **長時間 AI 処理**: Firebase Functions v2 に委譲（最大60分タイムアウト）
 
 ```
 [Browser]
     ↓ page request
 [Firebase App Hosting — SvelteKit adapter-auto]
-    ↓ server-side data fetch (SSR)      ↓ AI pipeline call (admin)
-[Data Connect (PostgreSQL)]    [Firebase Functions v2 (AI Pipeline)]
+    ↓ onSnapshot（stores）          ↓ AI pipeline call（admin）
+[Firestore]                [Firebase Functions v2 (AI Pipeline)]
                                          ↓
                                  [Claude API (Anthropic)]
                                          ↓
-                                 [Data Connect] + [Firestore (progress)]
+                                   [Firestore]
 ```
 
 ## Core Technologies
@@ -40,8 +40,7 @@ Firebase App Hosting 上の SvelteKit（SSR）＋ Firebase Functions v2（AI パ
 - **AI**: Anthropic SDK（Claude API）
 
 ### データ
-- **Firebase Data Connect**: GraphQL スキーマ → PostgreSQL（リレーショナルデータ、永続化）
-- **Firestore**: リアルタイム状態管理（AI生成の進捗トラッキング）
+- **Firestore**: 全永続データ（トピック・ペルソナ・討論ターン・進捗など）。詳細は `.kiro/steering/firebase.md` 参照
 - **Firebase Auth**: メール/パスワード認証（管理者のみ）
 
 ## Development Standards
@@ -67,7 +66,7 @@ Firebase App Hosting 上の SvelteKit（SSR）＋ Firebase Functions v2（AI パ
 - Node.js 24+
 - pnpm
 - Firebase CLI
-- Firebase Emulators（DataConnect、Functions、Firestore）
+- Firebase Emulators（Functions、Firestore）
 
 ### Common Commands
 ```bash

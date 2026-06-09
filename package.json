@@ -43,7 +43,7 @@
 	},
 	"dependencies": {
 		"@14ch/svelte-ui": "^0.0.42",
-		"@dataconnect/generated": "link:src/dataconnect-generated",
-		"firebase": "^12.14.0"
+		"firebase": "^12.14.0",
+		"nanoid": "^5.1.11"
 	}
 }

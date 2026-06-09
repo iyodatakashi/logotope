@@ -9,17 +9,11 @@
     "firestore": {
       "port": 8080
     },
-    "dataconnect": {
-      "dataDir": "dataconnect/.dataconnect/pgliteData"
-    },
     "ui": {
       "enabled": true,
       "port": 4000
     },
     "singleProjectMode": true
-  },
-  "dataconnect": {
-    "source": "dataconnect"
   },
   "firestore": {
     "database": "(default)",

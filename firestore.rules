@@ -3,9 +3,25 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /debate_progress/{topicId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if false;
     }
+
+    match /topics/{topicId} {
+      allow read, write: if request.auth != null;
+      allow read: if resource.data.status == 'published';
+
+      match /personas/{personaId} {
+        allow read, write: if request.auth != null;
+        allow read: if get(/databases/$(database)/documents/topics/$(topicId)).data.status == 'published';
+      }
+
+      match /sessions/{sessionId} {
+        allow read, write: if request.auth != null;
+        allow read: if resource.data.publishedAt != null;
+      }
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
