@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
 import * as repo from '../db/repository.js';
-import { ProgressTrackerService } from './progress-tracker.js';
 import { AI_MODELS, MAX_TOKENS } from '../config/ai.js';
 import type { Stakeholder, PersonaAttributes, Result, PipelineError } from '../types/index.js';
 
@@ -33,10 +32,8 @@ const PERSONA_TOOL: Anthropic.Tool = {
 
 export class PersonaGeneratorService {
   private client: Anthropic;
-  private tracker: ProgressTrackerService;
 
-  constructor(tracker = new ProgressTrackerService(), client = new Anthropic()) {
-    this.tracker = tracker;
+  constructor(client = new Anthropic()) {
     this.client = client;
   }
 
@@ -48,8 +45,6 @@ export class PersonaGeneratorService {
     if (stakeholders.length === 0) {
       return { ok: false, error: { code: 'VALIDATION_ERROR', message: 'stakeholders must not be empty' } };
     }
-
-    await this.tracker.updateStatus(topicId, 'generating_personas', 'ペルソナ生成中...').catch(() => undefined);
 
     const rolesDesc = stakeholders.map((s, i) => `${i + 1}. ${s.role}（${s.stanceDirection}）`).join('\n');
 

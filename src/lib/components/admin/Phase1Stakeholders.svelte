@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { createProgressStore } from '$lib/stores/progress.svelte.js';
 	import { createTopicStore } from '$lib/stores/topic.svelte.js';
 	import { generateStakeholders } from '$lib/api/topics.js';
 
@@ -11,7 +10,6 @@
 	let { topicId, topicTitle }: Props = $props();
 
 	const topicStore = createTopicStore(topicId);
-	const progressStore = createProgressStore(topicId);
 
 	let generating = $state(false);
 	let started = $state(false);
@@ -50,11 +48,7 @@
 
 	onMount(() => {
 		topicStore.start();
-		progressStore.start();
-		return () => {
-			topicStore.stop();
-			progressStore.stop();
-		};
+		return () => topicStore.stop();
 	});
 </script>
 
@@ -65,7 +59,7 @@
 	{#if isStopped}
 		<p class="status-stopped" role="alert">処理停止: {error}</p>
 	{:else if isRunning}
-		<p class="step" role="status">{progressStore.progress?.currentStep ?? '分析中...'}</p>
+		<p class="step" role="status">分析中...</p>
 	{/if}
 
 	{#if stakeholders.length > 0}

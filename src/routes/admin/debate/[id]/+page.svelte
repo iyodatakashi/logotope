@@ -3,7 +3,6 @@
 	import { onMount } from 'svelte';
 	import { onAuthStateChanged } from 'firebase/auth';
 	import { auth } from '$lib/firebase.js';
-	import { createProgressStore } from '$lib/stores/progress.svelte.js';
 	import { createTopicStore } from '$lib/stores/topic.svelte.js';
 	import Phase1Stakeholders from '$lib/components/admin/Phase1Stakeholders.svelte';
 	import Phase2Personas from '$lib/components/admin/Phase2Personas.svelte';
@@ -12,22 +11,17 @@
 
 	const topicId = page.params.id as string;
 	const topicStore = createTopicStore(topicId);
-	const progressStore = createProgressStore(topicId);
 
 	const status = $derived(topicStore.topic?.status ?? '');
 	const topicTitle = $derived(topicStore.topic?.title ?? '');
 
 	onMount(() => {
 		const unsubAuth = onAuthStateChanged(auth, (user) => {
-			if (user) {
-				topicStore.start();
-				progressStore.start();
-			}
+			if (user) topicStore.start();
 		});
 		return () => {
 			unsubAuth();
 			topicStore.stop();
-			progressStore.stop();
 		};
 	});
 </script>

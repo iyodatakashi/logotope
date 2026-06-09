@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
 import * as repo from '../db/repository.js';
-import { ProgressTrackerService } from './progress-tracker.js';
 import { AI_MODELS, MAX_TOKENS } from '../config/ai.js';
 import type { Stakeholder, Result, PipelineError } from '../types/index.js';
 
@@ -32,15 +31,12 @@ const STAKEHOLDER_TOOL: Anthropic.Tool = {
 
 export class StakeholderAnalyzerService {
   private client: Anthropic;
-  private tracker: ProgressTrackerService;
 
-  constructor(tracker = new ProgressTrackerService(), client = new Anthropic()) {
-    this.tracker = tracker;
+  constructor(client = new Anthropic()) {
     this.client = client;
   }
 
   async analyze(topicId: string, title: string): Promise<Result<Stakeholder[], PipelineError>> {
-    await this.tracker.updateStatus(topicId, 'surveying', 'ステークホルダー分析中...').catch(() => undefined);
 
     const response = await this.client.messages.create({
       model: AI_MODELS.OPUS,

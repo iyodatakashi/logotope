@@ -1,7 +1,6 @@
 import * as repo from '../db/repository.js';
 import { FacilitatorAgentService } from '../agents/facilitator-agent.js';
 import { PersonaAgentService } from '../agents/persona-agent.js';
-import { ProgressTrackerService } from './progress-tracker.js';
 import type {
   ConversationTurn,
   PersonaAttributes,
@@ -81,14 +80,11 @@ export class DebateOrchestratorService {
   constructor(
     private facilitator: FacilitatorAgentService = new FacilitatorAgentService(),
     private personaAgent: PersonaAgentService = new PersonaAgentService(),
-    private tracker: ProgressTrackerService = new ProgressTrackerService(),
     private options: OrchestratorOptions = DEFAULT_OPTIONS
   ) {}
 
   async run(sessionId: string, topicId: string): Promise<Result<void, PipelineError>> {
     try {
-      await this.tracker.updateStatus(topicId, 'debating', '討論開始中...').catch(() => undefined);
-
       const { personas, interviewRecords, currentBeliefs, topicTitle } =
         await this.loadSessionContext(topicId);
 
@@ -171,7 +167,6 @@ export class DebateOrchestratorService {
         lastFacilitatorTurnIndex,
       };
 
-      await this.tracker.updateStatus(topicId, 'debating', `ターン${fromTurnIndex}から再開中...`).catch(() => undefined);
       await this.executeDebate(sessionId, topicId, topicTitle, personas, interviewRecords, state, fromTurnIndex);
       return { ok: true, value: undefined };
     } catch (err) {
@@ -235,10 +230,6 @@ export class DebateOrchestratorService {
     let currentTurnIndex = Math.max(1, startTurnIndex);
     let debateEnded = false;
 
-    const pName = (id: string | undefined) =>
-      id ? (personas.find(p => p.id === id)?.name ?? `unknown(${id})`) : 'none';
-    const dbg = (msg: string) => this.tracker.debugLog(topicId, msg).catch(() => undefined);
-
     while (currentTurnIndex < maxTurns && !debateEnded) {
       // 1. Determine next speaker
       let nextPersonaId: string;
@@ -251,7 +242,6 @@ export class DebateOrchestratorService {
       if (fromDirectAddress) {
         nextPersonaId = pendingAddress!;
         state.consecutiveDirectExchanges++;
-        void dbg(`[turn:${currentTurnIndex}] direct-address(${state.consecutiveDirectExchanges}/${MAX_CONSECUTIVE_DIRECT}) → ${pName(nextPersonaId)} (lastSpeaker=${pName(state.lastSpeakerId)})`);
       } else {
         const speakerResult = await this.facilitator.selectNextSpeaker(
           state.history, personas, state.silenceMap, state.lastSpeakerId
@@ -262,9 +252,7 @@ export class DebateOrchestratorService {
         // Enforce exclusion at code level in case LLM ignored the instruction
         if (nextPersonaId === state.lastSpeakerId && personas.length > 1) {
           nextPersonaId = personas.find(p => p.id !== state.lastSpeakerId)!.id;
-          void dbg(`[turn:${currentTurnIndex}] selectNextSpeaker LLM returned lastSpeaker(${pName(llmPick)}), overridden → ${pName(nextPersonaId)}`);
         } else {
-          void dbg(`[turn:${currentTurnIndex}] selectNextSpeaker → ${pName(nextPersonaId)} (lastSpeaker=${pName(state.lastSpeakerId)})`);
         }
         state.consecutiveDirectExchanges = 0;
       }
@@ -308,13 +296,10 @@ export class DebateOrchestratorService {
             // Don't re-invite the last speaker; also validate the ID exists
             if (iv.targetPersonaId && personas.some(p => p.id === iv.targetPersonaId)) {
               if (iv.targetPersonaId !== state.lastSpeakerId || personas.length === 1) {
-                void dbg(`[turn:${currentTurnIndex}] intervention(${iv.type}) overrides speaker → ${pName(iv.targetPersonaId)}`);
                 nextPersonaId = iv.targetPersonaId;
               } else {
-                void dbg(`[turn:${currentTurnIndex}] intervention(${iv.type}) targetPersonaId=${pName(iv.targetPersonaId)} rejected (== lastSpeaker), keeping ${pName(nextPersonaId)}`);
               }
             } else if (iv.targetPersonaId) {
-              void dbg(`[turn:${currentTurnIndex}] intervention(${iv.type}) targetPersonaId=${iv.targetPersonaId} is invalid/unknown, keeping ${pName(nextPersonaId)}`);
             }
           }
         }
@@ -322,7 +307,6 @@ export class DebateOrchestratorService {
       // Guard: resolve to a valid persona; prefer non-last-speaker on fallback
       const resolvedById = personas.find(p => p.id === nextPersonaId);
       if (!resolvedById) {
-        void dbg(`[turn:${currentTurnIndex}] GUARD: nextPersonaId="${nextPersonaId}" not found, falling back`);
       }
       const persona =
         resolvedById ??
@@ -378,20 +362,10 @@ export class DebateOrchestratorService {
 
       // 8. Track next addressed persona (ignore self-address and unknown IDs)
       const addressed = turnResult.value.addressedToPersonaId;
-      if (addressed) {
-        const selfAddr = addressed === persona.id;
-        const unknownAddr = !personas.some(p => p.id === addressed);
-        if (selfAddr) void dbg(`[turn:${currentTurnIndex}] addressedTo=${pName(addressed)} IGNORED (self-address)`);
-        else if (unknownAddr) void dbg(`[turn:${currentTurnIndex}] addressedTo="${addressed}" IGNORED (unknown ID)`);
-        else void dbg(`[turn:${currentTurnIndex}] addressedTo=${pName(addressed)}`);
-      }
       state.lastAddressedPersonaId =
         addressed && addressed !== persona.id && personas.some(p => p.id === addressed)
           ? addressed
           : undefined;
-
-      // 9. Update progress
-      await this.tracker.updateProgress(topicId, currentTurnIndex, maxTurns).catch(() => undefined);
 
       currentTurnIndex++;
     }
@@ -430,6 +404,5 @@ export class DebateOrchestratorService {
 
     // Complete session
     await repo.completeDebateSession(sessionId, currentTurnIndex);
-    await this.tracker.updateStatus(topicId, 'completed').catch(() => undefined);
   }
 }

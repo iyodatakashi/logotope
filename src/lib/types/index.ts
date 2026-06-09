@@ -71,14 +71,6 @@ export interface PublishedComment {
   content: string;
 }
 
-export interface ProgressState {
-  status: DebateStatus;
-  currentStep: string | null;
-  completed: number;
-  total: number;
-  updatedAt: string;
-}
-
 // --- Firestore Document Types ---
 
 import type { Timestamp } from 'firebase/firestore';

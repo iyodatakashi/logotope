@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { createProgressStore } from '$lib/stores/progress.svelte.js';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { createTopicStore } from '$lib/stores/topic.svelte.js';
 	import { runInterview } from '$lib/api/topics.js';
@@ -13,7 +12,6 @@
 
 	const personasStore = createPersonasStore(topicId);
 	const topicStore = createTopicStore(topicId);
-	const progressStore = createProgressStore(topicId);
 
 	let starting = $state(false);
 	let started = $state(false);
@@ -93,11 +91,9 @@
 	onMount(() => {
 		personasStore.start();
 		topicStore.start();
-		progressStore.start();
 		return () => {
 			personasStore.stop();
 			topicStore.stop();
-			progressStore.stop();
 		};
 	});
 </script>
@@ -122,9 +118,6 @@
 				<span class="hint">（取材リクエスト送信中...）</span>
 			{/if}
 		</div>
-		{#if progressStore.progress?.currentStep && starting}
-			<p class="step" role="status">{progressStore.progress.currentStep}</p>
-		{/if}
 	{/if}
 
 	{#if interviews.length > 0}
@@ -184,7 +177,6 @@
 	.count.total { color: #555; font-weight: 400; }
 	.step { color: #555; font-style: italic; font-size: 0.875rem; margin-bottom: 12px; }
 	.hint { color: #888; font-size: 0.875rem; }
-	.error { color: #d32f2f; }
 	.list { list-style: none; padding: 0; }
 	.item { border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
 	.item-completed { border-color: #a5d6a7; background: #f9fff9; }

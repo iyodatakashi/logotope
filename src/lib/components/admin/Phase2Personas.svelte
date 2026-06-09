@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { createProgressStore } from '$lib/stores/progress.svelte.js';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { createTopicStore } from '$lib/stores/topic.svelte.js';
 	import { generatePersonas } from '$lib/api/topics.js';
@@ -13,7 +12,6 @@
 
 	const personasStore = createPersonasStore(topicId);
 	const topicStore = createTopicStore(topicId);
-	const progressStore = createProgressStore(topicId);
 
 	let generating = $state(false);
 	let started = $state(false);
@@ -63,11 +61,9 @@
 	onMount(() => {
 		personasStore.start();
 		topicStore.start();
-		progressStore.start();
 		return () => {
 			personasStore.stop();
 			topicStore.stop();
-			progressStore.stop();
 		};
 	});
 </script>
@@ -79,7 +75,7 @@
 	{#if isStopped}
 		<p class="status-stopped" role="alert">⛔ 処理停止 — {error}</p>
 	{:else if isRunning}
-		<p class="step" role="status">{progressStore.progress?.currentStep ?? 'ペルソナ生成中...'}</p>
+		<p class="step" role="status">ペルソナ生成中...</p>
 	{/if}
 
 	{#if personas.length > 0}

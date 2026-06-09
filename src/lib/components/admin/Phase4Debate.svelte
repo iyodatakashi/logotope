@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { createProgressStore } from '$lib/stores/progress.svelte.js';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { createTopicStore } from '$lib/stores/topic.svelte.js';
 	import { createSessionStore } from '$lib/stores/session.svelte.js';
@@ -15,7 +14,6 @@
 	const sessionStore = createSessionStore(topicId);
 	const personasStore = createPersonasStore(topicId);
 	const topicStore = createTopicStore(topicId);
-	const progressStore = createProgressStore(topicId);
 
 	let starting = $state(false);
 	let started = $state(false);
@@ -52,9 +50,7 @@
 
 	const loading = $derived(!sessionStore.isLoaded || starting);
 	const completedTurns = $derived(turns.length);
-	const totalTurns = $derived(
-		sessionStore.session?.totalTurns ?? progressStore.progress?.total ?? 0
-	);
+	const totalTurns = $derived(sessionStore.session?.totalTurns ?? 0);
 	const isStopped = $derived(!!error && !starting);
 
 	$effect(() => {
@@ -99,12 +95,10 @@
 		sessionStore.start();
 		personasStore.start();
 		topicStore.start();
-		progressStore.start();
 		return () => {
 			sessionStore.stop();
 			personasStore.stop();
 			topicStore.stop();
-			progressStore.stop();
 		};
 	});
 </script>
@@ -117,7 +111,7 @@
 		<p class="status-stopped" role="alert">討論停止: {error}</p>
 	{:else if loading}
 		<p class="step" role="status">
-			{progressStore.progress?.currentStep ?? '討論中...'}
+			討論中...
 			{#if totalTurns > 0}（ターン {completedTurns} / {totalTurns}）{/if}
 		</p>
 	{/if}
