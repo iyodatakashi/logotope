@@ -114,6 +114,7 @@ export class DebateOrchestratorService {
         speakCount: new Map(personas.map(p => [p.id, 0])),
         lastAddressedPersonaId: undefined,
         lastSpeakerId: undefined,
+
         consecutiveDirectExchanges: 0,
         lastFacilitatorTurnIndex: 0,
         currentTurnIndex: 0,
@@ -183,6 +184,7 @@ export class DebateOrchestratorService {
         speakCount,
         lastAddressedPersonaId: undefined,
         lastSpeakerId: undefined,
+
         consecutiveDirectExchanges: 0,
         lastFacilitatorTurnIndex,
         currentTurnIndex: fromTurnIndex,
@@ -498,7 +500,6 @@ export class DebateOrchestratorService {
     while (chapterTurnCount < maxChapterTurns && state.currentTurnIndex < globalTurnCap) {
       // 1. Determine next speaker
       let nextPersonaId: string;
-      let nextSpeechMode: 'reaction' | 'full' = 'full';
       const pendingAddress = state.lastAddressedPersonaId;
       state.lastAddressedPersonaId = undefined;
       const MAX_CONSECUTIVE_DIRECT = 3;
@@ -507,7 +508,6 @@ export class DebateOrchestratorService {
         && state.consecutiveDirectExchanges < MAX_CONSECUTIVE_DIRECT;
       if (fromDirectAddress) {
         nextPersonaId = pendingAddress!;
-        nextSpeechMode = 'full'; // directly addressed → respond substantively
         state.consecutiveDirectExchanges++;
       } else {
         const speakerResult = await this.facilitator.selectNextSpeaker(
@@ -515,7 +515,6 @@ export class DebateOrchestratorService {
         );
         if (!speakerResult.ok) throw new Error(pipelineErrorMessage(speakerResult.error));
         nextPersonaId = speakerResult.value.personaId;
-        nextSpeechMode = speakerResult.value.speechMode;
         if (nextPersonaId === state.lastSpeakerId && personas.length > 1) {
           nextPersonaId = personas.find(p => p.id !== state.lastSpeakerId)!.id;
         }
@@ -549,7 +548,6 @@ export class DebateOrchestratorService {
           if (iv.targetPersonaId && personas.some(p => p.id === iv.targetPersonaId)) {
             if (iv.targetPersonaId !== state.lastSpeakerId || personas.length === 1) {
               nextPersonaId = iv.targetPersonaId;
-              nextSpeechMode = 'full'; // facilitator called on them directly
             }
           }
         }
@@ -568,15 +566,15 @@ export class DebateOrchestratorService {
       // 4. Generate persona turn (pass only current chapter's history to keep focus)
       const chapterHistory = state.history.filter(t => t.turnIndex >= chapter.startTurnIndex);
       const turnResult = await this.personaAgent.generateTurn(
-        persona, belief.content, interviewRecord, chapterHistory, chapter, nextSpeechMode as 'reaction' | 'full'
+        persona, belief.content, interviewRecord, chapterHistory, chapter
       );
       if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
-      // 5. Save persona turn with chapterIndex and speechMode
+      // 5. Save persona turn with chapterIndex
       const savedTurn = await repo.createDebateTurn({
         sessionId, turnIndex: state.currentTurnIndex, speakerType: 'persona',
         personaId: persona.id, content: turnResult.value.content ?? '',
-        chapterIndex, speechMode: nextSpeechMode,
+        chapterIndex, speechMode: turnResult.value.speechMode,
       });
 
       // 6. Update history

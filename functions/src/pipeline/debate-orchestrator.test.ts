@@ -39,7 +39,7 @@ const testPersonaProfiles = [
 function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}) {
   return {
     generateOpening: vi.fn().mockResolvedValue({ ok: true, value: { content: '討論を始めます。', firstPersonaId: 'p1' } }),
-    selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2', speechMode: 'full' } }),
+    selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2' } }),
     evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
     generateClosing: vi.fn().mockResolvedValue({ ok: true, value: 'お疲れ様でした。' }),
     generateChapters: vi.fn().mockResolvedValue({ ok: false, error: { code: 'AI_API_ERROR', message: 'mock', retryable: true } }),
@@ -157,7 +157,7 @@ describe('DebateOrchestratorService', () => {
       // Turns return no addressedToPersonaId → selectNextSpeaker is called
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
-        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2', speechMode: 'full' } }),
+        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2' } }),
       });
       const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
 
@@ -433,7 +433,7 @@ describe('DebateOrchestratorService', () => {
         evaluateIntervention: vi.fn()
           .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: false } })
           .mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
-        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2', speechMode: 'full' } }),
+        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2' } }),
       });
       const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
 

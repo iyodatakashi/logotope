@@ -41,10 +41,10 @@ export function buildSpeechStyleGuide(persona: PersonaAttributes & { gender?: st
   lines.push('これは口語の対話であり、書き言葉（「〜だ」「〜である」「〜ではない」調）は使わない。');
 
   if (expLevel === 'young') {
-    lines.push('「〜かな？」「〜ですよね？」「〜じゃないですか」など口語の疑問形を自然に用いる。');
+    lines.push('「〜かな？」「そうなんですか？」「〜じゃないですか」など口語の疑問形を自然に用いる。');
     lines.push('経験が少ない若手として、断言より確認・質問を多く使う。');
   } else if (expLevel === 'veteran') {
-    lines.push('豊富な経験を基に自信を持って話す（「〜ですよ」「〜だよね」「〜じゃないですか」）。');
+    lines.push('豊富な経験を基に自信を持って話す（「〜ですよ」「そうじゃない」「〜じゃないですか」「実際にね〜」）。');
     lines.push('業界用語・専門語彙を自然に交え、経験談（「〜のとき実際に〜」）を活用する。');
   } else {
     lines.push('「〜ですね」「〜だと思います」など断言と確認のバランスを保つ口語で話す。');
@@ -52,7 +52,7 @@ export function buildSpeechStyleGuide(persona: PersonaAttributes & { gender?: st
   }
 
   if (authLevel === 'high') {
-    lines.push('権威ある立場として自信を持って発言する。「〜ですよ」「〜だよね」「〜じゃないかな」「〜というのはどう？」など口語で断言し、謙遜表現（「〜かもしれません」）は避ける。');
+    lines.push('権威ある立場として自信を持って発言する。「〜ですよ」「そうじゃない」「〜じゃないかな」「〜というのはどう？」「それは間違いです」など口語で断言し、謙遜表現（「〜かもしれません」）は避ける。');
   } else if (authLevel === 'mid') {
     lines.push('組織内の立場を反映し、現場と管理側の視点を行き来しながら「〜ですね」「〜だと思います」で話す。');
   } else {
@@ -166,8 +166,7 @@ export class PersonaAgentService {
     currentBelief: string,
     interviewRecord: string,
     history: ConversationTurn[],
-    currentChapter?: DebateChapter,
-    speechMode?: 'reaction' | 'full'
+    currentChapter?: DebateChapter
   ): Promise<Result<AgentTurnResult, PipelineError>> {
     try {
       const recentHistory = history.slice(-20);
@@ -175,11 +174,7 @@ export class PersonaAgentService {
       const chapterContext = currentChapter
         ? `\n\n【この章のフォーカス】「${currentChapter.title}」: ${currentChapter.focusQuestion}`
         : '';
-      const mode = speechMode ?? 'reaction';
-      const commonInstructions = `冒頭で相手の名前を呼ぶことは禁止。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
-      const userContent = mode === 'reaction'
-        ? `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}\n\n${persona.name}として、直前の発言への短い反応を返してください。speechMode=reaction（固定）。10〜25文字の相槌・同意・疑問・一言反論など。${commonInstructions}`
-        : `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}\n\n${persona.name}として、意見・論点・根拠をしっかり述べてください。speechMode=full（固定）。最大200文字。${commonInstructions}`;
+      const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}\n\n${persona.name}として発言してください。speechMode を自分で判断すること（reaction=短い反応10〜25文字 / full=意見・論点・根拠をしっかり述べる最大200文字）。冒頭で相手の名前を呼ぶことは禁止。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.PERSONA_TURN,
@@ -200,12 +195,14 @@ export class PersonaAgentService {
       }
 
       const {
+        speechMode,
         content,
         beliefChangeType,
         beliefChangeSummary,
         beliefChangeUpdatedBelief,
         addressedToPersonaId,
       } = toolBlock.input as {
+        speechMode?: 'reaction' | 'full';
         content: string;
         beliefChangeType?: BeliefChangeType;
         beliefChangeSummary?: string;
@@ -221,7 +218,7 @@ export class PersonaAgentService {
           }
         : null;
 
-      return { ok: true, value: { content, beliefChange, addressedToPersonaId } };
+      return { ok: true, value: { content, speechMode, beliefChange, addressedToPersonaId } };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };

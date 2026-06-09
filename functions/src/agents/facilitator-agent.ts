@@ -32,18 +32,13 @@ const OPENING_TOOL: Anthropic.Tool = {
 
 const SELECT_SPEAKER_TOOL: Anthropic.Tool = {
   name: 'select_speaker',
-  description: '次に発言すべきペルソナのIDと発言モードを選択する（発言は生成しない。サイレントルーティングのみ）',
+  description: '次に発言すべきペルソナのIDを選択する（発言は生成しない。サイレントルーティングのみ）',
   input_schema: {
     type: 'object' as const,
     properties: {
       personaId: { type: 'string', description: '次に発言させるペルソナのID' },
-      speechMode: {
-        type: 'string',
-        enum: ['reaction', 'full'],
-        description: 'このペルソナの発言モード。reaction=相槌・短い反応（会話が自然に流れている、前発言を受け止めるだけでよい場合）/ full=意見・論点・根拠をしっかり述べる（この章でまだ発言が少ない、直接問われている、反論・新論点がある場合）',
-      },
     },
-    required: ['personaId', 'speechMode'],
+    required: ['personaId'],
   },
 };
 
@@ -201,7 +196,7 @@ export class FacilitatorAgentService {
     personas: PersonaAttributes[],
     silenceMap: Map<string, number>,
     excludePersonaId?: string
-  ): Promise<Result<{ personaId: string; speechMode: 'reaction' | 'full' }, PipelineError>> {
+  ): Promise<Result<{ personaId: string }, PipelineError>> {
     try {
       const silenceInfo = Array.from(silenceMap.entries())
         .map(([id, count]) => {
@@ -229,7 +224,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'select_speaker' },
         messages: [{
           role: 'user',
-          content: `直前の発言に最も応答しそうなペルソナを1名選んでください。${exclusionNote}\n\n会話履歴（最新${recentHistory.length}件）:\n${formatHistory(recentHistory)}\n\n参加者:\n${formatPersonas(personas)}\n\n沈黙状況: ${silenceInfo || 'なし'}\n\nspeechMode は**デフォルト reaction**。full を選ぶのは「直接名指しで問われた」「明確な反論・新しい視点・具体的な根拠を述べる必要がある」場合のみ。それ以外はすべて reaction。`,
+          content: `直前の発言に最も応答しそうなペルソナを1名選んでください。${exclusionNote}\n\n会話履歴（最新${recentHistory.length}件）:\n${formatHistory(recentHistory)}\n\n参加者:\n${formatPersonas(personas)}\n\n沈黙状況: ${silenceInfo || 'なし'}`,
         }],
       });
 
@@ -240,8 +235,8 @@ export class FacilitatorAgentService {
         return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true } };
       }
 
-      const { personaId, speechMode } = toolBlock.input as { personaId: string; speechMode: 'reaction' | 'full' };
-      return { ok: true, value: { personaId, speechMode } };
+      const { personaId } = toolBlock.input as { personaId: string };
+      return { ok: true, value: { personaId } };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };

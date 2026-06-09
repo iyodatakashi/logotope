@@ -49,6 +49,7 @@ export interface BeliefChangeEvent {
 
 export interface AgentTurnResult {
   content: string;
+  speechMode?: 'reaction' | 'full';
   beliefChange: BeliefChangeEvent | null;
   addressedToPersonaId?: string;
 }

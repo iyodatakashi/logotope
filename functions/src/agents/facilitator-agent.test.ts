@@ -142,7 +142,7 @@ describe('FacilitatorAgentService', () => {
         content: [{
           type: 'tool_use',
           name: 'select_speaker',
-          input: { personaId: 'p2', speechMode: 'full' },
+          input: { personaId: 'p2' },
         }],
       });
 
@@ -151,7 +151,6 @@ describe('FacilitatorAgentService', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value.personaId).toBe('p2');
-      expect(result.value.speechMode).toBe('full');
     });
 
     it('system prompt contains neutrality constraint', async () => {
@@ -159,7 +158,7 @@ describe('FacilitatorAgentService', () => {
         content: [{
           type: 'tool_use',
           name: 'select_speaker',
-          input: { personaId: 'p3', speechMode: 'reaction' },
+          input: { personaId: 'p3' },
         }],
       });
 
@@ -174,7 +173,7 @@ describe('FacilitatorAgentService', () => {
         content: [{
           type: 'tool_use',
           name: 'select_speaker',
-          input: { personaId: 'p3', speechMode: 'reaction' },
+          input: { personaId: 'p3' },
         }],
       });
 
