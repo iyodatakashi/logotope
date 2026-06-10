@@ -2,7 +2,6 @@ import * as repo from '../db/repository.js';
 import type { DebateTurn } from '../db/repository.js';
 import { FacilitatorAgentService } from '../agents/facilitator-agent.js';
 import { PersonaAgentService } from '../agents/persona-agent.js';
-import { ProgressTrackerService } from './progress-tracker.js';
 import type {
   PersonaAttributes,
   Result,
@@ -98,14 +97,11 @@ export class DebateOrchestratorService {
   constructor(
     private facilitator: FacilitatorAgentService = new FacilitatorAgentService(),
     private personaAgent: PersonaAgentService = new PersonaAgentService(),
-    private tracker: ProgressTrackerService = new ProgressTrackerService(),
     private options: OrchestratorOptions = DEFAULT_OPTIONS
   ) {}
 
   async run(sessionId: string, topicId: string): Promise<Result<void, PipelineError>> {
     try {
-      await this.tracker.updateStatus(topicId, 'debating');
-
       const { personas, interviewRecords, currentBeliefs, topicTitle } =
         await this.loadSessionContext(topicId);
 
@@ -137,7 +133,6 @@ export class DebateOrchestratorService {
       if (!session) return { ok: false, error: { code: 'NOT_FOUND', resource: 'session' } };
 
       const topicId = session.topicId;
-      await this.tracker.updateStatus(topicId, 'debating');
 
       const { personas, interviewRecords, currentBeliefs, topicTitle } =
         await this.loadSessionContext(topicId);

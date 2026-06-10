@@ -62,7 +62,6 @@ topics/{topicId}/sessions/0
   turns: TurnEmbed[]          ← 埋め込み（FieldValue.arrayUnion で逐次追加）
   postDebateComments: PostDebateCommentEmbed[]  ← 埋め込み
 
-debate_progress/{topicId}    ← AI進捗トラッキング（変更しない）
 ```
 
 ### sessionId = topicId
