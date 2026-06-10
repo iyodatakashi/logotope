@@ -38,6 +38,7 @@
 					speakerRole: t.speakerRole ?? persona?.stakeholderRole ?? '',
 					content: t.content,
 					speechMode: t.speechMode,
+					fromQueue: t.fromQueue,
 					personaId: t.personaId,
 					engagements: (engagementsStore.engagementsMap.get(t.turnIndex) ?? []).map((e) => ({
 						...e,
@@ -140,7 +141,7 @@
 
 	{#if turns.length > 0}
 		<div class="turns">
-			{#each turns as turn (turn.id)}
+			{#each turns as turn, i (turn.id)}
 				<div class="turn" class:facilitator={turn.speakerType === 'facilitator'}>
 					<div class="speaker">
 						<strong>{turn.speakerName}</strong>
@@ -150,12 +151,16 @@
 						{#if turn.speechMode}
 							<span class="speech-mode">[{turn.speechMode}]</span>
 						{/if}
+						{#if turn.fromQueue}
+							<span class="from-queue">[キュー]</span>
+						{/if}
 					</div>
 					<p class="content">{turn.content}</p>
 					{#if turn.engagements.length > 0}
+						{@const nextPersonaId = turns[i + 1]?.personaId}
 						<div class="engagements">
 							{#each turn.engagements as e}
-								{@const selected = e.personaId === turn.personaId}
+								{@const selected = !!nextPersonaId && e.personaId === nextPersonaId}
 								<span class="engagement" data-mode={e.mode} class:selected>
 									{e.name}: {e.mode}({e.score}){#if selected} →選択{/if}
 								</span>
@@ -199,6 +204,7 @@
 	.speaker { margin-bottom: 4px; }
 	.role { color: #757575; font-size: 0.875rem; margin-left: 4px; }
 	.speech-mode { font-size: 0.75rem; margin-left: 6px; color: #fff; background: #888; padding: 1px 5px; border-radius: 3px; }
+	.from-queue { font-size: 0.75rem; margin-left: 4px; color: #fff; background: #e65100; padding: 1px 5px; border-radius: 3px; }
 	.speech-mode:has(+ *) { /* nothing */ }
 	.content { margin: 0; line-height: 1.6; }
 	.engagements { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
