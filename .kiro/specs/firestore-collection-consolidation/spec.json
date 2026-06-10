@@ -1,0 +1,22 @@
+{
+  "feature_name": "firestore-collection-consolidation",
+  "created_at": "2026-06-10T10:48:48Z",
+  "updated_at": "2026-06-10T10:48:48Z",
+  "language": "ja",
+  "phase": "completed",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": true
+}
