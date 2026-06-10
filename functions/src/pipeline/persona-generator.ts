@@ -15,14 +15,15 @@ const PERSONA_TOOL: Anthropic.Tool = {
           type: 'object',
           properties: {
             stakeholderRole: { type: 'string', description: 'どの立場に対応するか' },
-            name: { type: 'string', description: '氏名（日本人名）' },
+            name: { type: 'string', description: '氏名（テーマ・ステークホルダーの国際的文脈に合った名前。グローバルなテーマでは多国籍の名前を使う）' },
+            nationality: { type: 'string', description: '国籍・出身国（例: 日本、イギリス、ブラジル）' },
             age: { type: 'integer', description: '年齢' },
             occupation: { type: 'string', description: '職業' },
             background: { type: 'string', description: '生活・社会的背景（200字以内）' },
             interests: { type: 'string', description: '主な関心事・価値観（200字以内）' },
             stanceDirection: { type: 'string', description: 'テーマへのスタンス方向' },
           },
-          required: ['stakeholderRole', 'name', 'age', 'occupation', 'background', 'interests', 'stanceDirection'],
+          required: ['stakeholderRole', 'name', 'nationality', 'age', 'occupation', 'background', 'interests', 'stanceDirection'],
         },
       },
     },
@@ -55,7 +56,7 @@ export class PersonaGeneratorService {
       tool_choice: { type: 'tool', name: 'submit_personas' },
       messages: [{
         role: 'user',
-        content: `テーマ「${topicTitle}」について、以下の各立場を代表する具体的なペルソナを1体ずつ生成してください。年齢層・職業・社会的背景の多様性を確保してください。\n\n立場リスト:\n${rolesDesc}`,
+        content: `テーマ「${topicTitle}」について、以下の各立場を代表する具体的なペルソナを1体ずつ生成してください。\n\n【命名のルール】\n- 基本的には日本人のペルソナとして生成すること。ただしテーマが明らかに海外を舞台とする（例: F1、海外スポーツ、国際政治）場合は、そのテーマに合った国籍の人物を含めること\n- 佐藤・田中・鈴木など超頻出姓、陽菜・蓮・葵など近年多用される名前への偏りを避けること\n- 日本人名は地域性（東北・関西・九州など）や年代感（昭和・平成・令和の命名傾向の違い）をペルソナの年齢・背景に合わせて反映させること\n- 外国人ペルソナを含める場合はその国籍の実際の名前の傾向を反映させ、表記はカタカナにすること（例: ルイス・ハミルトン、カルロス・サインツ）\n- 年齢層・職業・社会的背景の多様性を確保すること\n\n立場リスト:\n${rolesDesc}`,
       }],
     });
 
@@ -75,6 +76,7 @@ export class PersonaGeneratorService {
         topicId,
         stakeholderRole: p.stakeholderRole,
         name: p.name,
+        nationality: p.nationality,
         age: p.age,
         occupation: p.occupation,
         background: p.background,

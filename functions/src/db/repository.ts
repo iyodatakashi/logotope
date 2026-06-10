@@ -18,6 +18,7 @@ export interface PersonaProfile {
   topicId: string;
   stakeholderRole: string;
   name: string;
+  nationality?: string;
   age: number;
   occupation: string;
   background: string;
@@ -113,6 +114,7 @@ export interface CreatePersonaProfileParams {
   topicId: string;
   stakeholderRole: string;
   name: string;
+  nationality?: string;
   age: number;
   occupation: string;
   background: string;
@@ -182,6 +184,7 @@ export const createPersonaProfile = async (params: CreatePersonaProfileParams): 
     topicId: params.topicId,
     stakeholderRole: params.stakeholderRole,
     name: params.name,
+    ...(params.nationality !== undefined && { nationality: params.nationality }),
     age: params.age,
     occupation: params.occupation,
     background: params.background,

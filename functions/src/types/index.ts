@@ -24,6 +24,7 @@ export interface PersonaAttributes {
   id: string;
   stakeholderRole: string;
   name: string;
+  nationality?: string;
   age: number;
   occupation: string;
   background: string;
