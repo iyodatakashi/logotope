@@ -94,14 +94,14 @@ const INTERVENTION_TOOL: Anthropic.Tool = {
 
 const SUBMIT_ISSUES_TOOL: Anthropic.Tool = {
   name: 'submit_issues',
-  description: '討論テーマとペルソナ一覧から討論論点を洗い出す',
+  description: '討論テーマに関する多様な切り口をフラットに列挙する',
   input_schema: {
     type: 'object' as const,
     properties: {
       issues: {
         type: 'array',
         items: { type: 'string' },
-        description: '5〜10件の討論論点（各論点を1〜2文で記述）',
+        description: '7〜10件の切り口（賛否・問題提起に偏らず、このテーマに関して人々が関心を持つ様々な側面を網羅的に列挙。各切り口を1〜2文で記述）',
       },
     },
     required: ['issues'],
@@ -110,7 +110,7 @@ const SUBMIT_ISSUES_TOOL: Anthropic.Tool = {
 
 const SUBMIT_CHAPTERS_TOOL: Anthropic.Tool = {
   name: 'submit_chapters',
-  description: '洗い出した論点を章立てに整理する（目安3〜6章）',
+  description: '列挙した切り口をもとに討論の章立てを構成する（目安3〜6章）',
   input_schema: {
     type: 'object' as const,
     properties: {
@@ -353,7 +353,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'submit_issues' },
         messages: [{
           role: 'user',
-          content: `テーマ「${topicTitle}」について、以下のペルソナが討論する際に取り上げるべき重要な論点を5〜10件洗い出してください。\n\n参加者:\n${formatPersonas(personas)}\n\n各論点は1〜2文で具体的に記述してください。`,
+          content: `テーマ「${topicTitle}」について、このテーマに関係する切り口を7〜10件、フラットに列挙してください。\n\n参加者:\n${formatPersonas(personas)}\n\n「何が問題か」「賛否はどうか」を考える前の段階として、このテーマに関して人々が関心を持ちうるあらゆる側面・観点・次元を網羅的に書き出してください。後工程でこれらをもとに討論の章立てを作ります。\n\n各切り口は1〜2文で記述してください。`,
         }],
       });
 
@@ -374,7 +374,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'submit_chapters' },
         messages: [{
           role: 'user',
-          content: `以下の論点をもとに、討論の章立てを3〜6章に整理してください。\n\n論点一覧:\n${issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n各章に「章タイトル」と「その章で議論すべき具体的なフォーカス問い」を設定してください。\n\n構成の原則: 第1章は参加者が共通して話せる一般論・問題の概観から始め、章を追うごとに具体的な対立点や深いテーマへ掘り下げる「広い問いから深い問いへのファネル構造」にしてください。`,
+          content: `以下の切り口をもとに、討論の章立てを3〜6章に構成してください。\n\n切り口一覧:\n${issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n各章に「章タイトル」と「その章で探求する具体的なフォーカス問い」を設定してください。\n\n構成の原則: 第1章は参加者が共通して話せる入りやすいテーマから始め、章を追うごとにより深いテーマへ掘り下げる構造にしてください。`,
         }],
       });
 
