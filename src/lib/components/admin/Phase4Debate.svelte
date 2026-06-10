@@ -139,6 +139,17 @@
 		</p>
 	{/if}
 
+	{#if chapters}
+		<ol class="chapters">
+			{#each chapters as chapter}
+				<li class:current={chapter.index === (currentChapterIndex ?? 0)}>
+					<strong>{chapter.title}</strong>
+					<span class="focus">{chapter.focusQuestion}</span>
+				</li>
+			{/each}
+		</ol>
+	{/if}
+
 	{#if turns.length > 0}
 		<div class="turns">
 			{#each turns as turn, i (turn.id)}
@@ -198,6 +209,11 @@
 	.topic { color: #555; margin-bottom: 16px; }
 	.step { color: #1565c0; font-style: italic; }
 	.status-stopped { color: #e65100; font-weight: 600; }
+	.chapters { margin: 12px 0; padding-left: 24px; display: flex; flex-direction: column; gap: 4px; }
+	.chapters li { color: #888; font-size: 0.9rem; }
+	.chapters li.current { color: #1565c0; font-weight: 600; }
+	.focus { margin-left: 8px; font-weight: normal; color: #aaa; font-size: 0.85rem; }
+	.chapters li.current .focus { color: #5c8fd6; }
 	.turns { display: flex; flex-direction: column; gap: 8px; }
 	.turn { padding: 12px; border-left: 4px solid #e0e0e0; }
 	.turn.facilitator { border-left-color: #1565c0; background: #f8f9ff; }
