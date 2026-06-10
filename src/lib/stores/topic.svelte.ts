@@ -1,4 +1,4 @@
-import { onSnapshot, doc, updateDoc, deleteDoc, writeBatch, Timestamp, getDocs, collection, deleteField } from 'firebase/firestore';
+import { onSnapshot, doc, updateDoc, deleteDoc, writeBatch, Timestamp, getDocs, collection, deleteField, getDoc } from 'firebase/firestore';
 import { db } from '$lib/firebase.js';
 import type { TopicDoc } from '$lib/types/index.js';
 
@@ -51,7 +51,16 @@ export const createTopicStore = (topicId: string) => {
 		await batch.commit();
 	};
 
+	const cancelRunningDebate = async (): Promise<void> => {
+		const sessionRef = doc(db, 'topics', topicId, 'sessions', '0');
+		const snap = await getDoc(sessionRef);
+		if (snap.exists() && snap.data()?.status === 'debating') {
+			await updateDoc(sessionRef, { status: 'cancelled' });
+		}
+	};
+
 	const resetToPhase1 = async (): Promise<void> => {
+		await cancelRunningDebate();
 		const personasSnap = await getDocs(collection(db, 'topics', topicId, 'personas'));
 		const batch = writeBatch(db);
 		personasSnap.docs.forEach((d) => batch.delete(d.ref));
@@ -61,6 +70,7 @@ export const createTopicStore = (topicId: string) => {
 	};
 
 	const resetToPhase2 = async (): Promise<void> => {
+		await cancelRunningDebate();
 		const personasSnap = await getDocs(collection(db, 'topics', topicId, 'personas'));
 		const batch = writeBatch(db);
 		personasSnap.docs.forEach((d) =>
@@ -75,6 +85,7 @@ export const createTopicStore = (topicId: string) => {
 	};
 
 	const resetToPhase3 = async (): Promise<void> => {
+		await cancelRunningDebate();
 		const batch = writeBatch(db);
 		batch.delete(doc(db, 'topics', topicId, 'sessions', '0'));
 		batch.update(doc(db, 'topics', topicId), {
@@ -85,6 +96,7 @@ export const createTopicStore = (topicId: string) => {
 	};
 
 	const resetDebate = async (): Promise<void> => {
+		await cancelRunningDebate();
 		await deleteDoc(doc(db, 'topics', topicId, 'sessions', '0'));
 		await updateDoc(doc(db, 'topics', topicId), {
 			status: 'interviewing',

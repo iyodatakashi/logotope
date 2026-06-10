@@ -353,6 +353,7 @@ export class DebateOrchestratorService {
 
     const session = await repo.getDebateSessionByTopicId(topicId);
     if (!session) throw new Error('Session not found');
+    if (session.status === 'cancelled') return false;
     // chapters are generated during chapter 0's run, so only require them for chapterIndex > 0
     if (chapterIndex > 0 && !session.chapters?.length) throw new Error('Chapters not found');
 
@@ -452,6 +453,9 @@ export class DebateOrchestratorService {
       0, Number.MAX_SAFE_INTEGER
     );
 
+    const sessionAfter = await repo.getDebateSessionByTopicId(topicId);
+    if (!sessionAfter || sessionAfter.status === 'cancelled') return false;
+
     const isLastChapter = chapterIndex >= chapters.length - 1;
     if (isLastChapter) {
       await this.finalizeDebate(sessionId, topicId, personas, state);
@@ -487,6 +491,9 @@ export class DebateOrchestratorService {
     const recentScores: number[] = [];
 
     while (chapterTurnCount < maxChapterTurns && state.currentTurnIndex < globalTurnCap) {
+      const sessionCheck = await repo.getDebateSessionByTopicId(topicId);
+      if (!sessionCheck || sessionCheck.status === 'cancelled') return;
+
       // 1. Determine next speaker
       let nextPersonaId: string;
       let selectedMode: 'full' | 'reaction' | undefined;
