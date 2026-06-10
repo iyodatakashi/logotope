@@ -480,16 +480,17 @@ describe('FacilitatorAgentService', () => {
       expect(result.value.length).toBeGreaterThan(0);
     });
 
-    it('generateChapterIntroduction: 次章の導入発言テキストを返す', async () => {
+    it('generateChapterIntroduction: 次章の導入発言テキストとfirstPersonaIdを返す', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'generate_chapter_transition', input: { content: '次のテーマへ移ります。' } }],
+        content: [{ type: 'tool_use', name: 'submit_chapter_intro', input: { content: '次のテーマへ移ります。', firstPersonaId: 'p1' } }],
       });
 
-      const result = await service.generateChapterIntroduction(nextChapter);
+      const result = await service.generateChapterIntroduction(nextChapter, testPersonas);
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value).toBeTruthy();
+      expect(result.value.content).toBeTruthy();
+      expect(result.value.firstPersonaId).toBe('p1');
     });
 
     it('generateChapterSummary: AI エラー時に PipelineError を返す', async () => {

@@ -549,8 +549,12 @@ export class DebateOrchestratorService {
           }
         }
 
-        // 章終了シグナルの記録（score >= 5 のペルソナがいれば 1、いなければ 0）
-        recentScores.push(rawAssessments.some(a => a.score >= 5) ? 1 : 0);
+        // 章終了シグナルの記録（full意欲が高い or 緊急リアクションあり → 1、それ以外 → 0）
+        // reaction score <= 3 は新論点を出さない状態なので章継続の理由にしない
+        const hasActiveEngagement = rawAssessments.some(
+          a => (a.mode === 'full' && a.score >= 4) || a.score >= 5
+        );
+        recentScores.push(hasActiveEngagement ? 1 : 0);
         if (recentScores.length > 6) recentScores.shift();
 
         // 発言者の選択: スコア降順 → 同率は最長沈黙優先
@@ -660,10 +664,8 @@ export class DebateOrchestratorService {
           state.currentTurnIndex++;
 
           if (iv.targetPersonaId && personas.some(p => p.id === iv.targetPersonaId)) {
-            if (iv.targetPersonaId !== state.lastSpeakerId || personas.length === 1) {
-              nextPersonaId = iv.targetPersonaId;
-              selectedMode = 'full';
-            }
+            nextPersonaId = iv.targetPersonaId;
+            selectedMode = 'full';
           }
         }
         // close is ignored — no break, no action
@@ -778,7 +780,7 @@ export class DebateOrchestratorService {
         const recentFullCount = recentScores.slice(-5).reduce((a, b) => a + b, 0);
         if (recentFullCount === 0) {
           if (chapterIndex < chapters.length - 1) {
-            await this.generateAndSaveChapterTransition(sessionId, chapters, chapterIndex, state);
+            await this.generateAndSaveChapterTransition(sessionId, chapters, chapterIndex, state, personas);
           }
           return;
         }
@@ -787,7 +789,7 @@ export class DebateOrchestratorService {
 
     // Forced transition (150% reached but not last chapter)
     if (chapterIndex < chapters.length - 1) {
-      await this.generateAndSaveChapterTransition(sessionId, chapters, chapterIndex, state);
+      await this.generateAndSaveChapterTransition(sessionId, chapters, chapterIndex, state, personas);
     }
   }
 
@@ -795,7 +797,8 @@ export class DebateOrchestratorService {
     sessionId: string,
     chapters: DebateChapter[],
     currentChapterIndex: number,
-    state: DebateState
+    state: DebateState,
+    personas: PersonaAttributes[]
   ): Promise<void> {
     const chapter = chapters[currentChapterIndex];
     const nextChapter = chapters[currentChapterIndex + 1];
@@ -821,19 +824,21 @@ export class DebateOrchestratorService {
     // Turn 2: introduction of next chapter (chapterIndex = next)
     // DebateViewer inserts the next chapter heading before this turn
     if (nextChapter) {
-      const introResult = await this.facilitator.generateChapterIntroduction(nextChapter);
+      const introResult = await this.facilitator.generateChapterIntroduction(nextChapter, personas);
       if (introResult.ok) {
         const introTurn = await repo.createDebateTurn({
           sessionId, turnIndex: state.currentTurnIndex, speakerType: 'facilitator',
           speakerName: 'ファシリテーター', speakerRole: '',
-          content: introResult.value, chapterIndex: nextChapter.index,
+          content: introResult.value.content, chapterIndex: nextChapter.index,
         });
         state.history.push({
           id: introTurn.id, sessionId, turnIndex: state.currentTurnIndex,
           speakerType: 'facilitator', speakerName: 'ファシリテーター', speakerRole: '',
-          content: introResult.value, createdAt: new Date().toISOString(),
+          content: introResult.value.content, createdAt: new Date().toISOString(),
         });
         state.lastFacilitatorTurnIndex = state.currentTurnIndex;
+        state.lastAddressedPersonaId = introResult.value.firstPersonaId;
+        state.lastAddressedByFacilitator = true;
         state.currentTurnIndex++;
       }
     }

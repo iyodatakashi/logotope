@@ -155,6 +155,19 @@ const GENERATE_CHAPTER_TRANSITION_TOOL: Anthropic.Tool = {
   },
 };
 
+const CHAPTER_INTRO_TOOL: Anthropic.Tool = {
+  name: 'submit_chapter_intro',
+  description: '次の章の導入発言と最初に発言させるペルソナIDを提出する',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      content: { type: 'string', description: '章の導入発言テキスト' },
+      firstPersonaId: { type: 'string', description: '最初に発言させるペルソナのID' },
+    },
+    required: ['content', 'firstPersonaId'],
+  },
+};
+
 const CLOSING_TOOL: Anthropic.Tool = {
   name: 'submit_closing',
   description: '討論のクロージング発言を提出する',
@@ -464,18 +477,19 @@ export class FacilitatorAgentService {
   }
 
   async generateChapterIntroduction(
-    nextChapter: DebateChapter
-  ): Promise<Result<string, PipelineError>> {
+    nextChapter: DebateChapter,
+    personas: PersonaAttributes[]
+  ): Promise<Result<{ content: string; firstPersonaId: string }, PipelineError>> {
     try {
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
         system: NEUTRALITY_SYSTEM_PROMPT,
-        tools: [GENERATE_CHAPTER_TRANSITION_TOOL],
-        tool_choice: { type: 'tool', name: 'generate_chapter_transition' },
+        tools: [CHAPTER_INTRO_TOOL],
+        tool_choice: { type: 'tool', name: 'submit_chapter_intro' },
         messages: [{
           role: 'user',
-          content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、このフォーカス問いについて参加者に問いかける形で始めてください。\n\nフォーカス: ${nextChapter.focusQuestion}`,
+          content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、このフォーカス問いについて参加者に問いかける形で始めてください。最初に発言させるペルソナIDも指定してください。\n\nフォーカス: ${nextChapter.focusQuestion}\n\n参加者:\n${formatPersonas(personas)}\n\nfirstPersonaIdには必ず上記リストのIDを使用してください。`,
         }],
       });
 
@@ -485,8 +499,8 @@ export class FacilitatorAgentService {
       if (!toolBlock) {
         return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in introduction response', retryable: true } };
       }
-      const { content } = toolBlock.input as { content: string };
-      return { ok: true, value: content };
+      const { content, firstPersonaId } = toolBlock.input as { content: string; firstPersonaId: string };
+      return { ok: true, value: { content, firstPersonaId } };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
