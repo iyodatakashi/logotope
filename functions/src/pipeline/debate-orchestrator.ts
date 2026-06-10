@@ -1,14 +1,14 @@
 import * as repo from '../db/repository.js';
+import type { DebateTurn } from '../db/repository.js';
 import { FacilitatorAgentService } from '../agents/facilitator-agent.js';
 import { PersonaAgentService } from '../agents/persona-agent.js';
 import { ProgressTrackerService } from './progress-tracker.js';
 import type {
-  ConversationTurn,
   PersonaAttributes,
-  SpeakerType,
   Result,
   PipelineError,
   DebateChapter,
+  PendingIntent,
 } from '../types/index.js';
 
 function pipelineErrorMessage(e: PipelineError): string {
@@ -43,12 +43,14 @@ export const DEFAULT_CHAPTERS: ReadonlyArray<Pick<DebateChapter, 'title' | 'focu
 ];
 
 export interface DebateState {
-  history: ConversationTurn[];
+  history: DebateTurn[];
   currentBeliefs: Map<string, { content: string; version: number }>;
   silenceMap: Map<string, number>;
   speakCount: Map<string, number>;
   lastAddressedPersonaId: string | undefined;
+  lastAddressedByFacilitator: boolean;
   lastSpeakerId: string | undefined;
+  pendingItems: Map<string, PendingIntent[]>;
   consecutiveDirectExchanges: number;
   lastFacilitatorTurnIndex: number;
   currentTurnIndex: number;
@@ -113,8 +115,9 @@ export class DebateOrchestratorService {
         silenceMap: new Map(personas.map(p => [p.id, 0])),
         speakCount: new Map(personas.map(p => [p.id, 0])),
         lastAddressedPersonaId: undefined,
+        lastAddressedByFacilitator: false,
         lastSpeakerId: undefined,
-
+        pendingItems: new Map(),
         consecutiveDirectExchanges: 0,
         lastFacilitatorTurnIndex: 0,
         currentTurnIndex: 0,
@@ -144,20 +147,6 @@ export class DebateOrchestratorService {
         .filter(t => t.turnIndex < fromTurnIndex)
         .sort((a, b) => a.turnIndex - b.turnIndex);
 
-      const history: ConversationTurn[] = priorTurns.map(t => ({
-        turnId: t.id,
-        turnIndex: t.turnIndex,
-        speakerType: t.speakerType as SpeakerType,
-        personaId: t.personaId ?? undefined,
-        speakerName: t.personaId
-          ? (personas.find(p => p.id === t.personaId)?.name ?? '')
-          : 'ファシリテーター',
-        speakerRole: t.personaId
-          ? (personas.find(p => p.id === t.personaId)?.stakeholderRole ?? '')
-          : '',
-        content: t.content,
-      }));
-
       const speakCount = new Map<string, number>(personas.map(p => [p.id, 0]));
       for (const t of priorTurns) {
         if (t.personaId && t.speakerType === 'persona') {
@@ -177,14 +166,16 @@ export class DebateOrchestratorService {
         .filter(t => t.speakerType === 'facilitator')
         .reduce((max, t) => Math.max(max, t.turnIndex), 0);
 
+      const restoredPendingIntents = await repo.loadPendingIntents(sessionId);
       const state: DebateState = {
-        history,
+        history: priorTurns,
         currentBeliefs,
         silenceMap,
         speakCount,
         lastAddressedPersonaId: undefined,
+        lastAddressedByFacilitator: false,
         lastSpeakerId: undefined,
-
+        pendingItems: restoredPendingIntents,
         consecutiveDirectExchanges: 0,
         lastFacilitatorTurnIndex,
         currentTurnIndex: fromTurnIndex,
@@ -295,15 +286,18 @@ export class DebateOrchestratorService {
       const openingResult = await this.facilitator.generateOpening(topicTitle, personas, firstChapter);
       if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
 
-      await repo.createDebateTurn({
+      const openingTurn = await repo.createDebateTurn({
         sessionId, turnIndex: 0, speakerType: 'facilitator',
+        speakerName: 'ファシリテーター', speakerRole: '',
         content: openingResult.value.content ?? '',
       });
       state.history.push({
-        turnId: 'opening', turnIndex: 0, speakerType: 'facilitator',
+        id: openingTurn.id, sessionId, turnIndex: 0, speakerType: 'facilitator',
         speakerName: 'ファシリテーター', speakerRole: '', content: openingResult.value.content,
+        createdAt: new Date().toISOString(),
       });
       state.lastAddressedPersonaId = openingResult.value.firstPersonaId;
+      state.lastAddressedByFacilitator = true;
       state.currentTurnIndex = 1;
     }
 
@@ -330,14 +324,15 @@ export class DebateOrchestratorService {
     const closingResult = await this.facilitator.generateClosing(state.history, finalBeliefs);
     if (!closingResult.ok) throw new Error(pipelineErrorMessage(closingResult.error));
 
-    await repo.createDebateTurn({
+    const closingTurn = await repo.createDebateTurn({
       sessionId, turnIndex: state.currentTurnIndex, speakerType: 'facilitator',
+      speakerName: 'ファシリテーター', speakerRole: '',
       content: closingResult.value ?? '',
     });
     state.history.push({
-      turnId: 'closing', turnIndex: state.currentTurnIndex,
+      id: closingTurn.id, sessionId, turnIndex: state.currentTurnIndex,
       speakerType: 'facilitator', speakerName: 'ファシリテーター', speakerRole: '',
-      content: closingResult.value ?? '',
+      content: closingResult.value ?? '', createdAt: new Date().toISOString(),
     });
     state.currentTurnIndex++;
 
@@ -380,20 +375,6 @@ export class DebateOrchestratorService {
       ? existingTurns[existingTurns.length - 1].turnIndex + 1
       : 0;
 
-    const history: ConversationTurn[] = existingTurns.map(t => ({
-      turnId: t.id,
-      turnIndex: t.turnIndex,
-      speakerType: t.speakerType as SpeakerType,
-      personaId: t.personaId ?? undefined,
-      speakerName: t.personaId
-        ? (personas.find(p => p.id === t.personaId)?.name ?? '')
-        : 'ファシリテーター',
-      speakerRole: t.personaId
-        ? (personas.find(p => p.id === t.personaId)?.stakeholderRole ?? '')
-        : '',
-      content: t.content,
-    }));
-
     const speakCount = new Map<string, number>(personas.map(p => [p.id, 0]));
     for (const t of existingTurns) {
       if (t.personaId && t.speakerType === 'persona') {
@@ -414,12 +395,14 @@ export class DebateOrchestratorService {
       .reduce((max, t) => Math.max(max, t.turnIndex), 0);
 
     const state: DebateState = {
-      history,
+      history: existingTurns,
       currentBeliefs,
       silenceMap,
       speakCount,
       lastAddressedPersonaId: undefined,
+      lastAddressedByFacilitator: false,
       lastSpeakerId: undefined,
+      pendingItems: new Map(),
       consecutiveDirectExchanges: 0,
       lastFacilitatorTurnIndex,
       currentTurnIndex: fromTurnIndex,
@@ -451,15 +434,18 @@ export class DebateOrchestratorService {
 
       const openingResult = await this.facilitator.generateOpening(topicTitle, personas, chapters[0]);
       if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
-      await repo.createDebateTurn({
+      const openingTurn2 = await repo.createDebateTurn({
         sessionId, turnIndex: 0, speakerType: 'facilitator',
+        speakerName: 'ファシリテーター', speakerRole: '',
         content: openingResult.value.content ?? '', chapterIndex: 0,
       });
       state.history.push({
-        turnId: 'opening', turnIndex: 0, speakerType: 'facilitator',
+        id: openingTurn2.id, sessionId, turnIndex: 0, speakerType: 'facilitator',
         speakerName: 'ファシリテーター', speakerRole: '', content: openingResult.value.content,
+        createdAt: new Date().toISOString(),
       });
       state.lastAddressedPersonaId = openingResult.value.firstPersonaId;
+      state.lastAddressedByFacilitator = true;
       state.currentTurnIndex = 1;
     }
 
@@ -491,17 +477,30 @@ export class DebateOrchestratorService {
     globalTurnCap: number = this.options.maxTurns
   ): Promise<void> {
     const { turnsPerChapter, minSpeaksPerPersonaInChapter, interventionInterval } = this.options;
+    // history の最後のペルソナ発言から lastSpeakerId を復元（resume 対応）
+    for (let i = state.history.length - 1; i >= 0; i--) {
+      if (state.history[i].speakerType === 'persona' && state.history[i].personaId) {
+        state.lastSpeakerId = state.history[i].personaId ?? undefined;
+        break;
+      }
+    }
     const chapter = chapters[chapterIndex];
     const targetTurnsPerChapter = turnsPerChapter;
     const maxChapterTurns = Math.ceil(targetTurnsPerChapter * 1.5);
     let chapterTurnCount = initialChapterTurnCount;
     const chapterSpeaks = new Map<string, number>(personas.map(p => [p.id, 0]));
+    const recentScores: number[] = [];
 
     while (chapterTurnCount < maxChapterTurns && state.currentTurnIndex < globalTurnCap) {
       // 1. Determine next speaker
       let nextPersonaId: string;
+      let selectedMode: 'full' | 'reaction' | undefined;
+      let fromQueue = false;
+      let selectedIntentSummary: string | undefined;
       const pendingAddress = state.lastAddressedPersonaId;
+      const pendingAddressByFacilitator = state.lastAddressedByFacilitator;
       state.lastAddressedPersonaId = undefined;
+      state.lastAddressedByFacilitator = false;
       const MAX_CONSECUTIVE_DIRECT = 3;
       const fromDirectAddress = !!pendingAddress
         && personas.some(p => p.id === pendingAddress)
@@ -509,15 +508,127 @@ export class DebateOrchestratorService {
       if (fromDirectAddress) {
         nextPersonaId = pendingAddress!;
         state.consecutiveDirectExchanges++;
-      } else {
-        const speakerResult = await this.facilitator.selectNextSpeaker(
-          state.history, personas, state.silenceMap, state.lastSpeakerId
-        );
-        if (!speakerResult.ok) throw new Error(pipelineErrorMessage(speakerResult.error));
-        nextPersonaId = speakerResult.value.personaId;
-        if (nextPersonaId === state.lastSpeakerId && personas.length > 1) {
-          nextPersonaId = personas.find(p => p.id !== state.lastSpeakerId)!.id;
+        if (pendingAddressByFacilitator) {
+          selectedMode = 'full';
         }
+      } else {
+        // 各ペルソナの発言意欲を並列アセスメント（直前発言者は除外）
+        const assessTargets = personas.filter(p => p.id !== state.lastSpeakerId);
+        const rawAssessments = assessTargets.length > 0
+          ? await Promise.all(
+              assessTargets.map(async p => {
+                const result = await this.personaAgent.assessEngagement(
+                  p,
+                  state.currentBeliefs.get(p.id)?.content ?? '',
+                  interviewRecords.get(p.id) ?? '',
+                  state.history
+                );
+                return {
+                  personaId: p.id,
+                  score: result.ok ? result.value.score : 1,
+                  mode: result.ok ? result.value.mode : 'none' as const,
+                  intentSummary: result.ok ? result.value.intentSummary : undefined,
+                };
+              })
+            )
+          : personas.map(p => ({ personaId: p.id, score: 1, mode: 'none' as const, intentSummary: undefined as string | undefined }));
+
+        const lastTurnIndex = state.history.length > 0
+          ? state.history[state.history.length - 1].turnIndex
+          : 0;
+
+        // 古いエントリを破棄（8ターン以上前）
+        for (const [personaId, items] of state.pendingItems.entries()) {
+          const filtered = items.filter(item => state.currentTurnIndex - item.triggerTurnIndex <= 8);
+          if (filtered.length === 0) {
+            state.pendingItems.delete(personaId);
+          } else {
+            state.pendingItems.set(personaId, filtered);
+          }
+        }
+
+        // 章終了シグナルの記録（score >= 5 のペルソナがいれば 1、いなければ 0）
+        recentScores.push(rawAssessments.some(a => a.score >= 5) ? 1 : 0);
+        if (recentScores.length > 6) recentScores.shift();
+
+        // 発言者の選択: スコア降順 → 同率は最長沈黙優先
+        const byScoreThenSilence = (
+          a: { personaId: string; score: number },
+          b: { personaId: string; score: number }
+        ) => b.score !== a.score
+          ? b.score - a.score
+          : (state.silenceMap.get(b.personaId) ?? 0) - (state.silenceMap.get(a.personaId) ?? 0);
+
+        const topScore = Math.max(...rawAssessments.map(a => a.score));
+
+        // 緊急リアクション（reaction && score >= 4）は即時選択
+        const urgentReactions = rawAssessments
+          .filter(a => a.mode === 'reaction' && a.score >= 4 && a.personaId !== state.lastSpeakerId)
+          .sort(byScoreThenSilence);
+
+        if (urgentReactions.length > 0) {
+          nextPersonaId = urgentReactions[0].personaId;
+          fromQueue = false;
+        } else if (topScore <= 3 && state.pendingItems.size > 0) {
+          // 全員 score <= 3 → キューの最古エントリを優先
+          let oldestIdx = Infinity;
+          let oldestPersonaId: string | undefined;
+          for (const [pid, items] of state.pendingItems.entries()) {
+            if (pid === state.lastSpeakerId) continue;
+            const oldest = Math.min(...items.map(item => item.triggerTurnIndex));
+            if (oldest < oldestIdx) {
+              oldestIdx = oldest;
+              oldestPersonaId = pid;
+            }
+          }
+          if (oldestPersonaId) {
+            nextPersonaId = oldestPersonaId;
+            fromQueue = true;
+          } else {
+            nextPersonaId = [...rawAssessments].sort(byScoreThenSilence)[0].personaId;
+          }
+        } else {
+          // スコアベース: 直前話者が唯一の最高スコアでない限り連続発言を回避
+          const sorted = [...rawAssessments].sort(byScoreThenSilence);
+          const maxScore = sorted[0]?.score ?? 0;
+          const isLastSpeakerUniqueTop = sorted[0]?.personaId === state.lastSpeakerId
+            && sorted.filter(a => a.score === maxScore).length === 1;
+          nextPersonaId = isLastSpeakerUniqueTop
+            ? sorted[0].personaId
+            : (sorted.find(a => a.personaId !== state.lastSpeakerId) ?? sorted[0]).personaId;
+        }
+
+        // ペルソナ自身の申告モードをそのまま使う（キューから選ばれた場合は full 固定）
+        const assessed = rawAssessments.find(a => a.personaId === nextPersonaId);
+        selectedMode = fromQueue ? 'full' : (assessed?.mode === 'none' ? undefined : assessed?.mode);
+
+        // キュー選択の場合は queue エントリの intentSummary、通常選択は今回の評価値
+        if (fromQueue) {
+          selectedIntentSummary = state.pendingItems.get(nextPersonaId)?.[0]?.intentSummary;
+        } else {
+          selectedIntentSummary = assessed?.intentSummary;
+        }
+
+        // score >= 5 かつ未選択 → pendingItems に PendingIntent 形式で追加
+        for (const { personaId, score, intentSummary: summary } of rawAssessments) {
+          if (score < 5 || personaId === nextPersonaId) continue;
+          const existing = state.pendingItems.get(personaId) ?? [];
+          state.pendingItems.set(personaId, [...existing, { triggerTurnIndex: lastTurnIndex, intentSummary: summary ?? '' }]);
+        }
+
+        // エンゲージメント評価を Firestore に保存（generateTurn の前）
+        await repo.saveEngagements({
+          sessionId,
+          turnIndex: lastTurnIndex,
+          assessments: rawAssessments.map(a => ({
+            personaId: a.personaId,
+            score: a.score,
+            mode: a.mode,
+            intentSummary: a.intentSummary,
+            addToPending: a.score >= 5 && a.personaId !== nextPersonaId,
+          })),
+        });
+
         state.consecutiveDirectExchanges = 0;
       }
 
@@ -532,14 +643,15 @@ export class DebateOrchestratorService {
 
         const iv = interventionResult.value;
         if (iv.shouldIntervene && iv.type !== 'close') {
-          await repo.createDebateTurn({
+          const ivTurn = await repo.createDebateTurn({
             sessionId, turnIndex: state.currentTurnIndex, speakerType: 'facilitator',
+            speakerName: 'ファシリテーター', speakerRole: '',
             content: iv.content ?? '',
           });
           state.history.push({
-            turnId: `facilitator-${state.currentTurnIndex}`, turnIndex: state.currentTurnIndex,
+            id: ivTurn.id, sessionId, turnIndex: state.currentTurnIndex,
             speakerType: 'facilitator', speakerName: 'ファシリテーター', speakerRole: '',
-            content: iv.content ?? '',
+            content: iv.content ?? '', createdAt: new Date().toISOString(),
           });
           state.lastFacilitatorTurnIndex = state.currentTurnIndex;
           state.consecutiveDirectExchanges = 0;
@@ -548,6 +660,7 @@ export class DebateOrchestratorService {
           if (iv.targetPersonaId && personas.some(p => p.id === iv.targetPersonaId)) {
             if (iv.targetPersonaId !== state.lastSpeakerId || personas.length === 1) {
               nextPersonaId = iv.targetPersonaId;
+              selectedMode = 'full';
             }
           }
         }
@@ -565,23 +678,36 @@ export class DebateOrchestratorService {
 
       // 4. Generate persona turn (pass only current chapter's history to keep focus)
       const chapterHistory = state.history.filter(t => t.turnIndex >= chapter.startTurnIndex);
+      const pendingEntries = state.pendingItems.get(persona.id);
+      let pendingTrigger: { speakerName: string; content: string } | undefined;
+      if (pendingEntries && pendingEntries.length > 0) {
+        const triggerTurn = state.history.find(t => t.turnIndex === pendingEntries[0].triggerTurnIndex);
+        pendingTrigger = triggerTurn
+          ? { speakerName: triggerTurn.speakerName ?? '', content: triggerTurn.content }
+          : undefined;
+        if (fromQueue) {
+          selectedIntentSummary = pendingEntries[0].intentSummary;
+        }
+      }
       const turnResult = await this.personaAgent.generateTurn(
-        persona, belief.content, interviewRecord, chapterHistory, chapter
+        persona, belief.content, interviewRecord, chapterHistory, chapter, pendingTrigger, selectedMode, selectedIntentSummary
       );
       if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
       // 5. Save persona turn with chapterIndex
       const savedTurn = await repo.createDebateTurn({
         sessionId, turnIndex: state.currentTurnIndex, speakerType: 'persona',
-        personaId: persona.id, content: turnResult.value.content ?? '',
+        personaId: persona.id, speakerName: persona.name, speakerRole: persona.stakeholderRole,
+        content: turnResult.value.content ?? '',
         chapterIndex, speechMode: turnResult.value.speechMode,
       });
 
       // 6. Update history
       state.history.push({
-        turnId: savedTurn.id, turnIndex: state.currentTurnIndex,
-        speakerType: 'persona', personaId: persona.id, speakerName: persona.name, speakerRole: persona.stakeholderRole,
-        content: turnResult.value.content,
+        id: savedTurn.id, sessionId, turnIndex: state.currentTurnIndex,
+        speakerType: 'persona', personaId: persona.id,
+        speakerName: persona.name, speakerRole: persona.stakeholderRole,
+        content: turnResult.value.content, createdAt: new Date().toISOString(),
       });
 
       // 7. Update state
@@ -594,6 +720,20 @@ export class DebateOrchestratorService {
       state.speakCount.set(persona.id, (state.speakCount.get(persona.id) ?? 0) + 1);
       chapterSpeaks.set(persona.id, (chapterSpeaks.get(persona.id) ?? 0) + 1);
       state.lastSpeakerId = persona.id;
+      // キュー選択の場合は Firestore のキューも消費する
+      if (fromQueue) {
+        await repo.consumePendingIntent(sessionId, persona.id);
+      }
+      // 発言後: そのペルソナの最古キューエントリを1つ消費
+      const pItems = state.pendingItems.get(persona.id);
+      if (pItems && pItems.length > 0) {
+        const remaining = pItems.slice(1);
+        if (remaining.length === 0) {
+          state.pendingItems.delete(persona.id);
+        } else {
+          state.pendingItems.set(persona.id, remaining);
+        }
+      }
 
       // 8. Handle belief change
       if (turnResult.value.beliefChange) {
@@ -617,6 +757,7 @@ export class DebateOrchestratorService {
         addressed && addressed !== persona.id && personas.some(p => p.id === addressed)
           ? addressed
           : undefined;
+      state.lastAddressedByFacilitator = false;
 
       state.currentTurnIndex++;
       chapterTurnCount++;
@@ -626,12 +767,12 @@ export class DebateOrchestratorService {
         p => (chapterSpeaks.get(p.id) ?? 0) >= minSpeaksPerPersonaInChapter
       );
 
-      // LLM check at 75% of target: detect repetition/exhaustion early
+      // エンゲージメントベースで章の終了を検出（LLM呼び出し不要）
+      // 全員が最低1回発言済み、かつ75%以上消化、かつ直近5ターンで full 申告者がゼロ
       const earlyCheckAt = Math.ceil(targetTurnsPerChapter * 0.75);
-      if (chapterTurnCount >= earlyCheckAt && allPersonasSpoke) {
-        const chapterHistory = state.history.filter(h => h.turnIndex >= chapter.startTurnIndex);
-        const endResult = await this.facilitator.evaluateChapterEnd(chapterHistory, chapter);
-        if (endResult.ok && endResult.value) {
+      if (chapterTurnCount >= earlyCheckAt && allPersonasSpoke && recentScores.length >= 5) {
+        const recentFullCount = recentScores.slice(-5).reduce((a, b) => a + b, 0);
+        if (recentFullCount === 0) {
           if (chapterIndex < chapters.length - 1) {
             await this.generateAndSaveChapterTransition(sessionId, chapters, chapterIndex, state);
           }
@@ -659,14 +800,15 @@ export class DebateOrchestratorService {
     // Turn 1: summary of current chapter (chapterIndex = current)
     const summaryResult = await this.facilitator.generateChapterSummary(recentHistory, chapter);
     if (summaryResult.ok) {
-      await repo.createDebateTurn({
+      const summaryTurn = await repo.createDebateTurn({
         sessionId, turnIndex: state.currentTurnIndex, speakerType: 'facilitator',
+        speakerName: 'ファシリテーター', speakerRole: '',
         content: summaryResult.value, chapterIndex: currentChapterIndex,
       });
       state.history.push({
-        turnId: `chapter-summary-${currentChapterIndex}`, turnIndex: state.currentTurnIndex,
+        id: summaryTurn.id, sessionId, turnIndex: state.currentTurnIndex,
         speakerType: 'facilitator', speakerName: 'ファシリテーター', speakerRole: '',
-        content: summaryResult.value,
+        content: summaryResult.value, createdAt: new Date().toISOString(),
       });
       state.lastFacilitatorTurnIndex = state.currentTurnIndex;
       state.currentTurnIndex++;
@@ -677,14 +819,15 @@ export class DebateOrchestratorService {
     if (nextChapter) {
       const introResult = await this.facilitator.generateChapterIntroduction(nextChapter);
       if (introResult.ok) {
-        await repo.createDebateTurn({
+        const introTurn = await repo.createDebateTurn({
           sessionId, turnIndex: state.currentTurnIndex, speakerType: 'facilitator',
+          speakerName: 'ファシリテーター', speakerRole: '',
           content: introResult.value, chapterIndex: nextChapter.index,
         });
         state.history.push({
-          turnId: `chapter-intro-${nextChapter.index}`, turnIndex: state.currentTurnIndex,
+          id: introTurn.id, sessionId, turnIndex: state.currentTurnIndex,
           speakerType: 'facilitator', speakerName: 'ファシリテーター', speakerRole: '',
-          content: introResult.value,
+          content: introResult.value, createdAt: new Date().toISOString(),
         });
         state.lastFacilitatorTurnIndex = state.currentTurnIndex;
         state.currentTurnIndex++;

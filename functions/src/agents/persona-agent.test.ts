@@ -496,6 +496,93 @@ describe('PersonaAgentService', () => {
     });
   });
 
+  describe('assessEngagement — Task 2.1 スキーマ拡張', () => {
+    it('mode フィールドが返り値に含まれる（LLM の評価値をそのまま使用）', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 4, mode: 'full', intentSummary: '医療費問題に反論したい' } }],
+      });
+      const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.mode).toBe('full');
+    });
+
+    it('intentSummary フィールドが返り値に含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 3, mode: 'reaction', intentSummary: 'そうですね' } }],
+      });
+      const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.intentSummary).toBe('そうですね');
+    });
+
+    it('score === 1 のとき mode が強制的に none になる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 1, mode: 'full', intentSummary: '発言したい' } }],
+      });
+      const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.mode).toBe('none');
+    });
+
+    it('mode === none のとき intentSummary が undefined になる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 2, mode: 'none', intentSummary: 'なにか言いたい' } }],
+      });
+      const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.intentSummary).toBeUndefined();
+    });
+
+    it('ASSESS_ENGAGEMENT_TOOL スキーマに mode フィールドが含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 3, mode: 'reaction' } }],
+      });
+      await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const tools: Anthropic.Tool[] = mockCreate.mock.calls[0][0].tools;
+      const assessTool = tools.find((t) => t.name === 'assess_engagement');
+      expect(assessTool?.input_schema.properties).toHaveProperty('mode');
+    });
+
+    it('ASSESS_ENGAGEMENT_TOOL スキーマに intentSummary フィールドが含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 3, mode: 'full', intentSummary: '意見あり' } }],
+      });
+      await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const tools: Anthropic.Tool[] = mockCreate.mock.calls[0][0].tools;
+      const assessTool = tools.find((t) => t.name === 'assess_engagement');
+      expect(assessTool?.input_schema.properties).toHaveProperty('intentSummary');
+    });
+  });
+
+  describe('generateTurn — Task 2.2 intentSummary プロンプト埋め込み', () => {
+    it('intentSummary が渡された場合、ユーザープロンプトに【今回伝えたいこと】が含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言。' } }],
+      });
+      await service.generateTurn(
+        testPersona, testCurrentBelief, testInterviewRecord, testHistory,
+        undefined, undefined, undefined, '医療費問題をしっかり主張したい'
+      );
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).toContain('【今回伝えたいこと】医療費問題をしっかり主張したい');
+    });
+
+    it('intentSummary が undefined の場合、プロンプトに【今回伝えたいこと】が追記されない', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言。' } }],
+      });
+      await service.generateTurn(
+        testPersona, testCurrentBelief, testInterviewRecord, testHistory
+      );
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).not.toContain('【今回伝えたいこと】');
+    });
+  });
+
   describe('generatePostDebateComment', () => {
     it('personaId と content を含む PostDebateCommentResult を返す', async () => {
       mockCreate.mockResolvedValue({

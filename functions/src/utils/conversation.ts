@@ -1,10 +1,13 @@
-import type { ConversationTurn } from '../types/index.js';
+import type { DebateTurn } from '../db/repository.js';
 
-export function formatHistory(history: ConversationTurn[]): string {
+export function formatHistory(history: DebateTurn[]): string {
   return history
-    .map(t => t.personaId
-      ? `[${t.speakerName}(${t.speakerRole})(ID:${t.personaId})]: ${t.content}`
-      : `[${t.speakerName}(${t.speakerRole})]: ${t.content}`
-    )
+    .map(t => {
+      const name = t.speakerName ?? (t.personaId ? `Persona(${t.personaId})` : 'ファシリテーター');
+      const role = t.speakerRole ?? '';
+      return t.personaId
+        ? `[${name}(${role})(ID:${t.personaId})]: ${t.content}`
+        : `[${name}(${role})]: ${t.content}`;
+    })
     .join('\n');
 }

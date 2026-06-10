@@ -50,16 +50,53 @@ export interface DebateSession {
   currentChapterIndex?: number;
 }
 
+export interface EngagementEntry {
+  personaId: string;
+  score: number;
+  mode: 'full' | 'reaction' | 'none';
+}
+
+export interface EngagementHistoryEntry {
+  score: number;
+  mode: 'full' | 'reaction' | 'none';
+  intentSummary?: string;
+}
+
+export interface PendingIntentEntry {
+  triggerTurnIndex: number;
+  intentSummary: string;
+}
+
+export interface EngagementDoc {
+  history: Record<string, EngagementHistoryEntry>;
+  pendingIntents: PendingIntentEntry[];
+}
+
+export interface SaveEngagementsParams {
+  sessionId: string;
+  turnIndex: number;
+  assessments: Array<{
+    personaId: string;
+    score: number;
+    mode: 'full' | 'reaction' | 'none';
+    intentSummary?: string;
+    addToPending: boolean;
+  }>;
+}
+
 export interface DebateTurn {
   id: string;
   sessionId: string;
   turnIndex: number;
   speakerType: string;
   personaId?: string | null;
+  speakerName?: string;
+  speakerRole?: string;
   content: string;
   createdAt: string;
   chapterIndex?: number;
   speechMode?: 'reaction' | 'full';
+  engagements?: EngagementEntry[];
 }
 
 export interface PersonaInterview {
@@ -98,6 +135,8 @@ export interface CreateDebateTurnParams {
   turnIndex: number;
   speakerType: string;
   personaId?: string;
+  speakerName?: string;
+  speakerRole?: string;
   content: string;
   chapterIndex?: number;
   speechMode?: 'reaction' | 'full';
@@ -233,6 +272,8 @@ export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<
     createdAt: Timestamp.now(),
   };
   if (params.personaId !== undefined) turn.personaId = params.personaId;
+  if (params.speakerName !== undefined) turn.speakerName = params.speakerName;
+  if (params.speakerRole !== undefined) turn.speakerRole = params.speakerRole;
   if (params.chapterIndex !== undefined) turn.chapterIndex = params.chapterIndex;
   if (params.speechMode !== undefined) turn.speechMode = params.speechMode;
 
@@ -270,6 +311,47 @@ export const createPostDebateComment = async (params: CreatePostDebateCommentPar
     }),
   });
   return { id };
+};
+
+export const saveEngagements = async (params: SaveEngagementsParams): Promise<void> => {
+  for (const assessment of params.assessments) {
+    const ref = db().doc(`topics/${params.sessionId}/sessions/0/engagements/${assessment.personaId}`);
+
+    const historyEntry: EngagementHistoryEntry = { score: assessment.score, mode: assessment.mode };
+    if (assessment.intentSummary !== undefined) historyEntry.intentSummary = assessment.intentSummary;
+
+    // Map 形式: キーが turnIndex なので同一キーへの上書きで重複を防ぐ（read 不要）
+    await ref.set(
+      { history: { [String(params.turnIndex)]: historyEntry } },
+      { mergeFields: [`history.${params.turnIndex}`] }
+    );
+
+    if (assessment.addToPending && assessment.intentSummary !== undefined) {
+      await ref.set(
+        { pendingIntents: FieldValue.arrayUnion({ triggerTurnIndex: params.turnIndex, intentSummary: assessment.intentSummary }) },
+        { merge: true }
+      );
+    }
+  }
+};
+
+export const consumePendingIntent = async (sessionId: string, personaId: string): Promise<void> => {
+  const ref = db().doc(`topics/${sessionId}/sessions/0/engagements/${personaId}`);
+  const snap = await ref.get();
+  if (!snap.exists) return;
+  const data = snap.data() as { pendingIntents?: PendingIntentEntry[] };
+  const remaining = (data.pendingIntents ?? []).slice(1);
+  await ref.update({ pendingIntents: remaining });
+};
+
+export const loadPendingIntents = async (sessionId: string): Promise<Map<string, PendingIntentEntry[]>> => {
+  const snap = await db().collection(`topics/${sessionId}/sessions/0/engagements`).get();
+  const result = new Map<string, PendingIntentEntry[]>();
+  for (const docSnap of snap.docs) {
+    const data = docSnap.data() as { pendingIntents?: PendingIntentEntry[] };
+    result.set(docSnap.id, data.pendingIntents ?? []);
+  }
+  return result;
 };
 
 export interface StakeholderMap {
@@ -334,13 +416,15 @@ export const getDebateSessionById = async (id: string): Promise<DebateSession | 
 export const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[]> => {
   const snap = await db().doc(`topics/${sessionId}/sessions/0`).get();
   if (!snap.exists) return [];
-  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; content: string; createdAt: Timestamp; chapterIndex?: number }> };
+  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp; chapterIndex?: number }> };
   return (data.turns ?? []).map((t) => ({
     id: t.id,
     sessionId,
     turnIndex: t.turnIndex,
     speakerType: t.speakerType,
     personaId: t.personaId ?? null,
+    speakerName: t.speakerName,
+    speakerRole: t.speakerRole,
     content: t.content,
     createdAt: t.createdAt.toDate().toISOString(),
     chapterIndex: t.chapterIndex,

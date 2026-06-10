@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AI_MODELS, MAX_TOKENS } from '../config/ai.js';
 import { formatHistory } from '../utils/conversation.js';
+import type { DebateTurn } from '../db/repository.js';
 import type {
-  ConversationTurn,
   PersonaAttributes,
   FacilitatorOpeningResult,
   FacilitatorIntervention,
@@ -10,6 +10,11 @@ import type {
   Result,
   PipelineError,
 } from '../types/index.js';
+
+interface PendingThought {
+  personaId: string;
+  triggerTurnIndex: number;
+}
 
 const NEUTRALITY_SYSTEM_PROMPT =
   'あなたはテレビ討論番組のプロの司会者です。特定の立場への誘導は禁止しますが、議論を具体的な論点に絞り込んで進行するのがあなたの役割です。' +
@@ -32,13 +37,33 @@ const OPENING_TOOL: Anthropic.Tool = {
 
 const SELECT_SPEAKER_TOOL: Anthropic.Tool = {
   name: 'select_speaker',
-  description: '次に発言すべきペルソナのIDを選択する（発言は生成しない。サイレントルーティングのみ）',
+  description: '次に発言させるペルソナを選び、今の発言を聞いて後で返したいと思うペルソナも特定する',
   input_schema: {
     type: 'object' as const,
     properties: {
-      personaId: { type: 'string', description: '次に発言させるペルソナのID' },
+      personaId: { type: 'string', description: '今ターンに発言させるペルソナのID' },
+      score: {
+        type: 'integer',
+        description: '選んだペルソナが「今すぐ話す必要性」のスコア（1〜5）。5=直接指名された・強い反論が求められている、4=話の流れ上この人が自然、3=誰でも話せるが会話を続けるならこの人、2=話の区切りで誰でもよい、1=完全にニュートラル',
+      },
+      newlyInterested: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            personaId: { type: 'string' },
+            type: {
+              type: 'string',
+              enum: ['reaction', 'full'],
+              description: 'reaction=短い相槌・一言反応（今すぐ言わないと意味がない） / full=意見・反論・新論点を後で述べたい',
+            },
+          },
+          required: ['personaId', 'type'],
+        },
+        description: '直前の発言を聞いて「後で返したい」と思うペルソナ（0〜2人、今ターンの発言者は除く）',
+      },
     },
-    required: ['personaId'],
+    required: ['personaId', 'score', 'newlyInterested'],
   },
 };
 
@@ -192,11 +217,12 @@ export class FacilitatorAgentService {
   }
 
   async selectNextSpeaker(
-    history: ConversationTurn[],
+    history: DebateTurn[],
     personas: PersonaAttributes[],
     silenceMap: Map<string, number>,
-    excludePersonaId?: string
-  ): Promise<Result<{ personaId: string }, PipelineError>> {
+    excludePersonaId?: string,
+    pendingQueue?: PendingThought[]
+  ): Promise<Result<{ personaId: string; score: number; newlyInterested: Array<{ personaId: string; type: 'reaction' | 'full' }> }, PipelineError>> {
     try {
       const silenceInfo = Array.from(silenceMap.entries())
         .map(([id, count]) => {
@@ -215,6 +241,17 @@ export class FacilitatorAgentService {
         }
       }
 
+      const pendingQueueNote = pendingQueue && pendingQueue.length > 0
+        ? `\n\n【発言待ちリスト（参考情報）】以下のペルソナが過去の発言を受けて意見・反論を述べたいと待機中です:\n${pendingQueue.map(p => {
+            const name = personas.find(pe => pe.id === p.personaId)?.name ?? p.personaId;
+            const triggerTurn = history.find(t => t.turnIndex === p.triggerTurnIndex);
+            const triggerDesc = triggerTurn
+              ? `${(triggerTurn.speakerName ?? '参加者')}の発言「${triggerTurn.content.slice(0, 60)}…」への返答待ち`
+              : '待機中';
+            return `- ${name}（${triggerDesc}）`;
+          }).join('\n')}`
+        : '';
+
       const recentHistory = history.slice(-10);
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
@@ -224,7 +261,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'select_speaker' },
         messages: [{
           role: 'user',
-          content: `直前の発言に最も応答しそうなペルソナを1名選んでください。${exclusionNote}\n\n会話履歴（最新${recentHistory.length}件）:\n${formatHistory(recentHistory)}\n\n参加者:\n${formatPersonas(personas)}\n\n沈黙状況: ${silenceInfo || 'なし'}`,
+          content: `次の発言者を選んでください。${exclusionNote}${pendingQueueNote}\n\n会話履歴（最新${recentHistory.length}件）:\n${formatHistory(recentHistory)}\n\n参加者:\n${formatPersonas(personas)}\n\n沈黙状況: ${silenceInfo || 'なし'}`,
         }],
       });
 
@@ -235,8 +272,12 @@ export class FacilitatorAgentService {
         return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true } };
       }
 
-      const { personaId } = toolBlock.input as { personaId: string };
-      return { ok: true, value: { personaId } };
+      const { personaId, score, newlyInterested } = toolBlock.input as {
+        personaId: string;
+        score: number;
+        newlyInterested: Array<{ personaId: string; type: 'reaction' | 'full' }>;
+      };
+      return { ok: true, value: { personaId, score: score ?? 3, newlyInterested: newlyInterested ?? [] } };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
@@ -244,7 +285,7 @@ export class FacilitatorAgentService {
   }
 
   async evaluateIntervention(
-    history: ConversationTurn[],
+    history: DebateTurn[],
     personas: PersonaAttributes[],
     speakCount: Map<string, number> = new Map(),
     currentChapter?: DebateChapter
@@ -360,7 +401,7 @@ export class FacilitatorAgentService {
   }
 
   async evaluateChapterEnd(
-    chapterHistory: ConversationTurn[],
+    chapterHistory: DebateTurn[],
     chapter: DebateChapter
   ): Promise<Result<boolean, PipelineError>> {
     try {
@@ -392,7 +433,7 @@ export class FacilitatorAgentService {
   }
 
   async generateChapterSummary(
-    recentHistory: ConversationTurn[],
+    recentHistory: DebateTurn[],
     currentChapter: DebateChapter
   ): Promise<Result<string, PipelineError>> {
     try {
@@ -453,7 +494,7 @@ export class FacilitatorAgentService {
   }
 
   async generateClosing(
-    history: ConversationTurn[],
+    history: DebateTurn[],
     finalBeliefs: Map<string, string>
   ): Promise<Result<string, PipelineError>> {
     try {

@@ -31,16 +31,6 @@ export interface PersonaAttributes {
   stanceDirection: string;
 }
 
-export interface ConversationTurn {
-  turnId: string;
-  turnIndex: number;
-  speakerType: SpeakerType;
-  personaId?: string;
-  speakerName: string;
-  speakerRole: string;
-  content: string;
-}
-
 export interface BeliefChangeEvent {
   type: BeliefChangeType;
   summary: string;
@@ -77,6 +67,17 @@ export interface FacilitatorIntervention {
   content?: string;
   type?: 'topic_shift' | 'invite' | 'close';
   targetPersonaId?: string;
+}
+
+export interface EngagementAssessment {
+  score: number;
+  mode: 'full' | 'reaction' | 'none';
+  intentSummary?: string;
+}
+
+export interface PendingIntent {
+  triggerTurnIndex: number;
+  intentSummary: string;
 }
 
 export interface DebateChapter {

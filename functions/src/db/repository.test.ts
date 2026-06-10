@@ -289,6 +289,139 @@ describe('createPostDebateComment', () => {
   });
 });
 
+// ---- saveEngagements ----
+
+describe('saveEngagements', () => {
+  it('Map 形式で history エントリを set/mergeFields する', async () => {
+    await repo.saveEngagements({
+      sessionId: 'topic-1',
+      turnIndex: 5,
+      assessments: [
+        { personaId: 'p1', score: 3, mode: 'reaction', intentSummary: '短く同意', addToPending: false },
+      ],
+    });
+    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0/engagements/p1');
+    expect(mockDocRef.set).toHaveBeenCalledWith(
+      { history: { '5': { score: 3, mode: 'reaction', intentSummary: '短く同意' } } },
+      { mergeFields: ['history.5'] }
+    );
+  });
+
+  it('addToPending が true のとき pendingIntents に arrayUnion で追加する', async () => {
+    await repo.saveEngagements({
+      sessionId: 'topic-1',
+      turnIndex: 5,
+      assessments: [
+        { personaId: 'p1', score: 4, mode: 'full', intentSummary: '反論したい', addToPending: true },
+      ],
+    });
+    expect(mockDocRef.set).toHaveBeenCalledTimes(2);
+    const historyCall = mockDocRef.set.mock.calls[0];
+    expect(historyCall[0]).toEqual({ history: { '5': { score: 4, mode: 'full', intentSummary: '反論したい' } } });
+    expect(historyCall[1]).toEqual({ mergeFields: ['history.5'] });
+    const pendingCall = mockDocRef.set.mock.calls[1];
+    expect(pendingCall[0]).toEqual(
+      expect.objectContaining({ pendingIntents: expect.objectContaining({ _type: 'arrayUnion' }) })
+    );
+    expect(pendingCall[1]).toEqual({ merge: true });
+  });
+
+  it('addToPending が false のとき pendingIntents の set を呼ばない', async () => {
+    await repo.saveEngagements({
+      sessionId: 'topic-1',
+      turnIndex: 5,
+      assessments: [
+        { personaId: 'p1', score: 3, mode: 'reaction', intentSummary: 'そうですね', addToPending: false },
+      ],
+    });
+    expect(mockDocRef.set).toHaveBeenCalledTimes(1);
+    expect(mockDocRef.set.mock.calls[0][1]).toEqual({ mergeFields: ['history.5'] });
+  });
+
+  it('各ペルソナに対して set を呼ぶ（addToPending なし: 2回、あり: 3回）', async () => {
+    await repo.saveEngagements({
+      sessionId: 'topic-1',
+      turnIndex: 3,
+      assessments: [
+        { personaId: 'p1', score: 2, mode: 'reaction', addToPending: false },
+        { personaId: 'p2', score: 5, mode: 'full', intentSummary: '言いたい', addToPending: true },
+      ],
+    });
+    // p1: history 1 call, p2: history + pendingIntents = 2 calls → total 3
+    expect(mockDocRef.set).toHaveBeenCalledTimes(3);
+  });
+});
+
+// ---- consumePendingIntent ----
+
+describe('consumePendingIntent', () => {
+  it('removes the first (oldest) entry from pendingIntents', async () => {
+    mockDocRef.get.mockResolvedValue({
+      exists: true,
+      id: 'p1',
+      data: () => ({
+        history: [],
+        pendingIntents: [
+          { triggerTurnIndex: 2, intentSummary: '古い意図' },
+          { triggerTurnIndex: 5, intentSummary: '新しい意図' },
+        ],
+      }),
+    });
+    await repo.consumePendingIntent('topic-1', 'p1');
+    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0/engagements/p1');
+    expect(mockDocRef.update).toHaveBeenCalledWith({
+      pendingIntents: [{ triggerTurnIndex: 5, intentSummary: '新しい意図' }],
+    });
+  });
+
+  it('sets pendingIntents to empty array when only one entry exists', async () => {
+    mockDocRef.get.mockResolvedValue({
+      exists: true,
+      id: 'p1',
+      data: () => ({
+        pendingIntents: [{ triggerTurnIndex: 2, intentSummary: '唯一の意図' }],
+      }),
+    });
+    await repo.consumePendingIntent('topic-1', 'p1');
+    expect(mockDocRef.update).toHaveBeenCalledWith({ pendingIntents: [] });
+  });
+});
+
+// ---- loadPendingIntents ----
+
+describe('loadPendingIntents', () => {
+  it('returns Map of personaId to pendingIntents for all engagement docs', async () => {
+    const docs = [
+      { id: 'p1', data: () => ({ pendingIntents: [{ triggerTurnIndex: 3, intentSummary: '言いたい' }] }) },
+      { id: 'p2', data: () => ({ pendingIntents: [] }) },
+    ];
+    mockCollectionGet.mockResolvedValue({ docs });
+    const result = await repo.loadPendingIntents('topic-1');
+    expect(mockDb.collection).toHaveBeenCalledWith('topics/topic-1/sessions/0/engagements');
+    expect(result.get('p1')).toHaveLength(1);
+    expect(result.get('p1')![0].intentSummary).toBe('言いたい');
+    expect(result.get('p2')).toHaveLength(0);
+  });
+
+  it('returns empty Map when no engagement docs exist', async () => {
+    mockCollectionGet.mockResolvedValue({ docs: [] });
+    const result = await repo.loadPendingIntents('topic-1');
+    expect(result.size).toBe(0);
+  });
+});
+
+// ---- createDebateTurn — Task 3.3 engagements 削除 ----
+
+describe('createDebateTurn — engagements フィールドは保存しない', () => {
+  it('turn エントリに engagements フィールドが含まれない', async () => {
+    await repo.createDebateTurn({
+      sessionId: 'topic-1', turnIndex: 3, speakerType: 'persona', personaId: 'p1', content: '発言',
+    });
+    const call = vi.mocked(FieldValue.arrayUnion).mock.calls[0][0] as Record<string, unknown>;
+    expect(call).not.toHaveProperty('engagements');
+  });
+});
+
 // ---- getTopicById ----
 
 describe('getTopicById', () => {

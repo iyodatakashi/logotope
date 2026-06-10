@@ -139,11 +139,35 @@ export interface PersonaDoc {
   beliefs: BeliefDoc[];
 }
 
+export interface EngagementEntry {
+  personaId: string;
+  score: number;
+  mode: 'full' | 'reaction' | 'none';
+}
+
+export interface EngagementHistoryEntry {
+  score: number;
+  mode: 'full' | 'reaction' | 'none';
+  intentSummary?: string;
+}
+
+export interface PendingIntentEntry {
+  triggerTurnIndex: number;
+  intentSummary: string;
+}
+
+export interface EngagementDoc {
+  history: Record<string, EngagementHistoryEntry>;
+  pendingIntents: PendingIntentEntry[];
+}
+
 export interface TurnDoc {
   id: string;
   turnIndex: number;
   speakerType: SpeakerType;
   personaId?: string;
+  speakerName?: string;
+  speakerRole?: string;
   content: string;
   createdAt: Timestamp;
   chapterIndex?: number;

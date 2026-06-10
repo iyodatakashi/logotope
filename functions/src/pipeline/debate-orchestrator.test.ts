@@ -16,6 +16,9 @@ vi.mock('../db/repository.js', () => ({
   updateTopicStatus: vi.fn(),
   saveChapters: vi.fn(),
   updateCurrentChapterIndex: vi.fn(),
+  saveEngagements: vi.fn(),
+  consumePendingIntent: vi.fn(),
+  loadPendingIntents: vi.fn(),
 }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: vi.fn(),
@@ -39,11 +42,9 @@ const testPersonaProfiles = [
 function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}) {
   return {
     generateOpening: vi.fn().mockResolvedValue({ ok: true, value: { content: '討論を始めます。', firstPersonaId: 'p1' } }),
-    selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2' } }),
     evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
     generateClosing: vi.fn().mockResolvedValue({ ok: true, value: 'お疲れ様でした。' }),
     generateChapters: vi.fn().mockResolvedValue({ ok: false, error: { code: 'AI_API_ERROR', message: 'mock', retryable: true } }),
-    evaluateChapterEnd: vi.fn().mockResolvedValue({ ok: true, value: false }),
     generateChapterSummary: vi.fn().mockResolvedValue({ ok: true, value: '章のまとめです。' }),
     generateChapterIntroduction: vi.fn().mockResolvedValue({ ok: true, value: '次の章へ移ります。' }),
     ...overrides,
@@ -53,6 +54,10 @@ function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof
 function makeMockPersonaAgent(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}) {
   return {
     generateTurn: vi.fn().mockResolvedValue({ ok: true, value: { content: '私の意見です。', beliefChange: null, addressedToPersonaId: undefined } }),
+    // デフォルト: p1=score4/full, p2=score2/reaction で交互に発言が進む
+    assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => ({
+      ok: true, value: { score: persona.id === 'p1' ? 4 : 2, mode: persona.id === 'p1' ? 'full' : 'reaction', intentSummary: undefined },
+    })),
     generatePostDebateComment: vi.fn().mockImplementation(async (persona: { id: string }) => ({
       ok: true, value: { personaId: persona.id, content: '討論後のコメントです。' },
     })),
@@ -87,6 +92,9 @@ function setupRepoDefaults() {
   vi.mocked(repo.getDebateSessionById).mockResolvedValue({ id: 'session-1', topicId: 't1', status: 'running', createdAt: '' });
   vi.mocked(repo.saveChapters).mockResolvedValue(undefined);
   vi.mocked(repo.updateCurrentChapterIndex).mockResolvedValue(undefined);
+  vi.mocked(repo.saveEngagements).mockResolvedValue(undefined);
+  vi.mocked(repo.consumePendingIntent).mockResolvedValue(undefined);
+  vi.mocked(repo.loadPendingIntents).mockResolvedValue(new Map());
 }
 
 // Short debate options for tests: check intervention every turn, accept 1 speak per persona
@@ -140,31 +148,28 @@ describe('DebateOrchestratorService', () => {
       });
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
-        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: 'p1' }), // if called, returns p1 (not p2)
       });
       const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
 
       await service.run('session-1', 't1');
 
       // The second generateTurn call should be for p2 (direct addressing from p1's turn)
-      // NOT for p1 (which is what selectNextSpeaker would return as fallback)
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       expect(generateTurnCalls.length).toBeGreaterThanOrEqual(2);
       expect((generateTurnCalls[1][0] as { id: string }).id).toBe('p2');
     });
 
-    it('addressedToPersonaId なし: selectNextSpeaker を呼んで次話者を決定する', async () => {
-      // Turns return no addressedToPersonaId → selectNextSpeaker is called
+    it('addressedToPersonaId なし: assessEngagement を呼んで次話者を決定する', async () => {
+      const mockPersonaAgent = makeMockPersonaAgent();
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
-        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
 
       await service.run('session-1', 't1');
 
-      // After p1's turn (no addressedTo), selectNextSpeaker is called for turn 2
-      expect(mockFacilitator.selectNextSpeaker).toHaveBeenCalled();
+      // After p1's turn (no addressedTo), assessEngagement is called for speaker selection
+      expect(mockPersonaAgent.assessEngagement).toHaveBeenCalled();
     });
   });
 
@@ -329,7 +334,9 @@ describe('DebateOrchestratorService', () => {
         silenceMap: new Map(),
         speakCount: new Map(),
         lastAddressedPersonaId: undefined,
+        lastAddressedByFacilitator: false,
         lastSpeakerId: undefined,
+        pendingItems: new Map(),
         consecutiveDirectExchanges: 0,
         lastFacilitatorTurnIndex: 0,
         currentTurnIndex: 0,
@@ -420,9 +427,9 @@ describe('DebateOrchestratorService', () => {
   });
 
   describe('task 3.4: executeDebate ループ制御ロジック改善', () => {
-    it('selectNextSpeaker に直前の発言者 ID (lastSpeakerId) を excludePersonaId として渡す', async () => {
-      // Opening assigns firstPersonaId='p1' → p1 speaks turn 1 via lastAddressedPersonaId
-      // Turn 2: lastAddressedPersonaId is undefined → selectNextSpeaker called with excludePersonaId='p1'
+    it('直前の発言者を assessEngagement の対象から除外する', async () => {
+      // Opening assigns firstPersonaId='p1' → p1 speaks turn 1
+      // Turn 2: assessEngagement is called for p2 only (p1 excluded as lastSpeakerId)
       const mockPersonaAgent = makeMockPersonaAgent({
         generateTurn: vi.fn()
           .mockResolvedValueOnce({ ok: true, value: { content: 'p1発言。', beliefChange: null, addressedToPersonaId: undefined } })
@@ -433,16 +440,16 @@ describe('DebateOrchestratorService', () => {
         evaluateIntervention: vi.fn()
           .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: false } })
           .mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
-        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: { personaId: 'p2' } }),
       });
       const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
 
       await service.run('session-1', 't1');
 
-      // selectNextSpeaker should be called with 'p1' as 4th arg (excludePersonaId)
-      const speakerCalls = (mockFacilitator.selectNextSpeaker as ReturnType<typeof vi.fn>).mock.calls;
-      expect(speakerCalls.length).toBeGreaterThanOrEqual(1);
-      expect(speakerCalls[0][3]).toBe('p1');
+      // assessEngagement should never be called for p1 right after p1 spoke
+      const assessCalls = (mockPersonaAgent.assessEngagement as ReturnType<typeof vi.fn>).mock.calls;
+      expect(assessCalls.length).toBeGreaterThanOrEqual(1);
+      // First assessment call should not include p1 (they just spoke)
+      expect(assessCalls[0][0].id).not.toBe('p1');
     });
 
     it('evaluateIntervention に state.speakCount (Map) を 3 番目の引数として渡す', async () => {
@@ -459,10 +466,10 @@ describe('DebateOrchestratorService', () => {
       expect(interventionCalls[0][2]).toBeInstanceOf(Map);
     });
 
-    it('p1→p2 直接チェーン中は selectNextSpeaker を呼ばず、チェーン後に 1 回だけ呼ぶ', async () => {
+    it('p1→p2 直接チェーン中は assessEngagement を呼ばず、チェーン後に呼ぶ', async () => {
       // Turn 1: p1 speaks (via opening's firstPersonaId) → addresses p2
       // Turn 2: p2 speaks via lastAddressedPersonaId → doesn't address anyone
-      // Turn 3: selectNextSpeaker called → close accepted → debate ends
+      // Turn 3: assessEngagement called → close accepted → debate ends
       const mockPersonaAgent = makeMockPersonaAgent({
         generateTurn: vi.fn()
           .mockResolvedValueOnce({ ok: true, value: { content: 'p1→p2指名。', beliefChange: null, addressedToPersonaId: 'p2' } })
@@ -471,21 +478,19 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         generateOpening: vi.fn().mockResolvedValue({ ok: true, value: { content: '開会。', firstPersonaId: 'p1' } }),
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
-        selectNextSpeaker: vi.fn().mockResolvedValue({ ok: true, value: 'p1' }),
       });
       const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
 
       await service.run('session-1', 't1');
 
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
-      // p1 and p2 both spoke (turns 1 and 2) via direct addressing chain
+      // p1 and p2 both spoke via direct addressing chain
       expect(generateTurnCalls[0][0].id).toBe('p1');
       expect(generateTurnCalls[1][0].id).toBe('p2');
-      // selectNextSpeaker was NOT called during the chain (turns 1 and 2)
-      // It IS called once after chain breaks (turn 3 speaker selection), then close accepted
-      const selectCalls = (mockFacilitator.selectNextSpeaker as ReturnType<typeof vi.fn>).mock.calls;
-      // Chain breaks after turn 2 → selectNextSpeaker is called at least once after that
-      expect(selectCalls.length).toBeGreaterThanOrEqual(1);
+      // assessEngagement was NOT called during the chain (turns 1 and 2)
+      // It IS called after chain breaks (turn 3 speaker selection)
+      const assessCalls = (mockPersonaAgent.assessEngagement as ReturnType<typeof vi.fn>).mock.calls;
+      expect(assessCalls.length).toBeGreaterThanOrEqual(1);
     });
   });
 
@@ -592,39 +597,32 @@ describe('DebateOrchestratorService', () => {
       }
     });
 
-    it('目標ターン数到達で evaluateChapterEnd が呼ばれる', async () => {
-      const evaluateChapterEnd = vi.fn().mockResolvedValue({ ok: true, value: true });
+    it('目標ターン数到達で章が進行しクロージングまで到達する', async () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
-        evaluateChapterEnd,
       });
       // turnsPerChapter=2 → maxChapterTurns=ceil(2*1.5)=3
       const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
 
       await service.run('session-1', 't1');
 
-      expect(evaluateChapterEnd).toHaveBeenCalled();
+      expect(mockFacilitator.generateClosing).toHaveBeenCalledOnce();
     });
 
     it('evaluateIntervention が close を返しても executeChapter ループを中断しない', async () => {
-      const evaluateChapterEnd = vi.fn().mockResolvedValue({ ok: true, value: true });
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
-        evaluateChapterEnd,
       });
       const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
 
       await service.run('session-1', 't1');
 
-      // evaluateChapterEnd が呼ばれる = chapter loop が動いた証拠
-      expect(evaluateChapterEnd).toHaveBeenCalled();
       expect(mockFacilitator.generateClosing).toHaveBeenCalledOnce();
     });
 
     it('updateCurrentChapterIndex が章ごとに呼ばれる', async () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
-        evaluateChapterEnd: vi.fn().mockResolvedValue({ ok: true, value: true }),
       });
       const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
 
@@ -633,12 +631,11 @@ describe('DebateOrchestratorService', () => {
       expect(vi.mocked(repo.updateCurrentChapterIndex)).toHaveBeenCalledWith('t1', 0);
     });
 
-    it('task 7.2: evaluateChapterEnd が常に false でも 150% 到達後に強制遷移する', async () => {
+    it('task 7.2: 150% 到達後に強制遷移する', async () => {
       const generateChapterSummary = vi.fn().mockResolvedValue({ ok: true, value: '強制遷移まとめ。' });
       const generateChapterIntroduction = vi.fn().mockResolvedValue({ ok: true, value: '強制遷移導入。' });
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
-        evaluateChapterEnd: vi.fn().mockResolvedValue({ ok: true, value: false }), // never end naturally
         generateChapterSummary,
         generateChapterIntroduction,
       });
@@ -650,7 +647,6 @@ describe('DebateOrchestratorService', () => {
 
       await service.run('session-1', 't1');
 
-      // evaluateChapterEnd never returned true, but forced transition still fires
       expect(generateChapterSummary).toHaveBeenCalled();
       expect(mockFacilitator.generateClosing).toHaveBeenCalledOnce();
     });
@@ -756,6 +752,178 @@ describe('DebateOrchestratorService', () => {
 
       expect(result.ok).toBe(true);
       expect(vi.mocked(repo.getDebateSessionById)).toHaveBeenCalledWith('session-1');
+    });
+  });
+
+  describe('task 4.3: saveEngagements が各ターンで呼ばれる', () => {
+    it('assessEngagement の後に saveEngagements を呼び出す', async () => {
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+
+      await service.run('session-1', 't1');
+
+      expect(vi.mocked(repo.saveEngagements)).toHaveBeenCalled();
+    });
+  });
+
+  describe('task 4.4: generateTurn に intentSummary が渡される', () => {
+    it('assessEngagement の intentSummary が generateTurn の 8 番目引数として渡される', async () => {
+      const mockPersonaAgent = makeMockPersonaAgent({
+        assessEngagement: vi.fn().mockResolvedValue({
+          ok: true, value: { score: 3, mode: 'full', intentSummary: 'テスト意図' },
+        }),
+      });
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
+
+      await service.run('session-1', 't1');
+
+      const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
+      // Opening assigns p1 first → after p1 speaks, only p2 is assessed (intentSummary='テスト意図')
+      // p2 is then selected → generateTurn for p2 should have intentSummary as 8th arg (index 7)
+      expect(generateTurnCalls.length).toBeGreaterThanOrEqual(2);
+      const p2Call = generateTurnCalls.find((c: unknown[]) => (c[0] as { id: string }).id === 'p2');
+      expect(p2Call?.[7]).toBe('テスト意図');
+    });
+  });
+
+  describe('task 4.5: resume に loadPendingIntents が追加', () => {
+    it('resume() が loadPendingIntents() を呼び出す', async () => {
+      vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([
+        { id: 't0', sessionId: 'session-1', turnIndex: 0, speakerType: 'facilitator', content: '開会。', createdAt: '' },
+        { id: 't1', sessionId: 'session-1', turnIndex: 1, speakerType: 'persona', personaId: 'p1', content: 'p1発言。', createdAt: '' },
+      ]);
+      const mockFacilitator = makeMockFacilitator({
+        evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+
+      await service.resume('session-1', 2);
+
+      expect(vi.mocked(repo.loadPendingIntents)).toHaveBeenCalledWith('session-1');
+    });
+  });
+
+  describe('task 6.3: エンゲージメント駆動ロジックの追加テスト', () => {
+    const p3 = {
+      id: 'p3', topicId: 't1', stakeholderRole: '研究者', name: '山田次郎',
+      age: 50, occupation: '大学教授', background: '経済学専攻', interests: '社会保障',
+      stanceDirection: 'conditional', approved: true, sortOrder: 2,
+    };
+
+    describe('pendingItems: score >= 5 かつ未選択のみ addToPending: true', () => {
+      it('p3(score=5/reaction) が urgentReaction で選ばれると p2(score=5/full) が addToPending:true で saveEngagements に渡される', async () => {
+        vi.mocked(repo.getPersonasByTopicId).mockResolvedValue([...testPersonaProfiles, p3]);
+
+        const mockPersonaAgent = makeMockPersonaAgent({
+          assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => {
+            if (persona.id === 'p2') return { ok: true, value: { score: 5, mode: 'full' as const, intentSummary: '言いたいこと' } };
+            if (persona.id === 'p3') return { ok: true, value: { score: 5, mode: 'reaction' as const, intentSummary: undefined } };
+            return { ok: true, value: { score: 2, mode: 'reaction' as const, intentSummary: undefined } };
+          }),
+        });
+        const mockFacilitator = makeMockFacilitator({
+          evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+        });
+        const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), { ...shortOptions, maxTurns: 4 });
+
+        await service.run('session-1', 't1');
+
+        const calls = vi.mocked(repo.saveEngagements).mock.calls;
+        expect(calls.length).toBeGreaterThanOrEqual(1);
+        const firstCall = calls[0][0];
+        const p2Entry = firstCall.assessments.find((a: { personaId: string }) => a.personaId === 'p2');
+        const p3Entry = firstCall.assessments.find((a: { personaId: string }) => a.personaId === 'p3');
+        expect(p2Entry?.addToPending).toBe(true);  // p2 scored 5 but was not selected (p3 took urgentReaction priority)
+        expect(p3Entry?.addToPending).toBe(false); // p3 scored 5 and was selected via urgentReaction
+      });
+    });
+
+    describe('generateTurn: assessedMode が index 6 引数として渡される', () => {
+      it('assessEngagement の mode 値が generateTurn の 7 番目引数（index 6）として渡される', async () => {
+        const mockPersonaAgent = makeMockPersonaAgent({
+          assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => ({
+            ok: true,
+            value: { score: 3, mode: persona.id === 'p1' ? ('full' as const) : ('reaction' as const), intentSummary: undefined },
+          })),
+        });
+        const mockFacilitator = makeMockFacilitator({
+          evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
+        });
+        const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
+
+        await service.run('session-1', 't1');
+
+        const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
+        const p2Call = generateTurnCalls.find((c: unknown[]) => (c[0] as { id: string }).id === 'p2');
+        expect(p2Call).toBeDefined();
+        expect(p2Call?.[6]).toBe('reaction'); // assessedMode at index 6
+      });
+    });
+
+    describe('topScore <= 3 かつキューあり: キュー参照選択', () => {
+      it('score >= 5 でキューに入った p2 が次の全員 score <= 3 ターンで選ばれる', async () => {
+        vi.mocked(repo.getPersonasByTopicId).mockResolvedValue([...testPersonaProfiles, p3]);
+
+        // Round 1 (after p1 speaks): p2=score5/full → queue, p3=score5/reaction → urgentReaction で selected
+        // Round 2 (after p3 speaks): all=score2 → topScore<=3, queue has p2 → p2 selected
+        let callCount = 0;
+        const mockPersonaAgent = makeMockPersonaAgent({
+          assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => {
+            callCount++;
+            if (callCount <= 2) {
+              if (persona.id === 'p2') return { ok: true, value: { score: 5, mode: 'full' as const, intentSummary: '言いたいこと' } };
+              if (persona.id === 'p3') return { ok: true, value: { score: 5, mode: 'reaction' as const, intentSummary: undefined } };
+            }
+            return { ok: true, value: { score: 2, mode: 'reaction' as const, intentSummary: undefined } };
+          }),
+        });
+
+        const service = new DebateOrchestratorService(
+          makeMockFacilitator(), mockPersonaAgent, makeMockTracker(),
+          { ...shortOptions, maxTurns: 4 },
+        );
+
+        await service.run('session-1', 't1');
+
+        const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
+        // Turn 1: p1 (via opening), Turn 2: p3 (score=5 highest), Turn 3: p2 (from queue, topScore=2)
+        expect(generateTurnCalls).toHaveLength(3);
+        expect((generateTurnCalls[0][0] as { id: string }).id).toBe('p1');
+        expect((generateTurnCalls[1][0] as { id: string }).id).toBe('p3');
+        expect((generateTurnCalls[2][0] as { id: string }).id).toBe('p2');
+      });
+    });
+
+    describe('chapter end detection: score >= 5 → recentScores に 1', () => {
+      it('全員 score < 5 が続くと early exit で章移行が増え、score >= 5 があると増えない', async () => {
+        const lowFacilitator = makeMockFacilitator();
+        const lowAgent = makeMockPersonaAgent({
+          assessEngagement: vi.fn().mockResolvedValue({
+            ok: true, value: { score: 2, mode: 'reaction' as const, intentSummary: undefined },
+          }),
+        });
+        const lowService = new DebateOrchestratorService(lowFacilitator, lowAgent, makeMockTracker(), { ...shortOptions, maxTurns: 12 });
+        await lowService.run('session-1', 't1');
+        const lowSummaryCalls = (lowFacilitator.generateChapterSummary as ReturnType<typeof vi.fn>).mock.calls.length;
+
+        const highFacilitator = makeMockFacilitator();
+        const highAgent = makeMockPersonaAgent({
+          assessEngagement: vi.fn().mockResolvedValue({
+            ok: true, value: { score: 5, mode: 'full' as const, intentSummary: undefined },
+          }),
+        });
+        const highService = new DebateOrchestratorService(highFacilitator, highAgent, makeMockTracker(), { ...shortOptions, maxTurns: 12 });
+        await highService.run('session-1', 't1');
+        const highSummaryCalls = (highFacilitator.generateChapterSummary as ReturnType<typeof vi.fn>).mock.calls.length;
+
+        // Low scores: early exit → faster chapter rotation → more summary calls within same maxTurns
+        expect(lowSummaryCalls).toBeGreaterThan(highSummaryCalls);
+      });
     });
   });
 });

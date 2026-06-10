@@ -3,6 +3,7 @@
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { createTopicStore } from '$lib/stores/topic.svelte.js';
 	import { createSessionStore } from '$lib/stores/session.svelte.js';
+	import { createEngagementsStore } from '$lib/stores/engagements.svelte.js';
 	import { startDebate } from '$lib/api/topics.js';
 
 	interface Props {
@@ -14,6 +15,7 @@
 	const sessionStore = createSessionStore(topicId);
 	const personasStore = createPersonasStore(topicId);
 	const topicStore = createTopicStore(topicId);
+	const engagementsStore = createEngagementsStore(topicId);
 
 	let starting = $state(false);
 	let started = $state(false);
@@ -32,10 +34,15 @@
 					id: t.id,
 					turnIndex: t.turnIndex,
 					speakerType: t.speakerType,
-					speakerName: persona?.name ?? 'ファシリテーター',
-					speakerRole: persona?.stakeholderRole ?? '',
+					speakerName: t.speakerName ?? persona?.name ?? 'ファシリテーター',
+					speakerRole: t.speakerRole ?? persona?.stakeholderRole ?? '',
 					content: t.content,
 					speechMode: t.speechMode,
+					personaId: t.personaId,
+					engagements: (engagementsStore.engagementsMap.get(t.turnIndex) ?? []).map((e) => ({
+						...e,
+						name: personaMap.get(e.personaId)?.name ?? e.personaId,
+					})),
 					beliefChangesTriggered: personasStore.personas.flatMap((p) =>
 						(p.beliefs ?? [])
 							.filter((b) => b.triggeredByTurnId === t.id)
@@ -103,10 +110,12 @@
 		sessionStore.start();
 		personasStore.start();
 		topicStore.start();
+		engagementsStore.start();
 		return () => {
 			sessionStore.stop();
 			personasStore.stop();
 			topicStore.stop();
+			engagementsStore.stop();
 		};
 	});
 </script>
@@ -143,6 +152,16 @@
 						{/if}
 					</div>
 					<p class="content">{turn.content}</p>
+					{#if turn.engagements.length > 0}
+						<div class="engagements">
+							{#each turn.engagements as e}
+								{@const selected = e.personaId === turn.personaId}
+								<span class="engagement" data-mode={e.mode} class:selected>
+									{e.name}: {e.mode}({e.score}){#if selected} →選択{/if}
+								</span>
+							{/each}
+						</div>
+					{/if}
 					{#if turn.beliefChangesTriggered.length > 0}
 						<ul class="beliefs">
 							{#each turn.beliefChangesTriggered as bc}
@@ -182,6 +201,12 @@
 	.speech-mode { font-size: 0.75rem; margin-left: 6px; color: #fff; background: #888; padding: 1px 5px; border-radius: 3px; }
 	.speech-mode:has(+ *) { /* nothing */ }
 	.content { margin: 0; line-height: 1.6; }
+	.engagements { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+	.engagement { font-size: 0.72rem; padding: 1px 6px; border-radius: 3px; background: #eee; color: #555; }
+	.engagement[data-mode='full'] { background: #e3f2fd; color: #1565c0; }
+	.engagement[data-mode='reaction'] { background: #f3e5f5; color: #6a1b9a; }
+	.engagement[data-mode='none'] { background: #f5f5f5; color: #999; }
+	.engagement.selected { font-weight: 700; outline: 1px solid currentColor; }
 	.beliefs { margin-top: 8px; font-size: 0.85rem; color: #555; list-style: none; padding: 0; }
 	.publish-success { background: #e8f5e9; padding: 16px; border-radius: 8px; margin-top: 16px; }
 	.actions { margin-top: 16px; display: flex; gap: 8px; }

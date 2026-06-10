@@ -1,14 +1,15 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AI_MODELS, MAX_TOKENS } from '../config/ai.js';
 import { formatHistory } from '../utils/conversation.js';
+import type { DebateTurn } from '../db/repository.js';
 import type {
-  ConversationTurn,
   PersonaAttributes,
   AgentTurnResult,
   BeliefChangeEvent,
   BeliefChangeType,
   PostDebateCommentResult,
   DebateChapter,
+  EngagementAssessment,
   Result,
   PipelineError,
 } from '../types/index.js';
@@ -99,25 +100,34 @@ ${interviewRecord}
 ${currentBelief}`;
 }
 
-function buildTurnTool(styleGuide: string): Anthropic.Tool {
+const REACTION_TURN_TOOL: Anthropic.Tool = {
+  name: 'submit_reaction',
+  description: '直前の発言への短いリアクションを提出する（10〜25文字）',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      content: {
+        type: 'string',
+        description: '10〜25文字の短いリアクション。「なるほど」「それは違う」「確かに、でも〜」「そうかな？」など。同じ語尾・フレーズの繰り返しは禁止。',
+      },
+    },
+    required: ['content'],
+  },
+};
+
+function buildFullTurnTool(styleGuide: string): Anthropic.Tool {
   const styleSummary = styleGuide.split('\n')[0];
   return {
     name: 'submit_turn',
-    description: 'ペルソナとして討論の1ターン分の発言を提出する',
+    description: 'ペルソナとして討論の1ターン分の発言（意見・反論・論点提示）を提出する',
     input_schema: {
       type: 'object' as const,
       properties: {
-        speechMode: {
-          type: 'string',
-          enum: ['reaction', 'full'],
-          description: 'まずこれを決める。**デフォルトは reaction**（相槌・短い反応・一言同意など10〜25文字）。full を選ぶのは「新しい論点・根拠・具体例を初めて持ち出すとき」または「本格的に反論するとき」のみ。それ以外はすべて reaction。',
-        },
-        content: { type: 'string', description: `発言テキスト。reaction なら10〜25文字の短い反応のみ。full なら意見・根拠をしっかり述べる（最大200文字）。語り口: ${styleSummary}` },
+        content: { type: 'string', description: `意見・根拠をしっかり述べる（最大200文字）。語り口: ${styleSummary}` },
         beliefChangeType: {
           type: 'string',
           enum: ['opinion_change', 'partial_acceptance'],
-          description:
-            '信念変化タイプ: opinion_change=立場・結論が完全に変わる場合、partial_acceptance=他の意見の一部を受け入れる場合。変化なしの場合は省略する',
+          description: '信念変化タイプ: opinion_change=立場・結論が完全に変わる場合、partial_acceptance=他の意見の一部を受け入れる場合。変化なしの場合は省略する',
         },
         beliefChangeSummary: {
           type: 'string',
@@ -129,14 +139,53 @@ function buildTurnTool(styleGuide: string): Anthropic.Tool {
         },
         addressedToPersonaId: {
           type: 'string',
-          description:
-            '返答を求める特定のペルソナのID。そのペルソナに直接質問する場合のみ指定する。反論・同意・感想など応答を強制しない発言では省略する',
+          description: '返答を求める特定のペルソナのID。直接質問する場合のみ指定する。',
         },
       },
-      required: ['speechMode', 'content'],
+      required: ['content'],
     },
   };
 }
+
+const ASSESS_ENGAGEMENT_TOOL: Anthropic.Tool = {
+  name: 'assess_engagement',
+  description: '現在の会話を踏まえて、発言意欲（score）と発言形式（mode）を独立して自己評価する。score と mode はそれぞれ独立して選択すること。',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      score: {
+        type: 'integer',
+        description: '発言意欲の強度（1〜5の整数）。mode ごとのスコアラベルを参照して選択すること。',
+      },
+      mode: {
+        type: 'string',
+        enum: ['full', 'reaction', 'none'],
+        description: `発言形式（score とは独立して選択する）。
+
+reaction（直前の発言への短い反応。新論点は出さない）:
+  score 1: パス（反応しない）
+  score 2: 反応したい（軽い相槌・同意）
+  score 3: 強く反応したい（明確な肯定・否定を一言で伝えたい）
+  score 4: 鋭く反応したい（強い反論・感情的な指摘を短く伝えたい）
+  score 5: 今すぐ反応しなければ（黙っていられない、即座に短く返したい）
+
+full（自分の論点・主張を展開する発言）:
+  score 1: パス（発言しない）
+  score 2: 発言したい（自分の立場を簡潔に述べたい）
+  score 3: しっかり発言したい（論点・根拠を整理して展開したい）
+  score 4: ぜひ発言したい（重要な矛盾・新論点を正面から提示したい）
+  score 5: 今すぐ発言しなければ（信念の根幹が問われており、必ず言わなければ）
+
+none: score 1 のときのみ選択する`,
+      },
+      intentSummary: {
+        type: 'string',
+        description: 'mode が reaction の場合は25文字以内、full の場合は80文字以内で「今伝えたいこと」を要約する。mode が none の場合は省略する。',
+      },
+    },
+    required: ['score', 'mode'],
+  },
+};
 
 const POST_DEBATE_COMMENT_TOOL: Anthropic.Tool = {
   name: 'submit_post_debate_comment',
@@ -165,8 +214,11 @@ export class PersonaAgentService {
     persona: PersonaAttributes,
     currentBelief: string,
     interviewRecord: string,
-    history: ConversationTurn[],
-    currentChapter?: DebateChapter
+    history: DebateTurn[],
+    currentChapter?: DebateChapter,
+    pendingTrigger?: { speakerName: string; content: string },
+    assessedMode?: 'full' | 'reaction',
+    intentSummary?: string
   ): Promise<Result<AgentTurnResult, PipelineError>> {
     try {
       const recentHistory = history.slice(-20);
@@ -174,51 +226,98 @@ export class PersonaAgentService {
       const chapterContext = currentChapter
         ? `\n\n【この章のフォーカス】「${currentChapter.title}」: ${currentChapter.focusQuestion}`
         : '';
-      const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}\n\n${persona.name}として発言してください。speechMode を自分で判断すること（reaction=短い反応10〜25文字 / full=意見・論点・根拠をしっかり述べる最大200文字）。冒頭で相手の名前を呼ぶことは禁止。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
+      const pendingNote = pendingTrigger
+        ? `\n\n【持ち越しの言いたいこと】少し前に${pendingTrigger.speakerName}が「${pendingTrigger.content.slice(0, 80)}」と言ったのを聞いて、あなたはこれに何か言いたいと思っていました。会話の流れに沿って、適切であればこの話題に触れてください。`
+        : '';
+      const intentNote = intentSummary
+        ? `\n\n【今回伝えたいこと】${intentSummary}`
+        : '';
+
+      const isReaction = assessedMode === 'reaction';
+      const tool = isReaction ? REACTION_TURN_TOOL : buildFullTurnTool(styleGuide);
+      const toolName = isReaction ? 'submit_reaction' : 'submit_turn';
+      const modeInstruction = isReaction
+        ? `10〜25文字の短いリアクションのみ。冒頭で相手の名前を呼ぶことは禁止。`
+        : `意見・論点・根拠をしっかり述べる（最大200文字）。冒頭で相手の名前を呼ぶことは禁止。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
+
+      const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${pendingNote}${intentNote}\n\n${persona.name}として発言してください。${modeInstruction}`;
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
-        max_tokens: MAX_TOKENS.PERSONA_TURN,
+        max_tokens: isReaction ? MAX_TOKENS.PERSONA_ENGAGEMENT : MAX_TOKENS.PERSONA_TURN,
         system: buildPersonaSystemPrompt(persona, interviewRecord, currentBelief),
-        tools: [buildTurnTool(styleGuide)],
-        tool_choice: { type: 'tool', name: 'submit_turn' },
+        tools: [tool],
+        tool_choice: { type: 'tool', name: toolName },
         messages: [{ role: 'user', content: userContent }],
+      });
+
+      const toolBlock = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
+      if (!toolBlock) {
+        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true } };
+      }
+
+      if (isReaction) {
+        const { content } = toolBlock.input as { content: string };
+        return { ok: true, value: { content, speechMode: 'reaction', beliefChange: null } };
+      }
+
+      const { content, beliefChangeType, beliefChangeSummary, beliefChangeUpdatedBelief, addressedToPersonaId } =
+        toolBlock.input as {
+          content: string;
+          beliefChangeType?: BeliefChangeType;
+          beliefChangeSummary?: string;
+          beliefChangeUpdatedBelief?: string;
+          addressedToPersonaId?: string;
+        };
+      const beliefChange: BeliefChangeEvent | null = beliefChangeType
+        ? { type: beliefChangeType, summary: beliefChangeSummary ?? '', updatedBelief: beliefChangeUpdatedBelief ?? '' }
+        : null;
+      return { ok: true, value: { content, speechMode: 'full', beliefChange, addressedToPersonaId } };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+    }
+  }
+
+  async assessEngagement(
+    persona: PersonaAttributes,
+    currentBelief: string,
+    interviewRecord: string,
+    history: DebateTurn[]
+  ): Promise<Result<EngagementAssessment, PipelineError>> {
+    try {
+      const recentHistory = history.slice(-8);
+      const ownTurns = history.filter(t => t.personaId === persona.id).slice(-5);
+      const ownTurnsSection = ownTurns.length > 0
+        ? `\nあなた（${persona.name}）のこれまでの発言:\n${formatHistory(ownTurns)}\n`
+        : '';
+      const response = await this.client.messages.create({
+        model: AI_MODELS.SONNET,
+        max_tokens: MAX_TOKENS.PERSONA_ENGAGEMENT,
+        system: buildPersonaSystemPrompt(persona, interviewRecord, currentBelief),
+        tools: [ASSESS_ENGAGEMENT_TOOL],
+        tool_choice: { type: 'tool', name: 'assess_engagement' },
+        messages: [{
+          role: 'user',
+          content: `現在の会話:\n\n${formatHistory(recentHistory)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。すでに同じ論点・主張を述べており、新たに付け加えるべきことがない場合: full なら score 1（パス）、reaction なら score 2（反応したい）を選択してください。`,
+        }],
       });
 
       const toolBlock = response.content.find(
         (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
       );
       if (!toolBlock) {
-        return {
-          ok: false,
-          error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true },
-        };
+        return { ok: true, value: { score: 1, mode: 'none' } };
       }
 
-      const {
-        speechMode,
-        content,
-        beliefChangeType,
-        beliefChangeSummary,
-        beliefChangeUpdatedBelief,
-        addressedToPersonaId,
-      } = toolBlock.input as {
-        speechMode?: 'reaction' | 'full';
-        content: string;
-        beliefChangeType?: BeliefChangeType;
-        beliefChangeSummary?: string;
-        beliefChangeUpdatedBelief?: string;
-        addressedToPersonaId?: string;
+      const { score, mode, intentSummary } = toolBlock.input as {
+        score: number;
+        mode: 'full' | 'reaction' | 'none';
+        intentSummary?: string;
       };
-
-      const beliefChange: BeliefChangeEvent | null = beliefChangeType
-        ? {
-            type: beliefChangeType,
-            summary: beliefChangeSummary ?? '',
-            updatedBelief: beliefChangeUpdatedBelief ?? '',
-          }
-        : null;
-
-      return { ok: true, value: { content, speechMode, beliefChange, addressedToPersonaId } };
+      const clampedScore = Math.max(1, Math.min(5, Math.round(score)));
+      const resolvedMode: 'full' | 'reaction' | 'none' = clampedScore === 1 ? 'none' : mode;
+      const resolvedIntentSummary = resolvedMode === 'none' ? undefined : intentSummary;
+      return { ok: true, value: { score: clampedScore, mode: resolvedMode, intentSummary: resolvedIntentSummary } };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
@@ -228,7 +327,7 @@ export class PersonaAgentService {
   async generatePostDebateComment(
     persona: PersonaAttributes,
     finalBelief: string,
-    history: ConversationTurn[]
+    history: DebateTurn[]
   ): Promise<Result<PostDebateCommentResult, PipelineError>> {
     try {
       const response = await this.client.messages.create({
