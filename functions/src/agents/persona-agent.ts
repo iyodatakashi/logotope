@@ -174,7 +174,7 @@ full（自分の論点・主張を展開する発言）:
   score 2: 発言したい（自分の立場を簡潔に述べたい）
   score 3: しっかり発言したい（論点・根拠を整理して展開したい）
   score 4: ぜひ発言したい（重要な矛盾・新論点を正面から提示したい）
-  score 5: 今すぐ発言しなければ（信念の根幹が問われており、必ず言わなければ）
+  score 5: 今すぐ発言しなければ（自分の立場・主張に強く関わる重要な論点で、強く意見を述べたい）
 
 none: score 1 のときのみ選択する`,
       },
@@ -298,7 +298,7 @@ export class PersonaAgentService {
         tool_choice: { type: 'tool', name: 'assess_engagement' },
         messages: [{
           role: 'user',
-          content: `現在の会話:\n\n${formatHistory(recentHistory)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。すでに同じ論点・主張を述べており、新たに付け加えるべきことがない場合: full なら score 1（パス）、reaction なら score 2（反応したい）を選択してください。`,
+          content: `現在の会話:\n\n${formatHistory(recentHistory)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。現在の論点が自分の立場・主張に強く関わる場合はスコアを高め（4〜5）に評価してください。すでに同じ論点・主張を述べており、新たに付け加えるべきことがない場合: full なら score 1（パス）、reaction なら score 2（反応したい）を選択してください。`,
         }],
       });
 
