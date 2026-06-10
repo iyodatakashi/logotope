@@ -700,6 +700,7 @@ export class DebateOrchestratorService {
         personaId: persona.id, speakerName: persona.name, speakerRole: persona.stakeholderRole,
         content: turnResult.value.content ?? '',
         chapterIndex, speechMode: turnResult.value.speechMode,
+        fromQueue: fromQueue || undefined,
       });
 
       // 6. Update history
@@ -708,6 +709,7 @@ export class DebateOrchestratorService {
         speakerType: 'persona', personaId: persona.id,
         speakerName: persona.name, speakerRole: persona.stakeholderRole,
         content: turnResult.value.content, createdAt: new Date().toISOString(),
+        fromQueue: fromQueue || undefined,
       });
 
       // 7. Update state

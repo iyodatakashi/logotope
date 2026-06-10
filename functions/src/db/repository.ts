@@ -96,6 +96,7 @@ export interface DebateTurn {
   createdAt: string;
   chapterIndex?: number;
   speechMode?: 'reaction' | 'full';
+  fromQueue?: boolean;
   engagements?: EngagementEntry[];
 }
 
@@ -140,6 +141,7 @@ export interface CreateDebateTurnParams {
   content: string;
   chapterIndex?: number;
   speechMode?: 'reaction' | 'full';
+  fromQueue?: boolean;
 }
 
 export interface CreatePostDebateCommentParams {
@@ -276,6 +278,7 @@ export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<
   if (params.speakerRole !== undefined) turn.speakerRole = params.speakerRole;
   if (params.chapterIndex !== undefined) turn.chapterIndex = params.chapterIndex;
   if (params.speechMode !== undefined) turn.speechMode = params.speechMode;
+  if (params.fromQueue) turn.fromQueue = true;
 
   await db().doc(`topics/${params.sessionId}/sessions/0`).update({
     turns: FieldValue.arrayUnion(turn),
@@ -416,7 +419,7 @@ export const getDebateSessionById = async (id: string): Promise<DebateSession | 
 export const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[]> => {
   const snap = await db().doc(`topics/${sessionId}/sessions/0`).get();
   if (!snap.exists) return [];
-  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp; chapterIndex?: number }> };
+  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp; chapterIndex?: number; fromQueue?: boolean }> };
   return (data.turns ?? []).map((t) => ({
     id: t.id,
     sessionId,
@@ -428,6 +431,7 @@ export const getDebateTurnsBySessionId = async (sessionId: string): Promise<Deba
     content: t.content,
     createdAt: t.createdAt.toDate().toISOString(),
     chapterIndex: t.chapterIndex,
+    fromQueue: t.fromQueue,
   }));
 };
 

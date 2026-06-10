@@ -172,6 +172,7 @@ export interface TurnDoc {
   createdAt: Timestamp;
   chapterIndex?: number;
   speechMode?: 'reaction' | 'full';
+  fromQueue?: boolean;
 }
 
 export interface PostDebateCommentDoc {
