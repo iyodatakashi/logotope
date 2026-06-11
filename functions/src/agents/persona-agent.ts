@@ -35,6 +35,11 @@ function estimateAuthorityLevel(stakeholderRole: string): AuthorityLevel {
   return 'general';
 }
 
+function currentDateString(): string {
+  const d = new Date();
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
 export function buildSpeechStyleGuide(persona: PersonaAttributes & { gender?: string }): string {
   const expLevel = estimateExperienceLevel(persona.age, persona.occupation);
   const authLevel = estimateAuthorityLevel(persona.stakeholderRole);
@@ -77,6 +82,9 @@ function buildPersonaSystemPrompt(
 ): string {
   const styleGuide = buildSpeechStyleGuide(persona);
   return `あなたは以下のペルソナとして討論に参加しています。このペルソナの視点・価値観・経験に忠実に発言してください。他のペルソナの内部状態（信念ドキュメントや取材レコード）は参照しないでください。
+
+## 現在の日付
+本日は ${currentDateString()} です。時事的な話題に言及する際は、この日付を基準に時間感覚を持って発言してください。
 
 ## 発言スタイルの厳守事項
 ${styleGuide}

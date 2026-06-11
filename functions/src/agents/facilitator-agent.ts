@@ -16,11 +16,20 @@ interface PendingThought {
   triggerTurnIndex: number;
 }
 
-const NEUTRALITY_SYSTEM_PROMPT =
-  'あなたはテレビ討論番組のプロの司会者です。特定の立場への誘導は禁止しますが、議論を具体的な論点に絞り込んで進行するのがあなたの役割です。' +
-  '「建設的な議論を」「様々な視点から」のような抽象的な言葉は使わない。' +
-  '常に「〜についてはどうですか？」「〜という点で○○さんはどう思いますか？」のように具体的な問いかけで誘導する。' +
-  '発言は2〜3文以内。演説禁止。';
+function currentDateString(): string {
+  const d = new Date();
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+}
+
+function buildNeutralitySystemPrompt(): string {
+  return (
+    `本日は ${currentDateString()} です。時事的な話題に言及する際はこの日付を基準にしてください。` +
+    'あなたはテレビ討論番組のプロの司会者です。特定の立場への誘導は禁止しますが、議論を具体的な論点に絞り込んで進行するのがあなたの役割です。' +
+    '「建設的な議論を」「様々な視点から」のような抽象的な言葉は使わない。' +
+    '常に「〜についてはどうですか？」「〜という点で○○さんはどう思いますか？」のように具体的な問いかけで誘導する。' +
+    '発言は2〜3文以内。演説禁止。'
+  );
+}
 
 const OPENING_TOOL: Anthropic.Tool = {
   name: 'submit_opening',
@@ -205,7 +214,7 @@ export class FacilitatorAgentService {
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_OPENING,
-        system: NEUTRALITY_SYSTEM_PROMPT,
+        system: buildNeutralitySystemPrompt(),
         tools: [OPENING_TOOL],
         tool_choice: { type: 'tool', name: 'submit_opening' },
         messages: [{
@@ -269,7 +278,7 @@ export class FacilitatorAgentService {
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_SELECT,
-        system: NEUTRALITY_SYSTEM_PROMPT,
+        system: buildNeutralitySystemPrompt(),
         tools: [SELECT_SPEAKER_TOOL],
         tool_choice: { type: 'tool', name: 'select_speaker' },
         messages: [{
@@ -315,7 +324,7 @@ export class FacilitatorAgentService {
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_INTERVENTION,
-        system: NEUTRALITY_SYSTEM_PROMPT,
+        system: buildNeutralitySystemPrompt(),
         tools: [INTERVENTION_TOOL],
         tool_choice: { type: 'tool', name: 'evaluate_intervention' },
         messages: [{
@@ -361,7 +370,7 @@ export class FacilitatorAgentService {
       const issuesResponse = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
-        system: NEUTRALITY_SYSTEM_PROMPT,
+        system: buildNeutralitySystemPrompt(),
         tools: [SUBMIT_ISSUES_TOOL],
         tool_choice: { type: 'tool', name: 'submit_issues' },
         messages: [{
@@ -382,7 +391,7 @@ export class FacilitatorAgentService {
       const chaptersResponse = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_STRUCTURE,
-        system: NEUTRALITY_SYSTEM_PROMPT,
+        system: buildNeutralitySystemPrompt(),
         tools: [SUBMIT_CHAPTERS_TOOL],
         tool_choice: { type: 'tool', name: 'submit_chapters' },
         messages: [{
@@ -453,7 +462,7 @@ export class FacilitatorAgentService {
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
-        system: NEUTRALITY_SYSTEM_PROMPT,
+        system: buildNeutralitySystemPrompt(),
         tools: [GENERATE_CHAPTER_TRANSITION_TOOL],
         tool_choice: { type: 'tool', name: 'generate_chapter_transition' },
         messages: [{
@@ -484,7 +493,7 @@ export class FacilitatorAgentService {
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
-        system: NEUTRALITY_SYSTEM_PROMPT,
+        system: buildNeutralitySystemPrompt(),
         tools: [CHAPTER_INTRO_TOOL],
         tool_choice: { type: 'tool', name: 'submit_chapter_intro' },
         messages: [{
@@ -519,7 +528,7 @@ export class FacilitatorAgentService {
       const response = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_CLOSING,
-        system: NEUTRALITY_SYSTEM_PROMPT,
+        system: buildNeutralitySystemPrompt(),
         tools: [CLOSING_TOOL],
         tool_choice: { type: 'tool', name: 'submit_closing' },
         messages: [{
