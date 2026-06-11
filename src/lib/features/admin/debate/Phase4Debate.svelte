@@ -4,7 +4,6 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 	import { createSessionStore } from '$lib/stores/session.svelte.js';
 	import { createEngagementsStore } from '$lib/stores/engagements.svelte.js';
-	import { startDebate } from '$lib/api/topics.js';
 
 	interface Props {
 		topicId: string;
@@ -83,7 +82,7 @@
 		starting = true;
 		error = '';
 		try {
-			await startDebate(topicId);
+			await currentTopicStore.topic?.startDebate();
 		} catch (e) {
 			error = e instanceof Error ? e.message : '処理に失敗しました';
 		} finally {

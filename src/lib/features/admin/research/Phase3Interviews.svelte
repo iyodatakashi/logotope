@@ -1,10 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { updateDoc, doc, Timestamp } from 'firebase/firestore';
-	import { db } from '$lib/firebase.js';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { runInterview } from '$lib/api/topics.js';
 
 	interface Props {
 		topicId: string;
@@ -50,37 +47,7 @@
 	const hasAnyStarted = $derived(personasStore.personas.some((p) => p.interview != null));
 
 	async function doRunInterview(personaId: string): Promise<void> {
-		const persona = personasStore.personas.find((p) => p.id === personaId);
-		if (!persona) return;
-
-		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
-			interview: { status: 'in_progress' }
-		});
-
-		try {
-			const { researchSummary, initialBelief } = await runInterview(topicTitle, {
-				name: persona.name,
-				age: persona.age,
-				occupation: persona.occupation,
-				stakeholderRole: persona.stakeholderRole,
-				background: persona.background,
-				interests: persona.interests
-			});
-
-			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
-				interview: {
-					interviewRecord: researchSummary,
-					status: 'completed',
-					completedAt: Timestamp.now()
-				},
-				beliefs: [{ version: 0, content: initialBelief, createdAt: Timestamp.now() }]
-			});
-		} catch (e) {
-			const errorMessage = e instanceof Error ? e.message : 'エラーが発生しました';
-			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
-				interview: { status: 'error', errorMessage }
-			}).catch(() => undefined);
-		}
+		await personasStore.runInterview(personaId, topicTitle);
 	}
 
 	async function doRunAll() {

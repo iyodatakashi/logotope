@@ -3,7 +3,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 vi.mock('$lib/firebase.js', () => ({ db: {} }));
-vi.mock('$lib/api/topics.js', () => ({ generateStakeholders: vi.fn() }));
 vi.mock('$lib/stores/topic.svelte.js', () => ({
 	createTopicStore: vi.fn(() => ({
 		get topic() {
@@ -24,6 +23,7 @@ vi.mock('$lib/stores/topic.svelte.js', () => ({
 		},
 		start: vi.fn(),
 		stop: vi.fn(),
+		generateStakeholders: vi.fn(),
 		approveStakeholders: vi.fn()
 	}))
 }));

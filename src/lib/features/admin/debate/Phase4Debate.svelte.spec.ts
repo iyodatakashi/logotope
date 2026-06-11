@@ -83,6 +83,7 @@ vi.mock('$lib/stores/topic.svelte.js', () => ({
 		start: vi.fn(),
 		stop: vi.fn(),
 		resetToPhase3: vi.fn(),
+		startDebate: vi.fn().mockResolvedValue(undefined),
 		publishDebate: vi.fn()
 	}))
 }));
@@ -97,9 +98,6 @@ vi.mock('$lib/stores/engagements.svelte.js', () => ({
 	}))
 }));
 
-vi.mock('$lib/api/topics.js', () => ({
-	startDebate: vi.fn().mockResolvedValue(undefined)
-}));
 
 import Phase4Debate from '$lib/features/admin/debate/Phase4Debate.svelte';
 

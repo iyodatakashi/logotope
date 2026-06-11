@@ -56,3 +56,24 @@ export type BeliefChangeTrigger = {
 	changeType: BeliefChangeType;
 	changeSummary: string;
 };
+
+export type PersonaData = {
+	stakeholderRole: string;
+	name: string;
+	nationality?: string;
+	age: number;
+	occupation: string;
+	background: string;
+	interests: string;
+	stanceDirection: string;
+	llmType?: string;
+};
+
+export type PersonaForInterview = {
+	name: string;
+	age: number;
+	occupation: string;
+	stakeholderRole: string;
+	background: string;
+	interests: string;
+};

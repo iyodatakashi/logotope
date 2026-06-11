@@ -3,7 +3,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 vi.mock('$lib/firebase.js', () => ({ db: {} }));
-vi.mock('$lib/api/topics.js', () => ({ generatePersonas: vi.fn() }));
 vi.mock('$lib/stores/personas.svelte.js', () => ({
 	createPersonasStore: vi.fn(() => ({
 		get personas() {
@@ -42,6 +41,7 @@ vi.mock('$lib/stores/topic.svelte.js', () => ({
 		},
 		start: vi.fn(),
 		stop: vi.fn(),
+		generatePersonas: vi.fn(),
 		resetToPhase1: vi.fn()
 	}))
 }));

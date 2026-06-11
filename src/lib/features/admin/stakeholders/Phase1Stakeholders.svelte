@@ -1,15 +1,11 @@
 <script lang="ts">
-	import { updateDoc, doc, Timestamp } from 'firebase/firestore';
-	import { db } from '$lib/firebase.js';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { generateStakeholders } from '$lib/api/topics.js';
 
 	interface Props {
-		topicId: string;
 		topicTitle: string;
 		readonly?: boolean;
 	}
-	let { topicId, topicTitle, readonly = false }: Props = $props();
+	let { topicTitle, readonly = false }: Props = $props();
 
 	let generating = $state(false);
 	let error = $state('');
@@ -22,11 +18,7 @@
 		generating = true;
 		error = '';
 		try {
-			const { stakeholders: items } = await generateStakeholders(topicTitle);
-			await updateDoc(doc(db, 'topics', topicId), {
-				stakeholders: { items, approved: false, createdAt: Timestamp.now() },
-				updatedAt: Timestamp.now()
-			});
+			await currentTopicStore.topic?.generateStakeholders();
 		} catch (e) {
 			error = e instanceof Error ? e.message : '処理に失敗しました';
 		} finally {

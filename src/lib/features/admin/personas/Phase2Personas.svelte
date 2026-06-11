@@ -1,10 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { addDoc, collection, Timestamp } from 'firebase/firestore';
-	import { db } from '$lib/firebase.js';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { generatePersonas } from '$lib/api/topics.js';
 
 	interface Props {
 		topicId: string;
@@ -27,20 +24,7 @@
 		generating = true;
 		error = '';
 		try {
-			const stakeholders = currentTopicStore.topic?.stakeholders?.items ?? [];
-			const { personas: generated } = await generatePersonas(topicTitle, stakeholders);
-			await Promise.all(
-				generated.map((p, i) =>
-					addDoc(collection(db, 'topics', topicId, 'personas'), {
-						topicId,
-						sortOrder: i,
-						approved: false,
-						beliefs: [],
-						createdAt: Timestamp.now(),
-						...p
-					})
-				)
-			);
+			await currentTopicStore.topic?.generatePersonas();
 		} catch (e) {
 			error = e instanceof Error ? e.message : '処理に失敗しました';
 		} finally {

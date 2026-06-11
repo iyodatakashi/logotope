@@ -10,7 +10,6 @@
 </script>
 
 <Phase1Stakeholders
-	{topicId}
 	topicTitle={currentTopicStore.topic?.title ?? ''}
 	readonly={isView}
 />

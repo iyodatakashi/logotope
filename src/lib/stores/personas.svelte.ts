@@ -1,6 +1,7 @@
 import { onSnapshot, collection, query, orderBy, doc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
-import { db } from '$lib/firebase.js';
-import type { PersonaDoc } from '$lib/models/persona/persona.types.js';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '$lib/firebase.js';
+import type { PersonaDoc, PersonaForInterview } from '$lib/models/persona/persona.types.js';
 
 export const createPersonasStore = (topicId: string) => {
 	let personas = $state<PersonaDoc[]>([]);
@@ -47,6 +48,46 @@ export const createPersonasStore = (topicId: string) => {
 		await batch.commit();
 	};
 
+	const runInterview = async (personaId: string, topicTitle: string): Promise<void> => {
+		const persona = personas.find((p) => p.id === personaId);
+		if (!persona) return;
+
+		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
+			interview: { status: 'in_progress' }
+		});
+
+		try {
+			const fn = httpsCallable<
+				{ topicTitle: string; persona: PersonaForInterview },
+				{ researchSummary: string; initialBelief: string }
+			>(functions, 'runInterview', { timeout: 310000 });
+			const { data } = await fn({
+				topicTitle,
+				persona: {
+					name: persona.name,
+					age: persona.age,
+					occupation: persona.occupation,
+					stakeholderRole: persona.stakeholderRole,
+					background: persona.background,
+					interests: persona.interests
+				}
+			});
+			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
+				interview: {
+					interviewRecord: data.researchSummary,
+					status: 'completed',
+					completedAt: Timestamp.now()
+				},
+				beliefs: [{ version: 0, content: data.initialBelief, createdAt: Timestamp.now() }]
+			});
+		} catch (e) {
+			const errorMessage = e instanceof Error ? e.message : 'エラーが発生しました';
+			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
+				interview: { status: 'error', errorMessage }
+			}).catch(() => undefined);
+		}
+	};
+
 	return {
 		get personas() {
 			return personas;
@@ -56,6 +97,7 @@ export const createPersonasStore = (topicId: string) => {
 		},
 		start,
 		stop,
+		runInterview,
 		approvePersonas,
 		resetPersonas
 	};

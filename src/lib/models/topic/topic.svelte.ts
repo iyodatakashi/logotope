@@ -6,10 +6,13 @@ import {
 	getDocs,
 	collection,
 	deleteField,
-	getDoc
+	getDoc,
+	addDoc
 } from 'firebase/firestore';
-import { db } from '$lib/firebase.js';
-import type { TopicDoc } from './topic.types';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '$lib/firebase.js';
+import type { TopicDoc, StakeholderDoc } from './topic.types.js';
+import type { PersonaData } from '../persona/persona.types.js';
 
 export const createTopicStore = (topicDoc: TopicDoc) => {
 	let topic = $state<TopicDoc>(topicDoc);
@@ -45,6 +48,47 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 			publishedAt: now
 		});
 		await batch.commit();
+	};
+
+	const generateStakeholders = async (): Promise<void> => {
+		const fn = httpsCallable<{ title: string }, { stakeholders: StakeholderDoc[] }>(
+			functions,
+			'generateStakeholders',
+			{ timeout: 310000 }
+		);
+		const { data } = await fn({ title: topic.title });
+		await updateDoc(doc(db, 'topics', topicId), {
+			stakeholders: { items: data.stakeholders, approved: false, createdAt: Timestamp.now() },
+			updatedAt: Timestamp.now()
+		});
+	};
+
+	const generatePersonas = async (): Promise<void> => {
+		const stakeholders = topic.stakeholders?.items ?? [];
+		const fn = httpsCallable<
+			{ title: string; stakeholders: StakeholderDoc[] },
+			{ personas: PersonaData[] }
+		>(functions, 'generatePersonas', { timeout: 310000 });
+		const { data } = await fn({ title: topic.title, stakeholders });
+		await Promise.all(
+			data.personas.map((p, i) =>
+				addDoc(collection(db, 'topics', topicId, 'personas'), {
+					topicId,
+					sortOrder: i,
+					approved: false,
+					beliefs: [],
+					createdAt: Timestamp.now(),
+					...p
+				})
+			)
+		);
+	};
+
+	const startDebate = async (): Promise<void> => {
+		const fn = httpsCallable<{ topicId: string }, unknown>(functions, 'startDebate', {
+			timeout: 600000
+		});
+		await fn({ topicId });
 	};
 
 	const cancelRunningDebate = async (): Promise<void> => {
@@ -103,6 +147,9 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		_set(data: TopicDoc) {
 			topic = data;
 		},
+		generateStakeholders,
+		generatePersonas,
+		startDebate,
 		approveStakeholders,
 		approveInterviews,
 		publishDebate,
