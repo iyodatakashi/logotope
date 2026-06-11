@@ -1,10 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { Button } from '@14ch/svelte-ui';
-	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { createSessionStore } from '$lib/stores/session.svelte.js';
-	import { createEngagementsStore } from '$lib/stores/engagements.svelte.js';
 
 	interface Props {
 		topicId: string;
@@ -12,22 +8,15 @@
 	}
 	let { topicId, topicTitle }: Props = $props();
 
-	// svelte-ignore state_referenced_locally -- ストアはマウント時の topicId に束縛する
-	const sessionStore = createSessionStore(topicId);
-	// svelte-ignore state_referenced_locally -- 同上
-	const personasStore = createPersonasStore(topicId);
-	// svelte-ignore state_referenced_locally -- 同上
-	const engagementsStore = createEngagementsStore(topicId);
-
 	let starting = $state(false);
 	let started = $state(false);
 	let error = $state('');
 	let publishUrl = $state('');
 
-	const personaMap = $derived(new Map(personasStore.personas.map((p) => [p.id, p])));
+	const personaMap = $derived(new Map(currentTopicStore.personasStore.personas.map((p) => [p.id, p])));
 
 	const turns = $derived(
-		(sessionStore.session?.turns ?? [])
+		(currentTopicStore.sessionStore.session?.turns ?? [])
 			.slice()
 			.sort((a, b) => a.turnIndex - b.turnIndex)
 			.map((t) => {
@@ -42,11 +31,11 @@
 					speechMode: t.speechMode,
 					fromQueue: t.fromQueue,
 					personaId: t.personaId,
-					engagements: (engagementsStore.engagementsMap.get(t.turnIndex) ?? []).map((e) => ({
+					engagements: (currentTopicStore.engagementsStore.engagementsMap.get(t.turnIndex) ?? []).map((e) => ({
 						...e,
 						name: personaMap.get(e.personaId)?.name ?? e.personaId
 					})),
-					beliefChangesTriggered: personasStore.personas.flatMap((p) =>
+					beliefChangesTriggered: currentTopicStore.personasStore.personas.flatMap((p) =>
 						(p.beliefs ?? [])
 							.filter((b) => b.triggeredByTurnId === t.id)
 							.map((b) => ({
@@ -59,20 +48,20 @@
 			})
 	);
 
-	const isDebating = $derived(sessionStore.session?.status === 'debating');
-	const loading = $derived(!sessionStore.isLoaded || starting || isDebating);
+	const isDebating = $derived(currentTopicStore.sessionStore.session?.status === 'debating');
+	const loading = $derived(!currentTopicStore.sessionStore.isLoaded || starting || isDebating);
 	const completedTurns = $derived(turns.length);
-	const totalTurns = $derived(sessionStore.session?.totalTurns ?? 0);
+	const totalTurns = $derived(currentTopicStore.sessionStore.session?.totalTurns ?? 0);
 	const isStopped = $derived(!!error && !starting);
 
-	const chapters = $derived(sessionStore.session?.chapters ?? null);
-	const currentChapterIndex = $derived(sessionStore.session?.currentChapterIndex ?? null);
+	const chapters = $derived(currentTopicStore.sessionStore.session?.chapters ?? null);
+	const currentChapterIndex = $derived(currentTopicStore.sessionStore.session?.currentChapterIndex ?? null);
 	const currentChapter = $derived(
 		chapters && currentChapterIndex !== null ? chapters[currentChapterIndex] : null
 	);
 
 	$effect(() => {
-		if (sessionStore.isLoaded && !sessionStore.session && !started) {
+		if (currentTopicStore.sessionStore.isLoaded && !currentTopicStore.sessionStore.session && !started) {
 			void doStart();
 		}
 	});
@@ -100,16 +89,6 @@
 		}
 	}
 
-	onMount(() => {
-		sessionStore.start();
-		personasStore.start();
-		engagementsStore.start();
-		return () => {
-			sessionStore.stop();
-			personasStore.stop();
-			engagementsStore.stop();
-		};
-	});
 </script>
 
 <section>

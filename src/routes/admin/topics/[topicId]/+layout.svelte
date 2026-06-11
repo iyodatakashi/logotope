@@ -11,6 +11,10 @@
 
 	const topicId = page.params.topicId as string;
 
+	$effect(() => {
+		return currentTopicStore.start(page.params.topicId as string);
+	});
+
 	const currentPhase = $derived<Phase>(
 		currentTopicStore.topic ? statusToPhase(currentTopicStore.topic.status) : 1
 	);

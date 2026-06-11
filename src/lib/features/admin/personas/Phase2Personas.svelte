@@ -1,8 +1,6 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { Button } from '@14ch/svelte-ui';
-	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 
 	interface Props {
@@ -11,8 +9,7 @@
 	}
 	let { topicId, topicTitle }: Props = $props();
 
-	// svelte-ignore state_referenced_locally -- ストアはマウント時の topicId に束縛する
-	const personasStore = createPersonasStore(topicId);
+	const personasStore = $derived(currentTopicStore.personasStore);
 
 	let generating = $state(false);
 	let error = $state('');
@@ -43,10 +40,6 @@
 		}
 	}
 
-	onMount(() => {
-		personasStore.start();
-		return () => personasStore.stop();
-	});
 </script>
 
 <section>
