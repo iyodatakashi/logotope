@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { addDoc, collection, Timestamp } from 'firebase/firestore';
+	import { db } from '$lib/firebase.js';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { createTopicStore } from '$lib/stores/topic.svelte.js';
 	import { generatePersonas } from '$lib/api/topics.js';
@@ -14,25 +16,30 @@
 	const topicStore = createTopicStore(topicId);
 
 	let generating = $state(false);
-	let started = $state(false);
 	let error = $state('');
 
 	const personas = $derived(personasStore.personas);
 	const isRunning = $derived(generating);
 	const isStopped = $derived(!!error && !generating);
 
-	$effect(() => {
-		if (personasStore.isLoaded && personas.length === 0 && !started) {
-			void doGenerate();
-		}
-	});
-
 	async function doGenerate() {
-		started = true;
 		generating = true;
 		error = '';
 		try {
-			await generatePersonas(topicId);
+			const stakeholders = topicStore.topic?.stakeholders?.items ?? [];
+			const { personas: generated } = await generatePersonas(topicTitle, stakeholders);
+			await Promise.all(
+				generated.map((p, i) =>
+					addDoc(collection(db, 'topics', topicId, 'personas'), {
+						topicId,
+						sortOrder: i,
+						approved: false,
+						beliefs: [],
+						createdAt: Timestamp.now(),
+						...p
+					})
+				)
+			);
 		} catch (e) {
 			error = e instanceof Error ? e.message : '処理に失敗しました';
 		} finally {
@@ -98,7 +105,9 @@
 
 	<div class="actions">
 		<button class="secondary" onclick={handleBack}>前のフェーズに戻る</button>
-		{#if !isRunning && personas.length > 0}
+		{#if !isRunning && personas.length === 0}
+			<button class="primary" onclick={doGenerate}>ペルソナを生成する</button>
+		{:else if !isRunning && personas.length > 0}
 			<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
 		{/if}
 	</div>

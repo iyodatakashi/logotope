@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { updateDoc, doc, Timestamp } from 'firebase/firestore';
+	import { db } from '$lib/firebase.js';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { createTopicStore } from '$lib/stores/topic.svelte.js';
 	import { runInterview } from '$lib/api/topics.js';
@@ -29,7 +31,6 @@
 			stakeholderRole: p.stakeholderRole,
 			interviewRecord: p.interview?.interviewRecord ?? '',
 			status: p.interview?.status ?? 'pending'
-			// status: 'pending' | 'in_progress' | 'completed' | 'error'
 		}))
 	);
 
@@ -45,25 +46,55 @@
 	);
 	const totalCount = $derived(personasStore.personas.length);
 	const allCompleted = $derived(completedCount === totalCount && totalCount > 0);
+	const hasAnyStarted = $derived(
+		personasStore.personas.some((p) => p.interview != null)
+	);
 
-	$effect(() => {
-		if (!personasStore.isLoaded || personasStore.personas.length === 0 || started) return;
-		const pending = personasStore.personas.filter((p) => p.interview?.status !== 'completed');
-		if (pending.length > 0) {
-			void doRunPending(pending.map((p) => p.id));
+	async function doRunInterview(personaId: string): Promise<void> {
+		const persona = personasStore.personas.find((p) => p.id === personaId);
+		if (!persona) return;
+
+		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
+			interview: { status: 'in_progress' }
+		});
+
+		try {
+			const { researchSummary, initialBelief } = await runInterview(topicTitle, {
+				name: persona.name,
+				age: persona.age,
+				occupation: persona.occupation,
+				stakeholderRole: persona.stakeholderRole,
+				background: persona.background,
+				interests: persona.interests
+			});
+
+			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
+				interview: {
+					interviewRecord: initialBelief,
+					status: 'completed',
+					completedAt: Timestamp.now()
+				},
+				beliefs: [{ version: 0, content: initialBelief, createdAt: Timestamp.now() }]
+			});
+		} catch (e) {
+			const errorMessage = e instanceof Error ? e.message : 'エラーが発生しました';
+			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
+				interview: { status: 'error', errorMessage }
+			}).catch(() => undefined);
 		}
-	});
+	}
 
-	async function doRunPending(personaIds: string[]) {
+	async function doRunAll() {
 		started = true;
 		starting = true;
 		error = '';
-		await Promise.all(personaIds.map((personaId) => runInterview(topicId, personaId).catch(() => undefined)));
+		const pending = personasStore.personas.filter((p) => p.interview?.status !== 'completed');
+		await Promise.all(pending.map((p) => doRunInterview(p.id)));
 		starting = false;
 	}
 
 	async function handleRetry(personaId: string) {
-		await runInterview(topicId, personaId).catch((e) => {
+		await doRunInterview(personaId).catch((e) => {
 			error = e instanceof Error ? e.message : 'リトライに失敗しました';
 		});
 	}
@@ -157,7 +188,9 @@
 
 	<div class="actions">
 		<button class="secondary" onclick={handleBack}>前のフェーズに戻る</button>
-		{#if allCompleted}
+		{#if personasStore.isLoaded && !started && !hasAnyStarted && totalCount > 0}
+			<button class="primary" onclick={doRunAll}>取材を開始する</button>
+		{:else if allCompleted}
 			<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
 		{/if}
 	</div>
@@ -183,14 +216,12 @@
 	.toggle-row { display: flex; align-items: center; }
 	.toggle { display: flex; align-items: center; gap: 8px; flex: 1; padding: 10px 12px; background: none; border: none; cursor: pointer; text-align: left; }
 	.toggle:hover { background: rgba(0,0,0,0.03); }
-	.status-icon { font-size: 1rem; flex-shrink: 0; }
 	.name-role { display: flex; flex-direction: column; flex: 1; }
 	.role { font-size: 0.75rem; color: #757575; }
 	.status-badge { padding: 2px 8px; background: #e3f2fd; color: #1565c0; border-radius: 12px; font-size: 0.75rem; flex-shrink: 0; }
 	.status-badge.done { background: #c8e6c9; color: #2e7d32; }
 	.status-badge.active { background: #bbdefb; color: #1565c0; font-weight: 600; }
 	.status-badge.err { background: #ffcdd2; color: #c62828; }
-	.status-badge.stopped-badge { background: #ffe0b2; color: #e65100; }
 	.retry { padding: 4px 10px; background: #fff3e0; border: 1px solid #ffb74d; border-radius: 4px; font-size: 0.75rem; cursor: pointer; margin-right: 8px; }
 	.arrow { color: #757575; flex-shrink: 0; }
 	.record { padding: 12px; background: #fafafa; font-size: 0.875rem; white-space: pre-wrap; word-break: break-word; border-top: 1px solid #e0e0e0; margin: 0; }

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { updateDoc, doc, Timestamp } from 'firebase/firestore';
+	import { db } from '$lib/firebase.js';
 	import { createTopicStore } from '$lib/stores/topic.svelte.js';
 	import { generateStakeholders } from '$lib/api/topics.js';
 
@@ -12,25 +14,21 @@
 	const topicStore = createTopicStore(topicId);
 
 	let generating = $state(false);
-	let started = $state(false);
 	let error = $state('');
 
 	const stakeholders = $derived(topicStore.topic?.stakeholders?.items ?? []);
 	const isRunning = $derived(generating);
 	const isStopped = $derived(!!error && !generating);
 
-	$effect(() => {
-		if (topicStore.isLoaded && stakeholders.length === 0 && !started) {
-			void doGenerate();
-		}
-	});
-
 	async function doGenerate() {
-		started = true;
 		generating = true;
 		error = '';
 		try {
-			await generateStakeholders(topicId);
+			const { stakeholders: items } = await generateStakeholders(topicTitle);
+			await updateDoc(doc(db, 'topics', topicId), {
+				stakeholders: { items, approved: false, createdAt: Timestamp.now() },
+				updatedAt: Timestamp.now()
+			});
 		} catch (e) {
 			error = e instanceof Error ? e.message : '処理に失敗しました';
 		} finally {
@@ -80,6 +78,10 @@
 				<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
 			</div>
 		{/if}
+	{:else if !isRunning}
+		<div class="actions">
+			<button class="primary" onclick={doGenerate}>調査を開始する</button>
+		</div>
 	{/if}
 </section>
 
