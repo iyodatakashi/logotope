@@ -105,27 +105,13 @@ describe('createPersonaProfile', () => {
   });
 });
 
-// ---- approvePersonaProfiles ----
-
-describe('approvePersonaProfiles', () => {
-  it('batch-updates all personas to approved:true', async () => {
-    const snap = makeQuerySnap([{ id: 'p1', data: () => ({}) }, { id: 'p2', data: () => ({}) }]);
-    mockCollectionGet.mockResolvedValue(snap);
-    await repo.approvePersonaProfiles('topic-1');
-    expect(mockBatch.update).toHaveBeenCalledTimes(2);
-    expect(mockBatch.commit).toHaveBeenCalled();
-  });
-});
-
 // ---- createCompletedPersonaInterview ----
 
 describe('createCompletedPersonaInterview', () => {
-  it('looks up persona via collectionGroup then sets interview field, returns {id: personaId}', async () => {
-    const fakeRef = { update: vi.fn(() => Promise.resolve()) };
-    const snap = makeQuerySnap([{ id: 'persona-1', data: () => ({ topicId: 'topic-1' }), ref: fakeRef }]);
-    mockCollectionGroupGet.mockResolvedValue(snap);
-    const result = await repo.createCompletedPersonaInterview('persona-1', 'interview content');
-    expect(fakeRef.update).toHaveBeenCalledWith(
+  it('updates persona doc with interview field, returns {id: personaId}', async () => {
+    const result = await repo.createCompletedPersonaInterview('topic-1', 'persona-1', 'interview content');
+    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/personas/persona-1');
+    expect(mockDocRef.update).toHaveBeenCalledWith(
       expect.objectContaining({ interview: expect.objectContaining({ status: 'completed', interviewRecord: 'interview content' }) })
     );
     expect(result.id).toBe('persona-1');
@@ -135,12 +121,10 @@ describe('createCompletedPersonaInterview', () => {
 // ---- createErrorPersonaInterview ----
 
 describe('createErrorPersonaInterview', () => {
-  it('looks up persona via collectionGroup then sets interview.status to error', async () => {
-    const fakeRef = { update: vi.fn(() => Promise.resolve()) };
-    const snap = makeQuerySnap([{ id: 'persona-1', data: () => ({ topicId: 'topic-1' }), ref: fakeRef }]);
-    mockCollectionGroupGet.mockResolvedValue(snap);
-    await repo.createErrorPersonaInterview('persona-1', 'something failed');
-    expect(fakeRef.update).toHaveBeenCalledWith(
+  it('updates persona doc with error interview status', async () => {
+    await repo.createErrorPersonaInterview('topic-1', 'persona-1', 'something failed');
+    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/personas/persona-1');
+    expect(mockDocRef.update).toHaveBeenCalledWith(
       expect.objectContaining({ interview: expect.objectContaining({ status: 'error', errorMessage: 'something failed' }) })
     );
   });
@@ -149,23 +133,18 @@ describe('createErrorPersonaInterview', () => {
 // ---- createPersonaBelief ----
 
 describe('createPersonaBelief', () => {
-  it('appends belief via arrayUnion and returns {id}', async () => {
-    const fakeRef = { update: vi.fn(() => Promise.resolve()) };
-    const snap = makeQuerySnap([{ id: 'persona-1', data: () => ({ topicId: 'topic-1' }), ref: fakeRef }]);
-    mockCollectionGroupGet.mockResolvedValue(snap);
-    const result = await repo.createPersonaBelief({ personaId: 'persona-1', version: 0, content: '## 立場\n賛成' });
-    expect(fakeRef.update).toHaveBeenCalledWith(
+  it('appends belief via arrayUnion on persona doc, returns {id}', async () => {
+    const result = await repo.createPersonaBelief({ topicId: 'topic-1', personaId: 'persona-1', version: 0, content: '## 立場\n賛成' });
+    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/personas/persona-1');
+    expect(mockDocRef.update).toHaveBeenCalledWith(
       expect.objectContaining({ beliefs: expect.objectContaining({ _type: 'arrayUnion' }) })
     );
     expect(result.id).toBe('mock-id');
   });
 
   it('includes optional fields when provided', async () => {
-    const fakeRef = { update: vi.fn(() => Promise.resolve()) };
-    const snap = makeQuerySnap([{ id: 'p1', data: () => ({ topicId: 't1' }), ref: fakeRef }]);
-    mockCollectionGroupGet.mockResolvedValue(snap);
     await repo.createPersonaBelief({
-      personaId: 'p1', version: 1, content: '変化後',
+      topicId: 'topic-1', personaId: 'p1', version: 1, content: '変化後',
       changeType: 'partial_acceptance', triggeredByTurnId: 'turn-5',
     });
     expect(FieldValue.arrayUnion).toHaveBeenCalledWith(
@@ -444,18 +423,3 @@ describe('getTopicById', () => {
   });
 });
 
-// ---- getApprovedPersonasByTopicId ----
-
-describe('getApprovedPersonasByTopicId', () => {
-  it('returns approved personas in sortOrder order', async () => {
-    const docs = [
-      { id: 'p1', data: () => ({ id: 'p1', topicId: 't1', name: 'A', approved: true, sortOrder: 0, beliefs: [], stakeholderRole: 'r', age: 30, occupation: 'o', background: 'b', interests: 'i', stanceDirection: 's' }) },
-      { id: 'p2', data: () => ({ id: 'p2', topicId: 't1', name: 'B', approved: true, sortOrder: 1, beliefs: [], stakeholderRole: 'r2', age: 25, occupation: 'o2', background: 'b2', interests: 'i2', stanceDirection: 's2' }) },
-    ];
-    const snap = { docs };
-    mockOrderByGet.mockResolvedValue(snap);
-    const result = await repo.getApprovedPersonasByTopicId('t1');
-    expect(result).toHaveLength(2);
-    expect(result[0].id).toBe('p1');
-  });
-});

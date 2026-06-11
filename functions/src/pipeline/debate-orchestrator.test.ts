@@ -9,6 +9,7 @@ vi.mock('../db/repository.js', () => ({
   getPersonaInterviewByPersonaId: vi.fn(),
   getDebateTurnsBySessionId: vi.fn(),
   getDebateSessionById: vi.fn(),
+  getDebateSessionByTopicId: vi.fn(),
   createDebateTurn: vi.fn(),
   createPersonaBelief: vi.fn(),
   createPostDebateComment: vi.fn(),
@@ -90,6 +91,7 @@ function setupRepoDefaults() {
   vi.mocked(repo.updateTopicStatus).mockResolvedValue(undefined);
   vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([]);
   vi.mocked(repo.getDebateSessionById).mockResolvedValue({ id: 'session-1', topicId: 't1', status: 'running', createdAt: '' });
+  vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({ id: 'session-1', topicId: 't1', status: 'running', createdAt: '' });
   vi.mocked(repo.saveChapters).mockResolvedValue(undefined);
   vi.mocked(repo.updateCurrentChapterIndex).mockResolvedValue(undefined);
   vi.mocked(repo.saveEngagements).mockResolvedValue(undefined);
@@ -122,8 +124,7 @@ describe('DebateOrchestratorService', () => {
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
       const mockPersonaAgent = makeMockPersonaAgent();
-      const mockTracker = makeMockTracker();
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, mockTracker, shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -149,7 +150,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -164,7 +165,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -199,7 +200,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -219,7 +220,7 @@ describe('DebateOrchestratorService', () => {
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
       // All turns return no beliefChange
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -234,7 +235,7 @@ describe('DebateOrchestratorService', () => {
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
       const mockPersonaAgent = makeMockPersonaAgent();
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -252,7 +253,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -266,7 +267,7 @@ describe('DebateOrchestratorService', () => {
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
       const mockPersonaAgent = makeMockPersonaAgent();
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -280,7 +281,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -301,7 +302,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       const result = await service.resume('session-1', 4);
 
@@ -318,7 +319,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       const result = await service.resume('session-1', 2);
 
@@ -387,7 +388,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       const result = await service.run('session-1', 't1');
 
@@ -441,7 +442,7 @@ describe('DebateOrchestratorService', () => {
           .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: false } })
           .mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -456,7 +457,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -479,7 +480,7 @@ describe('DebateOrchestratorService', () => {
         generateOpening: vi.fn().mockResolvedValue({ ok: true, value: { content: '開会。', firstPersonaId: 'p1' } }),
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -541,7 +542,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -553,7 +554,7 @@ describe('DebateOrchestratorService', () => {
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
         generateChapters: vi.fn().mockResolvedValue({ ok: false, error: { code: 'AI_API_ERROR', message: 'fail', retryable: true } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -567,7 +568,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -584,7 +585,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -602,7 +603,7 @@ describe('DebateOrchestratorService', () => {
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
       });
       // turnsPerChapter=2 → maxChapterTurns=ceil(2*1.5)=3
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
 
       await service.run('session-1', 't1');
 
@@ -613,7 +614,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
 
       await service.run('session-1', 't1');
 
@@ -624,7 +625,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 });
 
       await service.run('session-1', 't1');
 
@@ -641,7 +642,7 @@ describe('DebateOrchestratorService', () => {
       });
       // turnsPerChapter=2 → maxChapterTurns=ceil(2*1.5)=3
       const service = new DebateOrchestratorService(
-        mockFacilitator, makeMockPersonaAgent(), makeMockTracker(),
+        mockFacilitator, makeMockPersonaAgent(),
         { ...shortOptions, maxTurns: 8, turnsPerChapter: 2 }
       );
 
@@ -674,7 +675,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       const result = await service.resume('session-1', 3);
 
@@ -699,7 +700,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       const result = await service.resume('session-1', 2);
 
@@ -719,7 +720,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       await service.resume('session-1', 2);
 
@@ -746,7 +747,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: 'クロージング。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       const result = await service.resume('session-1', 3);
 
@@ -760,7 +761,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -778,7 +779,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
 
       await service.run('session-1', 't1');
 
@@ -800,7 +801,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockTracker(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
       await service.resume('session-1', 2);
 
@@ -829,7 +830,7 @@ describe('DebateOrchestratorService', () => {
         const mockFacilitator = makeMockFacilitator({
           evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
         });
-        const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), { ...shortOptions, maxTurns: 4 });
+        const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, { ...shortOptions, maxTurns: 4 });
 
         await service.run('session-1', 't1');
 
@@ -854,7 +855,7 @@ describe('DebateOrchestratorService', () => {
         const mockFacilitator = makeMockFacilitator({
           evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: true, type: 'close', content: '終了。' } }),
         });
-        const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockTracker(), shortOptions);
+        const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
 
         await service.run('session-1', 't1');
 
@@ -884,7 +885,7 @@ describe('DebateOrchestratorService', () => {
         });
 
         const service = new DebateOrchestratorService(
-          makeMockFacilitator(), mockPersonaAgent, makeMockTracker(),
+          makeMockFacilitator(), mockPersonaAgent,
           { ...shortOptions, maxTurns: 4 },
         );
 
@@ -907,7 +908,7 @@ describe('DebateOrchestratorService', () => {
             ok: true, value: { score: 2, mode: 'reaction' as const, intentSummary: undefined },
           }),
         });
-        const lowService = new DebateOrchestratorService(lowFacilitator, lowAgent, makeMockTracker(), { ...shortOptions, maxTurns: 12 });
+        const lowService = new DebateOrchestratorService(lowFacilitator, lowAgent, { ...shortOptions, maxTurns: 12 });
         await lowService.run('session-1', 't1');
         const lowSummaryCalls = (lowFacilitator.generateChapterSummary as ReturnType<typeof vi.fn>).mock.calls.length;
 
@@ -917,7 +918,7 @@ describe('DebateOrchestratorService', () => {
             ok: true, value: { score: 5, mode: 'full' as const, intentSummary: undefined },
           }),
         });
-        const highService = new DebateOrchestratorService(highFacilitator, highAgent, makeMockTracker(), { ...shortOptions, maxTurns: 12 });
+        const highService = new DebateOrchestratorService(highFacilitator, highAgent, { ...shortOptions, maxTurns: 12 });
         await highService.run('session-1', 't1');
         const highSummaryCalls = (highFacilitator.generateChapterSummary as ReturnType<typeof vi.fn>).mock.calls.length;
 

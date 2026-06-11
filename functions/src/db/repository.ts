@@ -1,5 +1,6 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
+import type { LLMType } from '../types/index.js';
 
 const db = () => getFirestore();
 
@@ -24,6 +25,7 @@ export interface PersonaProfile {
   background: string;
   interests: string;
   stanceDirection: string;
+  llmType?: LLMType;
   approved: boolean;
   sortOrder: number;
 }
@@ -120,6 +122,7 @@ export interface CreatePersonaProfileParams {
   background: string;
   interests: string;
   stanceDirection: string;
+  llmType: LLMType;
   sortOrder: number;
 }
 
@@ -190,6 +193,7 @@ export const createPersonaProfile = async (params: CreatePersonaProfileParams): 
     background: params.background,
     interests: params.interests,
     stanceDirection: params.stanceDirection,
+    llmType: params.llmType,
     approved: false,
     sortOrder: params.sortOrder,
     beliefs: [],
@@ -378,7 +382,7 @@ export const getStakeholderMapByTopicId = async (topicId: string): Promise<Stake
     topicId,
     content: JSON.stringify(data.stakeholders.items),
     approved: data.stakeholders.approved,
-    createdAt: data.stakeholders.createdAt.toDate().toISOString(),
+    createdAt: data.stakeholders.createdAt?.toDate().toISOString() ?? '',
   };
 };
 
@@ -407,7 +411,7 @@ export const getDebateSessionByTopicId = async (topicId: string): Promise<Debate
     topicId,
     status: data.status,
     totalTurns: data.totalTurns ?? null,
-    createdAt: data.createdAt.toDate().toISOString(),
+    createdAt: data.createdAt?.toDate().toISOString() ?? '',
     completedAt: data.completedAt?.toDate().toISOString() ?? null,
     publishedAt: data.publishedAt?.toDate().toISOString() ?? null,
     chapters: data.chapters,
@@ -432,7 +436,7 @@ export const getDebateTurnsBySessionId = async (sessionId: string): Promise<Deba
     speakerName: t.speakerName,
     speakerRole: t.speakerRole,
     content: t.content,
-    createdAt: t.createdAt.toDate().toISOString(),
+    createdAt: t.createdAt?.toDate().toISOString() ?? '',
     chapterIndex: t.chapterIndex,
     fromQueue: t.fromQueue,
   }));
@@ -450,7 +454,7 @@ export const getPersonaBeliefsByPersonaId = async (topicId: string, personaId: s
     changeType: b.changeType ?? null,
     changeSummary: b.changeSummary ?? null,
     triggeredByTurnId: b.triggeredByTurnId ?? null,
-    createdAt: b.createdAt.toDate().toISOString(),
+    createdAt: b.createdAt?.toDate().toISOString() ?? '',
   }));
 };
 
@@ -479,8 +483,8 @@ export const getTopicById = async (id: string): Promise<DebateTopic | null> => {
     id: snap.id,
     title: data.title,
     status: data.status,
-    createdAt: data.createdAt.toDate().toISOString(),
-    updatedAt: data.updatedAt.toDate().toISOString(),
+    createdAt: data.createdAt?.toDate().toISOString() ?? '',
+    updatedAt: data.updatedAt?.toDate().toISOString() ?? '',
   };
 };
 

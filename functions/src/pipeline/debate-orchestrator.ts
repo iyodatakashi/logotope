@@ -90,6 +90,7 @@ function toPersonaAttributes(p: repo.PersonaProfile): PersonaAttributes {
     background: p.background,
     interests: p.interests,
     stanceDirection: p.stanceDirection,
+    llmType: p.llmType ?? 'claude',
   };
 }
 
