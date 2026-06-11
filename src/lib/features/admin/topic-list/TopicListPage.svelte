@@ -3,7 +3,7 @@
 	import { Button } from '@14ch/svelte-ui';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import { topicsStore } from '$lib/stores/topics.svelte.js';
-	import type { DebateStatus } from '$lib/types/index.js';
+	import type { DebateStatus } from '$lib/models/topic/topic.types.js';
 
 	const statusLabel: Record<DebateStatus, string> = {
 		pending: '未着手',

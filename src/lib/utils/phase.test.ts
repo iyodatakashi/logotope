@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { PHASE_DEFS, statusToPhase, phasePath } from './phase.js';
-import type { DebateStatus } from '$lib/types/index.js';
+import type { DebateStatus } from '$lib/models/topic/topic.types.js';
 
 describe('PHASE_DEFS', () => {
 	it('4フェーズがphase昇順で定義されている', () => {

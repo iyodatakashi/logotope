@@ -1,4 +1,4 @@
-import type { DebateStatus } from '$lib/types/index.js';
+import type { DebateStatus } from '$lib/models/topic/topic.types.js';
 
 export type Phase = 1 | 2 | 3 | 4;
 

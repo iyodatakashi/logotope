@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PublishedComment } from '$lib/types/index.js';
+	import type { PublishedComment } from '$lib/models/session/session.types.js';
 
 	interface Props {
 		comments: PublishedComment[];

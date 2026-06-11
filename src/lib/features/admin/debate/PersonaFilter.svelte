@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PersonaSummaryForViewer } from '$lib/types/index.js';
+	import type { PersonaSummaryForViewer } from '$lib/models/persona/persona.types.js';
 
 	interface Props {
 		personas: PersonaSummaryForViewer[];

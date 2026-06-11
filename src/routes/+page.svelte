@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import DebateCard from '$lib/features/admin/debate/DebateCard.svelte';
 	import { topicsStore } from '$lib/stores/topics.svelte.js';
-	import type { PublishedDebateSummary } from '$lib/types/index.js';
+	import type { PublishedDebateSummary } from '$lib/models/topic/topic.types.js';
 
 	const debates = $derived<PublishedDebateSummary[]>(
 		topicsStore.topics

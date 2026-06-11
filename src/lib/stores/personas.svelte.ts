@@ -1,6 +1,6 @@
 import { onSnapshot, collection, query, orderBy, doc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
 import { db } from '$lib/firebase.js';
-import type { PersonaDoc } from '$lib/types/index.js';
+import type { PersonaDoc } from '$lib/models/persona/persona.types.js';
 
 export const createPersonasStore = (topicId: string) => {
 	let personas = $state<PersonaDoc[]>([]);

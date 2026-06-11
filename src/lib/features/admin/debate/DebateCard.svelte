@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PublishedDebateSummary } from '$lib/types/index.js';
+	import type { PublishedDebateSummary } from '$lib/models/topic/topic.types.js';
 
 	interface Props {
 		debate: PublishedDebateSummary;

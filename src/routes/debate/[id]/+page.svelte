@@ -6,12 +6,12 @@
 	import { createSessionStore } from '$lib/stores/session.svelte.js';
 	import DebateViewer from '$lib/features/admin/debate/DebateViewer.svelte';
 	import PostDebateComments from '$lib/sharedComponents/PostDebateComments.svelte';
+	import type { PersonaSummaryForViewer } from '$lib/models/persona/persona.types.js';
 	import type {
 		PublishedDebateDetail,
-		PersonaSummaryForViewer,
 		PublishedTurn,
 		PublishedComment
-	} from '$lib/types/index.js';
+	} from '$lib/models/session/session.types.js';
 
 	const topicId = page.params.id as string;
 	const personasStore = createPersonasStore(topicId);

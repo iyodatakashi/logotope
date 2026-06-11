@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { PersonaSummaryForViewer, PublishedTurn } from '$lib/types/index.js';
+	import type { PersonaSummaryForViewer } from '$lib/models/persona/persona.types.js';
+	import type { PublishedTurn } from '$lib/models/session/session.types.js';
 
 	interface Props {
 		persona: PersonaSummaryForViewer;

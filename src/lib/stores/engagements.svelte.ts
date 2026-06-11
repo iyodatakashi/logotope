@@ -1,6 +1,6 @@
 import { onSnapshot, collection } from 'firebase/firestore';
 import { db } from '$lib/firebase.js';
-import type { EngagementHistoryEntry } from '$lib/types/index.js';
+import type { EngagementHistoryEntry } from '$lib/models/engagement/engagement.types.js';
 
 export type EngagementHistoryEntryWithPersona = EngagementHistoryEntry & { turnIndex: number; personaId: string };
 

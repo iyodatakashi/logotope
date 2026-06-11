@@ -1,7 +1,37 @@
 import { Timestamp } from 'firebase/firestore';
-import type { DebateStatus, StakeholderDoc } from '$lib/types/index.js';
 
-export interface TopicDoc {
+export type DebateStatus =
+	| 'pending'
+	| 'surveying'
+	| 'generating_personas'
+	| 'interviewing'
+	| 'debating'
+	| 'completed'
+	| 'published';
+
+export type TopicSummary = {
+	id: string;
+	title: string;
+	status: DebateStatus;
+	createdAt: string;
+};
+
+export type PublishedDebateSummary = {
+	id: string;
+	topicTitle: string;
+	personaCount: number;
+	publishedAt: string;
+};
+
+export type StakeholderDoc = {
+	role: string;
+	reason: string;
+	mainInterests: string[];
+	stanceDirection: string;
+	minorityLevel: string;
+};
+
+export type TopicDoc = {
 	id: string;
 	title: string;
 	status: DebateStatus;
@@ -14,4 +44,4 @@ export interface TopicDoc {
 		approved: boolean;
 		createdAt: Timestamp;
 	};
-}
+};

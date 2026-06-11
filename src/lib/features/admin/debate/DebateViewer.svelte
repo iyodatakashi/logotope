@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PublishedDebateDetail, PublishedTurn, ChapterDoc } from '$lib/types/index.js';
+	import type { PublishedDebateDetail, PublishedTurn, ChapterDoc } from '$lib/models/session/session.types.js';
 	import TurnDisplay from './TurnDisplay.svelte';
 	import PersonaFilter from './PersonaFilter.svelte';
 	import BeliefEvolution from '$lib/features/admin/debate/BeliefEvolution.svelte';

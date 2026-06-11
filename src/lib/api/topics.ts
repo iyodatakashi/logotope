@@ -1,6 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import { functions } from '$lib/firebase.js';
-import type { StakeholderDoc } from '$lib/types/index.js';
+import type { StakeholderDoc } from '$lib/models/topic/topic.types.js';
 
 export interface PersonaData {
 	stakeholderRole: string;
