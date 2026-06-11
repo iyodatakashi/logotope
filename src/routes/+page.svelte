@@ -1,36 +1,24 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { collection, query, where, onSnapshot } from 'firebase/firestore';
-	import { db } from '$lib/firebase.js';
 	import DebateCard from '$lib/components/public/DebateCard.svelte';
-	import type { TopicDoc, PublishedDebateSummary } from '$lib/types/index.js';
+	import { createPublishedTopicsStore } from '$lib/stores/topics.svelte.js';
+	import type { PublishedDebateSummary } from '$lib/types/index.js';
 
-	let debates = $state<PublishedDebateSummary[]>([]);
-	let loaded = $state(false);
+	const publishedStore = createPublishedTopicsStore();
+
+	const debates = $derived<PublishedDebateSummary[]>(
+		publishedStore.topics.map((t) => ({
+			id: t.id,
+			topicTitle: t.title,
+			personaCount: t.personaCount ?? 0,
+			publishedAt: (t.publishedAt ?? t.updatedAt).toDate().toISOString()
+		}))
+	);
+	const loaded = $derived(publishedStore.isLoaded);
 
 	onMount(() => {
-		const q = query(collection(db, 'topics'), where('status', '==', 'published'));
-		const unsub = onSnapshot(q, (snap) => {
-			const raw = snap.docs
-				.map((d) => {
-					const data = d.data() as TopicDoc;
-					return {
-						debate: {
-							id: d.id,
-							topicTitle: data.title,
-							personaCount: data.personaCount ?? 0,
-							publishedAt:
-								data.publishedAt?.toDate().toISOString() ??
-								data.updatedAt.toDate().toISOString()
-						} as PublishedDebateSummary,
-						ts: data.publishedAt?.seconds ?? data.updatedAt.seconds
-					};
-				})
-				.sort((a, b) => b.ts - a.ts);
-			debates = raw.map(({ debate }) => debate);
-			loaded = true;
-		});
-		return unsub;
+		publishedStore.start();
+		return () => publishedStore.stop();
 	});
 </script>
 

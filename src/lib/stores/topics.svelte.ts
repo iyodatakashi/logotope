@@ -1,4 +1,4 @@
-import { onSnapshot, collection, query, orderBy, doc, setDoc, deleteDoc, writeBatch, getDocs, Timestamp } from 'firebase/firestore';
+import { onSnapshot, collection, query, where, orderBy, doc, setDoc, deleteDoc, writeBatch, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '$lib/firebase.js';
 import { nanoid } from 'nanoid';
 import type { TopicDoc } from '$lib/types/index.js';
@@ -59,5 +59,41 @@ export const createTopicsStore = () => {
 		stop,
 		createTopic,
 		deleteTopic
+	};
+};
+
+export const createPublishedTopicsStore = () => {
+	let topics = $state<TopicDoc[]>([]);
+	let isLoaded = $state(false);
+	let unsubscribe: (() => void) | null = null;
+
+	const start = () => {
+		const q = query(collection(db, 'topics'), where('status', '==', 'published'));
+		unsubscribe = onSnapshot(q, (snap) => {
+			topics = snap.docs
+				.map((d) => ({ id: d.id, ...d.data() }) as TopicDoc)
+				.sort(
+					(a, b) =>
+						(b.publishedAt?.seconds ?? b.updatedAt.seconds) -
+						(a.publishedAt?.seconds ?? a.updatedAt.seconds)
+				);
+			isLoaded = true;
+		});
+	};
+
+	const stop = () => {
+		unsubscribe?.();
+		unsubscribe = null;
+	};
+
+	return {
+		get topics() {
+			return topics;
+		},
+		get isLoaded() {
+			return isLoaded;
+		},
+		start,
+		stop
 	};
 };
