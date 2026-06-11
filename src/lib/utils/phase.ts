@@ -31,5 +31,5 @@ export const statusToPhase = (status: DebateStatus): Phase => STATUS_PHASE_MAP[s
 
 export const phasePath = (topicId: string, phase: Phase): string => {
 	const def = PHASE_DEFS.find((d) => d.phase === phase) ?? PHASE_DEFS[0];
-	return `/admin/debate/${topicId}/${def.slug}`;
+	return `/admin/topics/${topicId}/${def.slug}`;
 };

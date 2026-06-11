@@ -1,17 +1,29 @@
-import { onSnapshot, collection, query, where, orderBy, doc, setDoc, deleteDoc, writeBatch, getDocs, Timestamp } from 'firebase/firestore';
+import {
+	onSnapshot,
+	collection,
+	query,
+	orderBy,
+	doc,
+	setDoc,
+	writeBatch,
+	getDocs,
+	Timestamp
+} from 'firebase/firestore';
 import { db } from '$lib/firebase.js';
 import { nanoid } from 'nanoid';
-import type { TopicDoc } from '$lib/types/index.js';
+import type { TopicDoc } from '$lib/models/topic/topic.types';
+import { createTopicStore, type TopicStore } from '$lib/models/topic/topic.svelte.js';
 
-export const createTopicsStore = () => {
-	let topics = $state<TopicDoc[]>([]);
+const create = () => {
+	let topics = $state<TopicStore[]>([]);
 	let isLoaded = $state(false);
 	let unsubscribe: (() => void) | null = null;
 
 	const start = () => {
+		if (unsubscribe) return;
 		const q = query(collection(db, 'topics'), orderBy('createdAt', 'desc'));
 		unsubscribe = onSnapshot(q, (snap) => {
-			topics = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as TopicDoc);
+			topics = snap.docs.map((d) => createTopicStore({ id: d.id, ...d.data() } as TopicDoc));
 			isLoaded = true;
 		});
 	};
@@ -21,7 +33,7 @@ export const createTopicsStore = () => {
 		unsubscribe = null;
 	};
 
-	const createTopic = async (title: string): Promise<string> => {
+	const addTopic = async (title: string): Promise<string> => {
 		const id = nanoid();
 		const now = Timestamp.now();
 		await setDoc(doc(db, 'topics', id), {
@@ -55,45 +67,12 @@ export const createTopicsStore = () => {
 		get isLoaded() {
 			return isLoaded;
 		},
+		getById: (id: string) => topics.find((ts) => ts.id === id),
 		start,
 		stop,
-		createTopic,
+		addTopic,
 		deleteTopic
 	};
 };
 
-export const createPublishedTopicsStore = () => {
-	let topics = $state<TopicDoc[]>([]);
-	let isLoaded = $state(false);
-	let unsubscribe: (() => void) | null = null;
-
-	const start = () => {
-		const q = query(collection(db, 'topics'), where('status', '==', 'published'));
-		unsubscribe = onSnapshot(q, (snap) => {
-			topics = snap.docs
-				.map((d) => ({ id: d.id, ...d.data() }) as TopicDoc)
-				.sort(
-					(a, b) =>
-						(b.publishedAt?.seconds ?? b.updatedAt.seconds) -
-						(a.publishedAt?.seconds ?? a.updatedAt.seconds)
-				);
-			isLoaded = true;
-		});
-	};
-
-	const stop = () => {
-		unsubscribe?.();
-		unsubscribe = null;
-	};
-
-	return {
-		get topics() {
-			return topics;
-		},
-		get isLoaded() {
-			return isLoaded;
-		},
-		start,
-		stop
-	};
-};
+export const topicsStore = create();

@@ -1,0 +1,364 @@
+<script lang="ts">
+	import { onMount } from 'svelte';
+	import { updateDoc, doc, Timestamp } from 'firebase/firestore';
+	import { db } from '$lib/firebase.js';
+	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
+	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
+	import { runInterview } from '$lib/api/topics.js';
+
+	interface Props {
+		topicId: string;
+		topicTitle: string;
+		readonly?: boolean;
+	}
+	let { topicId, topicTitle, readonly = false }: Props = $props();
+
+	// svelte-ignore state_referenced_locally -- ストアはマウント時の topicId に束縛する
+	const personasStore = createPersonasStore(topicId);
+
+	let starting = $state(false);
+	let started = $state(false);
+	let error = $state('');
+	let expanded = $state<Set<string>>(new Set());
+
+	function toggle(id: string) {
+		expanded = new Set(
+			expanded.has(id) ? [...expanded].filter((x) => x !== id) : [...expanded, id]
+		);
+	}
+
+	const interviews = $derived(
+		personasStore.personas.map((p) => ({
+			personaId: p.id,
+			personaName: p.name,
+			stakeholderRole: p.stakeholderRole,
+			researchSummary: p.interview?.interviewRecord ?? '',
+			initialBelief: p.beliefs[0]?.content ?? '',
+			status: p.interview?.status ?? 'pending'
+		}))
+	);
+
+	const completedCount = $derived(
+		personasStore.personas.filter((p) => p.interview?.status === 'completed').length
+	);
+	const errorCount = $derived(
+		personasStore.personas.filter((p) => p.interview?.status === 'error').length
+	);
+	const pendingCount = $derived(personasStore.personas.filter((p) => p.interview == null).length);
+	const totalCount = $derived(personasStore.personas.length);
+	const allCompleted = $derived(completedCount === totalCount && totalCount > 0);
+	const hasAnyStarted = $derived(personasStore.personas.some((p) => p.interview != null));
+
+	async function doRunInterview(personaId: string): Promise<void> {
+		const persona = personasStore.personas.find((p) => p.id === personaId);
+		if (!persona) return;
+
+		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
+			interview: { status: 'in_progress' }
+		});
+
+		try {
+			const { researchSummary, initialBelief } = await runInterview(topicTitle, {
+				name: persona.name,
+				age: persona.age,
+				occupation: persona.occupation,
+				stakeholderRole: persona.stakeholderRole,
+				background: persona.background,
+				interests: persona.interests
+			});
+
+			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
+				interview: {
+					interviewRecord: researchSummary,
+					status: 'completed',
+					completedAt: Timestamp.now()
+				},
+				beliefs: [{ version: 0, content: initialBelief, createdAt: Timestamp.now() }]
+			});
+		} catch (e) {
+			const errorMessage = e instanceof Error ? e.message : 'エラーが発生しました';
+			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
+				interview: { status: 'error', errorMessage }
+			}).catch(() => undefined);
+		}
+	}
+
+	async function doRunAll() {
+		started = true;
+		starting = true;
+		error = '';
+		const pending = personasStore.personas.filter((p) => p.interview?.status !== 'completed');
+		await Promise.all(pending.map((p) => doRunInterview(p.id)));
+		starting = false;
+	}
+
+	async function handleRetry(personaId: string) {
+		await doRunInterview(personaId).catch((e) => {
+			error = e instanceof Error ? e.message : 'リトライに失敗しました';
+		});
+	}
+
+	async function handleApprove() {
+		error = '';
+		try {
+			await currentTopicStore.topic?.approveInterviews();
+		} catch (e) {
+			error = e instanceof Error ? e.message : '操作に失敗しました';
+		}
+	}
+
+	onMount(() => {
+		personasStore.start();
+		return () => personasStore.stop();
+	});
+</script>
+
+<section>
+	<h2>フェーズ 3: ペルソナ取材</h2>
+	<p class="topic">{topicTitle}</p>
+
+	{#if !personasStore.isLoaded}
+		<p class="hint">読み込み中...</p>
+	{:else if totalCount > 0}
+		<div class="progress-summary">
+			<span class="count completed">{completedCount} 完了</span>
+			{#if pendingCount > 0}<span class="count pending">{pendingCount} 待機中</span>{/if}
+			{#if errorCount > 0}<span class="count error-count">{errorCount} エラー</span>{/if}
+			<span class="count total">/ {totalCount} 件</span>
+			{#if starting}<span class="hint">（取材中...）</span>{/if}
+		</div>
+	{/if}
+
+	{#if interviews.length > 0}
+		<ul class="list">
+			{#each interviews as iv (iv.personaId)}
+				<li
+					class="item"
+					class:item-completed={iv.status === 'completed'}
+					class:item-error={iv.status === 'error'}
+					class:item-pending={iv.status === 'pending'}
+				>
+					<div class="toggle-row">
+						<button class="toggle" onclick={() => toggle(iv.personaId)}>
+							<span class="name-role">
+								<strong>{iv.personaName}</strong>
+								<span class="role">{iv.stakeholderRole}</span>
+							</span>
+							<span
+								class="status-badge"
+								class:done={iv.status === 'completed'}
+								class:active={iv.status === 'in_progress'}
+								class:err={iv.status === 'error'}
+							>
+								{#if iv.status === 'completed'}完了
+								{:else if iv.status === 'in_progress'}取材中
+								{:else if iv.status === 'error'}エラー
+								{:else}待機中{/if}
+							</span>
+							{#if iv.initialBelief}
+								<span class="arrow">{expanded.has(iv.personaId) ? '▲' : '▼'}</span>
+							{/if}
+						</button>
+						{#if !readonly && iv.status === 'error'}
+							<button class="retry" onclick={() => void handleRetry(iv.personaId)}>リトライ</button>
+						{/if}
+					</div>
+
+					{#if expanded.has(iv.personaId) && iv.initialBelief}
+						<div class="detail">
+							{#if iv.researchSummary}
+								<div class="section">
+									<p class="section-label">リサーチ内容</p>
+									<pre class="record research">{iv.researchSummary}</pre>
+								</div>
+							{/if}
+							<div class="section">
+								<p class="section-label">初期信念</p>
+								<pre class="record belief">{iv.initialBelief}</pre>
+							</div>
+						</div>
+					{/if}
+				</li>
+			{/each}
+		</ul>
+	{/if}
+
+	{#if !readonly}
+		<div class="actions">
+			{#if personasStore.isLoaded && !started && !hasAnyStarted && totalCount > 0}
+				<button class="primary" onclick={doRunAll}>取材を開始する</button>
+			{:else if allCompleted}
+				<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
+			{/if}
+		</div>
+	{/if}
+</section>
+
+<style>
+	section {
+		padding: 16px;
+	}
+	.topic {
+		color: #555;
+		margin-bottom: 16px;
+	}
+	.progress-summary {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin-bottom: 8px;
+		font-size: 0.95rem;
+	}
+	.count {
+		font-weight: 600;
+	}
+	.count.completed {
+		color: #2e7d32;
+	}
+	.count.pending {
+		color: #1565c0;
+	}
+	.count.error-count {
+		color: #c62828;
+	}
+	.count.total {
+		color: #555;
+		font-weight: 400;
+	}
+	.hint {
+		color: #888;
+		font-size: 0.875rem;
+	}
+	.list {
+		list-style: none;
+		padding: 0;
+	}
+	.item {
+		border: 1px solid #e0e0e0;
+		border-radius: 8px;
+		margin-bottom: 6px;
+		overflow: hidden;
+	}
+	.item-completed {
+		border-color: #a5d6a7;
+		background: #f9fff9;
+	}
+	.item-error {
+		border-color: #ef9a9a;
+		background: #fff9f9;
+	}
+	.item-pending {
+		border-color: #90caf9;
+		background: #f5f9ff;
+	}
+	.toggle-row {
+		display: flex;
+		align-items: center;
+	}
+	.toggle {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		flex: 1;
+		padding: 10px 12px;
+		background: none;
+		border: none;
+		cursor: pointer;
+		text-align: left;
+	}
+	.toggle:hover {
+		background: rgba(0, 0, 0, 0.03);
+	}
+	.name-role {
+		display: flex;
+		flex-direction: column;
+		flex: 1;
+	}
+	.role {
+		font-size: 0.75rem;
+		color: #757575;
+	}
+	.status-badge {
+		padding: 2px 8px;
+		background: #e3f2fd;
+		color: #1565c0;
+		border-radius: 12px;
+		font-size: 0.75rem;
+		flex-shrink: 0;
+	}
+	.status-badge.done {
+		background: #c8e6c9;
+		color: #2e7d32;
+	}
+	.status-badge.active {
+		background: #bbdefb;
+		color: #1565c0;
+		font-weight: 600;
+	}
+	.status-badge.err {
+		background: #ffcdd2;
+		color: #c62828;
+	}
+	.retry {
+		padding: 4px 10px;
+		background: #fff3e0;
+		border: 1px solid #ffb74d;
+		border-radius: 4px;
+		font-size: 0.75rem;
+		cursor: pointer;
+		margin-right: 8px;
+	}
+	.arrow {
+		color: #757575;
+		flex-shrink: 0;
+	}
+	.detail {
+		border-top: 1px solid #e0e0e0;
+	}
+	.section {
+		padding: 10px 12px;
+		border-bottom: 1px solid #f0f0f0;
+	}
+	.section:last-child {
+		border-bottom: none;
+	}
+	.section-label {
+		font-size: 0.75rem;
+		font-weight: 600;
+		color: #757575;
+		margin: 0 0 6px;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+	.record {
+		font-size: 0.875rem;
+		white-space: pre-wrap;
+		word-break: break-word;
+		margin: 0;
+		background: none;
+		padding: 0;
+	}
+	.research {
+		color: #555;
+	}
+	.belief {
+		color: #1a237e;
+	}
+	.actions {
+		margin-top: 16px;
+		display: flex;
+		gap: 8px;
+	}
+	.primary {
+		padding: 10px 24px;
+		background: #1565c0;
+		color: white;
+		border: none;
+		border-radius: 4px;
+		cursor: pointer;
+		font-size: 1rem;
+	}
+	.primary:hover {
+		background: #0d47a1;
+	}
+</style>

@@ -54,6 +54,7 @@ Firebase App Hosting 上の SvelteKit（SSR）＋ Firebase Functions v2（AI パ
 - ESLint + Prettier（プロジェクト設定に従う）
 - コンポーネントファイル: `.svelte`（Svelte 5 runes構文）
 - サーバーサイドロジック: `.ts`（Functions内）
+- 変数名・引数名は省略しない（例: `ts` → `topic`、`t` → `topic`、`d` → `doc`）
 
 ### Testing
 - Unit: Vitest

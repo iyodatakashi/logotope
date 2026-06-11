@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { createTopicStore } from '$lib/stores/topic.svelte.js';
+	import { topicsStore } from '$lib/stores/topics.svelte.js';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { createSessionStore } from '$lib/stores/session.svelte.js';
-	import DebateViewer from '$lib/components/public/DebateViewer.svelte';
-	import PostDebateComments from '$lib/components/public/PostDebateComments.svelte';
+	import DebateViewer from '$lib/features/admin/debate/DebateViewer.svelte';
+	import PostDebateComments from '$lib/sharedComponents/PostDebateComments.svelte';
 	import type {
 		PublishedDebateDetail,
 		PersonaSummaryForViewer,
@@ -14,19 +14,17 @@
 	} from '$lib/types/index.js';
 
 	const topicId = page.params.id as string;
-	const topicStore = createTopicStore(topicId);
 	const personasStore = createPersonasStore(topicId);
 	const sessionStore = createSessionStore(topicId);
 
-	const isLoaded = $derived(
-		topicStore.isLoaded && personasStore.isLoaded && sessionStore.isLoaded
-	);
+	const currentTopic = $derived(topicsStore.topics.find((topic) => topic.id === topicId));
+	const isLoaded = $derived(topicsStore.isLoaded && personasStore.isLoaded && sessionStore.isLoaded);
 
 	const personaMap = $derived(new Map(personasStore.personas.map((p) => [p.id, p])));
 
 	const debate = $derived.by((): PublishedDebateDetail | null => {
-		if (!topicStore.topic || !sessionStore.session) return null;
-		const topic = topicStore.topic;
+		if (!currentTopic || !sessionStore.session) return null;
+		const topic = currentTopic;
 		const session = sessionStore.session;
 
 		const personas: PersonaSummaryForViewer[] = personasStore.personas.map((p) => ({
@@ -82,17 +80,24 @@
 				};
 			});
 
-		return { id: topic.id, topicTitle: topic.title, personas, turns, postDebateComments, chapters: session.chapters };
+		return {
+			id: topic.id,
+			topicTitle: topic.title,
+			personas,
+			turns,
+			postDebateComments,
+			chapters: session.chapters
+		};
 	});
 
 	const personaNames = $derived(debate?.personas.map((p) => p.name).join('・') ?? '');
 
 	onMount(() => {
-		topicStore.start();
+		topicsStore.start();
 		personasStore.start();
 		sessionStore.start();
 		return () => {
-			topicStore.stop();
+			topicsStore.stop();
 			personasStore.stop();
 			sessionStore.stop();
 		};
@@ -103,12 +108,12 @@
 	<title>{debate?.topicTitle ?? 'logotope'} — logotope</title>
 	<meta
 		name="description"
-		content="{debate ? `${debate.topicTitle}についての多角的な討論。${personaNames}が参加。` : ''}"
+		content={debate ? `${debate.topicTitle}についての多角的な討論。${personaNames}が参加。` : ''}
 	/>
 	<meta property="og:title" content="{debate?.topicTitle ?? 'logotope'} — logotope" />
 	<meta
 		property="og:description"
-		content="{debate ? `${debate.topicTitle}についての多角的な討論。${personaNames}が参加。` : ''}"
+		content={debate ? `${debate.topicTitle}についての多角的な討論。${personaNames}が参加。` : ''}
 	/>
 </svelte:head>
 

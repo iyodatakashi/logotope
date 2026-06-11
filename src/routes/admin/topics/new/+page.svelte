@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { createTopicsStore } from '$lib/stores/topics.svelte.js';
-	import TopicForm from '$lib/components/admin/TopicForm.svelte';
+	import { topicsStore } from '$lib/stores/topics.svelte.js';
+	import TopicForm from '$lib/features/admin/new-topic/TopicForm.svelte';
 
-	const topicsStore = createTopicsStore();
 	let submitting = $state(false);
 	let error = $state('');
 
@@ -11,8 +10,8 @@
 		submitting = true;
 		error = '';
 		try {
-			const topicId = await topicsStore.createTopic(title);
-			goto(`/admin/debate/${topicId}`);
+			const topicId = await topicsStore.addTopic(title);
+			goto(`/admin/topics/${topicId}`);
 		} catch {
 			error = 'テーマの作成に失敗しました。再試行してください。';
 			submitting = false;
@@ -21,7 +20,7 @@
 </script>
 
 <div class="page">
-	<a href="/admin">← ダッシュボードへ戻る</a>
+	<a href="/admin/topics">← ダッシュボードへ戻る</a>
 	<h1>新しいテーマを作成</h1>
 	{#if error}
 		<p role="alert" class="error">{error}</p>

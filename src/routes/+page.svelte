@@ -1,33 +1,35 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import DebateCard from '$lib/components/public/DebateCard.svelte';
-	import { createPublishedTopicsStore } from '$lib/stores/topics.svelte.js';
+	import DebateCard from '$lib/features/admin/debate/DebateCard.svelte';
+	import { topicsStore } from '$lib/stores/topics.svelte.js';
 	import type { PublishedDebateSummary } from '$lib/types/index.js';
 
-	const publishedStore = createPublishedTopicsStore();
-
 	const debates = $derived<PublishedDebateSummary[]>(
-		publishedStore.topics.map((t) => ({
-			id: t.id,
-			topicTitle: t.title,
-			personaCount: t.personaCount ?? 0,
-			publishedAt: (t.publishedAt ?? t.updatedAt).toDate().toISOString()
-		}))
+		topicsStore.topics
+			.filter((topic) => topic.status === 'published')
+			.sort(
+				(a, b) =>
+					(b.publishedAt?.seconds ?? b.updatedAt.seconds) -
+					(a.publishedAt?.seconds ?? a.updatedAt.seconds)
+			)
+			.map((topic) => ({
+				id: topic.id,
+				topicTitle: topic.title,
+				personaCount: topic.personaCount ?? 0,
+				publishedAt: (topic.publishedAt ?? topic.updatedAt).toDate().toISOString()
+			}))
 	);
-	const loaded = $derived(publishedStore.isLoaded);
+	const loaded = $derived(topicsStore.isLoaded);
 
 	onMount(() => {
-		publishedStore.start();
-		return () => publishedStore.stop();
+		topicsStore.start();
+		return () => topicsStore.stop();
 	});
 </script>
 
 <svelte:head>
 	<title>logotope — 多様な視点から議論を可視化</title>
-	<meta
-		name="description"
-		content="AIが多様な立場の意見を公平に可視化する討論プラットフォーム。"
-	/>
+	<meta name="description" content="AIが多様な立場の意見を公平に可視化する討論プラットフォーム。" />
 	<meta property="og:title" content="logotope — 多様な視点から議論を可視化" />
 	<meta
 		property="og:description"
