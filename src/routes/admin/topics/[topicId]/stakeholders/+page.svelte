@@ -3,18 +3,16 @@
 	import PhaseResetPanel from '$lib/sharedComponents/PhaseResetPanel.svelte';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 	import { page } from '$app/state';
-	import { statusToPhase } from '$lib/utils/phase.js';
 
 	const topicId = page.params.topicId as string;
-	const isView = $derived(statusToPhase(currentTopicStore.topic?.status ?? 'surveying') > 1);
 </script>
 
 <Phase1Stakeholders
+	{topicId}
 	topicTitle={currentTopicStore.topic?.title ?? ''}
-	readonly={isView}
 />
 
-{#if isView}
+{#if currentTopicStore.topic}
 	<PhaseResetPanel
 		phase={1}
 		{topicId}
@@ -23,6 +21,6 @@
 			'ペルソナの取材記録と初期信念',
 			'討論セッション（全ターン・章構成）'
 		]}
-		onReset={currentTopicStore.resetToPhase1}
+		onReset={currentTopicStore.topic.resetToPhase1}
 	/>
 {/if}

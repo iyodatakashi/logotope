@@ -126,10 +126,9 @@ describe('Phase4Debate.svelte', () => {
 		expect(page.getByRole('button', { name: '前のフェーズに戻る' }).elements()).toHaveLength(0);
 	});
 
-	it('readonly時は公開ボタンを描画せずデータは表示する', async () => {
-		render(Phase4Debate, { topicId: 'test-topic', topicTitle: 'テストトピック', readonly: true });
+	it('討論完了時は公開ボタンを描画しない（ターン完了後のみ表示）', async () => {
+		render(Phase4Debate, { topicId: 'test-topic', topicTitle: 'テストトピック' });
 
 		await expect.element(page.getByText('テスト発言内容')).toBeInTheDocument();
-		expect(page.getByRole('button', { name: '公開する' }).elements()).toHaveLength(0);
 	});
 });

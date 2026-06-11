@@ -1,21 +1,21 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { Button } from '@14ch/svelte-ui';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 
 	interface Props {
 		topicId: string;
 		topicTitle: string;
-		readonly?: boolean;
 	}
-	let { topicId, topicTitle, readonly = false }: Props = $props();
+	let { topicId, topicTitle }: Props = $props();
 
 	// svelte-ignore state_referenced_locally -- ストアはマウント時の topicId に束縛する
 	const personasStore = createPersonasStore(topicId);
 
 	let starting = $state(false);
 	let started = $state(false);
-	let error = $state('');
 	let expanded = $state<Set<string>>(new Set());
 
 	function toggle(id: string) {
@@ -53,25 +53,18 @@
 	async function doRunAll() {
 		started = true;
 		starting = true;
-		error = '';
 		const pending = personasStore.personas.filter((p) => p.interview?.status !== 'completed');
 		await Promise.all(pending.map((p) => doRunInterview(p.id)));
 		starting = false;
 	}
 
 	async function handleRetry(personaId: string) {
-		await doRunInterview(personaId).catch((e) => {
-			error = e instanceof Error ? e.message : 'リトライに失敗しました';
-		});
+		await doRunInterview(personaId);
 	}
 
 	async function handleApprove() {
-		error = '';
-		try {
-			await currentTopicStore.topic?.approveInterviews();
-		} catch (e) {
-			error = e instanceof Error ? e.message : '操作に失敗しました';
-		}
+		await currentTopicStore.topic?.approveInterviews();
+		goto(`/admin/topics/${topicId}/debate`);
 	}
 
 	onMount(() => {
@@ -126,8 +119,10 @@
 								<span class="arrow">{expanded.has(iv.personaId) ? '▲' : '▼'}</span>
 							{/if}
 						</button>
-						{#if !readonly && iv.status === 'error'}
-							<button class="retry" onclick={() => void handleRetry(iv.personaId)}>リトライ</button>
+						{#if iv.status === 'error'}
+							<Button variant="outlined" onclick={() => void handleRetry(iv.personaId)}
+								>リトライ</Button
+							>
 						{/if}
 					</div>
 
@@ -150,15 +145,13 @@
 		</ul>
 	{/if}
 
-	{#if !readonly}
-		<div class="actions">
-			{#if personasStore.isLoaded && !started && !hasAnyStarted && totalCount > 0}
-				<button class="primary" onclick={doRunAll}>取材を開始する</button>
-			{:else if allCompleted}
-				<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
-			{/if}
-		</div>
-	{/if}
+	<div class="actions">
+		{#if personasStore.isLoaded && !started && !hasAnyStarted && totalCount > 0}
+			<Button variant="filled" onclick={doRunAll}>取材を開始する</Button>
+		{:else if allCompleted}
+			<Button variant="filled" onclick={handleApprove}>承認する</Button>
+		{/if}
+	</div>
 </section>
 
 <style>
@@ -266,15 +259,6 @@
 		background: #ffcdd2;
 		color: #c62828;
 	}
-	.retry {
-		padding: 4px 10px;
-		background: #fff3e0;
-		border: 1px solid #ffb74d;
-		border-radius: 4px;
-		font-size: 0.75rem;
-		cursor: pointer;
-		margin-right: 8px;
-	}
 	.arrow {
 		color: #757575;
 		flex-shrink: 0;
@@ -315,17 +299,5 @@
 		margin-top: 16px;
 		display: flex;
 		gap: 8px;
-	}
-	.primary {
-		padding: 10px 24px;
-		background: #1565c0;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 1rem;
-	}
-	.primary:hover {
-		background: #0d47a1;
 	}
 </style>

@@ -1,11 +1,13 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { Button } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 
 	interface Props {
+		topicId: string;
 		topicTitle: string;
-		readonly?: boolean;
 	}
-	let { topicTitle, readonly = false }: Props = $props();
+	let { topicId, topicTitle }: Props = $props();
 
 	let generating = $state(false);
 	let error = $state('');
@@ -29,6 +31,7 @@
 	async function handleApprove() {
 		try {
 			await currentTopicStore.topic?.approveStakeholders();
+			goto(`/admin/topics/${topicId}/personas`);
 		} catch (e) {
 			error = e instanceof Error ? e.message : '操作に失敗しました';
 		}
@@ -58,14 +61,14 @@
 				</li>
 			{/each}
 		</ul>
-		{#if !readonly && !isRunning && !isStopped}
+		{#if !isRunning && !isStopped}
 			<div class="actions">
-				<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
+				<Button variant="filled" onclick={handleApprove}>承認する</Button>
 			</div>
 		{/if}
-	{:else if !readonly && !isRunning}
+	{:else if !isRunning}
 		<div class="actions">
-			<button class="primary" onclick={doGenerate}>調査を開始する</button>
+			<Button variant="filled" onclick={doGenerate}>調査を開始する</Button>
 		</div>
 	{/if}
 </section>
@@ -121,17 +124,5 @@
 		margin-top: 16px;
 		display: flex;
 		gap: 8px;
-	}
-	.primary {
-		padding: 10px 24px;
-		background: #1565c0;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 1rem;
-	}
-	.primary:hover {
-		background: #0d47a1;
 	}
 </style>

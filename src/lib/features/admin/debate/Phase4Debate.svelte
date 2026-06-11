@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { Button } from '@14ch/svelte-ui';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 	import { createSessionStore } from '$lib/stores/session.svelte.js';
@@ -8,9 +9,8 @@
 	interface Props {
 		topicId: string;
 		topicTitle: string;
-		readonly?: boolean;
 	}
-	let { topicId, topicTitle, readonly = false }: Props = $props();
+	let { topicId, topicTitle }: Props = $props();
 
 	// svelte-ignore state_referenced_locally -- ストアはマウント時の topicId に束縛する
 	const sessionStore = createSessionStore(topicId);
@@ -72,7 +72,7 @@
 	);
 
 	$effect(() => {
-		if (!readonly && sessionStore.isLoaded && !sessionStore.session && !started) {
+		if (sessionStore.isLoaded && !sessionStore.session && !started) {
 			void doStart();
 		}
 	});
@@ -188,9 +188,9 @@
 		{/if}
 	{/if}
 
-	{#if !readonly && !loading && turns.length > 0 && !publishUrl}
+	{#if !loading && turns.length > 0 && !publishUrl}
 		<div class="actions">
-			<button class="primary" onclick={handlePublish}>公開する</button>
+			<Button onclick={handlePublish}>公開する</Button>
 		</div>
 	{/if}
 </section>
@@ -322,17 +322,5 @@
 		margin-top: 16px;
 		display: flex;
 		gap: 8px;
-	}
-	.primary {
-		padding: 10px 24px;
-		background: #1565c0;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 1rem;
-	}
-	.primary:hover {
-		background: #0d47a1;
 	}
 </style>

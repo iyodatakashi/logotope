@@ -59,11 +59,9 @@ describe('Phase3Interviews.svelte', () => {
 		expect(page.getByRole('button', { name: '前のフェーズに戻る' }).elements()).toHaveLength(0);
 	});
 
-	it('readonly時はアクションUIを描画せずデータは表示する', async () => {
-		render(Phase3Interviews, { topicId: 't1', topicTitle: 'テストテーマ', readonly: true });
+	it('取材済みのペルソナのデータを表示する', async () => {
+		render(Phase3Interviews, { topicId: 't1', topicTitle: 'テストテーマ' });
 
 		await expect.element(page.getByText('田中太郎')).toBeInTheDocument();
-		expect(page.getByRole('button', { name: '次のフェーズへ進む' }).elements()).toHaveLength(0);
-		expect(page.getByRole('button', { name: '取材を開始する' }).elements()).toHaveLength(0);
 	});
 });

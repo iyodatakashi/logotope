@@ -1,14 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { Button } from '@14ch/svelte-ui';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 
 	interface Props {
 		topicId: string;
 		topicTitle: string;
-		readonly?: boolean;
 	}
-	let { topicId, topicTitle, readonly = false }: Props = $props();
+	let { topicId, topicTitle }: Props = $props();
 
 	// svelte-ignore state_referenced_locally -- ストアはマウント時の topicId に束縛する
 	const personasStore = createPersonasStore(topicId);
@@ -36,6 +37,7 @@
 		error = '';
 		try {
 			await personasStore.approvePersonas();
+			goto(`/admin/topics/${topicId}/interviews`);
 		} catch (e) {
 			error = e instanceof Error ? e.message : '操作に失敗しました';
 		}
@@ -75,15 +77,13 @@
 		</ul>
 	{/if}
 
-	{#if !readonly}
-		<div class="actions">
-			{#if !isRunning && personas.length === 0}
-				<button class="primary" onclick={doGenerate}>ペルソナを生成する</button>
-			{:else if !isRunning && personas.length > 0}
-				<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
-			{/if}
-		</div>
-	{/if}
+	<div class="actions">
+		{#if !isRunning && personas.length === 0}
+			<Button variant="filled" onclick={doGenerate}>ペルソナを生成する</Button>
+		{:else if !isRunning && personas.length > 0}
+			<Button variant="filled" onclick={handleApprove}>承認する</Button>
+		{/if}
+	</div>
 </section>
 
 <style>
@@ -145,17 +145,5 @@
 		margin-top: 16px;
 		display: flex;
 		gap: 8px;
-	}
-	.primary {
-		padding: 10px 24px;
-		background: #1565c0;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 1rem;
-	}
-	.primary:hover {
-		background: #0d47a1;
 	}
 </style>
