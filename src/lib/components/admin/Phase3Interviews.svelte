@@ -9,10 +9,13 @@
 	interface Props {
 		topicId: string;
 		topicTitle: string;
+		readonly?: boolean;
 	}
-	let { topicId, topicTitle }: Props = $props();
+	let { topicId, topicTitle, readonly = false }: Props = $props();
 
+	// svelte-ignore state_referenced_locally -- ストアはマウント時の topicId に束縛する
 	const personasStore = createPersonasStore(topicId);
+	// svelte-ignore state_referenced_locally -- 同上
 	const topicStore = createTopicStore(topicId);
 
 	let starting = $state(false);
@@ -97,15 +100,6 @@
 		});
 	}
 
-	async function handleBack() {
-		error = '';
-		try {
-			await topicStore.resetToPhase2();
-		} catch (e) {
-			error = e instanceof Error ? e.message : '操作に失敗しました';
-		}
-	}
-
 	async function handleApprove() {
 		error = '';
 		try {
@@ -164,7 +158,7 @@
 								<span class="arrow">{expanded.has(iv.personaId) ? '▲' : '▼'}</span>
 							{/if}
 						</button>
-						{#if iv.status === 'error'}
+						{#if !readonly && iv.status === 'error'}
 							<button class="retry" onclick={() => void handleRetry(iv.personaId)}>リトライ</button>
 						{/if}
 					</div>
@@ -188,14 +182,15 @@
 		</ul>
 	{/if}
 
-	<div class="actions">
-		<button class="secondary" onclick={handleBack}>前のフェーズに戻る</button>
-		{#if personasStore.isLoaded && !started && !hasAnyStarted && totalCount > 0}
-			<button class="primary" onclick={doRunAll}>取材を開始する</button>
-		{:else if allCompleted}
-			<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
-		{/if}
-	</div>
+	{#if !readonly}
+		<div class="actions">
+			{#if personasStore.isLoaded && !started && !hasAnyStarted && totalCount > 0}
+				<button class="primary" onclick={doRunAll}>取材を開始する</button>
+			{:else if allCompleted}
+				<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
+			{/if}
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -234,6 +229,4 @@
 	.actions { margin-top: 16px; display: flex; gap: 8px; }
 	.primary { padding: 10px 24px; background: #1565c0; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
 	.primary:hover { background: #0d47a1; }
-	.secondary { padding: 10px 24px; background: none; border: 1px solid #bbb; color: #555; border-radius: 4px; cursor: pointer; font-size: 1rem; }
-	.secondary:hover { border-color: #555; }
 </style>

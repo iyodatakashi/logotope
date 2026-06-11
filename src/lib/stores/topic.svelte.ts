@@ -1,4 +1,4 @@
-import { onSnapshot, doc, updateDoc, deleteDoc, writeBatch, Timestamp, getDocs, collection, deleteField, getDoc } from 'firebase/firestore';
+import { onSnapshot, doc, updateDoc, writeBatch, Timestamp, getDocs, collection, deleteField, getDoc } from 'firebase/firestore';
 import { db } from '$lib/firebase.js';
 import type { TopicDoc } from '$lib/types/index.js';
 
@@ -95,15 +95,6 @@ export const createTopicStore = (topicId: string) => {
 		await batch.commit();
 	};
 
-	const resetDebate = async (): Promise<void> => {
-		await cancelRunningDebate();
-		await deleteDoc(doc(db, 'topics', topicId, 'sessions', '0'));
-		await updateDoc(doc(db, 'topics', topicId), {
-			status: 'interviewing',
-			updatedAt: Timestamp.now()
-		});
-	};
-
 	return {
 		get topic() {
 			return topic;
@@ -118,7 +109,6 @@ export const createTopicStore = (topicId: string) => {
 		publishDebate,
 		resetToPhase1,
 		resetToPhase2,
-		resetToPhase3,
-		resetDebate
+		resetToPhase3
 	};
 };

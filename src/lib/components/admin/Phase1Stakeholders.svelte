@@ -8,9 +8,11 @@
 	interface Props {
 		topicId: string;
 		topicTitle: string;
+		readonly?: boolean;
 	}
-	let { topicId, topicTitle }: Props = $props();
+	let { topicId, topicTitle, readonly = false }: Props = $props();
 
+	// svelte-ignore state_referenced_locally -- ストアはマウント時の topicId に束縛する
 	const topicStore = createTopicStore(topicId);
 
 	let generating = $state(false);
@@ -73,12 +75,12 @@
 				</li>
 			{/each}
 		</ul>
-		{#if !isRunning && !isStopped}
+		{#if !readonly && !isRunning && !isStopped}
 			<div class="actions">
 				<button class="primary" onclick={handleApprove}>次のフェーズへ進む</button>
 			</div>
 		{/if}
-	{:else if !isRunning}
+	{:else if !readonly && !isRunning}
 		<div class="actions">
 			<button class="primary" onclick={doGenerate}>調査を開始する</button>
 		</div>

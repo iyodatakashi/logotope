@@ -9,12 +9,17 @@
 	interface Props {
 		topicId: string;
 		topicTitle: string;
+		readonly?: boolean;
 	}
-	let { topicId, topicTitle }: Props = $props();
+	let { topicId, topicTitle, readonly = false }: Props = $props();
 
+	// svelte-ignore state_referenced_locally -- ストアはマウント時の topicId に束縛する
 	const sessionStore = createSessionStore(topicId);
+	// svelte-ignore state_referenced_locally -- 同上
 	const personasStore = createPersonasStore(topicId);
+	// svelte-ignore state_referenced_locally -- 同上
 	const topicStore = createTopicStore(topicId);
+	// svelte-ignore state_referenced_locally -- 同上
 	const engagementsStore = createEngagementsStore(topicId);
 
 	let starting = $state(false);
@@ -70,7 +75,7 @@
 	);
 
 	$effect(() => {
-		if (sessionStore.isLoaded && !sessionStore.session && !started) {
+		if (!readonly && sessionStore.isLoaded && !sessionStore.session && !started) {
 			void doStart();
 		}
 	});
@@ -85,15 +90,6 @@
 			error = e instanceof Error ? e.message : '処理に失敗しました';
 		} finally {
 			starting = false;
-		}
-	}
-
-	async function handleBack() {
-		error = '';
-		try {
-			await topicStore.resetToPhase3();
-		} catch (e) {
-			error = e instanceof Error ? e.message : '操作に失敗しました';
 		}
 	}
 
@@ -196,12 +192,11 @@
 		{/if}
 	{/if}
 
-	<div class="actions">
-		<button class="secondary" onclick={handleBack}>前のフェーズに戻る</button>
-		{#if !loading && turns.length > 0 && !publishUrl}
+	{#if !readonly && !loading && turns.length > 0 && !publishUrl}
+		<div class="actions">
 			<button class="primary" onclick={handlePublish}>公開する</button>
-		{/if}
-	</div>
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -221,7 +216,6 @@
 	.role { color: #757575; font-size: 0.875rem; margin-left: 4px; }
 	.speech-mode { font-size: 0.75rem; margin-left: 6px; color: #fff; background: #888; padding: 1px 5px; border-radius: 3px; }
 	.from-queue { font-size: 0.75rem; margin-left: 4px; color: #fff; background: #e65100; padding: 1px 5px; border-radius: 3px; }
-	.speech-mode:has(+ *) { /* nothing */ }
 	.content { margin: 0; line-height: 1.6; }
 	.engagements { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
 	.engagement { font-size: 0.72rem; padding: 1px 6px; border-radius: 3px; background: #eee; color: #555; }
@@ -234,6 +228,4 @@
 	.actions { margin-top: 16px; display: flex; gap: 8px; }
 	.primary { padding: 10px 24px; background: #1565c0; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
 	.primary:hover { background: #0d47a1; }
-	.secondary { padding: 10px 24px; background: none; border: 1px solid #bbb; color: #555; border-radius: 4px; cursor: pointer; font-size: 1rem; }
-	.secondary:hover { border-color: #555; }
 </style>

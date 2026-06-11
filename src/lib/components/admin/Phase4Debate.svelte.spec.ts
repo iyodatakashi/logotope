@@ -83,4 +83,18 @@ describe('Phase4Debate.svelte', () => {
     // p2 with mode='full', score=4 → displayed as "鈴木花子: full(4)"
     await expect.element(page.getByText(/鈴木花子/)).toBeInTheDocument();
   });
+
+  it('「前のフェーズに戻る」ボタンは存在しない', async () => {
+    render(Phase4Debate, { topicId: 'test-topic', topicTitle: 'テストトピック' });
+
+    await expect.element(page.getByText('テスト発言内容')).toBeInTheDocument();
+    expect(page.getByRole('button', { name: '前のフェーズに戻る' }).elements()).toHaveLength(0);
+  });
+
+  it('readonly時は公開ボタンを描画せずデータは表示する', async () => {
+    render(Phase4Debate, { topicId: 'test-topic', topicTitle: 'テストトピック', readonly: true });
+
+    await expect.element(page.getByText('テスト発言内容')).toBeInTheDocument();
+    expect(page.getByRole('button', { name: '公開する' }).elements()).toHaveLength(0);
+  });
 });
