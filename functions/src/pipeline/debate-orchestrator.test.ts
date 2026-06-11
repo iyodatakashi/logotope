@@ -31,7 +31,6 @@ import { DebateOrchestratorService } from './debate-orchestrator.js';
 import type { DebateState } from './debate-orchestrator.js';
 import type { FacilitatorAgentService } from '../agents/facilitator-agent.js';
 import type { PersonaAgentService } from '../agents/persona-agent.js';
-import type { ProgressTrackerService } from './progress-tracker.js';
 
 // ---- helpers ----
 
@@ -64,15 +63,6 @@ function makeMockPersonaAgent(overrides: Partial<Record<string, ReturnType<typeo
     })),
     ...overrides,
   } as unknown as PersonaAgentService;
-}
-
-function makeMockTracker() {
-  return {
-    updateStatus: vi.fn().mockResolvedValue(undefined),
-    updateProgress: vi.fn().mockResolvedValue(undefined),
-    setError: vi.fn().mockResolvedValue(undefined),
-    debugLog: vi.fn().mockResolvedValue(undefined),
-  } as unknown as ProgressTrackerService;
 }
 
 function setupRepoDefaults() {
