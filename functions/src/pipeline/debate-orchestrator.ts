@@ -507,12 +507,14 @@ export class DebateOrchestratorService {
       const MAX_CONSECUTIVE_DIRECT = 3;
       const fromDirectAddress = !!pendingAddress
         && personas.some(p => p.id === pendingAddress)
-        && state.consecutiveDirectExchanges < MAX_CONSECUTIVE_DIRECT;
+        && (pendingAddressByFacilitator || state.consecutiveDirectExchanges < MAX_CONSECUTIVE_DIRECT);
       if (fromDirectAddress) {
         nextPersonaId = pendingAddress!;
-        state.consecutiveDirectExchanges++;
         if (pendingAddressByFacilitator) {
+          state.consecutiveDirectExchanges = 0;
           selectedMode = 'full';
+        } else {
+          state.consecutiveDirectExchanges++;
         }
       } else {
         // 各ペルソナの発言意欲を並列アセスメント（直前発言者は除外）
