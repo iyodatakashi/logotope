@@ -1,14 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('@anthropic-ai/sdk', () => ({
-  default: vi.fn(),
+const { mockGenerateText, mockGetPersonaModel } = vi.hoisted(() => ({
+  mockGenerateText: vi.fn(),
+  mockGetPersonaModel: vi.fn(),
 }));
 
-import Anthropic from '@anthropic-ai/sdk';
-import { PersonaAgentService, buildSpeechStyleGuide } from './persona-agent.js';
-import type { PersonaAttributes, ConversationTurn, DebateChapter } from '../types/index.js';
+vi.mock('ai', () => ({
+  generateText: mockGenerateText,
+  jsonSchema: (schema: unknown) => schema,
+}));
 
-const mockCreate = vi.fn();
+vi.mock('../llm/models.js', () => ({
+  getPersonaModel: mockGetPersonaModel,
+}));
+
+import { PersonaAgentService, buildSpeechStyleGuide } from './persona-agent.js';
+import type { PersonaAttributes, DebateChapter } from '../types/index.js';
+
+const mockModel = { _provider: 'anthropic', _modelId: 'claude-sonnet-4-6' };
 
 const testPersona: PersonaAttributes = {
   id: 'p1',
@@ -27,39 +36,46 @@ const testInterviewRecord =
 const testCurrentBelief =
   '# 現在の信念\n\n## 立場と根拠\n本政策は医療安全強化に必要。\n\n## 核心的主張\n患者の命を守ることが最優先事項。';
 
-const testHistory: ConversationTurn[] = [
-  {
-    turnId: 't1',
-    turnIndex: 0,
-    speakerType: 'facilitator',
-    speakerName: 'ファシリテーター',
-    speakerRole: '',
-    content: '本日はAI医療診断の導入について討論します。',
-  },
-  {
-    turnId: 't2',
-    turnIndex: 1,
-    speakerType: 'persona',
-    speakerName: '鈴木花子',
-    speakerRole: '患者',
-    content: '患者として、費用負担が大きくなることが非常に心配です。現在の医療費でも苦しいのに。',
-  },
-  {
-    turnId: 't3',
-    turnIndex: 2,
-    speakerType: 'persona',
-    speakerName: '山田次郎',
-    speakerRole: '研究者',
-    content: 'データを見ると、AI診断は誤診率を30%削減するという研究結果が出ています。',
-  },
+const testHistory = [
+  { id: 't1', sessionId: 's1', turnIndex: 0, speakerType: 'facilitator', speakerName: 'ファシリテーター', speakerRole: '', content: '本日はAI医療診断の導入について討論します。', createdAt: '2025-01-01' },
+  { id: 't2', sessionId: 's1', turnIndex: 1, speakerType: 'persona', speakerName: '鈴木花子', speakerRole: '患者', content: '患者として、費用負担が大きくなることが非常に心配です。', createdAt: '2025-01-01' },
+  { id: 't3', sessionId: 's1', turnIndex: 2, speakerType: 'persona', speakerName: '山田次郎', speakerRole: '研究者', content: 'データを見ると、AI診断は誤診率を30%削減するという研究結果が出ています。', createdAt: '2025-01-01' },
 ];
+
+const makeTurnResult = (args: Record<string, unknown> = { content: '発言。' }) => ({
+  toolCalls: [{ toolName: 'submit_turn', args }],
+  text: '',
+  toolResults: [],
+  finishReason: 'tool-calls',
+  usage: { promptTokens: 0, completionTokens: 0 },
+});
+
+const makeEngagementResult = (args: Record<string, unknown>) => ({
+  toolCalls: [{ toolName: 'assess_engagement', args }],
+  text: '',
+  toolResults: [],
+  finishReason: 'tool-calls',
+  usage: { promptTokens: 0, completionTokens: 0 },
+});
+
+const makePostDebateResult = (content: string) => ({
+  toolCalls: [{ toolName: 'submit_post_debate_comment', args: { content } }],
+  text: '',
+  toolResults: [],
+  finishReason: 'tool-calls',
+  usage: { promptTokens: 0, completionTokens: 0 },
+});
+
+let service: PersonaAgentService;
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(Anthropic).mockImplementation(() => ({
-    messages: { create: mockCreate },
-  }) as unknown as Anthropic);
+  mockGetPersonaModel.mockReturnValue(mockModel);
+  mockGenerateText.mockResolvedValue(makeTurnResult());
+  service = new PersonaAgentService();
 });
+
+// ---- buildSpeechStyleGuide (unchanged pure function tests) ----
 
 describe('buildSpeechStyleGuide', () => {
   const base = {
@@ -71,11 +87,7 @@ describe('buildSpeechStyleGuide', () => {
 
   it('若手ペルソナ: 口語体・疑問形の語り口指針を含む', () => {
     const persona: PersonaAttributes = {
-      ...base,
-      stakeholderRole: '一般市民',
-      name: '若者',
-      age: 22,
-      occupation: '会社員（入社2年目）',
+      ...base, stakeholderRole: '一般市民', name: '若者', age: 22, occupation: '会社員（入社2年目）',
     };
     const guide = buildSpeechStyleGuide(persona);
     expect(guide).toBeTruthy();
@@ -86,11 +98,7 @@ describe('buildSpeechStyleGuide', () => {
 
   it('ベテランペルソナ: 経験・断言の語り口指針を含む', () => {
     const persona: PersonaAttributes = {
-      ...base,
-      stakeholderRole: '現場職',
-      name: '田中',
-      age: 58,
-      occupation: 'ベテランエンジニア',
+      ...base, stakeholderRole: '現場職', name: '田中', age: 58, occupation: 'ベテランエンジニア',
     };
     const guide = buildSpeechStyleGuide(persona);
     expect(guide).toBeTruthy();
@@ -99,11 +107,7 @@ describe('buildSpeechStyleGuide', () => {
 
   it('経営者ペルソナ: 断言的・謙遜なしの語り口指針を含む', () => {
     const persona: PersonaAttributes = {
-      ...base,
-      stakeholderRole: '経営者',
-      name: '鈴木',
-      age: 50,
-      occupation: '代表取締役',
+      ...base, stakeholderRole: '経営者', name: '鈴木', age: 50, occupation: '代表取締役',
     };
     const guide = buildSpeechStyleGuide(persona);
     expect(guide).toBeTruthy();
@@ -112,86 +116,43 @@ describe('buildSpeechStyleGuide', () => {
 
   it('gender あり: 例外なく動作し非空文字列を返す', () => {
     const persona: PersonaAttributes & { gender?: string } = {
-      ...base,
-      stakeholderRole: '患者',
-      name: '山田',
-      age: 40,
-      occupation: '主婦',
-      gender: '女性',
+      ...base, stakeholderRole: '患者', name: '山田', age: 40, occupation: '主婦', gender: '女性',
     };
-    const guide = buildSpeechStyleGuide(persona);
-    expect(typeof guide).toBe('string');
-    expect(guide.length).toBeGreaterThan(0);
+    expect(typeof buildSpeechStyleGuide(persona)).toBe('string');
+    expect(buildSpeechStyleGuide(persona).length).toBeGreaterThan(0);
   });
 
   it('gender なし: 例外なく動作し非空文字列を返す', () => {
     const persona: PersonaAttributes = {
-      ...base,
-      stakeholderRole: '患者',
-      name: '佐藤',
-      age: 40,
-      occupation: '会社員',
+      ...base, stakeholderRole: '患者', name: '佐藤', age: 40, occupation: '会社員',
     };
-    const guide = buildSpeechStyleGuide(persona);
-    expect(typeof guide).toBe('string');
-    expect(guide.length).toBeGreaterThan(0);
+    expect(typeof buildSpeechStyleGuide(persona)).toBe('string');
+    expect(buildSpeechStyleGuide(persona).length).toBeGreaterThan(0);
   });
 
   it('属性が変わると語り口指針も変わる', () => {
-    const young: PersonaAttributes = {
-      ...base,
-      stakeholderRole: '一般市民',
-      name: '若者',
-      age: 22,
-      occupation: '大学生',
-    };
-    const veteran: PersonaAttributes = {
-      ...base,
-      stakeholderRole: '専門家',
-      name: '老人',
-      age: 65,
-      occupation: 'ベテラン教授',
-    };
+    const young: PersonaAttributes = { ...base, stakeholderRole: '一般市民', name: '若者', age: 22, occupation: '大学生' };
+    const veteran: PersonaAttributes = { ...base, stakeholderRole: '専門家', name: '老人', age: 65, occupation: 'ベテラン教授' };
     expect(buildSpeechStyleGuide(young)).not.toBe(buildSpeechStyleGuide(veteran));
   });
 });
 
+// ---- システムプロンプトとツール定義への統合 ----
+
 describe('task 1.2: スタイルガイドのシステムプロンプトとツール定義への統合', () => {
-  let service: PersonaAgentService;
-
   const youngPersona: PersonaAttributes = {
-    id: 'y1',
-    stakeholderRole: '一般市民',
-    name: '若者',
-    age: 22,
-    occupation: '大学生',
-    background: '特になし',
-    interests: '特になし',
-    stanceDirection: 'neutral',
+    id: 'y1', stakeholderRole: '一般市民', name: '若者', age: 22, occupation: '大学生',
+    background: '特になし', interests: '特になし', stanceDirection: 'neutral',
   };
-
   const executivePersona: PersonaAttributes = {
-    id: 'e1',
-    stakeholderRole: '経営者',
-    name: '社長',
-    age: 55,
-    occupation: '代表取締役',
-    background: '特になし',
-    interests: '特になし',
-    stanceDirection: 'pro',
+    id: 'e1', stakeholderRole: '経営者', name: '社長', age: 55, occupation: '代表取締役',
+    background: '特になし', interests: '特になし', stanceDirection: 'pro',
   };
-
-  beforeEach(() => {
-    service = new PersonaAgentService();
-    mockCreate.mockResolvedValue({
-      content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言。' } }],
-    });
-  });
 
   it('発言スタイルセクション先頭（発言の長さルールより前）に語り口指針が含まれる', async () => {
     await service.generateTurn(youngPersona, 'belief', 'interview', []);
 
-    const system: string = mockCreate.mock.calls[0][0].system;
+    const system: string = mockGenerateText.mock.calls[0][0].system;
     const sectionStart = system.indexOf('## 発言スタイルの厳守事項');
     const styleIdx = system.indexOf('口語', sectionStart);
     const constraintIdx = system.indexOf('reaction', sectionStart);
@@ -202,21 +163,23 @@ describe('task 1.2: スタイルガイドのシステムプロンプトとツー
 
   it('若手ペルソナのシステムプロンプトに口語・疑問形スタイルが含まれる', async () => {
     await service.generateTurn(youngPersona, 'belief', 'interview', []);
-    expect(mockCreate.mock.calls[0][0].system).toMatch(/口語|疑問形/);
+    expect(mockGenerateText.mock.calls[0][0].system).toMatch(/口語|疑問形/);
   });
 
   it('経営者ペルソナのシステムプロンプトに断言的スタイルが含まれる', async () => {
     await service.generateTurn(executivePersona, 'belief', 'interview', []);
-    expect(mockCreate.mock.calls[0][0].system).toMatch(/断言|謙遜|権威/);
+    expect(mockGenerateText.mock.calls[0][0].system).toMatch(/断言|謙遜|権威/);
   });
 
   it('若手と経営者ペルソナでシステムプロンプトの語り口指針が異なる', async () => {
     await service.generateTurn(youngPersona, 'belief', 'interview', []);
-    const youngSystem: string = mockCreate.mock.calls[0][0].system;
-    mockCreate.mockClear();
+    const youngSystem: string = mockGenerateText.mock.calls[0][0].system;
+    vi.clearAllMocks();
+    mockGetPersonaModel.mockReturnValue(mockModel);
+    mockGenerateText.mockResolvedValue(makeTurnResult());
 
     await service.generateTurn(executivePersona, 'belief', 'interview', []);
-    const execSystem: string = mockCreate.mock.calls[0][0].system;
+    const execSystem: string = mockGenerateText.mock.calls[0][0].system;
 
     expect(youngSystem).not.toBe(execSystem);
   });
@@ -224,46 +187,26 @@ describe('task 1.2: スタイルガイドのシステムプロンプトとツー
   it('TURN_TOOL の content フィールド説明に語り口スタイルが含まれる', async () => {
     await service.generateTurn(youngPersona, 'belief', 'interview', []);
 
-    const tools = mockCreate.mock.calls[0][0].tools;
-    const submitTurn = tools.find((t: { name: string }) => t.name === 'submit_turn');
-    const contentDesc: string = submitTurn.input_schema.properties.content.description;
-
-    expect(contentDesc).toMatch(/口語|疑問形|語り口/);
+    const tools = mockGenerateText.mock.calls[0][0].tools as Record<string, { parameters: { properties: { content: { description: string } } } }>;
+    const submitTurn = tools['submit_turn'];
+    expect(submitTurn.parameters.properties.content.description).toMatch(/口語|疑問形|語り口/);
   });
 });
+
+// ---- PersonaAgentService DI ----
 
 describe('PersonaAgentService DI', () => {
-  it('accepts injected Anthropic client via constructor', async () => {
-    const injectedClient = { messages: { create: mockCreate } } as unknown as Anthropic;
-    const service = new PersonaAgentService(injectedClient);
-    mockCreate.mockResolvedValue({
-      content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言内容。' } }],
-    });
-
-    const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-
-    expect(result.ok).toBe(true);
+  it('コンストラクタ引数なしで正常にインスタンス化できる', () => {
+    expect(() => new PersonaAgentService()).not.toThrow();
   });
 });
 
+// ---- generateTurn ----
+
 describe('PersonaAgentService', () => {
-  let service: PersonaAgentService;
-
-  beforeEach(() => {
-    service = new PersonaAgentService();
-  });
-
   describe('generateTurn — beliefChange 3ケース', () => {
     it('信念変化なし: beliefChange が null で content が返る', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_turn',
-          input: {
-            content: '医療安全の観点から、AI導入は適切なプロセスを経れば有益だと考えます。',
-          },
-        }],
-      });
+      mockGenerateText.mockResolvedValue(makeTurnResult({ content: '医療安全の観点から、AI導入は適切なプロセスを経れば有益だと考えます。' }));
 
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
 
@@ -274,18 +217,12 @@ describe('PersonaAgentService', () => {
     });
 
     it('opinion_change: 完全な意見変化として BeliefChangeEvent が返る', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_turn',
-          input: {
-            content: '鈴木さんの話を聞いて、考えが変わりました。費用問題は深刻です。',
-            beliefChangeType: 'opinion_change',
-            beliefChangeSummary: '患者の経済的負担が医療安全より優先されるべきと認識を改めた',
-            beliefChangeUpdatedBelief: '# 更新後の信念\n費用負担の問題を解決してから導入すべき。',
-          },
-        }],
-      });
+      mockGenerateText.mockResolvedValue(makeTurnResult({
+        content: '鈴木さんの話を聞いて、考えが変わりました。費用問題は深刻です。',
+        beliefChangeType: 'opinion_change',
+        beliefChangeSummary: '患者の経済的負担が医療安全より優先されるべきと認識を改めた',
+        beliefChangeUpdatedBelief: '# 更新後の信念\n費用負担の問題を解決してから導入すべき。',
+      }));
 
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
 
@@ -298,40 +235,27 @@ describe('PersonaAgentService', () => {
     });
 
     it('partial_acceptance: 部分的承認として BeliefChangeEvent が返る', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_turn',
-          input: {
-            content: '山田さんのデータは興味深い。費用問題は残るが、安全性向上は認めます。',
-            beliefChangeType: 'partial_acceptance',
-            beliefChangeSummary: 'AI診断の安全性向上効果は認めるが、費用問題の解決が前提条件と認識した',
-            beliefChangeUpdatedBelief: '# 更新後の信念\n安全性向上は評価するが、費用問題の解決を条件に支持。',
-          },
-        }],
-      });
+      mockGenerateText.mockResolvedValue(makeTurnResult({
+        content: '山田さんのデータは興味深い。費用問題は残るが、安全性向上は認めます。',
+        beliefChangeType: 'partial_acceptance',
+        beliefChangeSummary: 'AI診断の安全性向上効果は認めるが、費用問題の解決が前提条件と認識した',
+        beliefChangeUpdatedBelief: '# 更新後の信念\n安全性向上は評価するが、費用問題の解決を条件に支持。',
+      }));
 
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.beliefChange).not.toBeNull();
       expect(result.value.beliefChange?.type).toBe('partial_acceptance');
     });
   });
 
   describe('generateTurn — addressedToPersonaId', () => {
     it('addressedToPersonaId あり: 特定ペルソナへの返答が返る', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_turn',
-          input: {
-            content: '鈴木さん、その費用の具体的な数字はどこから来ているのでしょうか？',
-            addressedToPersonaId: 'p2',
-          },
-        }],
-      });
+      mockGenerateText.mockResolvedValue(makeTurnResult({
+        content: '鈴木さん、その費用の具体的な数字はどこから来ているのでしょうか？',
+        addressedToPersonaId: 'p2',
+      }));
 
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
 
@@ -342,15 +266,7 @@ describe('PersonaAgentService', () => {
     });
 
     it('addressedToPersonaId なし: undefined が返る', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_turn',
-          input: {
-            content: 'データに基づいて判断することが重要です。',
-          },
-        }],
-      });
+      mockGenerateText.mockResolvedValue(makeTurnResult({ content: 'データに基づいて判断することが重要です。' }));
 
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
 
@@ -362,86 +278,76 @@ describe('PersonaAgentService', () => {
 
   describe('generateTurn — システムプロンプト検証', () => {
     it('システムプロンプトにペルソナ属性が含まれる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_turn',
-          input: { content: '発言内容。' },
-        }],
-      });
-
       await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
 
-      const call = mockCreate.mock.calls[0][0];
+      const call = mockGenerateText.mock.calls[0][0];
       expect(call.system).toMatch(/田中太郎/);
       expect(call.system).toMatch(/外科医/);
       expect(call.system).toMatch(/医師/);
     });
 
     it('システムプロンプトに取材レコードが含まれる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_turn',
-          input: { content: '発言内容。' },
-        }],
-      });
-
       await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
 
-      const call = mockCreate.mock.calls[0][0];
-      expect(call.system).toMatch(/取材|インタビュー|interviewRecord/i);
+      const call = mockGenerateText.mock.calls[0][0];
       expect(call.system).toContain(testInterviewRecord);
     });
 
     it('システムプロンプトに現在の信念ドキュメントが含まれる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_turn',
-          input: { content: '発言内容。' },
-        }],
-      });
-
       await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-
-      const call = mockCreate.mock.calls[0][0];
-      expect(call.system).toContain(testCurrentBelief);
+      expect(mockGenerateText.mock.calls[0][0].system).toContain(testCurrentBelief);
     });
 
     it('他ペルソナの取材レコード・信念はシステムプロンプトに含まれない', async () => {
       const otherPersonaBelief = '他のペルソナの秘密の信念ドキュメント_UNIQUE_STRING';
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_turn',
-          input: { content: '発言内容。' },
-        }],
-      });
-
       await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      expect(mockGenerateText.mock.calls[0][0].system).not.toContain(otherPersonaBelief);
+    });
+  });
 
-      const call = mockCreate.mock.calls[0][0];
-      expect(call.system).not.toContain(otherPersonaBelief);
+  describe('generateTurn — LLM ルーティング（task 5.1）', () => {
+    it('persona.llmType に応じた getPersonaModel が呼び出される', async () => {
+      const personaWithLlmType = { ...testPersona, llmType: 'gemini' as const };
+      await service.generateTurn(personaWithLlmType, testCurrentBelief, testInterviewRecord, testHistory);
+      expect(mockGetPersonaModel).toHaveBeenCalledWith('gemini');
+    });
+
+    it('llmType が未設定の場合は claude にフォールバックして getPersonaModel を呼び出す', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      expect(mockGetPersonaModel).toHaveBeenCalledWith('claude');
+    });
+
+    it('プロバイダー API エラー時に claude でフォールバックして generateText を再実行する', async () => {
+      const claudeModel = { _provider: 'anthropic', _modelId: 'claude-sonnet-4-6' };
+      mockGetPersonaModel
+        .mockReturnValueOnce({ _provider: 'google', _modelId: 'gemini-2.5-flash' })
+        .mockReturnValueOnce(claudeModel);
+      mockGenerateText
+        .mockRejectedValueOnce(new Error('Provider API error'))
+        .mockResolvedValueOnce(makeTurnResult({ content: 'フォールバック発言。' }));
+
+      const personaWithLlmType = { ...testPersona, llmType: 'gemini' as const };
+      const result = await service.generateTurn(personaWithLlmType, testCurrentBelief, testInterviewRecord, testHistory);
+
+      expect(result.ok).toBe(true);
+      expect(mockGenerateText).toHaveBeenCalledTimes(2);
+      expect(mockGetPersonaModel).toHaveBeenNthCalledWith(1, 'gemini');
+      expect(mockGetPersonaModel).toHaveBeenNthCalledWith(2, 'claude');
     });
   });
 
   describe('generateTurn — エラーハンドリング', () => {
-    it('Claude API 失敗時に error result を返す', async () => {
-      mockCreate.mockRejectedValue(new Error('API rate limit exceeded'));
-
+    it('generateText 失敗（フォールバック後も失敗）時に error result を返す', async () => {
+      mockGenerateText.mockRejectedValue(new Error('API rate limit exceeded'));
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error.code).toBe('AI_API_ERROR');
     });
 
     it('エラーは retryable: true を返す', async () => {
-      mockCreate.mockRejectedValue(new Error('network error'));
-
+      mockGenerateText.mockRejectedValue(new Error('network error'));
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error).toMatchObject({ code: 'AI_API_ERROR', retryable: true });
@@ -450,57 +356,39 @@ describe('PersonaAgentService', () => {
 
   describe('generateTurn - task 4: currentChapter コンテキスト', () => {
     it('currentChapter を指定すると user メッセージに章タイトルとフォーカス問いが含まれる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言内容。' } }],
-      });
-      const currentChapter: DebateChapter = {
-        index: 1,
-        title: '核心的対立',
-        focusQuestion: '最も意見が分かれる点はどこか？',
-        startTurnIndex: 5,
-      };
-
+      const currentChapter: DebateChapter = { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 5 };
       await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory, currentChapter);
 
-      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
       expect(msg).toMatch(/核心的対立/);
       expect(msg).toMatch(/最も意見が分かれる点はどこか？/);
     });
 
     it('currentChapter を指定しても system プロンプトは変わらない', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言内容。' } }],
-      });
-
-      // Call without chapter
       await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-      const systemWithout: string = mockCreate.mock.calls[0][0].system;
-      mockCreate.mockClear();
+      const systemWithout: string = mockGenerateText.mock.calls[0][0].system;
+      vi.clearAllMocks();
+      mockGetPersonaModel.mockReturnValue(mockModel);
+      mockGenerateText.mockResolvedValue(makeTurnResult());
 
-      // Call with chapter
       const currentChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: '核心は？', startTurnIndex: 1 };
       await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory, currentChapter);
-      const systemWith: string = mockCreate.mock.calls[0][0].system;
+      const systemWith: string = mockGenerateText.mock.calls[0][0].system;
 
       expect(systemWith).toBe(systemWithout);
     });
 
     it('currentChapter なしでも動作する（後方互換性）', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言内容。' } }],
-      });
-
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-
       expect(result.ok).toBe(true);
     });
   });
 
+  // ---- assessEngagement ----
+
   describe('assessEngagement — Task 2.1 スキーマ拡張', () => {
-    it('mode フィールドが返り値に含まれる（LLM の評価値をそのまま使用）', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 4, mode: 'full', intentSummary: '医療費問題に反論したい' } }],
-      });
+    it('mode フィールドが返り値に含まれる', async () => {
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 4, mode: 'full', intentSummary: '医療費問題に反論したい' }));
       const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -508,9 +396,7 @@ describe('PersonaAgentService', () => {
     });
 
     it('intentSummary フィールドが返り値に含まれる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 3, mode: 'reaction', intentSummary: 'そうですね' } }],
-      });
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'reaction', intentSummary: 'そうですね' }));
       const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -518,9 +404,7 @@ describe('PersonaAgentService', () => {
     });
 
     it('score === 1 のとき mode が強制的に none になる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 1, mode: 'full', intentSummary: '発言したい' } }],
-      });
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 1, mode: 'full', intentSummary: '発言したい' }));
       const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -528,9 +412,7 @@ describe('PersonaAgentService', () => {
     });
 
     it('mode === none のとき intentSummary が undefined になる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 2, mode: 'none', intentSummary: 'なにか言いたい' } }],
-      });
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 2, mode: 'none', intentSummary: 'なにか言いたい' }));
       const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -538,62 +420,46 @@ describe('PersonaAgentService', () => {
     });
 
     it('ASSESS_ENGAGEMENT_TOOL スキーマに mode フィールドが含まれる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 3, mode: 'reaction' } }],
-      });
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'reaction' }));
       await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-      const tools: Anthropic.Tool[] = mockCreate.mock.calls[0][0].tools;
-      const assessTool = tools.find((t) => t.name === 'assess_engagement');
-      expect(assessTool?.input_schema.properties).toHaveProperty('mode');
+      const tools = mockGenerateText.mock.calls[0][0].tools as Record<string, { parameters: { properties: Record<string, unknown> } }>;
+      expect(tools['assess_engagement'].parameters.properties).toHaveProperty('mode');
     });
 
     it('ASSESS_ENGAGEMENT_TOOL スキーマに intentSummary フィールドが含まれる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'assess_engagement', input: { score: 3, mode: 'full', intentSummary: '意見あり' } }],
-      });
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'full', intentSummary: '意見あり' }));
       await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-      const tools: Anthropic.Tool[] = mockCreate.mock.calls[0][0].tools;
-      const assessTool = tools.find((t) => t.name === 'assess_engagement');
-      expect(assessTool?.input_schema.properties).toHaveProperty('intentSummary');
+      const tools = mockGenerateText.mock.calls[0][0].tools as Record<string, { parameters: { properties: Record<string, unknown> } }>;
+      expect(tools['assess_engagement'].parameters.properties).toHaveProperty('intentSummary');
+    });
+
+    it('assessEngagement が persona.llmType に応じた getPersonaModel を呼び出す（task 5.2）', async () => {
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'reaction' }));
+      const personaWithLlmType = { ...testPersona, llmType: 'gemini' as const };
+      await service.assessEngagement(personaWithLlmType, testCurrentBelief, testInterviewRecord, testHistory);
+      expect(mockGetPersonaModel).toHaveBeenCalledWith('gemini');
     });
   });
 
   describe('generateTurn — Task 2.2 intentSummary プロンプト埋め込み', () => {
     it('intentSummary が渡された場合、ユーザープロンプトに【今回伝えたいこと】が含まれる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言。' } }],
-      });
-      await service.generateTurn(
-        testPersona, testCurrentBelief, testInterviewRecord, testHistory,
-        undefined, undefined, undefined, '医療費問題をしっかり主張したい'
-      );
-      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory, undefined, undefined, undefined, '医療費問題をしっかり主張したい');
+      const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
       expect(msg).toContain('【今回伝えたいこと】医療費問題をしっかり主張したい');
     });
 
     it('intentSummary が undefined の場合、プロンプトに【今回伝えたいこと】が追記されない', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'submit_turn', input: { content: '発言。' } }],
-      });
-      await service.generateTurn(
-        testPersona, testCurrentBelief, testInterviewRecord, testHistory
-      );
-      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
       expect(msg).not.toContain('【今回伝えたいこと】');
     });
   });
 
+  // ---- generatePostDebateComment ----
+
   describe('generatePostDebateComment', () => {
     it('personaId と content を含む PostDebateCommentResult を返す', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_post_debate_comment',
-          input: {
-            content: '鈴木さんの費用負担への懸念は私が気づいていなかった視点でした。山田さんのデータは説得力がありましたが、やはり現場の課題解決が先だと思います。今日の議論を通じて、医師として患者の生活実態をもっと理解する必要があると感じました。',
-          },
-        }],
-      });
+      mockGenerateText.mockResolvedValue(makePostDebateResult('鈴木さんの費用負担への懸念は私が気づいていなかった視点でした。'));
 
       const result = await service.generatePostDebateComment(testPersona, testCurrentBelief, testHistory);
 
@@ -604,16 +470,8 @@ describe('PersonaAgentService', () => {
     });
 
     it('コメント内容が非空文字列である', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_post_debate_comment',
-          input: { content: '今回の議論を通じて多くのことを学びました。' },
-        }],
-      });
-
+      mockGenerateText.mockResolvedValue(makePostDebateResult('今回の議論を通じて多くのことを学びました。'));
       const result = await service.generatePostDebateComment(testPersona, testCurrentBelief, testHistory);
-
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(typeof result.value.content).toBe('string');
@@ -621,25 +479,21 @@ describe('PersonaAgentService', () => {
     });
 
     it('システムプロンプトにペルソナ属性が含まれる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'submit_post_debate_comment',
-          input: { content: 'コメント内容。' },
-        }],
-      });
-
+      mockGenerateText.mockResolvedValue(makePostDebateResult('コメント内容。'));
       await service.generatePostDebateComment(testPersona, testCurrentBelief, testHistory);
-
-      const call = mockCreate.mock.calls[0][0];
-      expect(call.system).toMatch(/田中太郎/);
+      expect(mockGenerateText.mock.calls[0][0].system).toMatch(/田中太郎/);
     });
 
-    it('Claude API 失敗時に error result を返す', async () => {
-      mockCreate.mockRejectedValue(new Error('API error'));
+    it('generatePostDebateComment が persona.llmType に応じた getPersonaModel を呼び出す（task 5.2）', async () => {
+      mockGenerateText.mockResolvedValue(makePostDebateResult('コメント。'));
+      const personaWithLlmType = { ...testPersona, llmType: 'gpt' as const };
+      await service.generatePostDebateComment(personaWithLlmType, testCurrentBelief, testHistory);
+      expect(mockGetPersonaModel).toHaveBeenCalledWith('gpt');
+    });
 
+    it('generateText 失敗時に error result を返す', async () => {
+      mockGenerateText.mockRejectedValue(new Error('API error'));
       const result = await service.generatePostDebateComment(testPersona, testCurrentBelief, testHistory);
-
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error.code).toBe('AI_API_ERROR');

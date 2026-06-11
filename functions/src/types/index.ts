@@ -1,3 +1,5 @@
+export type LLMType = 'gemini' | 'claude' | 'gpt';
+
 export type DebateStatus =
   | 'pending'
   | 'surveying'
@@ -30,6 +32,7 @@ export interface PersonaAttributes {
   background: string;
   interests: string;
   stanceDirection: string;
+  llmType?: LLMType;
 }
 
 export interface BeliefChangeEvent {
@@ -48,6 +51,14 @@ export interface AgentTurnResult {
 export interface InterviewResult {
   personaId: string;
   interviewRecord: string;
+  initialBelief: string;
+  status: 'completed' | 'error';
+  errorMessage?: string;
+}
+
+export interface PersonaResearchResult {
+  personaId: string;
+  researchSummary: string;
   initialBelief: string;
   status: 'completed' | 'error';
   errorMessage?: string;

@@ -3,6 +3,18 @@ export const AI_MODELS = {
   SONNET: 'claude-sonnet-4-6',
 } as const;
 
+export const PIPELINE_MODELS = {
+  stakeholderAnalyzer: 'gemini-2.5-pro',
+  personaGenerator: 'gpt-5.5',
+  personaResearch: 'claude-opus-4-8',
+} as const;
+
+export const PERSONA_MODELS = {
+  claude: 'claude-sonnet-4-6',
+  gemini: 'gemini-2.5-pro',
+  gpt: 'gpt-5.5',
+} as const satisfies Record<import('../types/index.js').LLMType, string>;
+
 export const MAX_TOKENS = {
   STAKEHOLDER: 4096,
   PERSONA: 8192,

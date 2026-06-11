@@ -1,5 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { AI_MODELS, MAX_TOKENS } from '../config/ai.js';
+import { generateText, jsonSchema } from 'ai';
+import { getPersonaModel } from '../llm/models.js';
+import { MAX_TOKENS } from '../config/ai.js';
 import { formatHistory } from '../utils/conversation.js';
 import type { DebateTurn } from '../db/repository.js';
 import type {
@@ -100,67 +101,72 @@ ${interviewRecord}
 ${currentBelief}`;
 }
 
-const REACTION_TURN_TOOL: Anthropic.Tool = {
-  name: 'submit_reaction',
-  description: '直前の発言への短いリアクションを提出する（10〜25文字）',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      content: {
-        type: 'string',
-        description: '10〜25文字の短いリアクション。「なるほど」「それは違う」「確かに、でも〜」「そうかな？」など。同じ語尾・フレーズの繰り返しは禁止。',
-      },
-    },
-    required: ['content'],
-  },
-};
-
-function buildFullTurnTool(styleGuide: string): Anthropic.Tool {
-  const styleSummary = styleGuide.split('\n')[0];
-  return {
-    name: 'submit_turn',
-    description: 'ペルソナとして討論の1ターン分の発言（意見・反論・論点提示）を提出する',
-    input_schema: {
+const REACTION_TURN_TOOLS = {
+  submit_reaction: {
+    description: '直前の発言への短いリアクションを提出する（10〜25文字）',
+    parameters: jsonSchema({
       type: 'object' as const,
+      additionalProperties: false as const,
       properties: {
-        content: { type: 'string', description: `意見・根拠をしっかり述べる（最大200文字）。語り口: ${styleSummary}` },
-        beliefChangeType: {
-          type: 'string',
-          enum: ['opinion_change', 'partial_acceptance'],
-          description: '信念変化タイプ: opinion_change=立場・結論が完全に変わる場合、partial_acceptance=他の意見の一部を受け入れる場合。変化なしの場合は省略する',
-        },
-        beliefChangeSummary: {
-          type: 'string',
-          description: '信念変化の理由・概要（beliefChangeTypeを指定した場合のみ記入）',
-        },
-        beliefChangeUpdatedBelief: {
-          type: 'string',
-          description: '変化後の信念ドキュメント（Markdown形式。beliefChangeTypeを指定した場合のみ記入）',
-        },
-        addressedToPersonaId: {
-          type: 'string',
-          description: '返答を求める特定のペルソナのID。直接質問する場合のみ指定する。',
+        content: {
+          type: 'string' as const,
+          description: '10〜25文字の短いリアクション。「なるほど」「それは違う」「確かに、でも〜」「そうかな？」など。同じ語尾・フレーズの繰り返しは禁止。',
         },
       },
       required: ['content'],
+    }),
+  },
+} as const;
+
+function buildFullTurnTools(styleGuide: string) {
+  const styleSummary = styleGuide.split('\n')[0];
+  return {
+    submit_turn: {
+      description: 'ペルソナとして討論の1ターン分の発言（意見・反論・論点提示）を提出する',
+      parameters: jsonSchema({
+        type: 'object' as const,
+        additionalProperties: false as const,
+        properties: {
+          content: { type: 'string' as const, description: `意見・根拠をしっかり述べる（最大200文字）。語り口: ${styleSummary}` },
+          beliefChangeType: {
+            type: 'string' as const,
+            enum: ['opinion_change', 'partial_acceptance'],
+            description: '信念変化タイプ: opinion_change=立場・結論が完全に変わる場合、partial_acceptance=他の意見の一部を受け入れる場合。変化なしの場合は省略する',
+          },
+          beliefChangeSummary: {
+            type: 'string' as const,
+            description: '信念変化の理由・概要（beliefChangeTypeを指定した場合のみ記入）',
+          },
+          beliefChangeUpdatedBelief: {
+            type: 'string' as const,
+            description: '変化後の信念ドキュメント（Markdown形式。beliefChangeTypeを指定した場合のみ記入）',
+          },
+          addressedToPersonaId: {
+            type: 'string' as const,
+            description: '返答を求める特定のペルソナのID。直接質問する場合のみ指定する。',
+          },
+        },
+        required: ['content'],
+      }),
     },
   };
 }
 
-const ASSESS_ENGAGEMENT_TOOL: Anthropic.Tool = {
-  name: 'assess_engagement',
-  description: '現在の会話を踏まえて、発言意欲（score）と発言形式（mode）を独立して自己評価する。score と mode はそれぞれ独立して選択すること。',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      score: {
-        type: 'integer',
-        description: '発言意欲の強度（1〜5の整数）。mode ごとのスコアラベルを参照して選択すること。',
-      },
-      mode: {
-        type: 'string',
-        enum: ['full', 'reaction', 'none'],
-        description: `発言形式（score とは独立して選択する）。
+const ASSESS_ENGAGEMENT_TOOLS = {
+  assess_engagement: {
+    description: '現在の会話を踏まえて、発言意欲（score）と発言形式（mode）を独立して自己評価する。score と mode はそれぞれ独立して選択すること。',
+    parameters: jsonSchema({
+      type: 'object' as const,
+      additionalProperties: false as const,
+      properties: {
+        score: {
+          type: 'integer' as const,
+          description: '発言意欲の強度（1〜5の整数）。mode ごとのスコアラベルを参照して選択すること。',
+        },
+        mode: {
+          type: 'string' as const,
+          enum: ['full', 'reaction', 'none'],
+          description: `発言形式（score とは独立して選択する）。
 
 reaction（直前の発言への短い反応。新論点は出さない）:
   score 1: パス（反応しない）
@@ -177,39 +183,35 @@ full（自分の論点・主張を展開する発言）:
   score 5: 今すぐ発言しなければ（自分の立場・主張に強く関わる重要な論点で、強く意見を述べたい）
 
 none: score 1 のときのみ選択する`,
+        },
+        intentSummary: {
+          type: 'string' as const,
+          description: 'mode が reaction の場合は25文字以内、full の場合は80文字以内で「今伝えたいこと」を要約する。mode が none の場合は省略する。',
+        },
       },
-      intentSummary: {
-        type: 'string',
-        description: 'mode が reaction の場合は25文字以内、full の場合は80文字以内で「今伝えたいこと」を要約する。mode が none の場合は省略する。',
-      },
-    },
-    required: ['score', 'mode'],
+      required: ['score', 'mode'],
+    }),
   },
-};
+} as const;
 
-const POST_DEBATE_COMMENT_TOOL: Anthropic.Tool = {
-  name: 'submit_post_debate_comment',
-  description: 'ペルソナとして討論後の短いコメントを提出する（2〜4文）',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      content: {
-        type: 'string',
-        description:
-          '討論後コメント（2〜4文）: 他の参加者の意見を聞いてどう感じたか・印象に残った意見・自分の考えの変化を含める',
+const POST_DEBATE_COMMENT_TOOLS = {
+  submit_post_debate_comment: {
+    description: 'ペルソナとして討論後の短いコメントを提出する（2〜4文）',
+    parameters: jsonSchema({
+      type: 'object' as const,
+      additionalProperties: false as const,
+      properties: {
+        content: {
+          type: 'string' as const,
+          description: '討論後コメント（2〜4文）: 他の参加者の意見を聞いてどう感じたか・印象に残った意見・自分の考えの変化を含める',
+        },
       },
-    },
-    required: ['content'],
+      required: ['content'],
+    }),
   },
-};
+} as const;
 
 export class PersonaAgentService {
-  private client: Anthropic;
-
-  constructor(client = new Anthropic()) {
-    this.client = client;
-  }
-
   async generateTurn(
     persona: PersonaAttributes,
     currentBelief: string,
@@ -234,34 +236,61 @@ export class PersonaAgentService {
         : '';
 
       const isReaction = assessedMode === 'reaction';
-      const tool = isReaction ? REACTION_TURN_TOOL : buildFullTurnTool(styleGuide);
-      const toolName = isReaction ? 'submit_reaction' : 'submit_turn';
-      const modeInstruction = isReaction
-        ? `10〜25文字の短いリアクションのみ。冒頭で相手の名前を呼ぶことは禁止。`
-        : `意見・論点・根拠をしっかり述べる（最大200文字）。冒頭で相手の名前を呼ぶことは禁止。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
-
-      const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${pendingNote}${intentNote}\n\n${persona.name}として発言してください。${modeInstruction}`;
-      const response = await this.client.messages.create({
-        model: AI_MODELS.SONNET,
-        max_tokens: isReaction ? MAX_TOKENS.PERSONA_ENGAGEMENT : MAX_TOKENS.PERSONA_TURN,
-        system: buildPersonaSystemPrompt(persona, interviewRecord, currentBelief),
-        tools: [tool],
-        tool_choice: { type: 'tool', name: toolName },
-        messages: [{ role: 'user', content: userContent }],
-      });
-
-      const toolBlock = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use');
-      if (!toolBlock) {
-        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true } };
-      }
+      const system = buildPersonaSystemPrompt(persona, interviewRecord, currentBelief);
+      const llmType = persona.llmType ?? 'claude';
 
       if (isReaction) {
-        const { content } = toolBlock.input as { content: string };
-        return { ok: true, value: { content, speechMode: 'reaction', beliefChange: null } };
+        const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${pendingNote}${intentNote}\n\n${persona.name}として発言してください。10〜25文字の短いリアクションのみ。冒頭で相手の名前を呼ぶことは禁止。`;
+        const callReaction = (model: ReturnType<typeof getPersonaModel>) =>
+          generateText({
+            model,
+            maxTokens: MAX_TOKENS.PERSONA_ENGAGEMENT,
+            system,
+            tools: REACTION_TURN_TOOLS,
+            toolChoice: { type: 'tool', toolName: 'submit_reaction' } as const,
+            messages: [{ role: 'user', content: userContent }],
+          });
+        let reactionResult;
+        try {
+          reactionResult = await callReaction(getPersonaModel(llmType));
+        } catch (err) {
+          console.error(`[llm] provider error: ${llmType} - ${err}`);
+          reactionResult = await callReaction(getPersonaModel('claude'));
+        }
+        const reactionCall = reactionResult.toolCalls[0];
+        if (!reactionCall) {
+          return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool call in response', retryable: true } };
+        }
+        const { content: reactionContent } = reactionCall.args as { content: string };
+        return { ok: true, value: { content: reactionContent, speechMode: 'reaction', beliefChange: null } };
+      }
+
+      const fullTools = buildFullTurnTools(styleGuide);
+      const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${pendingNote}${intentNote}\n\n${persona.name}として発言してください。意見・論点・根拠をしっかり述べる（最大200文字）。冒頭で相手の名前を呼ぶことは禁止。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
+      const callFull = (model: ReturnType<typeof getPersonaModel>) =>
+        generateText({
+          model,
+          maxTokens: MAX_TOKENS.PERSONA_TURN,
+          system,
+          tools: fullTools,
+          toolChoice: { type: 'tool', toolName: 'submit_turn' } as const,
+          messages: [{ role: 'user', content: userContent }],
+        });
+      let fullResult;
+      try {
+        fullResult = await callFull(getPersonaModel(llmType));
+      } catch (err) {
+        console.error(`[llm] provider error: ${llmType} - ${err}`);
+        fullResult = await callFull(getPersonaModel('claude'));
+      }
+
+      const toolCall = fullResult.toolCalls[0];
+      if (!toolCall) {
+        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool call in response', retryable: true } };
       }
 
       const { content, beliefChangeType, beliefChangeSummary, beliefChangeUpdatedBelief, addressedToPersonaId } =
-        toolBlock.input as {
+        toolCall.args as {
           content: string;
           beliefChangeType?: BeliefChangeType;
           beliefChangeSummary?: string;
@@ -290,26 +319,24 @@ export class PersonaAgentService {
       const ownTurnsSection = ownTurns.length > 0
         ? `\nあなた（${persona.name}）のこれまでの発言:\n${formatHistory(ownTurns)}\n`
         : '';
-      const response = await this.client.messages.create({
-        model: AI_MODELS.SONNET,
-        max_tokens: MAX_TOKENS.PERSONA_ENGAGEMENT,
+      const result = await generateText({
+        model: getPersonaModel(persona.llmType ?? 'claude'),
+        maxTokens: MAX_TOKENS.PERSONA_ENGAGEMENT,
         system: buildPersonaSystemPrompt(persona, interviewRecord, currentBelief),
-        tools: [ASSESS_ENGAGEMENT_TOOL],
-        tool_choice: { type: 'tool', name: 'assess_engagement' },
+        tools: ASSESS_ENGAGEMENT_TOOLS,
+        toolChoice: { type: 'tool', toolName: 'assess_engagement' },
         messages: [{
           role: 'user',
           content: `現在の会話:\n\n${formatHistory(recentHistory)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。現在の論点が自分の立場・主張に強く関わる場合はスコアを高め（4〜5）に評価してください。すでに同じ論点・主張を述べており、新たに付け加えるべきことがない場合: full なら score 1（パス）、reaction なら score 2（反応したい）を選択してください。`,
         }],
       });
 
-      const toolBlock = response.content.find(
-        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-      );
-      if (!toolBlock) {
+      const toolCall = result.toolCalls[0];
+      if (!toolCall) {
         return { ok: true, value: { score: 1, mode: 'none' } };
       }
 
-      const { score, mode, intentSummary } = toolBlock.input as {
+      const { score, mode, intentSummary } = toolCall.args as {
         score: number;
         mode: 'full' | 'reaction' | 'none';
         intentSummary?: string;
@@ -330,29 +357,24 @@ export class PersonaAgentService {
     history: DebateTurn[]
   ): Promise<Result<PostDebateCommentResult, PipelineError>> {
     try {
-      const response = await this.client.messages.create({
-        model: AI_MODELS.SONNET,
-        max_tokens: MAX_TOKENS.PERSONA_POST_DEBATE,
+      const result = await generateText({
+        model: getPersonaModel(persona.llmType ?? 'claude'),
+        maxTokens: MAX_TOKENS.PERSONA_POST_DEBATE,
         system: buildPersonaSystemPrompt(persona, '', finalBelief),
-        tools: [POST_DEBATE_COMMENT_TOOL],
-        tool_choice: { type: 'tool', name: 'submit_post_debate_comment' },
+        tools: POST_DEBATE_COMMENT_TOOLS,
+        toolChoice: { type: 'tool', toolName: 'submit_post_debate_comment' },
         messages: [{
           role: 'user',
           content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。\n\n討論全体:\n${formatHistory(history)}`,
         }],
       });
 
-      const toolBlock = response.content.find(
-        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-      );
-      if (!toolBlock) {
-        return {
-          ok: false,
-          error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true },
-        };
+      const toolCall = result.toolCalls[0];
+      if (!toolCall) {
+        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool call in response', retryable: true } };
       }
 
-      const { content } = toolBlock.input as { content: string };
+      const { content } = toolCall.args as { content: string };
       return { ok: true, value: { personaId: persona.id, content } };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
