@@ -1,29 +1,11 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import Anthropic from '@anthropic-ai/sdk';
+import { generateText, jsonSchema } from 'ai';
 import { tavily } from '@tavily/core';
+import { getPipelineModel } from '../llm/models.js';
 import { requireAuth } from '../utils/auth.js';
-import { AI_MODELS, MAX_TOKENS } from '../config/ai.js';
+import { MAX_TOKENS } from '../config/ai.js';
 
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
-
-const RESEARCH_TOOL: Anthropic.Tool = {
-  name: 'submit_research',
-  description: 'ペルソナの初期信念ドキュメントとリサーチサマリーを提出する',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      researchSummary: {
-        type: 'string',
-        description: '使用した検索クエリと収集した主な情報のサマリー（500字程度）',
-      },
-      initialBelief: {
-        type: 'string',
-        description: '初期信念ドキュメント（Markdown形式。以下の6項目を含むこと: 立場と根拠, 核心的主張, 懸念事項, 価値観, 妥協点, 変化の可能性）',
-      },
-    },
-    required: ['researchSummary', 'initialBelief'],
-  },
-};
 
 interface PersonaInput {
   name: string;
@@ -34,42 +16,58 @@ interface PersonaInput {
   interests: string;
 }
 
-async function fetchSearchContext(topicTitle: string, persona: PersonaInput): Promise<string> {
+const buildTools = () => {
   const tavilyClient = tavily();
-  const groundingQuery = `${persona.stakeholderRole} ${persona.occupation} 実際の問題 経験 証言 当事者の声`;
-  const newsQuery = `${topicTitle} ${persona.stakeholderRole} 最新 2025 2026`;
 
-  type SearchResult = { title: string; content: string };
-  let groundingResults: SearchResult[] = [];
-  let newsResults: SearchResult[] = [];
-
-  try {
-    const res = await tavilyClient.search(groundingQuery, { maxResults: 5 });
-    groundingResults = res.results;
-  } catch (e) {
-    console.warn(`[interview] tavily failed (grounding): ${e}`);
-  }
-
-  try {
-    const res = await tavilyClient.search(newsQuery, { maxResults: 5, topic: 'news' });
-    newsResults = res.results;
-  } catch (e) {
-    console.warn(`[interview] tavily failed (news): ${e}`);
-  }
-
-  if (groundingResults.length === 0 && newsResults.length === 0) return '';
-
-  const sections: string[] = [];
-  if (groundingResults.length > 0) {
-    sections.push('## 当事者の声・具体的経験');
-    sections.push(groundingResults.map(r => `[${r.title}]\n${r.content}`).join('\n\n'));
-  }
-  if (newsResults.length > 0) {
-    sections.push('## 最新動向');
-    sections.push(newsResults.map(r => `[${r.title}]\n${r.content}`).join('\n\n'));
-  }
-  return sections.join('\n\n');
-}
+  return {
+    web_search: {
+      description: 'ペルソナの立場・背景に関連する情報をウェブ検索する。当事者の体験談・証言・インタビュー・本音など一次情報を優先的に探す。必要と判断した回数だけ呼び出してよい。',
+      parameters: jsonSchema({
+        type: 'object' as const,
+        additionalProperties: false as const,
+        properties: {
+          query: { type: 'string' as const, description: '検索クエリ' },
+          mode: {
+            type: 'string' as const,
+            enum: ['general', 'news'],
+            description: 'general=体験談・実態調査、news=最新動向・政策・事件',
+          },
+        },
+        required: ['query', 'mode'],
+      }),
+      execute: async ({ query, mode }: { query: string; mode: 'general' | 'news' }) => {
+        try {
+          const res = await tavilyClient.search(query, {
+            maxResults: 5,
+            ...(mode === 'news' ? { topic: 'news' } : {}),
+          });
+          if (res.results.length === 0) return '検索結果なし';
+          return res.results.map(r => `[${r.title}]\n${r.content}`).join('\n\n');
+        } catch (e) {
+          return `検索失敗: ${e}`;
+        }
+      },
+    },
+    submit_research: {
+      description: '十分な情報が集まったら呼び出す。ペルソナの初期信念ドキュメントとリサーチサマリーを提出する。',
+      parameters: jsonSchema({
+        type: 'object' as const,
+        additionalProperties: false as const,
+        properties: {
+          researchSummary: {
+            type: 'string' as const,
+            description: '実施した検索クエリと収集した主な情報のサマリー（500字程度）',
+          },
+          initialBelief: {
+            type: 'string' as const,
+            description: '初期信念ドキュメント（Markdown形式。以下の6項目を含むこと: 立場と根拠, 核心的主張, 懸念事項, 価値観, 妥協点, 変化の可能性）',
+          },
+        },
+        required: ['researchSummary', 'initialBelief'],
+      }),
+    },
+  } as const;
+};
 
 export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, async (request) => {
   requireAuth(request);
@@ -77,32 +75,38 @@ export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, as
   if (!topicTitle?.trim()) throw new HttpsError('invalid-argument', 'topicTitle is required');
   if (!persona?.name) throw new HttpsError('invalid-argument', 'persona is required');
 
-  const searchContext = await fetchSearchContext(topicTitle, persona);
-  const searchSection = searchContext ? `\n\n## ウェブ検索で収集した情報\n${searchContext}` : '';
-
-  const client = new Anthropic();
-  let response;
+  let result;
   try {
-    response = await client.messages.create({
-      model: AI_MODELS.OPUS,
-      max_tokens: MAX_TOKENS.INTERVIEW,
-      tools: [RESEARCH_TOOL],
-      tool_choice: { type: 'tool', name: 'submit_research' },
+    result = await generateText({
+      model: getPipelineModel('personaInterview'),
+      maxTokens: MAX_TOKENS.INTERVIEW,
+      maxSteps: 10,
+      tools: buildTools(),
       messages: [{
         role: 'user',
-        content: `テーマ「${topicTitle}」について、以下のペルソナの初期信念を生成してください。${searchSection}\n\n氏名: ${persona.name}\n年齢: ${persona.age}歳\n職業: ${persona.occupation}\n立場: ${persona.stakeholderRole}\n背景: ${persona.background}\n関心事: ${persona.interests}`,
+        content: `テーマ「${topicTitle}」について、以下のペルソナの初期信念を構築してください。
+
+まず web_search ツールを使って、このペルソナの立場に立つ実在の人々が実際にどんなことを考え、感じ、経験しているかを調査してください。
+ステレオタイプや一般論ではなく、当事者の体験談・証言・インタビュー・本音を探してください。
+十分な情報が集まったと判断したら submit_research を呼び出してください。
+
+【ペルソナ情報】
+氏名: ${persona.name}
+年齢: ${persona.age}歳
+職業: ${persona.occupation}
+立場: ${persona.stakeholderRole}
+背景: ${persona.background}
+関心事: ${persona.interests}`,
       }],
     });
   } catch (err) {
     throw new HttpsError('internal', err instanceof Error ? err.message : String(err));
   }
 
-  const toolBlock = response.content.find(
-    (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-  );
-  if (!toolBlock) throw new HttpsError('internal', 'No tool_use block in response');
+  const submitCall = result.toolCalls.find(c => c.toolName === 'submit_research');
+  if (!submitCall) throw new HttpsError('internal', 'submit_research was not called');
 
-  const { researchSummary, initialBelief } = toolBlock.input as {
+  const { researchSummary, initialBelief } = submitCall.args as {
     researchSummary: string;
     initialBelief: string;
   };

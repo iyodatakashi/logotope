@@ -43,7 +43,13 @@ export const getPipelineModel = (task: keyof typeof PIPELINE_MODELS): LanguageMo
         return anthropic(PERSONA_MODELS.claude);
       }
       return openai(modelId);
-    case 'personaResearch':
-      return anthropic(modelId);
+    case 'personaInterview': {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        console.warn('[llm] fallback to claude: personaInterview - GEMINI_API_KEY not set');
+        return anthropic(PERSONA_MODELS.claude);
+      }
+      return createGoogleGenerativeAI({ apiKey })(modelId);
+    }
   }
 };

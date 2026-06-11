@@ -29,26 +29,24 @@
 			personaId: p.id,
 			personaName: p.name,
 			stakeholderRole: p.stakeholderRole,
-			interviewRecord: p.interview?.interviewRecord ?? '',
+			researchSummary: p.interview?.interviewRecord ?? '',
+			initialBelief: p.beliefs[0]?.content ?? '',
 			status: p.interview?.status ?? 'pending'
 		}))
 	);
 
-	const erroredPersonas = $derived(
-		personasStore.personas.filter((p) => p.interview?.status === 'error')
-	);
 	const completedCount = $derived(
 		personasStore.personas.filter((p) => p.interview?.status === 'completed').length
 	);
-	const errorCount = $derived(erroredPersonas.length);
+	const errorCount = $derived(
+		personasStore.personas.filter((p) => p.interview?.status === 'error').length
+	);
 	const pendingCount = $derived(
 		personasStore.personas.filter((p) => p.interview == null).length
 	);
 	const totalCount = $derived(personasStore.personas.length);
 	const allCompleted = $derived(completedCount === totalCount && totalCount > 0);
-	const hasAnyStarted = $derived(
-		personasStore.personas.some((p) => p.interview != null)
-	);
+	const hasAnyStarted = $derived(personasStore.personas.some((p) => p.interview != null));
 
 	async function doRunInterview(personaId: string): Promise<void> {
 		const persona = personasStore.personas.find((p) => p.id === personaId);
@@ -70,7 +68,7 @@
 
 			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
 				interview: {
-					interviewRecord: initialBelief,
+					interviewRecord: researchSummary,
 					status: 'completed',
 					completedAt: Timestamp.now()
 				},
@@ -136,16 +134,10 @@
 	{:else if totalCount > 0}
 		<div class="progress-summary">
 			<span class="count completed">{completedCount} 完了</span>
-			{#if pendingCount > 0}
-				<span class="count pending">{pendingCount} 待機中</span>
-			{/if}
-			{#if errorCount > 0}
-				<span class="count error-count">{errorCount} エラー</span>
-			{/if}
+			{#if pendingCount > 0}<span class="count pending">{pendingCount} 待機中</span>{/if}
+			{#if errorCount > 0}<span class="count error-count">{errorCount} エラー</span>{/if}
 			<span class="count total">/ {totalCount} 件</span>
-			{#if starting}
-				<span class="hint">（取材リクエスト送信中...）</span>
-			{/if}
+			{#if starting}<span class="hint">（取材中...）</span>{/if}
 		</div>
 	{/if}
 
@@ -168,18 +160,28 @@
 								{:else if iv.status === 'error'}エラー
 								{:else}待機中{/if}
 							</span>
-							{#if iv.interviewRecord}
+							{#if iv.initialBelief}
 								<span class="arrow">{expanded.has(iv.personaId) ? '▲' : '▼'}</span>
 							{/if}
 						</button>
 						{#if iv.status === 'error'}
-							<button class="retry" onclick={() => void handleRetry(iv.personaId)}>
-								リトライ
-							</button>
+							<button class="retry" onclick={() => void handleRetry(iv.personaId)}>リトライ</button>
 						{/if}
 					</div>
-					{#if expanded.has(iv.personaId) && iv.interviewRecord}
-						<pre class="record">{iv.interviewRecord}</pre>
+
+					{#if expanded.has(iv.personaId) && iv.initialBelief}
+						<div class="detail">
+							{#if iv.researchSummary}
+								<div class="section">
+									<p class="section-label">リサーチ内容</p>
+									<pre class="record research">{iv.researchSummary}</pre>
+								</div>
+							{/if}
+							<div class="section">
+								<p class="section-label">初期信念</p>
+								<pre class="record belief">{iv.initialBelief}</pre>
+							</div>
+						</div>
 					{/if}
 				</li>
 			{/each}
@@ -203,10 +205,8 @@
 	.count { font-weight: 600; }
 	.count.completed { color: #2e7d32; }
 	.count.pending { color: #1565c0; }
-	.count.stopped { color: #e65100; }
 	.count.error-count { color: #c62828; }
 	.count.total { color: #555; font-weight: 400; }
-	.step { color: #555; font-style: italic; font-size: 0.875rem; margin-bottom: 12px; }
 	.hint { color: #888; font-size: 0.875rem; }
 	.list { list-style: none; padding: 0; }
 	.item { border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 6px; overflow: hidden; }
@@ -224,7 +224,13 @@
 	.status-badge.err { background: #ffcdd2; color: #c62828; }
 	.retry { padding: 4px 10px; background: #fff3e0; border: 1px solid #ffb74d; border-radius: 4px; font-size: 0.75rem; cursor: pointer; margin-right: 8px; }
 	.arrow { color: #757575; flex-shrink: 0; }
-	.record { padding: 12px; background: #fafafa; font-size: 0.875rem; white-space: pre-wrap; word-break: break-word; border-top: 1px solid #e0e0e0; margin: 0; }
+	.detail { border-top: 1px solid #e0e0e0; }
+	.section { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; }
+	.section:last-child { border-bottom: none; }
+	.section-label { font-size: 0.75rem; font-weight: 600; color: #757575; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+	.record { font-size: 0.875rem; white-space: pre-wrap; word-break: break-word; margin: 0; background: none; padding: 0; }
+	.research { color: #555; }
+	.belief { color: #1a237e; }
 	.actions { margin-top: 16px; display: flex; gap: 8px; }
 	.primary { padding: 10px 24px; background: #1565c0; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; }
 	.primary:hover { background: #0d47a1; }
