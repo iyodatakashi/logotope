@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { onAuthStateChanged } from 'firebase/auth';
+	import { goto } from '$app/navigation';
 	import { Button } from '@14ch/svelte-ui';
 	import { authStore } from '$lib/stores/auth.svelte.js';
-	import { auth } from '$lib/firebase.js';
 	import { createTopicsStore } from '$lib/stores/topics.svelte.js';
 	import type { DebateStatus } from '$lib/types/index.js';
 
@@ -19,14 +18,10 @@
 		published: '公開済み'
 	};
 
+	// 認証は親レイアウトのガードが保証する（ガード通過後にのみ描画される）
 	onMount(() => {
-		const unsub = onAuthStateChanged(auth, (user) => {
-			if (user) topicsStore.start();
-		});
-		return () => {
-			unsub();
-			topicsStore.stop();
-		};
+		topicsStore.start();
+		return () => topicsStore.stop();
 	});
 </script>
 
@@ -34,7 +29,7 @@
 	<header>
 		<h1>管理ダッシュボード</h1>
 		<div class="actions">
-			<Button variant="filled" onclick={() => (location.href = '/admin/topics/new')}>
+			<Button variant="filled" onclick={() => goto('/admin/topics/new')}>
 				新しいテーマを作成
 			</Button>
 			<Button variant="ghost" onclick={() => authStore.logout()}>ログアウト</Button>

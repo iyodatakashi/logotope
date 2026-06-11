@@ -1,25 +1,34 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { Button, Input } from '@14ch/svelte-ui';
 	import { authStore } from '$lib/stores/auth.svelte.js';
+	import { sanitizeAdminRedirect } from '$lib/utils/redirect.js';
 
 	let email = $state('');
 	let password = $state('');
 	let error = $state('');
 	let loading = $state(false);
 
-	async function handleLogin() {
+	const redirectTo = $derived(sanitizeAdminRedirect(page.url.searchParams.get('redirect')));
+
+	// ログイン成功・認証済みアクセスの両方を認証状態の変化で扱い、検証済みの復帰先へ遷移する
+	$effect(() => {
+		if (!authStore.loading && authStore.user) {
+			goto(redirectTo);
+		}
+	});
+
+	const handleLogin = async () => {
 		error = '';
 		loading = true;
 		try {
 			await authStore.login(email, password);
-			goto('/admin');
 		} catch {
 			error = 'メールアドレスまたはパスワードが正しくありません';
-		} finally {
 			loading = false;
 		}
-	}
+	};
 </script>
 
 <div class="login-container">

@@ -1,25 +1,23 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { page } from '$app/stores';
-	import { onMount } from 'svelte';
+	import { page } from '$app/state';
+	import type { Snippet } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 
-	let { children } = $props();
+	let { children }: { children: Snippet } = $props();
 
-	onMount(() => {
-		const interval = setInterval(() => {
-			if (!authStore.loading && !authStore.user) {
-				clearInterval(interval);
-				goto('/admin/login');
-			}
-		}, 50);
+	const isLoginPage = $derived(page.url.pathname === '/admin/login');
 
-		return () => clearInterval(interval);
+	// 認証ストアの状態変化に反応するガード。未認証なら現在のパスを保持してログインへ誘導する
+	$effect(() => {
+		if (!authStore.loading && !authStore.user && !isLoginPage) {
+			goto(`/admin/login?redirect=${encodeURIComponent(page.url.pathname)}`);
+		}
 	});
 </script>
 
 {#if authStore.loading}
 	<div class="loading">認証確認中...</div>
-{:else if authStore.user || $page.url.pathname === '/admin/login'}
+{:else if authStore.user || isLoginPage}
 	{@render children()}
 {/if}
