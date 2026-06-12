@@ -77,7 +77,7 @@ export interface FacilitatorOpeningResult {
 export interface FacilitatorIntervention {
   shouldIntervene: boolean;
   content?: string;
-  type?: 'topic_shift' | 'invite' | 'close';
+  type?: 'topic_shift' | 'invite';
   targetPersonaId?: string;
 }
 
@@ -90,6 +90,15 @@ export interface EngagementAssessment {
 export interface PendingIntent {
   triggerTurnIndex: number;
   intentSummary: string;
+}
+
+export type SpeakerSource = 'nomination' | 'direct_address' | 'urgent_reaction' | 'queue' | 'score';
+
+export interface SpeakerDecision {
+  personaId: string;
+  source: SpeakerSource;
+  mode?: 'full' | 'reaction';
+  intentSummary?: string;
 }
 
 export interface DebateChapter {
