@@ -10,6 +10,7 @@
 
 	let starting = $state(false);
 	let started = $state(false);
+	let resetting = $state(false);
 	let error = $state('');
 	let publishUrl = $state('');
 
@@ -61,7 +62,7 @@
 	);
 
 	$effect(() => {
-		if (currentTopicStore.sessionStore.isLoaded && !currentTopicStore.sessionStore.session && !started) {
+		if (currentTopicStore.sessionStore.isLoaded && !currentTopicStore.sessionStore.session && !started && !resetting) {
 			void doStart();
 		}
 	});
@@ -85,6 +86,17 @@
 			await currentTopicStore.topic?.cancelDebate();
 		} catch (e) {
 			error = e instanceof Error ? e.message : '停止に失敗しました';
+		}
+	}
+
+	async function handleReset() {
+		resetting = true;
+		error = '';
+		try {
+			await currentTopicStore.topic?.resetToPhase3();
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'リセットに失敗しました';
+			resetting = false;
 		}
 	}
 
@@ -184,6 +196,7 @@
 	{#if !loading && turns.length > 0 && !publishUrl}
 		<div class="actions">
 			<Button onclick={handlePublish}>公開する</Button>
+			<Button variant="outlined" onclick={handleReset}>討論をリセット</Button>
 		</div>
 	{/if}
 </section>
