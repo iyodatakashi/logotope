@@ -83,7 +83,6 @@ export interface SaveEngagementsParams {
     score: number;
     mode: 'full' | 'reaction' | 'none';
     intentSummary?: string;
-    addToPending: boolean;
   }>;
 }
 
@@ -100,6 +99,7 @@ export interface DebateTurn {
   chapterIndex?: number;
   speechMode?: 'reaction' | 'full';
   fromQueue?: boolean;
+  addressedPersonaId?: string;
   engagements?: EngagementEntry[];
 }
 
@@ -147,6 +147,7 @@ export interface CreateDebateTurnParams {
   chapterIndex?: number;
   speechMode?: 'reaction' | 'full';
   fromQueue?: boolean;
+  addressedPersonaId?: string;
 }
 
 export interface CreatePostDebateCommentParams {
@@ -286,6 +287,7 @@ export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<
   if (params.chapterIndex !== undefined) turn.chapterIndex = params.chapterIndex;
   if (params.speechMode !== undefined) turn.speechMode = params.speechMode;
   if (params.fromQueue) turn.fromQueue = true;
+  if (params.addressedPersonaId !== undefined) turn.addressedPersonaId = params.addressedPersonaId;
 
   await db().doc(`topics/${params.sessionId}/sessions/0`).update({
     turns: FieldValue.arrayUnion(turn),
@@ -331,27 +333,27 @@ export const saveEngagements = async (params: SaveEngagementsParams): Promise<vo
     if (assessment.intentSummary !== undefined) historyEntry.intentSummary = assessment.intentSummary;
 
     // Map 形式: キーが turnIndex なので同一キーへの上書きで重複を防ぐ（read 不要）
+    // キュー（pendingIntents）への書き込みは setPendingIntents に分離している
     await ref.set(
       { history: { [String(params.turnIndex)]: historyEntry } },
       { mergeFields: [`history.${params.turnIndex}`] }
     );
-
-    if (assessment.addToPending && assessment.intentSummary !== undefined) {
-      await ref.set(
-        { pendingIntents: FieldValue.arrayUnion({ triggerTurnIndex: params.turnIndex, intentSummary: assessment.intentSummary }) },
-        { merge: true }
-      );
-    }
   }
 };
 
-export const consumePendingIntent = async (sessionId: string, personaId: string): Promise<void> => {
-  const ref = db().doc(`topics/${sessionId}/sessions/0/engagements/${personaId}`);
-  const snap = await ref.get();
-  if (!snap.exists) return;
-  const data = snap.data() as { pendingIntents?: PendingIntentEntry[] };
-  const remaining = (data.pendingIntents ?? []).slice(1);
-  await ref.update({ pendingIntents: remaining });
+export const setPendingIntents = async (
+  sessionId: string,
+  personaId: string,
+  items: ReadonlyArray<PendingIntentEntry>
+): Promise<void> => {
+  await db().doc(`topics/${sessionId}/sessions/0/engagements/${personaId}`).set(
+    { pendingIntents: [...items] },
+    { merge: true }
+  );
+};
+
+export const markSessionError = async (topicId: string): Promise<void> => {
+  await db().doc(`topics/${topicId}/sessions/0`).update({ status: 'error' });
 };
 
 export const loadPendingIntents = async (sessionId: string): Promise<Map<string, PendingIntentEntry[]>> => {
@@ -426,7 +428,7 @@ export const getDebateSessionById = async (id: string): Promise<DebateSession | 
 export const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[]> => {
   const snap = await db().doc(`topics/${sessionId}/sessions/0`).get();
   if (!snap.exists) return [];
-  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp; chapterIndex?: number; fromQueue?: boolean }> };
+  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp; chapterIndex?: number; fromQueue?: boolean; addressedPersonaId?: string }> };
   return (data.turns ?? []).map((t) => ({
     id: t.id,
     sessionId,
@@ -439,6 +441,7 @@ export const getDebateTurnsBySessionId = async (sessionId: string): Promise<Deba
     createdAt: t.createdAt?.toDate().toISOString() ?? '',
     chapterIndex: t.chapterIndex,
     fromQueue: t.fromQueue,
+    addressedPersonaId: t.addressedPersonaId,
   }));
 };
 

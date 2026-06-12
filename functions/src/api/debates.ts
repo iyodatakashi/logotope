@@ -26,20 +26,30 @@ export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   return { topicId };
 });
 
+const MAX_ATTEMPTS = 3;
+
 export const runChapter = onTaskDispatched(
   {
     timeoutSeconds: 540,
     region: REGION,
     secrets: ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'],
-    retryConfig: { maxAttempts: 3, minBackoffSeconds: 30 },
+    retryConfig: { maxAttempts: MAX_ATTEMPTS, minBackoffSeconds: 30 },
     rateLimits: { maxConcurrentDispatches: 5 },
   },
   async (req) => {
     const { topicId, chapterIndex } = req.data as { topicId: string; chapterIndex: number };
-    const orchestrator = new DebateOrchestratorService();
-    const hasNextChapter = await orchestrator.executeChapterTask(topicId, chapterIndex);
-    if (hasNextChapter) {
-      await enqueueChapterTask(topicId, chapterIndex + 1);
+    try {
+      const orchestrator = new DebateOrchestratorService();
+      const hasNextChapter = await orchestrator.executeChapterTask(topicId, chapterIndex);
+      if (hasNextChapter) {
+        await enqueueChapterTask(topicId, chapterIndex + 1);
+      }
+    } catch (err) {
+      // 最終リトライでも失敗した場合のみセッションをエラー終端にする
+      if ((req.retryCount ?? 0) >= MAX_ATTEMPTS - 1) {
+        await repo.markSessionError(topicId);
+      }
+      throw err;
     }
   }
 );
