@@ -13,6 +13,7 @@ export type BeliefDoc = {
 };
 
 export type InterviewDoc = {
+	researchSummary?: string;
 	interviewRecord?: string;
 	status: 'queued' | 'in_progress' | 'completed' | 'error';
 	errorMessage?: string;

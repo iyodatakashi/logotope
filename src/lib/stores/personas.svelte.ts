@@ -59,7 +59,7 @@ export const createPersonasStore = (topicId: string) => {
 		try {
 			const fn = httpsCallable<
 				{ topicTitle: string; persona: PersonaForInterview },
-				{ researchSummary: string; initialBelief: string }
+				{ researchSummary: string; interviewRecord: string; initialBelief: string }
 			>(functions, 'runInterview', { timeout: 310000 });
 			const { data } = await fn({
 				topicTitle,
@@ -74,7 +74,8 @@ export const createPersonasStore = (topicId: string) => {
 			});
 			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
 				interview: {
-					interviewRecord: data.researchSummary,
+					researchSummary: data.researchSummary,
+					interviewRecord: data.interviewRecord,
 					status: 'completed',
 					completedAt: Timestamp.now()
 				},

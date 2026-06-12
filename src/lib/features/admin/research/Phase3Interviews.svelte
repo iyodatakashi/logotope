@@ -26,7 +26,8 @@
 			personaId: p.id,
 			personaName: p.name,
 			stakeholderRole: p.stakeholderRole,
-			researchSummary: p.interview?.interviewRecord ?? '',
+			researchSummary: p.interview?.researchSummary ?? '',
+			interviewRecord: p.interview?.interviewRecord ?? '',
 			initialBelief: p.beliefs[0]?.content ?? '',
 			status: p.interview?.status ?? 'pending'
 		}))
@@ -125,6 +126,12 @@
 								<div class="section">
 									<p class="section-label">リサーチ内容</p>
 									<pre class="record research">{iv.researchSummary}</pre>
+								</div>
+							{/if}
+							{#if iv.interviewRecord}
+								<div class="section">
+									<p class="section-label">取材記録</p>
+									<pre class="record research">{iv.interviewRecord}</pre>
 								</div>
 							{/if}
 							<div class="section">
