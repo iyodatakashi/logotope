@@ -225,6 +225,23 @@ describe('createDebateTurn', () => {
     const call = vi.mocked(FieldValue.arrayUnion).mock.calls[0][0] as Record<string, unknown>;
     expect(call).not.toHaveProperty('chapterIndex');
   });
+
+  it('includes addressedPersonaId in turn when provided（指名・直接質問の永続化）', async () => {
+    await repo.createDebateTurn({
+      sessionId: 'topic-1', turnIndex: 4, speakerType: 'facilitator', content: '鈴木さんはいかがですか？', chapterIndex: 0, addressedPersonaId: 'p2',
+    });
+    expect(FieldValue.arrayUnion).toHaveBeenCalledWith(
+      expect.objectContaining({ addressedPersonaId: 'p2' })
+    );
+  });
+
+  it('omits addressedPersonaId from turn when not provided', async () => {
+    await repo.createDebateTurn({
+      sessionId: 'topic-1', turnIndex: 5, speakerType: 'facilitator', content: 'まとめです。',
+    });
+    const call = vi.mocked(FieldValue.arrayUnion).mock.calls[0][0] as Record<string, unknown>;
+    expect(call).not.toHaveProperty('addressedPersonaId');
+  });
 });
 
 // ---- saveChapters ----
@@ -276,7 +293,7 @@ describe('saveEngagements', () => {
       sessionId: 'topic-1',
       turnIndex: 5,
       assessments: [
-        { personaId: 'p1', score: 3, mode: 'reaction', intentSummary: '短く同意', addToPending: false },
+        { personaId: 'p1', score: 3, mode: 'reaction', intentSummary: '短く同意' },
       ],
     });
     expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0/engagements/p1');
@@ -286,83 +303,67 @@ describe('saveEngagements', () => {
     );
   });
 
-  it('addToPending が true のとき pendingIntents に arrayUnion で追加する', async () => {
-    await repo.saveEngagements({
-      sessionId: 'topic-1',
-      turnIndex: 5,
-      assessments: [
-        { personaId: 'p1', score: 4, mode: 'full', intentSummary: '反論したい', addToPending: true },
-      ],
-    });
-    expect(mockDocRef.set).toHaveBeenCalledTimes(2);
-    const historyCall = mockDocRef.set.mock.calls[0];
-    expect(historyCall[0]).toEqual({ history: { '5': { score: 4, mode: 'full', intentSummary: '反論したい' } } });
-    expect(historyCall[1]).toEqual({ mergeFields: ['history.5'] });
-    const pendingCall = mockDocRef.set.mock.calls[1];
-    expect(pendingCall[0]).toEqual(
-      expect.objectContaining({ pendingIntents: expect.objectContaining({ _type: 'arrayUnion' }) })
-    );
-    expect(pendingCall[1]).toEqual({ merge: true });
-  });
-
-  it('addToPending が false のとき pendingIntents の set を呼ばない', async () => {
-    await repo.saveEngagements({
-      sessionId: 'topic-1',
-      turnIndex: 5,
-      assessments: [
-        { personaId: 'p1', score: 3, mode: 'reaction', intentSummary: 'そうですね', addToPending: false },
-      ],
-    });
-    expect(mockDocRef.set).toHaveBeenCalledTimes(1);
-    expect(mockDocRef.set.mock.calls[0][1]).toEqual({ mergeFields: ['history.5'] });
-  });
-
-  it('各ペルソナに対して set を呼ぶ（addToPending なし: 2回、あり: 3回）', async () => {
+  it('各ペルソナに対して history の set を1回ずつ呼ぶ', async () => {
     await repo.saveEngagements({
       sessionId: 'topic-1',
       turnIndex: 3,
       assessments: [
-        { personaId: 'p1', score: 2, mode: 'reaction', addToPending: false },
-        { personaId: 'p2', score: 5, mode: 'full', intentSummary: '言いたい', addToPending: true },
+        { personaId: 'p1', score: 2, mode: 'reaction' },
+        { personaId: 'p2', score: 5, mode: 'full', intentSummary: '言いたい' },
       ],
     });
-    // p1: history 1 call, p2: history + pendingIntents = 2 calls → total 3
-    expect(mockDocRef.set).toHaveBeenCalledTimes(3);
+    expect(mockDocRef.set).toHaveBeenCalledTimes(2);
+  });
+
+  it('pendingIntents には書き込まない（キュー書き込みは setPendingIntents に分離）', async () => {
+    await repo.saveEngagements({
+      sessionId: 'topic-1',
+      turnIndex: 5,
+      assessments: [
+        { personaId: 'p1', score: 5, mode: 'full', intentSummary: '反論したい' },
+      ],
+    });
+    for (const call of mockDocRef.set.mock.calls) {
+      expect(Object.keys(call[0] as Record<string, unknown>)).not.toContain('pendingIntents');
+    }
   });
 });
 
-// ---- consumePendingIntent ----
+// ---- setPendingIntents / markSessionError (task 3.2) ----
 
-describe('consumePendingIntent', () => {
-  it('removes the first (oldest) entry from pendingIntents', async () => {
-    mockDocRef.get.mockResolvedValue({
-      exists: true,
-      id: 'p1',
-      data: () => ({
-        history: [],
-        pendingIntents: [
-          { triggerTurnIndex: 2, intentSummary: '古い意図' },
-          { triggerTurnIndex: 5, intentSummary: '新しい意図' },
-        ],
-      }),
-    });
-    await repo.consumePendingIntent('topic-1', 'p1');
+describe('setPendingIntents - task 3.2: キュー write-through', () => {
+  it('ペルソナ単位で pendingIntents 配列を全置換で書き込む', async () => {
+    await repo.setPendingIntents('topic-1', 'p1', [
+      { triggerTurnIndex: 2, intentSummary: '意図A' },
+      { triggerTurnIndex: 5, intentSummary: '意図B' },
+    ]);
     expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0/engagements/p1');
-    expect(mockDocRef.update).toHaveBeenCalledWith({
-      pendingIntents: [{ triggerTurnIndex: 5, intentSummary: '新しい意図' }],
-    });
+    expect(mockDocRef.set).toHaveBeenCalledWith(
+      {
+        pendingIntents: [
+          { triggerTurnIndex: 2, intentSummary: '意図A' },
+          { triggerTurnIndex: 5, intentSummary: '意図B' },
+        ],
+      },
+      { merge: true }
+    );
   });
 
-  it('sets pendingIntents to empty array when only one entry exists', async () => {
-    mockDocRef.get.mockResolvedValue({
-      exists: true,
-      id: 'p1',
-      data: () => ({
-        pendingIntents: [{ triggerTurnIndex: 2, intentSummary: '唯一の意図' }],
-      }),
-    });
-    await repo.consumePendingIntent('topic-1', 'p1');
-    expect(mockDocRef.update).toHaveBeenCalledWith({ pendingIntents: [] });
+  it('空配列を書き込んでキューを空にできる', async () => {
+    await repo.setPendingIntents('topic-1', 'p1', []);
+    expect(mockDocRef.set).toHaveBeenCalledWith({ pendingIntents: [] }, { merge: true });
+  });
+
+  it('consumePendingIntent は存在しない（setPendingIntents に置換済み）', () => {
+    expect('consumePendingIntent' in repo).toBe(false);
+  });
+});
+
+describe('markSessionError - task 3.2: エラー終端', () => {
+  it('sessions/0 の status を error にする', async () => {
+    await repo.markSessionError('topic-1');
+    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0');
+    expect(mockDocRef.update).toHaveBeenCalledWith({ status: 'error' });
   });
 });
 

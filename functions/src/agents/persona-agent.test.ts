@@ -15,6 +15,7 @@ vi.mock('../llm/models.js', () => ({
 }));
 
 import { PersonaAgentService, buildSpeechStyleGuide } from './persona-agent.js';
+import type { TurnGenerationContext } from './persona-agent.js';
 import type { PersonaAttributes, DebateChapter } from '../types/index.js';
 
 const mockModel = { _provider: 'anthropic', _modelId: 'claude-sonnet-4-6' };
@@ -35,6 +36,8 @@ const testInterviewRecord =
 
 const testCurrentBelief =
   '# 現在の信念\n\n## 立場と根拠\n本政策は医療安全強化に必要。\n\n## 核心的主張\n患者の命を守ることが最優先事項。';
+
+const testChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 0 };
 
 const testHistory = [
   { id: 't1', sessionId: 's1', turnIndex: 0, speakerType: 'facilitator', speakerName: 'ファシリテーター', speakerRole: '', content: '本日はAI医療診断の導入について討論します。', createdAt: '2025-01-01' },
@@ -64,6 +67,13 @@ const makePostDebateResult = (content: string) => ({
   toolResults: [],
   finishReason: 'tool-calls',
   usage: { promptTokens: 0, completionTokens: 0 },
+});
+
+const ctx = (overrides: Partial<TurnGenerationContext> = {}): TurnGenerationContext => ({
+  chapterHistory: testHistory,
+  chapter: testChapter,
+  nominatedByFacilitator: false,
+  ...overrides,
 });
 
 let service: PersonaAgentService;
@@ -150,7 +160,7 @@ describe('task 1.2: スタイルガイドのシステムプロンプトとツー
   };
 
   it('発言スタイルセクション先頭（発言の長さルールより前）に語り口指針が含まれる', async () => {
-    await service.generateTurn(youngPersona, 'belief', 'interview', []);
+    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
 
     const system: string = mockGenerateText.mock.calls[0][0].system;
     const sectionStart = system.indexOf('## 発言スタイルの厳守事項');
@@ -162,30 +172,30 @@ describe('task 1.2: スタイルガイドのシステムプロンプトとツー
   });
 
   it('若手ペルソナのシステムプロンプトに口語・疑問形スタイルが含まれる', async () => {
-    await service.generateTurn(youngPersona, 'belief', 'interview', []);
+    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
     expect(mockGenerateText.mock.calls[0][0].system).toMatch(/口語|疑問形/);
   });
 
   it('経営者ペルソナのシステムプロンプトに断言的スタイルが含まれる', async () => {
-    await service.generateTurn(executivePersona, 'belief', 'interview', []);
+    await service.generateTurn(executivePersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
     expect(mockGenerateText.mock.calls[0][0].system).toMatch(/断言|謙遜|権威/);
   });
 
   it('若手と経営者ペルソナでシステムプロンプトの語り口指針が異なる', async () => {
-    await service.generateTurn(youngPersona, 'belief', 'interview', []);
+    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
     const youngSystem: string = mockGenerateText.mock.calls[0][0].system;
     vi.clearAllMocks();
     mockGetPersonaModel.mockReturnValue(mockModel);
     mockGenerateText.mockResolvedValue(makeTurnResult());
 
-    await service.generateTurn(executivePersona, 'belief', 'interview', []);
+    await service.generateTurn(executivePersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
     const execSystem: string = mockGenerateText.mock.calls[0][0].system;
 
     expect(youngSystem).not.toBe(execSystem);
   });
 
   it('TURN_TOOL の content フィールド説明に語り口スタイルが含まれる', async () => {
-    await service.generateTurn(youngPersona, 'belief', 'interview', []);
+    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
 
     const tools = mockGenerateText.mock.calls[0][0].tools as Record<string, { parameters: { properties: { content: { description: string } } } }>;
     const submitTurn = tools['submit_turn'];
@@ -208,7 +218,7 @@ describe('PersonaAgentService', () => {
     it('信念変化なし: beliefChange が null で content が返る', async () => {
       mockGenerateText.mockResolvedValue(makeTurnResult({ content: '医療安全の観点から、AI導入は適切なプロセスを経れば有益だと考えます。' }));
 
-      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -224,7 +234,7 @@ describe('PersonaAgentService', () => {
         beliefChangeUpdatedBelief: '# 更新後の信念\n費用負担の問題を解決してから導入すべき。',
       }));
 
-      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -242,7 +252,7 @@ describe('PersonaAgentService', () => {
         beliefChangeUpdatedBelief: '# 更新後の信念\n安全性向上は評価するが、費用問題の解決を条件に支持。',
       }));
 
-      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -257,7 +267,7 @@ describe('PersonaAgentService', () => {
         addressedToPersonaId: 'p2',
       }));
 
-      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -268,7 +278,7 @@ describe('PersonaAgentService', () => {
     it('addressedToPersonaId なし: undefined が返る', async () => {
       mockGenerateText.mockResolvedValue(makeTurnResult({ content: 'データに基づいて判断することが重要です。' }));
 
-      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -278,7 +288,7 @@ describe('PersonaAgentService', () => {
 
   describe('generateTurn — システムプロンプト検証', () => {
     it('システムプロンプトにペルソナ属性が含まれる', async () => {
-      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
 
       const call = mockGenerateText.mock.calls[0][0];
       expect(call.system).toMatch(/田中太郎/);
@@ -287,20 +297,20 @@ describe('PersonaAgentService', () => {
     });
 
     it('システムプロンプトに取材レコードが含まれる', async () => {
-      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
 
       const call = mockGenerateText.mock.calls[0][0];
       expect(call.system).toContain(testInterviewRecord);
     });
 
     it('システムプロンプトに現在の信念ドキュメントが含まれる', async () => {
-      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
       expect(mockGenerateText.mock.calls[0][0].system).toContain(testCurrentBelief);
     });
 
     it('他ペルソナの取材レコード・信念はシステムプロンプトに含まれない', async () => {
       const otherPersonaBelief = '他のペルソナの秘密の信念ドキュメント_UNIQUE_STRING';
-      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
       expect(mockGenerateText.mock.calls[0][0].system).not.toContain(otherPersonaBelief);
     });
   });
@@ -308,12 +318,12 @@ describe('PersonaAgentService', () => {
   describe('generateTurn — LLM ルーティング（task 5.1）', () => {
     it('persona.llmType に応じた getPersonaModel が呼び出される', async () => {
       const personaWithLlmType = { ...testPersona, llmType: 'gemini' as const };
-      await service.generateTurn(personaWithLlmType, testCurrentBelief, testInterviewRecord, testHistory);
+      await service.generateTurn(personaWithLlmType, testCurrentBelief, testInterviewRecord, ctx());
       expect(mockGetPersonaModel).toHaveBeenCalledWith('gemini');
     });
 
     it('llmType が未設定の場合は claude にフォールバックして getPersonaModel を呼び出す', async () => {
-      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
       expect(mockGetPersonaModel).toHaveBeenCalledWith('claude');
     });
 
@@ -327,7 +337,7 @@ describe('PersonaAgentService', () => {
         .mockResolvedValueOnce(makeTurnResult({ content: 'フォールバック発言。' }));
 
       const personaWithLlmType = { ...testPersona, llmType: 'gemini' as const };
-      const result = await service.generateTurn(personaWithLlmType, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.generateTurn(personaWithLlmType, testCurrentBelief, testInterviewRecord, ctx());
 
       expect(result.ok).toBe(true);
       expect(mockGenerateText).toHaveBeenCalledTimes(2);
@@ -339,7 +349,7 @@ describe('PersonaAgentService', () => {
   describe('generateTurn — エラーハンドリング', () => {
     it('generateText 失敗（フォールバック後も失敗）時に error result を返す', async () => {
       mockGenerateText.mockRejectedValue(new Error('API rate limit exceeded'));
-      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error.code).toBe('AI_API_ERROR');
@@ -347,40 +357,89 @@ describe('PersonaAgentService', () => {
 
     it('エラーは retryable: true を返す', async () => {
       mockGenerateText.mockRejectedValue(new Error('network error'));
-      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error).toMatchObject({ code: 'AI_API_ERROR', retryable: true });
     });
   });
 
-  describe('generateTurn - task 4: currentChapter コンテキスト', () => {
-    it('currentChapter を指定すると user メッセージに章タイトルとフォーカス問いが含まれる', async () => {
-      const currentChapter: DebateChapter = { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 5 };
-      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory, currentChapter);
+  describe('generateTurn - task 3.1: TurnGenerationContext 統合', () => {
+    it('context.chapter の章タイトルとフォーカス問いが user メッセージに含まれる', async () => {
+      const chapter: DebateChapter = { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 5 };
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ chapter }));
 
       const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
       expect(msg).toMatch(/核心的対立/);
       expect(msg).toMatch(/最も意見が分かれる点はどこか？/);
     });
 
-    it('currentChapter を指定しても system プロンプトは変わらない', async () => {
-      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-      const systemWithout: string = mockGenerateText.mock.calls[0][0].system;
+    it('context.chapterHistory の発言内容が user メッセージに含まれる', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
+      const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
+      expect(msg).toContain('費用負担が大きくなることが非常に心配です');
+    });
+
+    it('mode: reaction のとき submit_reaction ツールで短いリアクションを生成する', async () => {
+      mockGenerateText.mockResolvedValue({
+        toolCalls: [{ toolName: 'submit_reaction', args: { content: 'なるほど、確かに。' } }],
+        text: '', toolResults: [], finishReason: 'tool-calls', usage: { promptTokens: 0, completionTokens: 0 },
+      });
+
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ mode: 'reaction' }));
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.speechMode).toBe('reaction');
+      const call = mockGenerateText.mock.calls[0][0];
+      expect(call.toolChoice).toEqual({ type: 'tool', toolName: 'submit_reaction' });
+    });
+
+    it('mode: full のとき submit_turn ツールで意見発言を生成する', async () => {
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ mode: 'full' }));
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.speechMode).toBe('full');
+      const call = mockGenerateText.mock.calls[0][0];
+      expect(call.toolChoice).toEqual({ type: 'tool', toolName: 'submit_turn' });
+    });
+
+    it('pendingTrigger が【持ち越しの言いたいこと】として user メッセージに含まれる', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({
+        pendingTrigger: { speakerName: '鈴木花子', content: '費用負担が心配です' },
+      }));
+
+      const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
+      expect(msg).toContain('【持ち越しの言いたいこと】');
+      expect(msg).toContain('鈴木花子');
+      expect(msg).toContain('費用負担が心配です');
+    });
+
+    it('nominatedByFacilitator: true のとき【指名】が user メッセージに含まれる', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ nominatedByFacilitator: true }));
+      const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
+      expect(msg).toContain('【指名】');
+    });
+
+    it('nominatedByFacilitator: false のとき【指名】が含まれない', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
+      const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
+      expect(msg).not.toContain('【指名】');
+    });
+
+    it('context.chapter を変えても system プロンプトは変わらない', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
+      const systemBase: string = mockGenerateText.mock.calls[0][0].system;
       vi.clearAllMocks();
       mockGetPersonaModel.mockReturnValue(mockModel);
       mockGenerateText.mockResolvedValue(makeTurnResult());
 
-      const currentChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: '核心は？', startTurnIndex: 1 };
-      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory, currentChapter);
+      const chapter: DebateChapter = { index: 2, title: '影響', focusQuestion: 'どんな影響があるか？', startTurnIndex: 10 };
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ chapter }));
       const systemWith: string = mockGenerateText.mock.calls[0][0].system;
 
-      expect(systemWith).toBe(systemWithout);
-    });
-
-    it('currentChapter なしでも動作する（後方互換性）', async () => {
-      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-      expect(result.ok).toBe(true);
+      expect(systemWith).toBe(systemBase);
     });
   });
 
@@ -443,13 +502,13 @@ describe('PersonaAgentService', () => {
 
   describe('generateTurn — Task 2.2 intentSummary プロンプト埋め込み', () => {
     it('intentSummary が渡された場合、ユーザープロンプトに【今回伝えたいこと】が含まれる', async () => {
-      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory, undefined, undefined, undefined, '医療費問題をしっかり主張したい');
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ intentSummary: '医療費問題をしっかり主張したい' }));
       const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
       expect(msg).toContain('【今回伝えたいこと】医療費問題をしっかり主張したい');
     });
 
     it('intentSummary が undefined の場合、プロンプトに【今回伝えたいこと】が追記されない', async () => {
-      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
       const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
       expect(msg).not.toContain('【今回伝えたいこと】');
     });

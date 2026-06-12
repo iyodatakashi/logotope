@@ -24,9 +24,10 @@ const testHistory: ConversationTurn[] = [
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(Anthropic).mockImplementation(() => ({
-    messages: { create: mockCreate },
-  }) as unknown as Anthropic);
+  // コンストラクタとして new されるため、アロー関数ではなく function 式でモックする（vitest 4）
+  vi.mocked(Anthropic).mockImplementation(function (this: unknown) {
+    return { messages: { create: mockCreate } } as unknown as Anthropic;
+  });
 });
 
 describe('FacilitatorAgentService DI', () => {
@@ -136,99 +137,10 @@ describe('FacilitatorAgentService', () => {
     });
   });
 
-  describe('selectNextSpeaker', () => {
-    it('returns ok with a personaId string', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'select_speaker',
-          input: { personaId: 'p2' },
-        }],
-      });
-
-      const result = await service.selectNextSpeaker(testHistory, testPersonas, new Map([['p1', 2], ['p2', 0]]));
-
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value.personaId).toBe('p2');
-    });
-
-    it('system prompt contains neutrality constraint', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'select_speaker',
-          input: { personaId: 'p3' },
-        }],
-      });
-
-      await service.selectNextSpeaker(testHistory, testPersonas, new Map());
-
-      const call = mockCreate.mock.calls[0][0];
-      expect(call.system).toMatch(/特定の立場への誘導は禁止/);
-    });
-
-    it('passes silence map info to the API', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'select_speaker',
-          input: { personaId: 'p3' },
-        }],
-      });
-
-      const silenceMap = new Map([['p3', 5]]);
-      await service.selectNextSpeaker(testHistory, testPersonas, silenceMap);
-
-      const call = mockCreate.mock.calls[0][0];
-      const userMessage = call.messages[0].content;
-      expect(userMessage).toMatch(/山田次郎.*5|5.*山田次郎/);
-    });
-
-    it('returns error result when Claude API fails', async () => {
-      mockCreate.mockRejectedValue(new Error('API error'));
-
-      const result = await service.selectNextSpeaker(testHistory, testPersonas, new Map());
-
-      expect(result.ok).toBe(false);
-      if (result.ok) return;
-      expect(result.error.code).toBe('AI_API_ERROR');
-    });
-  });
-
-  describe('selectNextSpeaker - task 2.1: excludePersonaId オプション', () => {
-    it('excludePersonaId 指定時、プロンプトに直前発言者の名前と除外指示が含まれる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'select_speaker', input: { personaId: 'p2' } }],
-      });
-
-      await service.selectNextSpeaker(testHistory, testPersonas, new Map(), 'p1');
-
-      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
-      expect(msg).toMatch(/田中太郎/);
-      expect(msg).toMatch(/選ばない/);
-    });
-
-    it('personas.length === 1 かつ excludePersonaId 指定時、除外ルール無視の旨がプロンプトに含まれる', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'select_speaker', input: { personaId: 'p1' } }],
-      });
-
-      await service.selectNextSpeaker(testHistory, [testPersonas[0]], new Map(), 'p1');
-
-      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
-      expect(msg).toMatch(/除外.*無視|無視.*除外|候補がない/);
-    });
-
-    it('excludePersonaId 未指定時、除外指示がプロンプトに含まれない', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'select_speaker', input: { personaId: 'p2' } }],
-      });
-
-      await service.selectNextSpeaker(testHistory, testPersonas, new Map());
-
-      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
-      expect(msg).not.toMatch(/選ばない/);
+  describe('task 1.2: 未使用メソッドの削除', () => {
+    it('selectNextSpeaker / evaluateChapterEnd が存在しない', () => {
+      expect('selectNextSpeaker' in service).toBe(false);
+      expect('evaluateChapterEnd' in service).toBe(false);
     });
   });
 
@@ -283,25 +195,8 @@ describe('FacilitatorAgentService', () => {
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      const validTypes = ['topic_shift', 'invite', 'close'];
+      const validTypes = ['topic_shift', 'invite'];
       expect(validTypes).toContain(result.value.type);
-    });
-
-    it('when shouldIntervene=true with close, content is included', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'evaluate_intervention',
-          input: { shouldIntervene: true, type: 'close', content: '活発な議論をいただきありがとうございました。' },
-        }],
-      });
-
-      const result = await service.evaluateIntervention(testHistory, testPersonas);
-
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value.type).toBe('close');
-      expect(result.value.content).toBeTruthy();
     });
 
     it('returns error result when Claude API fails', async () => {
@@ -425,41 +320,68 @@ describe('FacilitatorAgentService', () => {
     });
   });
 
-  describe('evaluateChapterEnd - task 3.2', () => {
-    const testChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 1 };
-
-    it('shouldEnd=true の場合 Result<true> を返す', async () => {
+  describe('evaluateIntervention - task 1.3: close 廃止（介入契約3値化）', () => {
+    it('ツールスキーマの type enum が topic_shift / invite のみで close を含まない', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_chapter_end', input: { shouldEnd: true } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
       });
 
-      const result = await service.evaluateChapterEnd(testHistory, testChapter);
+      await service.evaluateIntervention(testHistory, testPersonas);
 
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value).toBe(true);
+      const tools = mockCreate.mock.calls[0][0].tools;
+      const typeEnum: string[] = tools[0].input_schema.properties.type.enum;
+      expect(typeEnum).toEqual(['topic_shift', 'invite']);
     });
 
-    it('shouldEnd=false の場合 Result<false> を返す', async () => {
+    it('ツールスキーマで targetPersonaId が content より先に定義される（指名先を決めてから発言を書く生成順）', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_chapter_end', input: { shouldEnd: false } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
       });
 
-      const result = await service.evaluateChapterEnd(testHistory, testChapter);
+      await service.evaluateIntervention(testHistory, testPersonas);
 
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value).toBe(false);
+      const properties = mockCreate.mock.calls[0][0].tools[0].input_schema.properties;
+      const keys = Object.keys(properties);
+      expect(keys.indexOf('targetPersonaId')).toBeGreaterThanOrEqual(0);
+      expect(keys.indexOf('targetPersonaId')).toBeLessThan(keys.indexOf('content'));
+      // content は指名先に名前で呼びかける指示を含む
+      expect(properties.content.description).toMatch(/呼びかけ/);
     });
 
-    it('AI エラー時に PipelineError を返す', async () => {
-      mockCreate.mockRejectedValue(new Error('API error'));
+    it('プロンプトに「先にIDを決めてから content を書く」手順が含まれる', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+      });
 
-      const result = await service.evaluateChapterEnd(testHistory, testChapter);
+      await service.evaluateIntervention(testHistory, testPersonas);
 
-      expect(result.ok).toBe(false);
-      if (result.ok) return;
-      expect(result.error.code).toBe('AI_API_ERROR');
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).toMatch(/targetPersonaId/);
+      expect(msg).toMatch(/名前で呼びかけ/);
+    });
+
+    it('プロンプトに close への言及がなく、章終了の判断を求めない', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+      });
+
+      await service.evaluateIntervention(testHistory, testPersonas);
+
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).not.toMatch(/close/);
+      expect(msg).not.toMatch(/章を終了|章の終了/);
+    });
+
+    it('プロンプトに「活発に議論中は介入不要」が明示される', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+      });
+
+      await service.evaluateIntervention(testHistory, testPersonas);
+
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).toMatch(/活発/);
+      expect(msg).toMatch(/shouldIntervene=false|介入不要/);
     });
   });
 
