@@ -7,7 +7,8 @@ import {
 	collection,
 	deleteField,
 	getDoc,
-	addDoc
+	addDoc,
+	deleteDoc
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase.js';
@@ -70,6 +71,8 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 			{ personas: PersonaData[] }
 		>(functions, 'generatePersonas', { timeout: 310000 });
 		const { data } = await fn({ title: topic.title, stakeholders });
+		const existing = await getDocs(collection(db, 'topics', topicId, 'personas'));
+		await Promise.all(existing.docs.map((d) => deleteDoc(d.ref)));
 		await Promise.all(
 			data.personas.map((p, i) =>
 				addDoc(collection(db, 'topics', topicId, 'personas'), {
@@ -150,6 +153,7 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		generateStakeholders,
 		generatePersonas,
 		startDebate,
+		cancelDebate: cancelRunningDebate,
 		approveStakeholders,
 		approveInterviews,
 		publishDebate,

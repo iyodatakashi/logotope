@@ -79,6 +79,15 @@
 		}
 	}
 
+	async function handleCancel() {
+		error = '';
+		try {
+			await currentTopicStore.topic?.cancelDebate();
+		} catch (e) {
+			error = e instanceof Error ? e.message : '停止に失敗しました';
+		}
+	}
+
 	async function handlePublish() {
 		error = '';
 		try {
@@ -107,6 +116,11 @@
 				{#if totalTurns > 0}（ターン {completedTurns} / {totalTurns}）{/if}
 			{/if}
 		</p>
+		{#if isDebating}
+			<div class="actions">
+				<Button variant="outlined" onclick={handleCancel}>討論を停止する</Button>
+			</div>
+		{/if}
 	{/if}
 
 	{#if chapters}
