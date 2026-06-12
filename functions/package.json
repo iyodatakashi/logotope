@@ -8,8 +8,9 @@
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:integration": "cd .. && firebase emulators:exec --only firestore --project demo-logotope \"cd functions && npx vitest run --project integration\""
   },
   "engines": {
     "node": "24"
@@ -32,11 +33,11 @@
     "@types/express": "^5.0.6",
     "@types/json-schema": "^7.0.15",
     "@types/supertest": "^7.2.0",
-    "@vitest/coverage-v8": "^2.0.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "firebase-functions-test": "^3.4.1",
     "supertest": "^7.2.2",
     "typescript": "^6.0.0",
-    "vitest": "^2.0.0"
+    "vitest": "^4.1.8"
   },
   "private": true
 }
