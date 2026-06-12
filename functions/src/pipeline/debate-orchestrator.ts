@@ -500,6 +500,7 @@ export class DebateOrchestratorService {
       let selectedMode: 'full' | 'reaction' | undefined;
       let fromQueue = false;
       let selectedIntentSummary: string | undefined;
+      let nominatedByFacilitator = false;
       const pendingAddress = state.lastAddressedPersonaId;
       const pendingAddressByFacilitator = state.lastAddressedByFacilitator;
       state.lastAddressedPersonaId = undefined;
@@ -513,6 +514,7 @@ export class DebateOrchestratorService {
         if (pendingAddressByFacilitator) {
           state.consecutiveDirectExchanges = 0;
           selectedMode = 'full';
+          nominatedByFacilitator = true;
         } else {
           state.consecutiveDirectExchanges++;
         }
@@ -666,9 +668,15 @@ export class DebateOrchestratorService {
           state.consecutiveDirectExchanges = 0;
           state.currentTurnIndex++;
 
-          if (iv.targetPersonaId && personas.some(p => p.id === iv.targetPersonaId)) {
-            nextPersonaId = iv.targetPersonaId;
+          // targetPersonaId が省略された場合、発言内容からペルソナ名をマッチして補完する
+          const effectiveTargetId = iv.targetPersonaId
+            ?? (iv.type === 'invite' && iv.content
+              ? personas.find(p => iv.content!.includes(p.name))?.id
+              : undefined);
+          if (effectiveTargetId && personas.some(p => p.id === effectiveTargetId)) {
+            nextPersonaId = effectiveTargetId;
             selectedMode = 'full';
+            nominatedByFacilitator = true;
           }
         }
         // close is ignored — no break, no action
@@ -697,7 +705,7 @@ export class DebateOrchestratorService {
         }
       }
       const turnResult = await this.personaAgent.generateTurn(
-        persona, belief.content, interviewRecord, chapterHistory, chapter, pendingTrigger, selectedMode, selectedIntentSummary
+        persona, belief.content, interviewRecord, chapterHistory, chapter, pendingTrigger, selectedMode, selectedIntentSummary, nominatedByFacilitator
       );
       if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 

@@ -271,7 +271,8 @@ export class PersonaAgentService {
 		currentChapter?: DebateChapter,
 		pendingTrigger?: { speakerName: string; content: string },
 		assessedMode?: 'full' | 'reaction',
-		intentSummary?: string
+		intentSummary?: string,
+		nominatedByFacilitator?: boolean
 	): Promise<Result<AgentTurnResult, PipelineError>> {
 		try {
 			const recentHistory = history.slice(-20);
@@ -283,6 +284,9 @@ export class PersonaAgentService {
 				? `\n\n【持ち越しの言いたいこと】少し前に${pendingTrigger.speakerName}が「${pendingTrigger.content.slice(0, 80)}」と言ったのを聞いて、あなたはこれに何か言いたいと思っていました。会話の流れに沿って、適切であればこの話題に触れてください。`
 				: '';
 			const intentNote = intentSummary ? `\n\n【今回伝えたいこと】${intentSummary}` : '';
+			const nominationNote = nominatedByFacilitator
+				? '\n\n【指名】ファシリテーターが直接あなたに話を向けました。この問いかけに対して、自分の立場・生活・仕事の経験から具体的に答えてください。'
+				: '';
 
 			const isReaction = assessedMode === 'reaction';
 			const system = buildPersonaSystemPrompt(persona, interviewRecord, currentBelief);
@@ -321,7 +325,7 @@ export class PersonaAgentService {
 			}
 
 			const fullTools = buildFullTurnTools(styleGuide);
-			const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${pendingNote}${intentNote}\n\n${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（最大200文字）。冒頭で相手の名前を呼ぶことは禁止。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
+			const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${pendingNote}${intentNote}${nominationNote}\n\n${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（最大200文字）。冒頭で相手の名前を呼ぶことは禁止。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
 			const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 				generateText({
 					model,
