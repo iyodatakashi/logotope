@@ -7,7 +7,7 @@ import type { Stakeholder } from '../types/index.js';
 
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
 
-const PERSONA_TOOLS = {
+const buildPersonaTools = (count: number) => ({
   submit_personas: {
     description: 'ステークホルダーリストの各立場に対応するペルソナを1体ずつ生成して提出する',
     parameters: jsonSchema({
@@ -16,12 +16,14 @@ const PERSONA_TOOLS = {
       properties: {
         personas: {
           type: 'array' as const,
+          minItems: count,
+          maxItems: count,
           items: {
             type: 'object' as const,
             additionalProperties: false as const,
             properties: {
               stakeholderRole: { type: 'string' as const, description: 'どの立場に対応するか' },
-              name: { type: 'string' as const, description: '氏名' },
+              name: { type: 'string' as const, description: '氏名（テーマ・ステークホルダーの国際的文脈に合った名前。グローバルなテーマでは多国籍の名前を使う）' },
               nationality: { type: 'string' as const, description: '国籍・出身国' },
               age: { type: 'integer' as const, description: '年齢' },
               occupation: { type: 'string' as const, description: '具体的な職種・役職（例: 中学校の理科教師、物流会社の経理担当、フリーランスのWebデザイナー）。カテゴリ名や職種の列挙は禁止。1つの具体的な職業のみ記入' },
@@ -41,7 +43,7 @@ const PERSONA_TOOLS = {
       required: ['personas'],
     }),
   },
-} as const;
+} as const);
 
 export const generatePersonas = onCall({ timeoutSeconds: 300, secrets: SECRETS }, async (request) => {
   requireAuth(request);
@@ -56,11 +58,11 @@ export const generatePersonas = onCall({ timeoutSeconds: 300, secrets: SECRETS }
     result = await generateText({
       model: getPipelineModel('personaGenerator'),
       maxTokens: MAX_TOKENS.PERSONA,
-      tools: PERSONA_TOOLS,
+      tools: buildPersonaTools(stakeholders.length),
       toolChoice: { type: 'tool', toolName: 'submit_personas' } as const,
       messages: [{
         role: 'user',
-        content: `テーマ「${title}」について、以下の各立場を代表するペルソナを1体ずつ生成してください。\n\n立場リスト:\n${rolesDesc}\n\n各ペルソナは「実在する一人の人物」として設定してください。職業は具体的な職種・役職まで落とし込み、背景には家族構成・居住地・年収・趣味など生活の具体的なディテールを盛り込んでください。テーマへの関心は、その人物の実生活から生まれる具体的な視点として記述してください。`,
+        content: `テーマ「${title}」について、以下の各立場を代表するペルソナを1体ずつ生成してください。\n\n【命名のルール】\n- 基本的には日本人のペルソナとして生成すること。ただしテーマが明らかに海外を舞台とする（例: F1、海外スポーツ、国際政治）場合は、そのテーマに合った国籍の人物を含めること\n- 佐藤・田中・鈴木など超頻出姓、陽菜・蓮・葵など近年多用される名前への偏りを避けること\n- 日本人名は地域性（東北・関西・九州など）や年代感（昭和・平成・令和の命名傾向の違い）をペルソナの年齢・背景に合わせて反映させること\n- 外国人ペルソナを含める場合はその国籍の実際の名前の傾向を反映させ、表記はカタカナにすること（例: ルイス・ハミルトン、カルロス・サインツ）\n- 年齢層・職業・社会的背景の多様性を確保すること\n\n立場リスト:\n${rolesDesc}\n\n各ペルソナは「実在する一人の人物」として設定してください。職業は具体的な職種・役職まで落とし込み、背景には家族構成・居住地・年収・趣味など生活の具体的なディテールを盛り込んでください。テーマへの関心は、その人物の実生活から生まれる具体的な視点として記述してください。`,
       }],
     });
   } catch (err) {
