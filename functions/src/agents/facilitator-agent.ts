@@ -11,11 +11,6 @@ import type {
   PipelineError,
 } from '../types/index.js';
 
-interface PendingThought {
-  personaId: string;
-  triggerTurnIndex: number;
-}
-
 function currentDateString(): string {
   const d = new Date();
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
@@ -31,51 +26,22 @@ function buildNeutralitySystemPrompt(): string {
   );
 }
 
+// 先に指名先（firstPersonaId）を確定させてから content を書かせる（呼びかけと ID の不一致防止）
 const OPENING_TOOL: Anthropic.Tool = {
   name: 'submit_opening',
-  description: '討論の冒頭発言と最初に発言させるペルソナIDを提出する',
+  description: '最初に発言させるペルソナを決めてから、討論の冒頭発言を提出する',
   input_schema: {
     type: 'object' as const,
     properties: {
-      content: { type: 'string', description: 'ファシリテーターの冒頭発言テキスト' },
-      firstPersonaId: { type: 'string', description: '最初に発言させるペルソナのID' },
+      firstPersonaId: { type: 'string', description: '最初に発言させるペルソナのID（参加者リストのIDをそのまま指定）。先にここで指名先を確定させてから content を書くこと' },
+      content: { type: 'string', description: 'ファシリテーターの冒頭発言テキスト。firstPersonaId の参加者に名前で呼びかけて問いを向ける' },
     },
-    required: ['content', 'firstPersonaId'],
+    required: ['firstPersonaId', 'content'],
   },
 };
 
-const SELECT_SPEAKER_TOOL: Anthropic.Tool = {
-  name: 'select_speaker',
-  description: '次に発言させるペルソナを選び、今の発言を聞いて後で返したいと思うペルソナも特定する',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      personaId: { type: 'string', description: '今ターンに発言させるペルソナのID' },
-      score: {
-        type: 'integer',
-        description: '選んだペルソナが「今すぐ話す必要性」のスコア（1〜5）。5=直接指名された・強い反論が求められている、4=話の流れ上この人が自然、3=誰でも話せるが会話を続けるならこの人、2=話の区切りで誰でもよい、1=完全にニュートラル',
-      },
-      newlyInterested: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            personaId: { type: 'string' },
-            type: {
-              type: 'string',
-              enum: ['reaction', 'full'],
-              description: 'reaction=短い相槌・一言反応（今すぐ言わないと意味がない） / full=意見・反論・新論点を後で述べたい',
-            },
-          },
-          required: ['personaId', 'type'],
-        },
-        description: '直前の発言を聞いて「後で返したい」と思うペルソナ（0〜2人、今ターンの発言者は除く）',
-      },
-    },
-    required: ['personaId', 'score', 'newlyInterested'],
-  },
-};
-
+// プロパティの定義順 = LLM の生成順。先に指名先（targetPersonaId）を確定させてから
+// content を書かせることで、文中の呼びかけと指名 ID の不一致・ID 漏れを防ぐ
 const INTERVENTION_TOOL: Anthropic.Tool = {
   name: 'evaluate_intervention',
   description: 'ファシリテーターとして可視介入が必要か判断し、必要な場合のみ介入発言を生成する',
@@ -85,16 +51,16 @@ const INTERVENTION_TOOL: Anthropic.Tool = {
       shouldIntervene: { type: 'boolean', description: '介入が必要かどうか' },
       type: {
         type: 'string',
-        enum: ['topic_shift', 'invite', 'close'],
+        enum: ['topic_shift', 'invite'],
         description: '介入タイプ。shouldIntervene=trueの場合のみ指定',
-      },
-      content: {
-        type: 'string',
-        description: 'ファシリテーターの介入発言テキスト。shouldIntervene=trueの場合のみ指定',
       },
       targetPersonaId: {
         type: 'string',
-        description: '介入対象のペルソナID。invite/topic_shiftの場合に指定',
+        description: '問いかけを向ける参加者のID。参加者リストに記載されたIDをそのまま指定する（名前ではなくID）。inviteの場合は必須。topic_shiftでも特定の参加者に問いを向ける場合は指定する。先にここで指名先を確定させてから content を書くこと',
+      },
+      content: {
+        type: 'string',
+        description: 'ファシリテーターの介入発言テキスト。targetPersonaIdを指定した場合は、その参加者に「○○さん、〜についてはどうですか？」のように必ず名前で呼びかける。shouldIntervene=trueの場合のみ指定',
       },
     },
     required: ['shouldIntervene'],
@@ -139,19 +105,6 @@ const SUBMIT_CHAPTERS_TOOL: Anthropic.Tool = {
   },
 };
 
-const EVALUATE_CHAPTER_END_TOOL: Anthropic.Tool = {
-  name: 'evaluate_chapter_end',
-  description: '現章の議論で繰り返しが始まっているか判定する',
-  input_schema: {
-    type: 'object' as const,
-    properties: {
-      shouldEnd: { type: 'boolean', description: '章を終了すべきか（同じ主張・論点が繰り返されていれば true）' },
-      reason: { type: 'string', description: '判定理由（繰り返されている論点の概要、または継続すべき理由）' },
-    },
-    required: ['shouldEnd', 'reason'],
-  },
-};
-
 const GENERATE_CHAPTER_TRANSITION_TOOL: Anthropic.Tool = {
   name: 'generate_chapter_transition',
   description: '章の遷移発言または最終章のまとめ発言を生成する',
@@ -164,16 +117,17 @@ const GENERATE_CHAPTER_TRANSITION_TOOL: Anthropic.Tool = {
   },
 };
 
+// 先に指名先（firstPersonaId）を確定させてから content を書かせる（呼びかけと ID の不一致防止）
 const CHAPTER_INTRO_TOOL: Anthropic.Tool = {
   name: 'submit_chapter_intro',
-  description: '次の章の導入発言と最初に発言させるペルソナIDを提出する',
+  description: '次の章で最初に発言させるペルソナを決めてから、章の導入発言を提出する',
   input_schema: {
     type: 'object' as const,
     properties: {
-      content: { type: 'string', description: '章の導入発言テキスト' },
-      firstPersonaId: { type: 'string', description: '最初に発言させるペルソナのID' },
+      firstPersonaId: { type: 'string', description: '最初に発言させるペルソナのID（参加者リストのIDをそのまま指定）。先にここで指名先を確定させてから content を書くこと' },
+      content: { type: 'string', description: '章の導入発言テキスト。firstPersonaId の参加者に名前で呼びかけて問いを向ける' },
     },
-    required: ['content', 'firstPersonaId'],
+    required: ['firstPersonaId', 'content'],
   },
 };
 
@@ -219,7 +173,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'submit_opening' },
         messages: [{
           role: 'user',
-          content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${chapterContext}\n\n冒頭発言（2〜3文）の構成：\n1. このテーマで最も対立しそうな具体的な論点を一つ選んで問いかける（例：「まず〇〇という点について伺いたいのですが」）\n2. 最初の発言者にその問いを向ける\n\n「議論を始めましょう」などの抽象的な言葉は禁止。必ず具体的な問いで始める。firstPersonaIdには必ず上記リストのIDを使用してください。`,
+          content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${chapterContext}\n\n冒頭発言（2〜3文）の構成：\n1. 第1章のフォーカス問いの趣旨に沿って、「このテーマに詳しくない人でも感覚的に答えられる」オープンな問いかけをする。固有名詞（特定の映像作品・企業名・人名・統計）や専門用語を使わないこと。誰もが「自分の立場から答えられそう」と感じる入口となる問いにする。\n2. 最初の発言者にその問いを向ける\n\n「議論を始めましょう」などの抽象的な言葉は禁止。専門知識なしでも答えられる具体的な問いで始める。firstPersonaIdには必ず上記リストのIDを使用してください。`,
         }],
       });
 
@@ -232,74 +186,6 @@ export class FacilitatorAgentService {
 
       const { content, firstPersonaId } = toolBlock.input as FacilitatorOpeningResult;
       return { ok: true, value: { content, firstPersonaId } };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
-    }
-  }
-
-  async selectNextSpeaker(
-    history: DebateTurn[],
-    personas: PersonaAttributes[],
-    silenceMap: Map<string, number>,
-    excludePersonaId?: string,
-    pendingQueue?: PendingThought[]
-  ): Promise<Result<{ personaId: string; score: number; newlyInterested: Array<{ personaId: string; type: 'reaction' | 'full' }> }, PipelineError>> {
-    try {
-      const silenceInfo = Array.from(silenceMap.entries())
-        .map(([id, count]) => {
-          const name = personas.find(p => p.id === id)?.name ?? id;
-          return `${name}: ${count}ターン沈黙`;
-        })
-        .join(', ');
-
-      let exclusionNote = '';
-      if (excludePersonaId) {
-        const excludedName = personas.find(p => p.id === excludePersonaId)?.name ?? excludePersonaId;
-        if (personas.length === 1) {
-          exclusionNote = `\n\n※ 参加者が1名（${excludedName}のみ）のため、直前発言者の除外ルールを無視してください。`;
-        } else {
-          exclusionNote = `\n\n注意: 直前の発言者は${excludedName}です。他に候補がある限り、${excludedName}は選ばないこと。`;
-        }
-      }
-
-      const pendingQueueNote = pendingQueue && pendingQueue.length > 0
-        ? `\n\n【発言待ちリスト（参考情報）】以下のペルソナが過去の発言を受けて意見・反論を述べたいと待機中です:\n${pendingQueue.map(p => {
-            const name = personas.find(pe => pe.id === p.personaId)?.name ?? p.personaId;
-            const triggerTurn = history.find(t => t.turnIndex === p.triggerTurnIndex);
-            const triggerDesc = triggerTurn
-              ? `${(triggerTurn.speakerName ?? '参加者')}の発言「${triggerTurn.content.slice(0, 60)}…」への返答待ち`
-              : '待機中';
-            return `- ${name}（${triggerDesc}）`;
-          }).join('\n')}`
-        : '';
-
-      const recentHistory = history.slice(-10);
-      const response = await this.client.messages.create({
-        model: AI_MODELS.SONNET,
-        max_tokens: MAX_TOKENS.FACILITATOR_SELECT,
-        system: buildNeutralitySystemPrompt(),
-        tools: [SELECT_SPEAKER_TOOL],
-        tool_choice: { type: 'tool', name: 'select_speaker' },
-        messages: [{
-          role: 'user',
-          content: `次の発言者を選んでください。${exclusionNote}${pendingQueueNote}\n\n会話履歴（最新${recentHistory.length}件）:\n${formatHistory(recentHistory)}\n\n参加者:\n${formatPersonas(personas)}\n\n沈黙状況: ${silenceInfo || 'なし'}`,
-        }],
-      });
-
-      const toolBlock = response.content.find(
-        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-      );
-      if (!toolBlock) {
-        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true } };
-      }
-
-      const { personaId, score, newlyInterested } = toolBlock.input as {
-        personaId: string;
-        score: number;
-        newlyInterested: Array<{ personaId: string; type: 'reaction' | 'full' }>;
-      };
-      return { ok: true, value: { personaId, score: score ?? 3, newlyInterested: newlyInterested ?? [] } };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
@@ -329,7 +215,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'evaluate_intervention' },
         messages: [{
           role: 'user',
-          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${speakCountNote}\n\n介入基準（優先順）：\n1. 会話がこの章のフォーカス問いから外れている → topic_shift（フォーカス問いに引き戻す具体的な問いかけ）\n2. 同じ論点を繰り返している → topic_shift（フォーカス問いの別の角度から問いかけ）\n3. 発言していない参加者がいる → invite（その人にフォーカス問いに関連した問いを向ける）\n4. この章のフォーカスについて十分に掘り下がった → close\n5. フォーカスに沿って活発に議論中 → shouldIntervene=false\n\ntopic_shiftやinviteのcontentは必ず「〜についてはどうですか？」「〜という点から見るとどうでしょう？」のように、この章のフォーカス問いに関連した具体的な問いかけにする。`,
+          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${speakCountNote}\n\n介入基準（優先順）：\n1. 会話がこの章のフォーカス問いから外れている → topic_shift（フォーカス問いに引き戻す具体的な問いかけ）\n2. 同じ論点を繰り返している → topic_shift（フォーカス問いの別の角度から問いかけ）\n3. 発言していない参加者がいる → invite（その人にフォーカス問いに関連した問いを向ける）\n4. フォーカスに沿って活発に議論中 → shouldIntervene=false（介入不要）\n\n章をいつ終えるかはあなたの判断対象外です。議論が深まったと感じても介入せず shouldIntervene=false を返してください。\n\n介入する場合の手順：\n(1) まず誰に問いを向けるかを決め、targetPersonaId に参加者リストのIDを設定する（inviteでは必須）\n(2) 次に content を書く。targetPersonaId の参加者に名前で呼びかけ、「○○さん、〜についてはどうですか？」のように、この章のフォーカス問いに関連した具体的な問いかけにする`,
         }],
       });
 
@@ -342,7 +228,7 @@ export class FacilitatorAgentService {
 
       const raw = toolBlock.input as {
         shouldIntervene: boolean;
-        type?: 'topic_shift' | 'invite' | 'close';
+        type?: 'topic_shift' | 'invite';
         content?: string;
         targetPersonaId?: string;
       };
@@ -396,7 +282,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'submit_chapters' },
         messages: [{
           role: 'user',
-          content: `以下の切り口をもとに、討論の章立てを3〜6章に構成してください。\n\n切り口一覧:\n${issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n各章に「章タイトル」と「その章で探求する具体的なフォーカス問い」を設定してください。\n\n構成の原則: 聞き手・読み手の理解の流れを意識すること。第1章はテーマの全体像や誰もが共有できる普遍的な切り口から入り、章を追うごとにより具体的・深い切り口へ進む構造にしてください。いきなり対立点や細部の議論から始まると聞き手が文脈を掴めず不自然になるため、自然な導線を作ること。`,
+          content: `以下の切り口をもとに、討論の章立てを3〜6章に構成してください。\n\n切り口一覧:\n${issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n各章に「章タイトル」と「その章で探求する具体的なフォーカス問い」を設定してください。\n\n【構成の原則・厳守事項】\n- 第1章は「このテーマについて詳しくない人でも、自分の日常感覚から答えられる」問いにすること。固有名詞（特定の映像作品・企業名・人名・政策名）や専門用語・業界用語を第1章のタイトルとフォーカス問いに含めてはならない。\n- 章を追うごとに具体性・専門性・対立の鋭さを増す構造にすること。固有名詞や専門用語は第3章以降から自然に導入してよい。\n- 「誰でも感覚的に答えられる入口 → 具体的な事例・比較 → 深いジレンマ・価値観の対立」の順に進むこと。いきなり内部論争・政策論争・業界知識を前提とした問いから始めてはならない。`,
         }],
       });
 
@@ -416,38 +302,6 @@ export class FacilitatorAgentService {
       }));
 
       return { ok: true, value: debateChapters };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
-    }
-  }
-
-  async evaluateChapterEnd(
-    chapterHistory: DebateTurn[],
-    chapter: DebateChapter
-  ): Promise<Result<boolean, PipelineError>> {
-    try {
-      const response = await this.client.messages.create({
-        model: AI_MODELS.SONNET,
-        max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_END,
-        system: '討論コンテンツの編集者として、この章を終了するか判断してください。「まだ議論できる余地がある」ではなく「最低限の目標が達成されたか」を基準に、積極的にshouldEnd=trueを返してください。',
-        tools: [EVALUATE_CHAPTER_END_TOOL],
-        tool_choice: { type: 'tool', name: 'evaluate_chapter_end' },
-        messages: [{
-          role: 'user',
-          content: `章「${chapter.title}」（フォーカス: ${chapter.focusQuestion}）の会話（${chapterHistory.length}ターン）を評価してください。\n\n**以下のどちらか一方でも当てはまれば shouldEnd=true**:\n1. 各参加者が少なくとも一度はフォーカス問いに関する自分の立場・見解を述べた\n2. 直近2〜3発言が以前と同じ主張の繰り返しで新しい内容がない\n\n「完全に議論が尽きた」かどうかではありません。「最低限の内容が出揃ったか」で判断してください。\n\n会話履歴:\n${formatHistory(chapterHistory)}`,
-        }],
-      });
-
-      const toolBlock = response.content.find(
-        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-      );
-      if (!toolBlock) {
-        return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true } };
-      }
-
-      const { shouldEnd } = toolBlock.input as { shouldEnd: boolean };
-      return { ok: true, value: shouldEnd };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };

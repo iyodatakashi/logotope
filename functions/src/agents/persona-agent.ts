@@ -262,24 +262,27 @@ const POST_DEBATE_COMMENT_TOOLS = {
 	}
 } as const;
 
+export interface TurnGenerationContext {
+	chapterHistory: ReadonlyArray<DebateTurn>;
+	chapter: DebateChapter;
+	mode?: 'full' | 'reaction';
+	intentSummary?: string;
+	pendingTrigger?: { speakerName: string; content: string };
+	nominatedByFacilitator: boolean;
+}
+
 export class PersonaAgentService {
 	async generateTurn(
 		persona: PersonaAttributes,
 		currentBelief: string,
 		interviewRecord: string,
-		history: DebateTurn[],
-		currentChapter?: DebateChapter,
-		pendingTrigger?: { speakerName: string; content: string },
-		assessedMode?: 'full' | 'reaction',
-		intentSummary?: string,
-		nominatedByFacilitator?: boolean
+		context: TurnGenerationContext
 	): Promise<Result<AgentTurnResult, PipelineError>> {
 		try {
-			const recentHistory = history.slice(-20);
+			const { chapter, pendingTrigger, intentSummary, nominatedByFacilitator } = context;
+			const recentHistory = context.chapterHistory.slice(-20);
 			const styleGuide = buildSpeechStyleGuide(persona);
-			const chapterContext = currentChapter
-				? `\n\n【この章のフォーカス】「${currentChapter.title}」: ${currentChapter.focusQuestion}`
-				: '';
+			const chapterContext = `\n\n【この章のフォーカス】「${chapter.title}」: ${chapter.focusQuestion}`;
 			const pendingNote = pendingTrigger
 				? `\n\n【持ち越しの言いたいこと】少し前に${pendingTrigger.speakerName}が「${pendingTrigger.content.slice(0, 80)}」と言ったのを聞いて、あなたはこれに何か言いたいと思っていました。会話の流れに沿って、適切であればこの話題に触れてください。`
 				: '';
@@ -288,7 +291,7 @@ export class PersonaAgentService {
 				? '\n\n【指名】ファシリテーターが直接あなたに話を向けました。この問いかけに対して、自分の立場・生活・仕事の経験から具体的に答えてください。'
 				: '';
 
-			const isReaction = assessedMode === 'reaction';
+			const isReaction = context.mode === 'reaction';
 			const system = buildPersonaSystemPrompt(persona, interviewRecord, currentBelief);
 			const llmType = persona.llmType ?? 'claude';
 
