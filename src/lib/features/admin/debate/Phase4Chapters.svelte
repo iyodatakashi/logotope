@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
+	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 
 	interface Props {
@@ -13,6 +14,11 @@
 	const chapters = $derived(currentTopicStore.sessionStore.session?.chapters ?? null);
 	const hasChapters = $derived(!!chapters?.length);
 	const chapterIssues = $derived(currentTopicStore.sessionStore.session?.chapterIssues ?? null);
+
+	async function handleApprove() {
+		await currentTopicStore.topic?.approveChapters();
+		goto(`/admin/topics/${topicId}/debate`);
+	}
 
 	async function handleGenerate() {
 		generating = true;
@@ -51,8 +57,8 @@
 			{/each}
 		</ol>
 		<div class="actions">
-			<Button href="/admin/topics/{topicId}/debate">討論フェーズへ進む</Button>
 			<Button variant="outlined" onclick={handleGenerate}>章立てを再生成</Button>
+			<Button onclick={handleApprove}>章立てを承認</Button>
 		</div>
 
 		{#if chapterIssues}

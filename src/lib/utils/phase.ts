@@ -24,6 +24,7 @@ const STATUS_PHASE_MAP: Record<DebateStatus, Phase> = {
 	generating_personas: 2,
 	interviewing: 3,
 	chapters_ready: 4,
+	chapters_approved: 5,
 	debating: 5,
 	cancelled: 4,
 	completed: 5,

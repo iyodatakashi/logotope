@@ -6,6 +6,7 @@ export type DebateStatus =
   | 'generating_personas'
   | 'interviewing'
   | 'chapters_ready'
+  | 'chapters_approved'
   | 'debating'
   | 'completed'
   | 'published';

@@ -34,6 +34,13 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		});
 	};
 
+	const approveChapters = async (): Promise<void> => {
+		await updateDoc(doc(db, 'topics', topicId), {
+			status: 'chapters_approved',
+			updatedAt: Timestamp.now()
+		});
+	};
+
 	const publishDebate = async (): Promise<void> => {
 		const personasSnap = await getDocs(collection(db, 'topics', topicId, 'personas'));
 		const personaCount = personasSnap.size;
@@ -158,7 +165,7 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 			completedAt: deleteField()
 		});
 		batch.update(doc(db, 'topics', topicId), {
-			status: 'chapters_ready',
+			status: 'chapters_approved',
 			updatedAt: Timestamp.now()
 		});
 		await batch.commit();
@@ -183,6 +190,7 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		cancelDebate: cancelRunningDebate,
 		approveStakeholders,
 		approveInterviews,
+		approveChapters,
 		publishDebate,
 		resetToPhase1,
 		resetToPhase2,
