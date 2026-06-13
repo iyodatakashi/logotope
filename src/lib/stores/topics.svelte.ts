@@ -39,7 +39,8 @@ const create = () => {
 		await setDoc(doc(db, 'topics', id), {
 			id,
 			title,
-			status: 'pending',
+			phase: 1,
+			phaseStatus: 'not_started',
 			createdAt: now,
 			updatedAt: now
 		});

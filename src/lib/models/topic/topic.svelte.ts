@@ -22,21 +22,24 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 	const approveStakeholders = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId), {
 			'stakeholders.approved': true,
-			status: 'generating_personas',
+			phase: 2,
+			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
 		});
 	};
 
 	const approveInterviews = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId), {
-			status: 'chapters_ready',
+			phase: 4,
+			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
 		});
 	};
 
 	const approveChapters = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId), {
-			status: 'chapters_approved',
+			phase: 5,
+			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
 		});
 	};
@@ -59,25 +62,54 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 	};
 
 	const generateStakeholders = async (): Promise<void> => {
+		// 生成開始: フェーズ1を実行中にする
+		await updateDoc(doc(db, 'topics', topicId), {
+			phase: 1,
+			phaseStatus: 'running',
+			updatedAt: Timestamp.now()
+		});
+
 		const fn = httpsCallable<{ title: string }, { stakeholders: StakeholderDoc[] }>(
 			functions,
 			'generateStakeholders',
 			{ timeout: 310000 }
 		);
 		const { data } = await fn({ title: topic.title });
-		await updateDoc(doc(db, 'topics', topicId), {
+
+		// 生成成功を前提に下流データ（ペルソナ・取材・章立て・討論）を破棄してから結果を書き込む。
+		// 進行中討論があれば削除前に停止する。
+		await cancelRunningDebate();
+		const personasSnap = await getDocs(collection(db, 'topics', topicId, 'personas'));
+		const batch = writeBatch(db);
+		personasSnap.docs.forEach((d) => batch.delete(d.ref));
+		batch.delete(doc(db, 'topics', topicId, 'sessions', '0'));
+		batch.update(doc(db, 'topics', topicId), {
 			stakeholders: { items: data.stakeholders, approved: false, createdAt: Timestamp.now() },
+			phase: 1,
+			phaseStatus: 'generated',
 			updatedAt: Timestamp.now()
 		});
+		await batch.commit();
 	};
 
 	const generatePersonas = async (): Promise<void> => {
+		// 生成開始: フェーズ2を実行中にする
+		await updateDoc(doc(db, 'topics', topicId), {
+			phase: 2,
+			phaseStatus: 'running',
+			updatedAt: Timestamp.now()
+		});
+
 		const stakeholders = topic.stakeholders?.items ?? [];
 		const fn = httpsCallable<
 			{ title: string; stakeholders: StakeholderDoc[] },
 			{ personas: PersonaData[] }
 		>(functions, 'generatePersonas', { timeout: 310000 });
 		const { data } = await fn({ title: topic.title, stakeholders });
+
+		// 生成成功を前提に下流（取材記録・章立て・討論セッション）と旧ペルソナを破棄する
+		await cancelRunningDebate();
+		await deleteDoc(doc(db, 'topics', topicId, 'sessions', '0'));
 		const existing = await getDocs(collection(db, 'topics', topicId, 'personas'));
 		await Promise.all(existing.docs.map((d) => deleteDoc(d.ref)));
 		await Promise.all(
@@ -92,20 +124,11 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 				})
 			)
 		);
-	};
-
-	const generateChapters = async (): Promise<void> => {
-		const fn = httpsCallable<{ topicId: string }, unknown>(functions, 'generateChapters', {
-			timeout: 300000
+		await updateDoc(doc(db, 'topics', topicId), {
+			phase: 2,
+			phaseStatus: 'generated',
+			updatedAt: Timestamp.now()
 		});
-		await fn({ topicId });
-	};
-
-	const startDebate = async (): Promise<void> => {
-		const fn = httpsCallable<{ topicId: string }, unknown>(functions, 'startDebate', {
-			timeout: 600000
-		});
-		await fn({ topicId });
 	};
 
 	const cancelRunningDebate = async (): Promise<void> => {
@@ -116,47 +139,51 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		}
 	};
 
-	const resetToPhase1 = async (): Promise<void> => {
-		await cancelRunningDebate();
-		const personasSnap = await getDocs(collection(db, 'topics', topicId, 'personas'));
-		const batch = writeBatch(db);
-		personasSnap.docs.forEach((d) => batch.delete(d.ref));
-		batch.delete(doc(db, 'topics', topicId, 'sessions', '0'));
-		batch.update(doc(db, 'topics', topicId), { status: 'surveying', updatedAt: Timestamp.now() });
-		await batch.commit();
-	};
-
-	const resetToPhase2 = async (): Promise<void> => {
-		await cancelRunningDebate();
-		const personasSnap = await getDocs(collection(db, 'topics', topicId, 'personas'));
-		const batch = writeBatch(db);
-		personasSnap.docs.forEach((d) =>
-			batch.update(d.ref, { interview: deleteField(), beliefs: [] })
-		);
-		batch.delete(doc(db, 'topics', topicId, 'sessions', '0'));
-		batch.update(doc(db, 'topics', topicId), {
-			status: 'generating_personas',
+	const generateChapters = async (): Promise<void> => {
+		// 生成開始: フェーズ4を実行中にする（章立てはクライアント権威）
+		await updateDoc(doc(db, 'topics', topicId), {
+			phase: 4,
+			phaseStatus: 'running',
 			updatedAt: Timestamp.now()
 		});
-		await batch.commit();
-	};
 
-	const resetToPhase3 = async (): Promise<void> => {
+		const fn = httpsCallable<{ topicId: string }, unknown>(functions, 'generateChapters', {
+			timeout: 300000
+		});
+		await fn({ topicId });
+
+		// 生成成功を前提に下流データ（討論ターン）を破棄する（章立てはセッション内なので保持）
 		await cancelRunningDebate();
-		const batch = writeBatch(db);
-		batch.delete(doc(db, 'topics', topicId, 'sessions', '0'));
-		batch.update(doc(db, 'topics', topicId), {
-			status: 'interviewing',
+		await updateDoc(doc(db, 'topics', topicId, 'sessions', '0'), {
+			turns: [],
+			postDebateComments: [],
+			totalTurns: deleteField(),
+			completedAt: deleteField()
+		});
+		await updateDoc(doc(db, 'topics', topicId), {
+			phase: 4,
+			phaseStatus: 'generated',
 			updatedAt: Timestamp.now()
 		});
-		await batch.commit();
 	};
 
-	const resetToPhase4 = async (): Promise<void> => {
+	const startDebate = async (): Promise<void> => {
+		const fn = httpsCallable<{ topicId: string }, unknown>(functions, 'startDebate', {
+			timeout: 600000
+		});
+		await fn({ topicId });
+	};
+
+	// 取材をやり直す際に下流（章立て・討論セッション）を破棄する
+	const clearDebateSession = async (): Promise<void> => {
 		await cancelRunningDebate();
-		const sessionRef = doc(db, 'topics', topicId, 'sessions', '0');
-		const batch = writeBatch(db);
-		batch.update(sessionRef, {
+		await deleteDoc(doc(db, 'topics', topicId, 'sessions', '0'));
+	};
+
+	// 討論を再生成する: 既存の討論ターンを破棄して章立てから再討論する
+	const regenerateDebate = async (): Promise<void> => {
+		await cancelRunningDebate();
+		await updateDoc(doc(db, 'topics', topicId, 'sessions', '0'), {
 			status: 'chapters_ready',
 			turns: [],
 			postDebateComments: [],
@@ -164,17 +191,15 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 			totalTurns: deleteField(),
 			completedAt: deleteField()
 		});
-		batch.update(doc(db, 'topics', topicId), {
-			status: 'chapters_approved',
-			updatedAt: Timestamp.now()
-		});
-		await batch.commit();
+		await startDebate();
 	};
 
 	return {
 		get id() { return topic.id; },
 		get title() { return topic.title; },
 		get status() { return topic.status; },
+		get phase() { return topic.phase; },
+		get phaseStatus() { return topic.phaseStatus; },
 		get createdAt() { return topic.createdAt; },
 		get updatedAt() { return topic.updatedAt; },
 		get publishedAt() { return topic.publishedAt; },
@@ -192,10 +217,8 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		approveInterviews,
 		approveChapters,
 		publishDebate,
-		resetToPhase1,
-		resetToPhase2,
-		resetToPhase3,
-		resetToPhase4
+		clearDebateSession,
+		regenerateDebate
 	};
 };
 

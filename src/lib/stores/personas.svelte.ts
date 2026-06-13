@@ -30,7 +30,8 @@ export const createPersonasStore = (topicId: string) => {
 			batch.update(doc(db, 'topics', topicId, 'personas', p.id), { approved: true });
 		});
 		batch.update(doc(db, 'topics', topicId), {
-			status: 'interviewing',
+			phase: 3,
+			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
 		});
 		await batch.commit();
@@ -42,10 +43,29 @@ export const createPersonasStore = (topicId: string) => {
 			batch.delete(doc(db, 'topics', topicId, 'personas', p.id));
 		});
 		batch.update(doc(db, 'topics', topicId), {
-			status: 'surveying',
+			phase: 2,
+			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
 		});
 		await batch.commit();
+	};
+
+	const markInterviewsStarted = async (): Promise<void> => {
+		await updateDoc(doc(db, 'topics', topicId), {
+			phase: 3,
+			phaseStatus: 'running',
+			updatedAt: Timestamp.now()
+		});
+	};
+
+	// 全ペルソナの取材完了を FE が検知した時点で、フェーズ3を生成完了として1回だけ確定する。
+	// per-persona の進捗は永続化せず、リロード後は取材記録の有無から完了を再構築できる。
+	const markInterviewsComplete = async (): Promise<void> => {
+		await updateDoc(doc(db, 'topics', topicId), {
+			phase: 3,
+			phaseStatus: 'generated',
+			updatedAt: Timestamp.now()
+		});
 	};
 
 	const runInterview = async (personaId: string, topicTitle: string): Promise<void> => {
@@ -100,6 +120,8 @@ export const createPersonasStore = (topicId: string) => {
 		stop,
 		runInterview,
 		approvePersonas,
-		resetPersonas
+		resetPersonas,
+		markInterviewsStarted,
+		markInterviewsComplete
 	};
 };
