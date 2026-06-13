@@ -10,6 +10,7 @@ describe('StepNav.svelte', () => {
 		await expect.element(page.getByText('ステークホルダー調査')).toBeInTheDocument();
 		await expect.element(page.getByText('ペルソナ生成')).toBeInTheDocument();
 		await expect.element(page.getByText('取材')).toBeInTheDocument();
+		await expect.element(page.getByText('章立て')).toBeInTheDocument();
 		await expect.element(page.getByText('討論')).toBeInTheDocument();
 	});
 
@@ -18,19 +19,20 @@ describe('StepNav.svelte', () => {
 
 		await expect
 			.element(page.getByRole('link', { name: 'ステークホルダー調査' }))
-			.toHaveAttribute('href', '/admin/debate/t1/stakeholders');
+			.toHaveAttribute('href', '/admin/topics/t1/stakeholders');
 		await expect
 			.element(page.getByRole('link', { name: 'ペルソナ生成' }))
-			.toHaveAttribute('href', '/admin/debate/t1/personas');
+			.toHaveAttribute('href', '/admin/topics/t1/personas');
 		await expect
 			.element(page.getByRole('link', { name: '取材' }))
-			.toHaveAttribute('href', '/admin/debate/t1/interviews');
+			.toHaveAttribute('href', '/admin/topics/t1/interviews');
 	});
 
 	it('未到達フェーズはリンクにならず無効化表示される', async () => {
 		render(StepNav, { topicId: 't1', currentPhase: 2 });
 
 		expect(page.getByRole('link', { name: '取材' }).elements()).toHaveLength(0);
+		expect(page.getByRole('link', { name: '章立て' }).elements()).toHaveLength(0);
 		expect(page.getByRole('link', { name: '討論' }).elements()).toHaveLength(0);
 	});
 });

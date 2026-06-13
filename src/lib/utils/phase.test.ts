@@ -3,8 +3,8 @@ import { PHASE_DEFS, statusToPhase, phasePath } from './phase.js';
 import type { DebateStatus } from '$lib/models/topic/topic.types.js';
 
 describe('PHASE_DEFS', () => {
-	it('4フェーズがphase昇順で定義されている', () => {
-		expect(PHASE_DEFS.map((d) => d.phase)).toEqual([1, 2, 3, 4]);
+	it('5フェーズがphase昇順で定義されている', () => {
+		expect(PHASE_DEFS.map((d) => d.phase)).toEqual([1, 2, 3, 4, 5]);
 	});
 
 	it('slugが一意である', () => {
@@ -25,9 +25,12 @@ describe('statusToPhase', () => {
 		['surveying', 1],
 		['generating_personas', 2],
 		['interviewing', 3],
-		['debating', 4],
-		['completed', 4],
-		['published', 4],
+		['chapters_ready', 4],
+		['cancelled', 4],
+		['chapters_approved', 5],
+		['debating', 5],
+		['completed', 5],
+		['published', 5],
 	];
 
 	it.each(cases)('%s → Phase %i', (status, phase) => {
@@ -40,10 +43,11 @@ describe('statusToPhase', () => {
 });
 
 describe('phasePath', () => {
-	it('フェーズURLを /admin/debate/{id}/{slug} 形式で生成する', () => {
-		expect(phasePath('t1', 1)).toBe('/admin/debate/t1/stakeholders');
-		expect(phasePath('t1', 2)).toBe('/admin/debate/t1/personas');
-		expect(phasePath('t1', 3)).toBe('/admin/debate/t1/interviews');
-		expect(phasePath('t1', 4)).toBe('/admin/debate/t1/debate');
+	it('フェーズURLを /admin/topics/{id}/{slug} 形式で生成する', () => {
+		expect(phasePath('t1', 1)).toBe('/admin/topics/t1/stakeholders');
+		expect(phasePath('t1', 2)).toBe('/admin/topics/t1/personas');
+		expect(phasePath('t1', 3)).toBe('/admin/topics/t1/interviews');
+		expect(phasePath('t1', 4)).toBe('/admin/topics/t1/chapters');
+		expect(phasePath('t1', 5)).toBe('/admin/topics/t1/debate');
 	});
 });
