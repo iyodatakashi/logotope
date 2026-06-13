@@ -22,6 +22,7 @@ export type TurnDoc = {
 	chapterIndex?: number;
 	speechMode?: 'reaction' | 'full';
 	fromQueue?: boolean;
+	addressedPersonaId?: string;
 };
 
 export type PostDebateCommentDoc = {
