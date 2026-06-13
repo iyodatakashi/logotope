@@ -259,24 +259,34 @@ describe('FacilitatorAgentService', () => {
       ],
     };
 
-    it('2回のAI呼び出しを経てDebateChapter[]を返す', async () => {
+    // Step1 は一般切り口・ペルソナ固有切り口の2並列呼び出し、Step2 は章構造化の1呼び出し = 計3回
+    const mockChapterFlow = (general: string[], persona: string[]) => {
       mockCreate
         .mockResolvedValueOnce({
-          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: ['論点1', '論点2', '論点3'] } }],
+          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: general } }],
+        })
+        .mockResolvedValueOnce({
+          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: persona } }],
         })
         .mockResolvedValueOnce({
           content: [{ type: 'tool_use', name: 'submit_chapters', input: chapterResult }],
         });
+    };
+
+    it('切り口2並列（Step1）+ 章構造化（Step2）の計3回のAI呼び出しを経て章立てと切り口を返す', async () => {
+      mockChapterFlow(['一般1', '一般2'], ['固有1', '固有2', '固有3']);
 
       const result = await service.generateChapters('AI規制', testPersonas);
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value).toHaveLength(2);
-      expect(result.value[0].title).toBe('導入');
-      expect(result.value[0].index).toBe(0);
-      expect(result.value[1].index).toBe(1);
-      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(result.value.chapters).toHaveLength(2);
+      expect(result.value.chapters[0].title).toBe('導入');
+      expect(result.value.chapters[0].index).toBe(0);
+      expect(result.value.chapters[1].index).toBe(1);
+      expect(result.value.generalIssues).toEqual(['一般1', '一般2']);
+      expect(result.value.personaIssues).toEqual(['固有1', '固有2', '固有3']);
+      expect(mockCreate).toHaveBeenCalledTimes(3);
     });
 
     it('Step 1（submit_issues）失敗時にPipelineErrorを返す', async () => {
@@ -292,7 +302,10 @@ describe('FacilitatorAgentService', () => {
     it('Step 2（submit_chapters）失敗時にPipelineErrorを返す', async () => {
       mockCreate
         .mockResolvedValueOnce({
-          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: ['論点1'] } }],
+          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: ['一般1'] } }],
+        })
+        .mockResolvedValueOnce({
+          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: ['固有1'] } }],
         })
         .mockRejectedValueOnce(new Error('Step 2 error'));
 
@@ -303,20 +316,14 @@ describe('FacilitatorAgentService', () => {
       expect(result.error.code).toBe('AI_API_ERROR');
     });
 
-    it('Step 2 の user メッセージに Step 1 の論点が含まれる', async () => {
-      mockCreate
-        .mockResolvedValueOnce({
-          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: ['論点X', '論点Y'] } }],
-        })
-        .mockResolvedValueOnce({
-          content: [{ type: 'tool_use', name: 'submit_chapters', input: chapterResult }],
-        });
+    it('Step 2 の user メッセージに Step 1 の一般・固有の両切り口が含まれる', async () => {
+      mockChapterFlow(['一般X'], ['固有Y']);
 
       await service.generateChapters('AI規制', testPersonas);
 
-      const step2Msg: string = mockCreate.mock.calls[1][0].messages[0].content;
-      expect(step2Msg).toMatch(/論点X/);
-      expect(step2Msg).toMatch(/論点Y/);
+      const step2Msg: string = mockCreate.mock.calls[2][0].messages[0].content;
+      expect(step2Msg).toMatch(/一般X/);
+      expect(step2Msg).toMatch(/固有Y/);
     });
   });
 

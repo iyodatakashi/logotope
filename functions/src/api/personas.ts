@@ -30,13 +30,14 @@ const buildPersonaTools = (count: number) => ({
               background: { type: 'string' as const, description: '人物像を具体的に描写（200字以内）。家族構成・居住地・年収・趣味・生活習慣など、この人物をリアルに想像できる情報を盛り込む。例：「妻と小学生の子ども2人の4人家族。埼玉県の一戸建てに住む。年収600万円台。週末はサッカーコーチとして地域の少年団に関わる。」' },
               interests: { type: 'string' as const, description: 'テーマに対して持つ具体的な関心事・懸念・期待（200字以内）。抽象的な価値観ではなく、この人物の生活・立場から生まれる具体的な視点を記述する' },
               stanceDirection: { type: 'string' as const, description: 'テーマへのスタンス方向' },
+              engagementLevel: { type: 'string' as const, enum: ['high', 'medium', 'low'], description: '対応するステークホルダーの関与度をそのまま引き継ぐ。high=明確な持論を持つ当事者、medium=一定の関心はあるが専門的でない、low=テーマに薄く関わるだけで意見は曖昧な一般層' },
               llmType: {
                 type: 'string' as const,
                 enum: ['gemini', 'claude', 'gpt'],
                 description: 'gemini=最新情報重視・SNS世論に敏感(記者・アナリスト・活動家等)、claude=学術・論理重視(研究者・教授等)、gpt=バランス型(一般市民・会社員等)',
               },
             },
-            required: ['stakeholderRole', 'name', 'nationality', 'age', 'occupation', 'background', 'interests', 'stanceDirection', 'llmType'],
+            required: ['stakeholderRole', 'name', 'nationality', 'age', 'occupation', 'background', 'interests', 'stanceDirection', 'engagementLevel', 'llmType'],
           },
         },
       },
@@ -51,7 +52,11 @@ export const generatePersonas = onCall({ timeoutSeconds: 300, secrets: SECRETS }
   if (!title?.trim()) throw new HttpsError('invalid-argument', 'title is required');
   if (!stakeholders?.length) throw new HttpsError('invalid-argument', 'stakeholders is required');
 
-  const rolesDesc = stakeholders.map((s, i) => `${i + 1}. ${s.role}（${s.stanceDirection}）`).join('\n');
+  const engagementLabel = (level?: string) =>
+    level === 'high' ? '関与度:高' : level === 'low' ? '関与度:低' : '関与度:中';
+  const rolesDesc = stakeholders
+    .map((s, i) => `${i + 1}. ${s.role}（${s.stanceDirection} / ${engagementLabel(s.engagementLevel)}）`)
+    .join('\n');
 
   let result;
   try {
@@ -62,7 +67,7 @@ export const generatePersonas = onCall({ timeoutSeconds: 300, secrets: SECRETS }
       toolChoice: { type: 'tool', toolName: 'submit_personas' } as const,
       messages: [{
         role: 'user',
-        content: `テーマ「${title}」について、以下の各立場を代表するペルソナを1体ずつ生成してください。\n\n【命名のルール】\n- 基本的には日本人のペルソナとして生成すること。ただしテーマが明らかに海外を舞台とする（例: F1、海外スポーツ、国際政治）場合は、そのテーマに合った国籍の人物を含めること\n- 佐藤・田中・鈴木など超頻出姓、陽菜・蓮・葵など近年多用される名前への偏りを避けること\n- 日本人名は地域性（東北・関西・九州など）や年代感（昭和・平成・令和の命名傾向の違い）をペルソナの年齢・背景に合わせて反映させること\n- 外国人ペルソナを含める場合はその国籍の実際の名前の傾向を反映させ、表記はカタカナにすること（例: ルイス・ハミルトン、カルロス・サインツ）\n- 年齢層・職業・社会的背景の多様性を確保すること\n\n立場リスト:\n${rolesDesc}\n\n各ペルソナは「実在する一人の人物」として設定してください。職業は具体的な職種・役職まで落とし込み、背景には家族構成・居住地・年収・趣味など生活の具体的なディテールを盛り込んでください。テーマへの関心は、その人物の実生活から生まれる具体的な視点として記述してください。`,
+        content: `テーマ「${title}」について、以下の各立場を代表するペルソナを1体ずつ生成してください。\n\n【命名のルール】\n- 基本的には日本人のペルソナとして生成すること。ただしテーマが明らかに海外を舞台とする（例: F1、海外スポーツ、国際政治）場合は、そのテーマに合った国籍の人物を含めること\n- 佐藤・田中・鈴木など超頻出姓、陽菜・蓮・葵など近年多用される名前への偏りを避けること\n- 日本人名は地域性（東北・関西・九州など）や年代感（昭和・平成・令和の命名傾向の違い）をペルソナの年齢・背景に合わせて反映させること\n- 外国人ペルソナを含める場合はその国籍の実際の名前の傾向を反映させ、表記はカタカナにすること（例: ルイス・ハミルトン、カルロス・サインツ）\n- 年齢層・職業・社会的背景の多様性を確保すること\n\n立場リスト:\n${rolesDesc}\n\n各ペルソナは「実在する一人の人物」として設定してください。職業は具体的な職種・役職まで落とし込み、背景には家族構成・居住地・年収・趣味など生活の具体的なディテールを盛り込んでください。\n\n【関与度に応じた描き分け（重要）】\n人物の「テーマへの関心の濃さ」は、立場リストの関与度に必ず合わせてください。全員を持論の強い専門家・当事者にしないこと。\n- 関与度:高 → テーマを深く考え、明確な持論・専門的な視点を持つ人物として描く\n- 関与度:中 → 一定の関心はあるが専門家ではなく、生活実感に基づく等身大の意見を持つ人物として描く\n- 関与度:低 → テーマに薄く影響を受けるだけで、普段ほとんど意識していない一般層。interests は「正直よくわからない」「なんとなく不安／気にしていない」といった曖昧で生活者目線の関心として記述し、専門用語や強い主張を持たせないこと\n\nengagementLevel には、対応するステークホルダーの関与度をそのまま設定してください。`,
       }],
     });
   } catch (err) {

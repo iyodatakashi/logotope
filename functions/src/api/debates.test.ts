@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockExecuteChapterTask, mockEnqueue } = vi.hoisted(() => ({
+const { mockExecuteChapterTask, mockGenerateChaptersOnly, mockEnqueue } = vi.hoisted(() => ({
   mockExecuteChapterTask: vi.fn(),
+  mockGenerateChaptersOnly: vi.fn(),
   mockEnqueue: vi.fn(),
 }));
 
@@ -21,29 +22,100 @@ vi.mock('../db/repository.js', () => ({
   getTopicById: vi.fn(),
   createDebateSession: vi.fn(),
   updateTopicStatus: vi.fn(),
+  updateTopicPhase: vi.fn(),
+  updateDebateSessionStatus: vi.fn(),
+  getDebateSessionByTopicId: vi.fn(),
+  discardChapterProgress: vi.fn(),
   markSessionError: vi.fn(),
 }));
 vi.mock('../pipeline/debate-orchestrator.js', () => ({
   // コンストラクタとして new されるため、アロー関数ではなく function 式でモックする（vitest 4）
   DebateOrchestratorService: vi.fn(function (this: unknown) {
-    return { executeChapterTask: mockExecuteChapterTask };
+    return {
+      executeChapterTask: mockExecuteChapterTask,
+      generateChaptersOnly: mockGenerateChaptersOnly,
+    };
   }),
 }));
 vi.mock('../utils/auth.js', () => ({ requireAuth: vi.fn() }));
 
 import * as repo from '../db/repository.js';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
-import './debates.js';
+import { generateChapters, startDebate, restartDebate } from './debates.js';
 
 type TaskHandler = (req: { data: { topicId: string; chapterIndex: number }; retryCount: number }) => Promise<void>;
+type CallHandler = (req: { data: { topicId: string } }) => Promise<unknown>;
 
 const runChapterHandler = (): TaskHandler =>
   vi.mocked(onTaskDispatched).mock.calls[0][1] as unknown as TaskHandler;
 
+const topicStub = { id: 't1', title: 'T', status: 'x', createdAt: '', updatedAt: '' };
+
 beforeEach(() => {
   mockExecuteChapterTask.mockReset();
+  mockGenerateChaptersOnly.mockReset();
   mockEnqueue.mockReset();
+  vi.mocked(repo.getTopicById).mockReset();
+  vi.mocked(repo.createDebateSession).mockReset();
+  vi.mocked(repo.updateTopicStatus).mockReset();
+  vi.mocked(repo.updateTopicPhase).mockReset();
+  vi.mocked(repo.updateDebateSessionStatus).mockReset();
+  vi.mocked(repo.getDebateSessionByTopicId).mockReset();
+  vi.mocked(repo.discardChapterProgress).mockReset();
   vi.mocked(repo.markSessionError).mockClear();
+});
+
+describe('generateChapters - task 2.2: client権威化', () => {
+  it('セッション作成と章立て生成を行い、トピックの状態は書き込まない', async () => {
+    vi.mocked(repo.getTopicById).mockResolvedValue(topicStub);
+
+    await (generateChapters as unknown as CallHandler)({ data: { topicId: 't1' } });
+
+    expect(vi.mocked(repo.createDebateSession)).toHaveBeenCalledWith('t1', 'chapters_ready');
+    expect(mockGenerateChaptersOnly).toHaveBeenCalledWith('t1');
+    expect(vi.mocked(repo.updateTopicStatus)).not.toHaveBeenCalled();
+    expect(vi.mocked(repo.updateTopicPhase)).not.toHaveBeenCalled();
+  });
+});
+
+describe('startDebate - task 2.2: フェーズ5実行中の確定', () => {
+  it('セッションを debating、トピックを (5, running) にして第0章を投入する', async () => {
+    vi.mocked(repo.getTopicById).mockResolvedValue(topicStub);
+
+    await (startDebate as unknown as CallHandler)({ data: { topicId: 't1' } });
+
+    expect(vi.mocked(repo.updateDebateSessionStatus)).toHaveBeenCalledWith('t1', 'debating');
+    expect(vi.mocked(repo.updateTopicPhase)).toHaveBeenCalledWith('t1', 5, 'running');
+    expect(vi.mocked(repo.updateTopicStatus)).not.toHaveBeenCalled();
+    expect(mockEnqueue).toHaveBeenCalledWith({ topicId: 't1', chapterIndex: 0 }, expect.anything());
+  });
+});
+
+describe('restartDebate - task 2.3: 章単位再開', () => {
+  it('停止時の章の途中ターンを破棄し、(5, running) にして当該章を頭から投入する', async () => {
+    vi.mocked(repo.getTopicById).mockResolvedValue(topicStub);
+    vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
+      id: 't1', topicId: 't1', status: 'cancelled', createdAt: '', currentChapterIndex: 2,
+    });
+
+    await (restartDebate as unknown as CallHandler)({ data: { topicId: 't1' } });
+
+    expect(vi.mocked(repo.discardChapterProgress)).toHaveBeenCalledWith('t1', 2);
+    expect(vi.mocked(repo.updateTopicPhase)).toHaveBeenCalledWith('t1', 5, 'running');
+    expect(mockEnqueue).toHaveBeenCalledWith({ topicId: 't1', chapterIndex: 2 }, expect.anything());
+  });
+
+  it('currentChapterIndex 未設定なら第0章から再開する', async () => {
+    vi.mocked(repo.getTopicById).mockResolvedValue(topicStub);
+    vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
+      id: 't1', topicId: 't1', status: 'cancelled', createdAt: '',
+    });
+
+    await (restartDebate as unknown as CallHandler)({ data: { topicId: 't1' } });
+
+    expect(vi.mocked(repo.discardChapterProgress)).toHaveBeenCalledWith('t1', 0);
+    expect(mockEnqueue).toHaveBeenCalledWith({ topicId: 't1', chapterIndex: 0 }, expect.anything());
+  });
 });
 
 describe('runChapter - task 4.4: エラー終端', () => {

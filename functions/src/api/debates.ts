@@ -19,10 +19,11 @@ export const generateChapters = onCall({ timeoutSeconds: 120 }, async (request) 
   const topic = await repo.getTopicById(topicId);
   if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
+  // 章立てはクライアント権威。Functions はセッション作成と章立て生成のみ行い、
+  // トピックの状態書き込みは行わない（client が解決後に (4, generated) を書く）。
   await repo.createDebateSession(topicId, 'chapters_ready');
   const orchestrator = new DebateOrchestratorService();
   await orchestrator.generateChaptersOnly(topicId);
-  await repo.updateTopicStatus(topicId, 'chapters_ready');
 
   return { topicId };
 });
@@ -35,8 +36,26 @@ export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
   await repo.updateDebateSessionStatus(topicId, 'debating');
-  await repo.updateTopicStatus(topicId, 'debating');
+  await repo.updateTopicPhase(topicId, 5, 'running');
   await enqueueChapterTask(topicId, 0);
+
+  return { topicId };
+});
+
+// 章単位再開: 停止時に進行中だった章の途中ターンを破棄し、当該章を頭から再実行する
+export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
+  requireAuth(request);
+  const { topicId } = request.data as { topicId: string };
+
+  const topic = await repo.getTopicById(topicId);
+  if (!topic) throw new HttpsError('not-found', 'Topic not found');
+
+  const session = await repo.getDebateSessionByTopicId(topicId);
+  const chapterIndex = session?.currentChapterIndex ?? 0;
+
+  await repo.discardChapterProgress(topicId, chapterIndex);
+  await repo.updateTopicPhase(topicId, 5, 'running');
+  await enqueueChapterTask(topicId, chapterIndex);
 
   return { topicId };
 });

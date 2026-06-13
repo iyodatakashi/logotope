@@ -552,6 +552,6 @@ export class DebateOrchestratorService {
     }
 
     await repo.completeDebateSession(sessionId, state.currentTurnIndex);
-    await repo.updateTopicStatus(topicId, 'completed');
+    await repo.updateTopicPhase(topicId, 5, 'generated');
   }
 }

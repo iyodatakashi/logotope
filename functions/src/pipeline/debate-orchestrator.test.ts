@@ -13,7 +13,9 @@ vi.mock('../db/repository.js', () => ({
   createPostDebateComment: vi.fn(),
   completeDebateSession: vi.fn(),
   updateTopicStatus: vi.fn(),
+  updateTopicPhase: vi.fn(),
   saveChapters: vi.fn(),
+  saveChapterIssues: vi.fn(),
   updateCurrentChapterIndex: vi.fn(),
   saveEngagements: vi.fn(),
   setPendingIntents: vi.fn(),
@@ -52,7 +54,7 @@ function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof
     generateOpening: vi.fn().mockResolvedValue({ ok: true, value: { content: '討論を始めます。', firstPersonaId: 'p1' } }),
     evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
     generateClosing: vi.fn().mockResolvedValue({ ok: true, value: 'お疲れ様でした。' }),
-    generateChapters: vi.fn().mockResolvedValue({ ok: true, value: twoChapters }),
+    generateChapters: vi.fn().mockResolvedValue({ ok: true, value: { chapters: twoChapters, generalIssues: ['一般論点X'], personaIssues: ['ペルソナ論点Y'] } }),
     generateChapterSummary: vi.fn().mockResolvedValue({ ok: true, value: '章のまとめです。' }),
     generateChapterIntroduction: vi.fn().mockResolvedValue({ ok: true, value: { content: '次の章へ移ります。', firstPersonaId: 'p1' } }),
     ...overrides,
@@ -87,9 +89,16 @@ function setupRepoDefaults() {
   vi.mocked(repo.createPostDebateComment).mockResolvedValue({ id: 'comment-1' });
   vi.mocked(repo.completeDebateSession).mockResolvedValue(undefined);
   vi.mocked(repo.updateTopicStatus).mockResolvedValue(undefined);
+  vi.mocked(repo.updateTopicPhase).mockResolvedValue(undefined);
   vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([]);
-  vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({ id: 't1', topicId: 't1', status: 'debating', createdAt: '' });
+  // 章立ては generateChaptersOnly で事前保存済み（executeChapterTask はこれを前提とする）
+  vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
+    id: 't1', topicId: 't1', status: 'debating', createdAt: '',
+    chapters: twoChapters.map(c => ({ index: c.index, title: c.title, focusQuestion: c.focusQuestion })),
+    currentChapterIndex: 0,
+  });
   vi.mocked(repo.saveChapters).mockResolvedValue(undefined);
+  vi.mocked(repo.saveChapterIssues).mockResolvedValue(undefined);
   vi.mocked(repo.updateCurrentChapterIndex).mockResolvedValue(undefined);
   vi.mocked(repo.saveEngagements).mockResolvedValue(undefined);
   vi.mocked(repo.setPendingIntents).mockResolvedValue(undefined);
@@ -114,28 +123,19 @@ beforeEach(() => {
 // ---- tests ----
 
 describe('DebateOrchestratorService', () => {
-  describe('task 4.1: 章タスクの骨格と状態初期化', () => {
-    it('DEFAULT_OPTIONS は turnsPerChapter / maxTurns / interventionCooldown のみを持つ', () => {
-      expect(DEFAULT_OPTIONS).toEqual({ turnsPerChapter: 15, maxTurns: 200, interventionCooldown: 2 });
-    });
-
-    it('第1章開始時: 章立て生成 → saveChapters → オープニング保存（chapterIndex 0）の順で開始する', async () => {
+  describe('generateChaptersOnly: 章立て事前生成', () => {
+    it('章立てと切り口を生成して saveChapters・saveChapterIssues で保存する', async () => {
       const mockFacilitator = makeMockFacilitator();
       const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
-      await service.executeChapterTask('t1', 0);
+      await service.generateChaptersOnly('t1');
 
       expect(mockFacilitator.generateChapters).toHaveBeenCalledWith('AI医療診断の導入', expect.any(Array));
-      expect(vi.mocked(repo.saveChapters)).toHaveBeenCalledWith(
-        't1',
-        [
-          { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？' },
-          { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？' },
-        ]
-      );
-      expect(vi.mocked(repo.createDebateTurn)).toHaveBeenCalledWith(
-        expect.objectContaining({ turnIndex: 0, speakerType: 'facilitator', content: '討論を始めます。', chapterIndex: 0 })
-      );
+      expect(vi.mocked(repo.saveChapters)).toHaveBeenCalledWith('t1', [
+        { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？' },
+        { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？' },
+      ]);
+      expect(vi.mocked(repo.saveChapterIssues)).toHaveBeenCalledWith('t1', ['一般論点X'], ['ペルソナ論点Y']);
     });
 
     it('章立て生成に失敗した場合はフォールバックせず例外を送出する', async () => {
@@ -144,9 +144,33 @@ describe('DebateOrchestratorService', () => {
       });
       const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
-      await expect(service.executeChapterTask('t1', 0)).rejects.toThrow('chapter gen failed');
+      await expect(service.generateChaptersOnly('t1')).rejects.toThrow('chapter gen failed');
       expect(vi.mocked(repo.saveChapters)).not.toHaveBeenCalled();
-      expect(vi.mocked(repo.createDebateTurn)).not.toHaveBeenCalled();
+      expect(vi.mocked(repo.saveChapterIssues)).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('task 4.1: 章タスクの骨格と状態初期化', () => {
+    it('DEFAULT_OPTIONS は turnsPerChapter / maxTurns / interventionCooldown のみを持つ', () => {
+      expect(DEFAULT_OPTIONS).toEqual({ turnsPerChapter: 15, maxTurns: 200, interventionCooldown: 2 });
+    });
+
+    it('第1章開始時: 事前保存された章立てを前提にオープニング生成・保存（chapterIndex 0）で開始する', async () => {
+      const mockFacilitator = makeMockFacilitator();
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
+
+      await service.executeChapterTask('t1', 0);
+
+      // 章立て生成は generateChaptersOnly に分離済み。executeChapterTask 内では生成しない
+      expect(mockFacilitator.generateChapters).not.toHaveBeenCalled();
+      expect(mockFacilitator.generateOpening).toHaveBeenCalledWith(
+        'AI医療診断の導入',
+        expect.any(Array),
+        expect.objectContaining({ index: 0 })
+      );
+      expect(vi.mocked(repo.createDebateTurn)).toHaveBeenCalledWith(
+        expect.objectContaining({ turnIndex: 0, speakerType: 'facilitator', content: '討論を始めます。', chapterIndex: 0 })
+      );
     });
 
     it('chapterIndex > 0 で章情報が存在しない場合は例外を送出する', async () => {
@@ -513,10 +537,13 @@ describe('DebateOrchestratorService', () => {
     });
 
     it('最終章後にクロージング（chapterIndex 付き）・事後コメント・セッション完了を行い false を返す', async () => {
-      const singleChapter = [twoChapters[0]];
-      const mockFacilitator = makeMockFacilitator({
-        generateChapters: vi.fn().mockResolvedValue({ ok: true, value: singleChapter }),
+      // 事前保存された章立てが単一章のケース（index 0 が最終章）
+      vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
+        id: 't1', topicId: 't1', status: 'debating', createdAt: '',
+        chapters: [{ index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？' }],
+        currentChapterIndex: 0,
       });
+      const mockFacilitator = makeMockFacilitator();
       const mockPersonaAgent = makeMockPersonaAgent();
       const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
 
@@ -528,6 +555,9 @@ describe('DebateOrchestratorService', () => {
       expect(closingTurn?.[0].chapterIndex).toBe(0);
       expect(mockPersonaAgent.generatePostDebateComment).toHaveBeenCalledTimes(testPersonaProfiles.length);
       expect(vi.mocked(repo.completeDebateSession)).toHaveBeenCalledWith('t1', expect.any(Number));
+      // task 2.2: 討論完了でトピックを (5, generated) に確定する
+      expect(vi.mocked(repo.updateTopicPhase)).toHaveBeenCalledWith('t1', 5, 'generated');
+      expect(vi.mocked(repo.updateTopicStatus)).not.toHaveBeenCalled();
     });
   });
 });

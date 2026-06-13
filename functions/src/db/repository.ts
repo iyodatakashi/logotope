@@ -1,6 +1,6 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
-import type { LLMType } from '../types/index.js';
+import type { LLMType, PhaseStatus } from '../types/index.js';
 
 const db = () => getFirestore();
 
@@ -168,6 +168,15 @@ export const updateTopicStatus = async (id: string, status: string): Promise<voi
   await db().doc(`topics/${id}`).update({ status, updatedAt: Timestamp.now() });
 };
 
+// トピックの進行状態を 2軸（フェーズ・状態）で確定する
+export const updateTopicPhase = async (
+  id: string,
+  phase: number,
+  phaseStatus: PhaseStatus
+): Promise<void> => {
+  await db().doc(`topics/${id}`).update({ phase, phaseStatus, updatedAt: Timestamp.now() });
+};
+
 export const createStakeholderMap = async (topicId: string, content: string): Promise<{ id: string }> => {
   const parsed = JSON.parse(content) as { items: unknown[]; approved?: boolean };
   await db().doc(`topics/${topicId}`).update({
@@ -277,6 +286,60 @@ export const resetDebateTurns = async (topicId: string): Promise<void> => {
     totalTurns: FieldValue.delete(),
     completedAt: FieldValue.delete(),
   });
+};
+
+// 章単位再開のためのクリーンアップ: 指定章以降の途中ターンを破棄し、
+// その派生変化（信念バージョン・エンゲージメント履歴）を巻き戻して進行中へ戻す
+export const discardChapterProgress = async (
+  topicId: string,
+  chapterIndex: number
+): Promise<void> => {
+  const sessionRef = db().doc(`topics/${topicId}/sessions/0`);
+  const snap = await sessionRef.get();
+  if (!snap.exists) return;
+  const data = snap.data() as {
+    turns?: Array<{ id: string; turnIndex: number; chapterIndex?: number }>;
+  };
+  const turns = data.turns ?? [];
+  const removed = turns.filter((t) => (t.chapterIndex ?? 0) >= chapterIndex);
+  const kept = turns.filter((t) => (t.chapterIndex ?? 0) < chapterIndex);
+  const removedTurnIds = new Set(removed.map((t) => t.id));
+  const removedTurnIndexes = removed.map((t) => t.turnIndex);
+
+  // セッションのターンを完了済み章のみに巻き戻し、進行中状態へ戻す
+  await sessionRef.update({
+    turns: kept,
+    status: 'debating',
+    currentChapterIndex: chapterIndex,
+    postDebateComments: [],
+    totalTurns: FieldValue.delete(),
+    completedAt: FieldValue.delete(),
+  });
+
+  // 削除ターンに起因する信念バージョンを各ペルソナの beliefs から除去する
+  const personasSnap = await db().collection(`topics/${topicId}/personas`).get();
+  for (const personaSnap of personasSnap.docs) {
+    const pdata = personaSnap.data() as { beliefs?: Array<{ triggeredByTurnId?: string | null }> };
+    const beliefs = pdata.beliefs ?? [];
+    const filtered = beliefs.filter(
+      (b) => !(b.triggeredByTurnId && removedTurnIds.has(b.triggeredByTurnId))
+    );
+    if (filtered.length !== beliefs.length) {
+      await personaSnap.ref.update({ beliefs: filtered });
+    }
+  }
+
+  // 削除ターンのエンゲージメント履歴を巻き戻す
+  if (removedTurnIndexes.length > 0) {
+    const engSnap = await db().collection(`topics/${topicId}/sessions/0/engagements`).get();
+    const updates: Record<string, unknown> = {};
+    for (const ti of removedTurnIndexes) {
+      updates[`history.${ti}`] = FieldValue.delete();
+    }
+    for (const engDoc of engSnap.docs) {
+      await engDoc.ref.update(updates);
+    }
+  }
 };
 
 export const completeDebateSession = async (id: string, totalTurns: number): Promise<void> => {

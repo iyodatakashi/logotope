@@ -7,6 +7,7 @@ vi.mock('firebase-admin/firestore', () => ({
   },
   FieldValue: {
     arrayUnion: vi.fn((...items: unknown[]) => ({ _type: 'arrayUnion', items })),
+    delete: vi.fn(() => ({ _type: 'delete' })),
   },
 }));
 
@@ -70,6 +71,74 @@ describe('updateTopicStatus', () => {
     expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1');
     expect(mockDocRef.update).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'debating' })
+    );
+  });
+});
+
+// ---- updateTopicPhase (task 2.1) ----
+
+describe('updateTopicPhase', () => {
+  it('updates phase, phaseStatus and updatedAt on topics/{id}', async () => {
+    await repo.updateTopicPhase('topic-1', 5, 'running');
+    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1');
+    expect(mockDocRef.update).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 5, phaseStatus: 'running' })
+    );
+    const call = mockDocRef.update.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(call).toHaveProperty('updatedAt');
+  });
+});
+
+// ---- discardChapterProgress (task 2.3) ----
+
+describe('discardChapterProgress', () => {
+  it('現在章以降の途中ターンを破棄し、派生信念とエンゲージメントを巻き戻して進行中へ戻す', async () => {
+    const sessionData = {
+      status: 'cancelled',
+      turns: [
+        { id: 'turn-0', turnIndex: 0, chapterIndex: 0, content: 'a' },
+        { id: 'turn-1', turnIndex: 1, chapterIndex: 1, content: 'b' },
+        { id: 'turn-2', turnIndex: 2, chapterIndex: 1, content: 'c' },
+      ],
+    };
+    mockDocRef.get.mockResolvedValueOnce({ exists: true, data: () => sessionData });
+
+    const personaRef = { update: vi.fn(() => Promise.resolve()) };
+    const personasSnap = makeQuerySnap([
+      {
+        id: 'p1',
+        data: () => ({
+          beliefs: [
+            { id: 'b0', version: 0, triggeredByTurnId: null },
+            { id: 'b1', version: 1, triggeredByTurnId: 'turn-1' },
+          ],
+        }),
+        ref: personaRef,
+      },
+    ]);
+    const engRef = { update: vi.fn(() => Promise.resolve()) };
+    const engSnap = makeQuerySnap([
+      { id: 'p1', data: () => ({ history: { '0': {}, '1': {}, '2': {} } }), ref: engRef },
+    ]);
+    mockCollectionGet.mockResolvedValueOnce(personasSnap).mockResolvedValueOnce(engSnap);
+
+    await repo.discardChapterProgress('topic-1', 1);
+
+    // 完了済み章(turn-0)のみ残し、進行中に戻す
+    expect(mockDocRef.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'debating',
+        currentChapterIndex: 1,
+        turns: [expect.objectContaining({ id: 'turn-0' })],
+      })
+    );
+    // 削除ターン由来の信念バージョン(b1)を除去
+    expect(personaRef.update).toHaveBeenCalledWith(
+      expect.objectContaining({ beliefs: [expect.objectContaining({ id: 'b0' })] })
+    );
+    // 削除ターンのエンゲージメント履歴を削除
+    expect(engRef.update).toHaveBeenCalledWith(
+      expect.objectContaining({ 'history.1': expect.anything(), 'history.2': expect.anything() })
     );
   });
 });
@@ -161,7 +230,7 @@ describe('createDebateSession', () => {
     const result = await repo.createDebateSession('topic-1');
     expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0');
     expect(mockDocRef.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'debating', turns: [], postDebateComments: [] })
+      expect.objectContaining({ status: 'chapters_ready', turns: [], postDebateComments: [] })
     );
     expect(result.id).toBe('topic-1');
   });

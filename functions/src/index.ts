@@ -7,4 +7,4 @@ setGlobalOptions({ maxInstances: 10, timeoutSeconds: 60, region: 'asia-northeast
 export { generateStakeholders } from './api/stakeholders.js';
 export { generatePersonas } from './api/personas.js';
 export { runInterview } from './api/interviews.js';
-export { generateChapters, startDebate, runChapter } from './api/debates.js';
+export { generateChapters, startDebate, restartDebate, runChapter } from './api/debates.js';
