@@ -252,28 +252,47 @@ export class FacilitatorAgentService {
     personas: PersonaAttributes[]
   ): Promise<Result<DebateChapter[], PipelineError>> {
     try {
-      // Step 1: 論点洗い出し
-      const issuesResponse = await this.client.messages.create({
-        model: AI_MODELS.SONNET,
-        max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
-        system: buildNeutralitySystemPrompt(),
-        tools: [SUBMIT_ISSUES_TOOL],
-        tool_choice: { type: 'tool', name: 'submit_issues' },
-        messages: [{
-          role: 'user',
-          content: `テーマ「${topicTitle}」について、このテーマに関係する切り口を7〜10件、フラットに列挙してください。\n\n参加者:\n${formatPersonas(personas)}\n\n「何が問題か」「賛否はどうか」を考える前の段階として、このテーマに関して人々が関心を持ちうるあらゆる側面・観点・次元を網羅的に書き出してください。後工程でこれらをもとに討論の章立てを作ります。\n\n各切り口は1〜2文で記述してください。`,
-        }],
-      });
+      // Step 1: 切り口洗い出し（一般切り口とペルソナ固有切り口を並列生成）
+      const [generalIssuesResponse, personaIssuesResponse] = await Promise.all([
+        // 1a: トピックのみ（日常感覚・専門知識不要）
+        this.client.messages.create({
+          model: AI_MODELS.SONNET,
+          max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
+          system: buildNeutralitySystemPrompt(),
+          tools: [SUBMIT_ISSUES_TOOL],
+          tool_choice: { type: 'tool', name: 'submit_issues' },
+          messages: [{
+            role: 'user',
+            content: `テーマ「${topicTitle}」について、専門知識を持たない一般の人々が最初に感じる素朴な疑問や関心事を5〜7件列挙してください。\n\n日常の感覚で「自分にも関係ある」「なんとなく気になる」と思える切り口に絞ってください。固有名詞（特定の企業・人名・政策名）や専門用語は使わないこと。各切り口を1〜2文で記述してください。`,
+          }],
+        }),
+        // 1b: ペルソナに基づく（専門的・立場特有の論点）
+        this.client.messages.create({
+          model: AI_MODELS.SONNET,
+          max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
+          system: buildNeutralitySystemPrompt(),
+          tools: [SUBMIT_ISSUES_TOOL],
+          tool_choice: { type: 'tool', name: 'submit_issues' },
+          messages: [{
+            role: 'user',
+            content: `テーマ「${topicTitle}」について、以下の参加者それぞれの立場・専門性・利害関係から生まれる具体的な論点や関心事を5〜8件列挙してください。\n\n参加者:\n${formatPersonas(personas)}\n\n各参加者が強い意見・懸念・利害を持つ側面を考慮し、参加者間で意見が対立しやすい切り口を優先してください。各切り口を1〜2文で記述してください。`,
+          }],
+        }),
+      ]);
 
-      const issuesBlock = issuesResponse.content.find(
+      const generalIssuesBlock = generalIssuesResponse.content.find(
         (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
       );
-      if (!issuesBlock) {
+      const personaIssuesBlock = personaIssuesResponse.content.find(
+        (b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+      );
+      if (!generalIssuesBlock || !personaIssuesBlock) {
         return { ok: false, error: { code: 'AI_API_ERROR', message: 'No tool_use block in issues response', retryable: true } };
       }
-      const { issues } = issuesBlock.input as { issues: string[] };
+      const { issues: generalIssues } = generalIssuesBlock.input as { issues: string[] };
+      const { issues: personaIssues } = personaIssuesBlock.input as { issues: string[] };
 
-      // Step 2: 章構造化
+      // Step 2: 章構造化（2種の切り口を区別して使用）
       const chaptersResponse = await this.client.messages.create({
         model: AI_MODELS.SONNET,
         max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_STRUCTURE,
@@ -282,7 +301,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'submit_chapters' },
         messages: [{
           role: 'user',
-          content: `以下の切り口をもとに、討論の章立てを3〜6章に構成してください。\n\n切り口一覧:\n${issues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n各章に「章タイトル」と「その章で探求する具体的なフォーカス問い」を設定してください。\n\n【構成の原則・厳守事項】\n- 第1章は「このテーマについて詳しくない人でも、自分の日常感覚から答えられる」問いにすること。固有名詞（特定の映像作品・企業名・人名・政策名）や専門用語・業界用語を第1章のタイトルとフォーカス問いに含めてはならない。\n- 章を追うごとに具体性・専門性・対立の鋭さを増す構造にすること。固有名詞や専門用語は第3章以降から自然に導入してよい。\n- 「誰でも感覚的に答えられる入口 → 具体的な事例・比較 → 深いジレンマ・価値観の対立」の順に進むこと。いきなり内部論争・政策論争・業界知識を前提とした問いから始めてはならない。`,
+          content: `以下の2種類の切り口をもとに、討論の章立てを3〜6章に構成してください。\n\n【一般的な切り口（専門知識不要・日常感覚）】\n${generalIssues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n【参加者固有の切り口（専門的・立場に基づく論点）】\n${personaIssues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n各章に「章タイトル」と「その章で探求する具体的なフォーカス問い」を設定してください。\n\n【構成の原則・厳守事項】\n- 第1章は必ず「一般的な切り口」から選ぶこと。固有名詞・専門用語・業界用語を第1章のタイトルとフォーカス問いに含めてはならない。\n- 章を追うごとに「参加者固有の切り口」を取り込み、専門性・対立の鋭さを段階的に増す。固有名詞や専門用語は第3章以降から自然に導入してよい。\n- 「誰でも感覚的に答えられる入口 → 具体的な事例・比較 → 深いジレンマ・価値観の対立」の順に進むこと。`,
         }],
       });
 
