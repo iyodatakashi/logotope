@@ -10,6 +10,9 @@
 		surveying: '調査中',
 		generating_personas: 'ペルソナ生成中',
 		interviewing: '取材中',
+		chapters_ready: '章立て準備中',
+		chapters_approved: '章立て完了',
+		cancelled: '討論停止',
 		debating: '討論中',
 		completed: '討論完了',
 		published: '公開済み'
@@ -94,6 +97,15 @@
 	.status-debating {
 		background: #bbdefb;
 		color: #1565c0;
+	}
+	.status-chapters_ready,
+	.status-chapters_approved {
+		background: #fff9c4;
+		color: #f57f17;
+	}
+	.status-cancelled {
+		background: #ffcdd2;
+		color: #b71c1c;
 	}
 	.status-completed {
 		background: #c8e6c9;

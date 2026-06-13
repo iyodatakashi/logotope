@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Phase4Chapters from '$lib/features/admin/debate/Phase4Chapters.svelte';
+	import Phase4Chapters from '$lib/features/admin/chapters/Phase4Chapters.svelte';
 	import PhaseResetPanel from '$lib/sharedComponents/PhaseResetPanel.svelte';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 	import { page } from '$app/state';
