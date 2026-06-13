@@ -12,6 +12,21 @@ async function enqueueChapterTask(topicId: string, chapterIndex: number): Promis
   await queue.enqueue({ topicId, chapterIndex }, { scheduleDelaySeconds: 0 });
 }
 
+export const generateChapters = onCall({ timeoutSeconds: 120 }, async (request) => {
+  requireAuth(request);
+  const { topicId } = request.data as { topicId: string };
+
+  const topic = await repo.getTopicById(topicId);
+  if (!topic) throw new HttpsError('not-found', 'Topic not found');
+
+  await repo.createDebateSession(topicId, 'chapters_ready');
+  const orchestrator = new DebateOrchestratorService();
+  await orchestrator.generateChaptersOnly(topicId);
+  await repo.updateTopicStatus(topicId, 'chapters_ready');
+
+  return { topicId };
+});
+
 export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   requireAuth(request);
   const { topicId } = request.data as { topicId: string };
@@ -19,7 +34,7 @@ export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   const topic = await repo.getTopicById(topicId);
   if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
-  await repo.createDebateSession(topicId);
+  await repo.updateDebateSessionStatus(topicId, 'debating');
   await repo.updateTopicStatus(topicId, 'debating');
   await enqueueChapterTask(topicId, 0);
 

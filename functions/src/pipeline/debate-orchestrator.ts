@@ -63,6 +63,17 @@ export class DebateOrchestratorService {
     private options: OrchestratorOptions = DEFAULT_OPTIONS
   ) {}
 
+  /** 章立てのみを生成して保存する（討論を開始しない） */
+  async generateChaptersOnly(topicId: string): Promise<void> {
+    const { personas, topicTitle } = await this.loadSessionContext(topicId);
+    const chaptersResult = await this.facilitator.generateChapters(topicTitle, personas);
+    if (!chaptersResult.ok) throw new Error(pipelineErrorMessage(chaptersResult.error));
+    const chapters = chaptersResult.value;
+    await repo.saveChapters(topicId, chapters.map(c => ({
+      index: c.index, title: c.title, focusQuestion: c.focusQuestion,
+    })));
+  }
+
   /** @returns 次章が存在する場合 true（呼び出し元が次章タスクを投入する） */
   async executeChapterTask(topicId: string, chapterIndex: number): Promise<boolean> {
     const sessionId = topicId;
@@ -70,8 +81,7 @@ export class DebateOrchestratorService {
     const session = await repo.getDebateSessionByTopicId(topicId);
     if (!session) throw new Error('Session not found');
     if (session.status === 'cancelled') return false;
-    // 章立ては第1章タスク内で生成されるため、章情報の必須チェックは chapterIndex > 0 のみ
-    if (chapterIndex > 0 && !session.chapters?.length) throw new Error('Chapters not found');
+    if (!session.chapters?.length) throw new Error('Chapters not found');
 
     // 冪等性: 処理済みの章はスキップする
     if (session.currentChapterIndex !== undefined && session.currentChapterIndex > chapterIndex) {
@@ -98,15 +108,8 @@ export class DebateOrchestratorService {
       return { index: c.index, title: c.title, focusQuestion: c.focusQuestion, startTurnIndex: startTurnIdx };
     });
 
-    // 第1章の開始: 章立て生成とオープニング（失敗時はフォールバックせずエラー終端）
+    // 第1章の開始: オープニング生成（章立ては generateChaptersOnly で事前に保存済み）
     if (chapterIndex === 0 && state.currentTurnIndex === 0) {
-      const chaptersResult = await this.facilitator.generateChapters(topicTitle, personas);
-      if (!chaptersResult.ok) throw new Error(pipelineErrorMessage(chaptersResult.error));
-      chapters.splice(0, chapters.length, ...chaptersResult.value);
-      await repo.saveChapters(topicId, chapters.map(c => ({
-        index: c.index, title: c.title, focusQuestion: c.focusQuestion,
-      })));
-
       const openingResult = await this.facilitator.generateOpening(topicTitle, personas, chapters[0]);
       if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
       const firstPersonaId = validPersonaId(openingResult.value.firstPersonaId, personas);

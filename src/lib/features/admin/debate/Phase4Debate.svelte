@@ -9,7 +9,6 @@
 	let { topicId, topicTitle }: Props = $props();
 
 	let starting = $state(false);
-	let started = $state(false);
 	let resetting = $state(false);
 	let error = $state('');
 	let publishUrl = $state('');
@@ -22,6 +21,7 @@
 			.sort((a, b) => a.turnIndex - b.turnIndex)
 			.map((t) => {
 				const persona = t.personaId ? personaMap.get(t.personaId) : null;
+				const addressedPersona = t.addressedPersonaId ? personaMap.get(t.addressedPersonaId) : null;
 				return {
 					id: t.id,
 					turnIndex: t.turnIndex,
@@ -32,6 +32,7 @@
 					speechMode: t.speechMode,
 					fromQueue: t.fromQueue,
 					personaId: t.personaId,
+					addressedPersonaName: addressedPersona?.name ?? null,
 					engagements: (currentTopicStore.engagementsStore.engagementsMap.get(t.turnIndex) ?? []).map((e) => ({
 						...e,
 						name: personaMap.get(e.personaId)?.name ?? e.personaId
@@ -49,7 +50,9 @@
 			})
 	);
 
-	const isDebating = $derived(currentTopicStore.sessionStore.session?.status === 'debating');
+	const sessionStatus = $derived(currentTopicStore.sessionStore.session?.status);
+	const isDebating = $derived(sessionStatus === 'debating');
+	const isChaptersReady = $derived(sessionStatus === 'chapters_ready');
 	const loading = $derived(!currentTopicStore.sessionStore.isLoaded || starting || isDebating);
 	const completedTurns = $derived(turns.length);
 	const totalTurns = $derived(currentTopicStore.sessionStore.session?.totalTurns ?? 0);
@@ -61,14 +64,7 @@
 		chapters && currentChapterIndex !== null ? chapters[currentChapterIndex] : null
 	);
 
-	$effect(() => {
-		if (currentTopicStore.sessionStore.isLoaded && !currentTopicStore.sessionStore.session && !started && !resetting) {
-			void doStart();
-		}
-	});
-
 	async function doStart() {
-		started = true;
 		starting = true;
 		error = '';
 		try {
@@ -89,11 +85,11 @@
 		}
 	}
 
-	async function handleReset() {
+	async function handleResetToPhase4() {
 		resetting = true;
 		error = '';
 		try {
-			await currentTopicStore.topic?.resetToPhase3();
+			await currentTopicStore.topic?.resetToPhase4();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'リセットに失敗しました';
 			resetting = false;
@@ -113,11 +109,15 @@
 </script>
 
 <section>
-	<h2>フェーズ 4: ディベート</h2>
+	<h2>フェーズ 5: 討論</h2>
 	<p class="topic">{topicTitle}</p>
 
 	{#if isStopped}
 		<p class="status-stopped" role="alert">討論停止: {error}</p>
+	{:else if isChaptersReady && turns.length === 0}
+		<div class="actions">
+			<Button onclick={doStart} disabled={starting}>討論を開始</Button>
+		</div>
 	{:else if loading}
 		<p class="step" role="status">
 			{#if currentChapter}
@@ -163,6 +163,9 @@
 						{/if}
 					</div>
 					<p class="content">{turn.content}</p>
+					{#if turn.addressedPersonaName}
+						<p class="nominated">次の指名: {turn.addressedPersonaName}</p>
+					{/if}
 					{#if turn.engagements.length > 0}
 						{@const nextPersonaId = turns[i + 1]?.personaId}
 						<div class="engagements">
@@ -196,7 +199,7 @@
 	{#if !loading && turns.length > 0 && !publishUrl}
 		<div class="actions">
 			<Button onclick={handlePublish}>公開する</Button>
-			<Button variant="outlined" onclick={handleReset}>討論をリセット</Button>
+			<Button variant="outlined" onclick={handleResetToPhase4} disabled={resetting}>討論をリセット（章立て保持）</Button>
 		</div>
 	{/if}
 </section>
@@ -310,6 +313,15 @@
 	.engagement.selected {
 		font-weight: 700;
 		outline: 1px solid currentColor;
+	}
+	.nominated {
+		margin: 4px 0 0;
+		font-size: 0.75rem;
+		color: #b45309;
+		background: #fef3c7;
+		padding: 2px 8px;
+		border-radius: 3px;
+		display: inline-block;
 	}
 	.beliefs {
 		margin-top: 8px;

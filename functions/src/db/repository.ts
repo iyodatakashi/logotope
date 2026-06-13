@@ -250,18 +250,33 @@ export const createPersonaBelief = async (params: CreatePersonaBeliefParams): Pr
   return { id };
 };
 
-export const createDebateSession = async (topicId: string): Promise<{ id: string }> => {
+export const createDebateSession = async (topicId: string, status = 'chapters_ready'): Promise<{ id: string }> => {
   const sessionRef = db().doc(`topics/${topicId}/sessions/0`);
   const snap = await sessionRef.get();
   if (!snap.exists) {
     await sessionRef.set({
-      status: 'debating',
+      status,
       createdAt: Timestamp.now(),
       turns: [],
       postDebateComments: [],
     });
   }
   return { id: topicId };
+};
+
+export const updateDebateSessionStatus = async (topicId: string, status: string): Promise<void> => {
+  await db().doc(`topics/${topicId}/sessions/0`).update({ status });
+};
+
+export const resetDebateTurns = async (topicId: string): Promise<void> => {
+  await db().doc(`topics/${topicId}/sessions/0`).update({
+    status: 'chapters_ready',
+    turns: [],
+    postDebateComments: [],
+    currentChapterIndex: FieldValue.delete(),
+    totalTurns: FieldValue.delete(),
+    completedAt: FieldValue.delete(),
+  });
 };
 
 export const completeDebateSession = async (id: string, totalTurns: number): Promise<void> => {

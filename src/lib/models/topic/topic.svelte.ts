@@ -29,7 +29,7 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 
 	const approveInterviews = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId), {
-			status: 'debating',
+			status: 'chapters_ready',
 			updatedAt: Timestamp.now()
 		});
 	};
@@ -87,6 +87,13 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		);
 	};
 
+	const generateChapters = async (): Promise<void> => {
+		const fn = httpsCallable<{ topicId: string }, unknown>(functions, 'generateChapters', {
+			timeout: 300000
+		});
+		await fn({ topicId });
+	};
+
 	const startDebate = async (): Promise<void> => {
 		const fn = httpsCallable<{ topicId: string }, unknown>(functions, 'startDebate', {
 			timeout: 600000
@@ -138,6 +145,25 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		await batch.commit();
 	};
 
+	const resetToPhase4 = async (): Promise<void> => {
+		await cancelRunningDebate();
+		const sessionRef = doc(db, 'topics', topicId, 'sessions', '0');
+		const batch = writeBatch(db);
+		batch.update(sessionRef, {
+			status: 'chapters_ready',
+			turns: [],
+			postDebateComments: [],
+			currentChapterIndex: deleteField(),
+			totalTurns: deleteField(),
+			completedAt: deleteField()
+		});
+		batch.update(doc(db, 'topics', topicId), {
+			status: 'chapters_ready',
+			updatedAt: Timestamp.now()
+		});
+		await batch.commit();
+	};
+
 	return {
 		get id() { return topic.id; },
 		get title() { return topic.title; },
@@ -152,6 +178,7 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		},
 		generateStakeholders,
 		generatePersonas,
+		generateChapters,
 		startDebate,
 		cancelDebate: cancelRunningDebate,
 		approveStakeholders,
@@ -159,7 +186,8 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		publishDebate,
 		resetToPhase1,
 		resetToPhase2,
-		resetToPhase3
+		resetToPhase3,
+		resetToPhase4
 	};
 };
 
