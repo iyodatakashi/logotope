@@ -1,6 +1,8 @@
 import { Timestamp } from 'firebase/firestore';
-import type { DebateStatus } from '../topic/topic.types.js';
 import type { PersonaSummaryForViewer, BeliefChangeTrigger } from '../persona/persona.types.js';
+
+// 討論セッション専用のステータス（トピックの進行状態とは分離）
+export type SessionStatus = 'chapters_ready' | 'debating' | 'completed' | 'cancelled' | 'error';
 
 export type SpeakerType = 'facilitator' | 'persona';
 
@@ -38,7 +40,7 @@ export type ChapterIssuesDoc = {
 };
 
 export type SessionDoc = {
-	status: DebateStatus;
+	status: SessionStatus;
 	totalTurns?: number;
 	createdAt: Timestamp;
 	completedAt?: Timestamp;

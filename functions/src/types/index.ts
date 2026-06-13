@@ -1,17 +1,17 @@
 export type LLMType = 'gemini' | 'claude' | 'gpt';
 
-export type DebateStatus =
-  | 'pending'
-  | 'surveying'
-  | 'generating_personas'
-  | 'interviewing'
+export type PhaseStatus = 'not_started' | 'running' | 'generated';
+
+// 討論セッション専用のステータス（トピックの進行状態は phase/phaseStatus で表す）
+export type SessionStatus =
   | 'chapters_ready'
-  | 'chapters_approved'
   | 'debating'
   | 'completed'
-  | 'published';
+  | 'cancelled'
+  | 'error';
 
 export type MinorityLevel = 'high' | 'medium' | 'low';
+export type EngagementLevel = 'high' | 'medium' | 'low';
 export type StanceDirection = 'pro' | 'against' | 'conditional' | 'neutral';
 export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
 export type SpeakerType = 'facilitator' | 'persona';
@@ -22,6 +22,7 @@ export interface Stakeholder {
   mainInterests: string[];
   stanceDirection: StanceDirection;
   minorityLevel: MinorityLevel;
+  engagementLevel?: EngagementLevel;
 }
 
 export interface PersonaAttributes {
@@ -34,6 +35,7 @@ export interface PersonaAttributes {
   background: string;
   interests: string;
   stanceDirection: string;
+  engagementLevel?: EngagementLevel;
   llmType?: LLMType;
 }
 

@@ -20,6 +20,8 @@ export type InterviewDoc = {
 	completedAt?: Timestamp;
 };
 
+export type EngagementLevel = 'high' | 'medium' | 'low';
+
 export type PersonaDoc = {
 	id: string;
 	topicId: string;
@@ -30,6 +32,7 @@ export type PersonaDoc = {
 	background: string;
 	interests: string;
 	stanceDirection: string;
+	engagementLevel?: EngagementLevel;
 	approved: boolean;
 	sortOrder: number;
 	interview?: InterviewDoc;
@@ -67,6 +70,7 @@ export type PersonaData = {
 	background: string;
 	interests: string;
 	stanceDirection: string;
+	engagementLevel?: EngagementLevel;
 	llmType?: string;
 };
 
