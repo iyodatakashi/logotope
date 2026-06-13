@@ -1,19 +1,13 @@
 <script lang="ts">
-	import { Button } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
+	import { createPhaseController } from '$lib/models/topic/phaseController.svelte.js';
+	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
-	interface Props {
-		topicId: string;
-		topicTitle: string;
-	}
-	let { topicId, topicTitle }: Props = $props();
+	const controller = createPhaseController(5);
 
-	let starting = $state(false);
-	let resetting = $state(false);
-	let error = $state('');
-	let publishUrl = $state('');
-
-	const personaMap = $derived(new Map(currentTopicStore.personasStore.personas.map((p) => [p.id, p])));
+	const personaMap = $derived(
+		new Map(currentTopicStore.personasStore.personas.map((p) => [p.id, p]))
+	);
 
 	const turns = $derived(
 		(currentTopicStore.sessionStore.session?.turns ?? [])
@@ -33,7 +27,9 @@
 					fromQueue: t.fromQueue,
 					personaId: t.personaId,
 					addressedPersonaName: addressedPersona?.name ?? null,
-					engagements: (currentTopicStore.engagementsStore.engagementsMap.get(t.turnIndex) ?? []).map((e) => ({
+					engagements: (
+						currentTopicStore.engagementsStore.engagementsMap.get(t.turnIndex) ?? []
+					).map((e) => ({
 						...e,
 						name: personaMap.get(e.personaId)?.name ?? e.personaId
 					})),
@@ -50,175 +46,91 @@
 			})
 	);
 
-	const sessionStatus = $derived(currentTopicStore.sessionStore.session?.status);
-	const isDebating = $derived(sessionStatus === 'debating');
-	const isChaptersReady = $derived(sessionStatus === 'chapters_ready');
-	const loading = $derived(!currentTopicStore.sessionStore.isLoaded || starting || isDebating);
-	const completedTurns = $derived(turns.length);
-	const totalTurns = $derived(currentTopicStore.sessionStore.session?.totalTurns ?? 0);
-	const isStopped = $derived(!!error && !starting);
-
 	const chapters = $derived(currentTopicStore.sessionStore.session?.chapters ?? null);
-	const currentChapterIndex = $derived(currentTopicStore.sessionStore.session?.currentChapterIndex ?? null);
+	const currentChapterIndex = $derived(
+		currentTopicStore.sessionStore.session?.currentChapterIndex ?? null
+	);
 	const currentChapter = $derived(
 		chapters && currentChapterIndex !== null ? chapters[currentChapterIndex] : null
 	);
-
-	async function doStart() {
-		starting = true;
-		error = '';
-		try {
-			await currentTopicStore.topic?.startDebate();
-		} catch (e) {
-			error = e instanceof Error ? e.message : '処理に失敗しました';
-		} finally {
-			starting = false;
-		}
-	}
-
-	async function handleCancel() {
-		error = '';
-		try {
-			await currentTopicStore.topic?.cancelDebate();
-		} catch (e) {
-			error = e instanceof Error ? e.message : '停止に失敗しました';
-		}
-	}
-
-	async function handleResetToPhase4() {
-		resetting = true;
-		error = '';
-		try {
-			await currentTopicStore.topic?.resetToPhase4();
-		} catch (e) {
-			error = e instanceof Error ? e.message : 'リセットに失敗しました';
-			resetting = false;
-		}
-	}
-
-	async function handlePublish() {
-		error = '';
-		try {
-			await currentTopicStore.topic?.publishDebate();
-			publishUrl = `/debate/${topicId}`;
-		} catch (e) {
-			error = e instanceof Error ? e.message : '公開に失敗しました';
-		}
-	}
-
+	const completedTurns = $derived(turns.length);
+	const totalTurns = $derived(currentTopicStore.sessionStore.session?.totalTurns ?? 0);
 </script>
 
-<section>
-	<h2>フェーズ 5: 討論</h2>
-	<p class="topic">{topicTitle}</p>
-
-	{#if isStopped}
-		<p class="status-stopped" role="alert">討論停止: {error}</p>
-	{:else if isChaptersReady && turns.length === 0}
-		<div class="actions">
-			<Button onclick={doStart} disabled={starting}>討論を開始</Button>
-		</div>
-	{:else if loading}
-		<p class="step" role="status">
+<PhasePanel {controller} title="フェーズ 5: 討論">
+	{#snippet progress()}
+		{#if controller.logicalState === 'running'}
 			{#if currentChapter}
-				第{(currentChapterIndex ?? 0) + 1}章「{currentChapter.title}」
-				{#if chapters}（第{(currentChapterIndex ?? 0) + 1}章 / 全{chapters.length}章）{/if}
-			{:else}
-				討論中...
-				{#if totalTurns > 0}（ターン {completedTurns} / {totalTurns}）{/if}
+				<p class="chapter-progress">
+					第{(currentChapterIndex ?? 0) + 1}章「{currentChapter.title}」
+					{#if chapters}（第{(currentChapterIndex ?? 0) + 1}章 / 全{chapters.length}章）{/if}
+				</p>
+			{:else if totalTurns > 0}
+				<p class="chapter-progress">討論中...（ターン {completedTurns} / {totalTurns}）</p>
 			{/if}
-		</p>
-		{#if isDebating}
-			<div class="actions">
-				<Button variant="outlined" onclick={handleCancel}>討論を停止する</Button>
-			</div>
 		{/if}
-	{/if}
+	{/snippet}
+	{#snippet content()}
+		{#if chapters}
+			<ol class="chapters">
+				{#each chapters as chapter}
+					<li class:current={chapter.index === (currentChapterIndex ?? 0)}>
+						<strong>{chapter.title}</strong>
+						<span class="focus">{chapter.focusQuestion}</span>
+					</li>
+				{/each}
+			</ol>
+		{/if}
 
-	{#if chapters}
-		<ol class="chapters">
-			{#each chapters as chapter}
-				<li class:current={chapter.index === (currentChapterIndex ?? 0)}>
-					<strong>{chapter.title}</strong>
-					<span class="focus">{chapter.focusQuestion}</span>
-				</li>
-			{/each}
-		</ol>
-	{/if}
-
-	{#if turns.length > 0}
-		<div class="turns">
-			{#each turns as turn, i (turn.id)}
-				<div class="turn" class:facilitator={turn.speakerType === 'facilitator'}>
-					<div class="speaker">
-						<strong>{turn.speakerName}</strong>
-						{#if turn.speakerRole}
-							<span class="role">({turn.speakerRole})</span>
+		{#if turns.length > 0}
+			<div class="turns">
+				{#each turns as turn, i (turn.id)}
+					<div class="turn" class:facilitator={turn.speakerType === 'facilitator'}>
+						<div class="speaker">
+							<strong>{turn.speakerName}</strong>
+							{#if turn.speakerRole}
+								<span class="role">({turn.speakerRole})</span>
+							{/if}
+							{#if turn.speechMode}
+								<span class="speech-mode">[{turn.speechMode}]</span>
+							{/if}
+							{#if turn.fromQueue}
+								<span class="from-queue">[キュー]</span>
+							{/if}
+						</div>
+						<p class="content">{turn.content}</p>
+						{#if turn.addressedPersonaName}
+							<p class="nominated">次の指名: {turn.addressedPersonaName}</p>
 						{/if}
-						{#if turn.speechMode}
-							<span class="speech-mode">[{turn.speechMode}]</span>
+						{#if turn.engagements.length > 0}
+							{@const nextPersonaId = turns[i + 1]?.personaId}
+							<div class="engagements">
+								{#each turn.engagements as e}
+									{@const selected = !!nextPersonaId && e.personaId === nextPersonaId}
+									<span class="engagement" data-mode={e.mode} class:selected>
+										{e.name}: {e.mode}({e.score}){#if selected}→選択{/if}
+									</span>
+								{/each}
+							</div>
 						{/if}
-						{#if turn.fromQueue}
-							<span class="from-queue">[キュー]</span>
+						{#if turn.beliefChangesTriggered.length > 0}
+							<ul class="beliefs">
+								{#each turn.beliefChangesTriggered as bc}
+									<li>🔄 {bc.personaName}: {bc.changeSummary}</li>
+								{/each}
+							</ul>
 						{/if}
 					</div>
-					<p class="content">{turn.content}</p>
-					{#if turn.addressedPersonaName}
-						<p class="nominated">次の指名: {turn.addressedPersonaName}</p>
-					{/if}
-					{#if turn.engagements.length > 0}
-						{@const nextPersonaId = turns[i + 1]?.personaId}
-						<div class="engagements">
-							{#each turn.engagements as e}
-								{@const selected = !!nextPersonaId && e.personaId === nextPersonaId}
-								<span class="engagement" data-mode={e.mode} class:selected>
-									{e.name}: {e.mode}({e.score}){#if selected}
-										→選択{/if}
-								</span>
-							{/each}
-						</div>
-					{/if}
-					{#if turn.beliefChangesTriggered.length > 0}
-						<ul class="beliefs">
-							{#each turn.beliefChangesTriggered as bc}
-								<li>🔄 {bc.personaName}: {bc.changeSummary}</li>
-							{/each}
-						</ul>
-					{/if}
-				</div>
-			{/each}
-		</div>
-
-		{#if publishUrl}
-			<div class="publish-success">
-				<p>公開しました: <a href={publishUrl} target="_blank">{publishUrl}</a></p>
+				{/each}
 			</div>
 		{/if}
-	{/if}
-
-	{#if !loading && turns.length > 0 && !publishUrl}
-		<div class="actions">
-			<Button onclick={handlePublish}>公開する</Button>
-			<Button variant="outlined" onclick={handleResetToPhase4} disabled={resetting}>討論をリセット（章立て保持）</Button>
-		</div>
-	{/if}
-</section>
+	{/snippet}
+</PhasePanel>
 
 <style>
-	section {
-		padding: 16px;
-	}
-	.topic {
-		color: #555;
-		margin-bottom: 16px;
-	}
-	.step {
+	.chapter-progress {
 		color: #1565c0;
-		font-style: italic;
-	}
-	.status-stopped {
-		color: #e65100;
-		font-weight: 600;
+		font-size: 0.95rem;
 	}
 	.chapters {
 		margin: 12px 0;
@@ -248,6 +160,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+		margin-top: 8px;
 	}
 	.turn {
 		padding: 12px;
@@ -329,16 +242,5 @@
 		color: #555;
 		list-style: none;
 		padding: 0;
-	}
-	.publish-success {
-		background: #e8f5e9;
-		padding: 16px;
-		border-radius: 8px;
-		margin-top: 16px;
-	}
-	.actions {
-		margin-top: 16px;
-		display: flex;
-		gap: 8px;
 	}
 </style>

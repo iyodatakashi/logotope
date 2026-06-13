@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
-	import { PHASE_DEFS, phasePath, statusToPhase, type Phase } from '$lib/utils/phase.js';
+	import { PHASE_DEFS, phasePath, resolveCurrentPhase, type Phase } from '$lib/utils/phase.js';
 	import StepNav from '$lib/sharedComponents/StepNav.svelte';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 	import { topicsStore } from '$lib/stores/topics.svelte.js';
@@ -16,7 +16,7 @@
 	});
 
 	const currentPhase = $derived<Phase>(
-		currentTopicStore.topic ? statusToPhase(currentTopicStore.topic.status) : 1
+		currentTopicStore.topic ? resolveCurrentPhase(currentTopicStore.topic) : 1
 	);
 
 	// 現在URLのフェーズ（/admin/topics/[id] 直下のリダイレクトページでは null）

@@ -1,100 +1,43 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { Button } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
+	import { createPhaseController } from '$lib/models/topic/phaseController.svelte.js';
+	import { engagementStyle } from '$lib/utils/engagement.js';
+	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
-	interface Props {
-		topicId: string;
-		topicTitle: string;
-	}
-	let { topicId, topicTitle }: Props = $props();
-
-	const personasStore = $derived(currentTopicStore.personasStore);
-
-	let generating = $state(false);
-	let error = $state('');
-
-	const personas = $derived(personasStore.personas);
-	const isRunning = $derived(generating);
-	const isStopped = $derived(!!error && !generating);
-
-	async function doGenerate() {
-		generating = true;
-		error = '';
-		try {
-			await currentTopicStore.topic?.generatePersonas();
-		} catch (e) {
-			error = e instanceof Error ? e.message : '処理に失敗しました';
-		} finally {
-			generating = false;
-		}
-	}
-
-	async function handleApprove() {
-		error = '';
-		try {
-			await personasStore.approvePersonas();
-			goto(`/admin/topics/${topicId}/interviews`);
-		} catch (e) {
-			error = e instanceof Error ? e.message : '操作に失敗しました';
-		}
-	}
-
+	const controller = createPhaseController(2);
+	const personas = $derived(currentTopicStore.personasStore.personas);
 </script>
 
-<section>
-	<h2>フェーズ 2: ペルソナ生成</h2>
-	<p class="topic">{topicTitle}</p>
-
-	{#if isStopped}
-		<p class="status-stopped" role="alert">⛔ 処理停止 — {error}</p>
-	{:else if isRunning}
-		<p class="step" role="status">ペルソナ生成中...</p>
-	{/if}
-
-	{#if personas.length > 0}
-		<ul class="list">
-			{#each personas as p (p.id)}
-				<li class="item">
-					<div class="item-header">
-						<strong>{p.name}</strong>
-						<span class="age">{p.age}歳 / {p.occupation}</span>
-					</div>
-					<div class="meta">
-						<span class="badge">{p.stakeholderRole}</span>
-						<span class="stance">{p.stanceDirection}</span>
-					</div>
-					<p class="bg">{p.background}</p>
-				</li>
-			{/each}
-		</ul>
-	{/if}
-
-	<div class="actions">
-		{#if !isRunning && personas.length === 0}
-			<Button variant="filled" onclick={doGenerate}>ペルソナを生成する</Button>
-		{:else if !isRunning && personas.length > 0}
-			<Button variant="filled" onclick={handleApprove}>承認する</Button>
+<PhasePanel {controller} title="フェーズ 2: ペルソナ生成">
+	{#snippet content()}
+		{#if personas.length > 0}
+			<ul class="list">
+				{#each personas as p (p.id)}
+					<li class="item">
+						<div class="item-header">
+							<strong>{p.name}</strong>
+							<span class="age">{p.age}歳 / {p.occupation}</span>
+						</div>
+						<div class="meta">
+							<span class="badge">{p.stakeholderRole}</span>
+							<span class="stance">{p.stanceDirection}</span>
+							<span
+								class="engagement"
+								style:color={engagementStyle(p.engagementLevel).color}
+								style:background={engagementStyle(p.engagementLevel).bg}
+							>
+								{engagementStyle(p.engagementLevel).label}
+							</span>
+						</div>
+						<p class="bg">{p.background}</p>
+					</li>
+				{/each}
+			</ul>
 		{/if}
-	</div>
-</section>
+	{/snippet}
+</PhasePanel>
 
 <style>
-	section {
-		padding: 16px;
-	}
-	.topic {
-		color: #555;
-		margin-bottom: 16px;
-	}
-	.step {
-		color: #1565c0;
-		font-style: italic;
-	}
-	.status-stopped {
-		color: #e65100;
-		font-weight: 600;
-	}
 	.list {
 		list-style: none;
 		padding: 0;
@@ -129,14 +72,15 @@
 		color: #555;
 		font-size: 0.875rem;
 	}
+	.engagement {
+		padding: 2px 8px;
+		border-radius: 12px;
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
 	.bg {
 		color: #555;
 		margin-top: 6px;
 		font-size: 0.875rem;
-	}
-	.actions {
-		margin-top: 16px;
-		display: flex;
-		gap: 8px;
 	}
 </style>

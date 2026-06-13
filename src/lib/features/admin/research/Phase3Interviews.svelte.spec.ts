@@ -2,10 +2,23 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
+vi.mock('$lib/models/topic/phaseController.svelte.js', () => ({
+	createPhaseController: vi.fn(() => ({
+		phase: 3,
+		logicalState: 'generated',
+		inFlight: false,
+		error: null,
+		runGenerate: vi.fn().mockResolvedValue(undefined),
+		runApprove: vi.fn().mockResolvedValue(undefined),
+		runRegenerate: vi.fn().mockResolvedValue(undefined),
+		clearError: vi.fn()
+	}))
+}));
+
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get topic() {
-			return { id: 't1', title: 'テストテーマ', status: 'interviewing', approveInterviews: vi.fn() };
+			return { id: 't1', title: 'テストテーマ' };
 		},
 		get personasStore() {
 			return {
@@ -43,14 +56,12 @@ import Phase3Interviews from './Phase3Interviews.svelte';
 
 describe('Phase3Interviews.svelte', () => {
 	it('取材済みのペルソナのデータを表示する', async () => {
-		render(Phase3Interviews, { topicId: 't1', topicTitle: 'テストテーマ' });
-
+		render(Phase3Interviews);
 		await expect.element(page.getByText('田中太郎')).toBeInTheDocument();
 	});
 
-	it('全員完了時は承認ボタンを表示する', async () => {
-		render(Phase3Interviews, { topicId: 't1', topicTitle: 'テストテーマ' });
-
-		await expect.element(page.getByRole('button', { name: '承認する' })).toBeInTheDocument();
+	it('全員完了時は承認ボタンを表示する（PhasePanel経由、generated状態）', async () => {
+		render(Phase3Interviews);
+		await expect.element(page.getByRole('button', { name: '承認して次へ進む' })).toBeInTheDocument();
 	});
 });

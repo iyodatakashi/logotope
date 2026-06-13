@@ -1,94 +1,40 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { Button } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
+	import { createPhaseController } from '$lib/models/topic/phaseController.svelte.js';
+	import { engagementStyle } from '$lib/utils/engagement.js';
+	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
-	interface Props {
-		topicId: string;
-		topicTitle: string;
-	}
-	let { topicId, topicTitle }: Props = $props();
-
-	let generating = $state(false);
-	let error = $state('');
-
+	const controller = createPhaseController(1);
 	const stakeholders = $derived(currentTopicStore.topic?.stakeholders?.items ?? []);
-	const isRunning = $derived(generating);
-	const isStopped = $derived(!!error && !generating);
-
-	async function doGenerate() {
-		generating = true;
-		error = '';
-		try {
-			await currentTopicStore.topic?.generateStakeholders();
-		} catch (e) {
-			error = e instanceof Error ? e.message : '処理に失敗しました';
-		} finally {
-			generating = false;
-		}
-	}
-
-	async function handleApprove() {
-		try {
-			await currentTopicStore.topic?.approveStakeholders();
-			goto(`/admin/topics/${topicId}/personas`);
-		} catch (e) {
-			error = e instanceof Error ? e.message : '操作に失敗しました';
-		}
-	}
 </script>
 
-<section>
-	<h2>フェーズ 1: ステークホルダー調査</h2>
-	<p class="topic">{topicTitle}</p>
-
-	{#if isStopped}
-		<p class="status-stopped" role="alert">処理停止: {error}</p>
-	{:else if isRunning}
-		<p class="step" role="status">分析中...</p>
-	{/if}
-
-	{#if stakeholders.length > 0}
-		<ul class="list">
-			{#each stakeholders as s, i (i)}
-				<li class="item">
-					<div class="item-header">
-						<strong>{s.role}</strong>
-						<span class="badge">{s.stanceDirection}</span>
-						<span class="minor">マイノリティ度: {s.minorityLevel}</span>
-					</div>
-					<p class="rationale">{s.reason}</p>
-				</li>
-			{/each}
-		</ul>
-		{#if !isRunning && !isStopped}
-			<div class="actions">
-				<Button variant="filled" onclick={handleApprove}>承認する</Button>
-			</div>
+<PhasePanel {controller} title="フェーズ 1: ステークホルダー調査">
+	{#snippet content()}
+		{#if stakeholders.length > 0}
+			<ul class="list">
+				{#each stakeholders as s, i (i)}
+					<li class="item">
+						<div class="item-header">
+							<strong>{s.role}</strong>
+							<span class="badge">{s.stanceDirection}</span>
+							<span
+								class="engagement"
+								style:color={engagementStyle(s.engagementLevel).color}
+								style:background={engagementStyle(s.engagementLevel).bg}
+							>
+								{engagementStyle(s.engagementLevel).label}
+							</span>
+							<span class="minor">マイノリティ度: {s.minorityLevel}</span>
+						</div>
+						<p class="rationale">{s.reason}</p>
+					</li>
+				{/each}
+			</ul>
 		{/if}
-	{:else if !isRunning}
-		<div class="actions">
-			<Button variant="filled" onclick={doGenerate}>調査を開始する</Button>
-		</div>
-	{/if}
-</section>
+	{/snippet}
+</PhasePanel>
 
 <style>
-	section {
-		padding: 16px;
-	}
-	.topic {
-		color: #555;
-		margin-bottom: 16px;
-	}
-	.step {
-		color: #1565c0;
-		font-style: italic;
-	}
-	.status-stopped {
-		color: #e65100;
-		font-weight: 600;
-	}
 	.list {
 		list-style: none;
 		padding: 0;
@@ -111,6 +57,12 @@
 		border-radius: 12px;
 		font-size: 0.875rem;
 	}
+	.engagement {
+		padding: 2px 8px;
+		border-radius: 12px;
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
 	.minor {
 		color: #757575;
 		font-size: 0.875rem;
@@ -119,10 +71,5 @@
 		color: #555;
 		margin-top: 6px;
 		font-size: 0.875rem;
-	}
-	.actions {
-		margin-top: 16px;
-		display: flex;
-		gap: 8px;
 	}
 </style>

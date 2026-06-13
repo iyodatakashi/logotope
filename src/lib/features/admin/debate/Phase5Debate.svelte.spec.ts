@@ -2,6 +2,21 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
+vi.mock('$lib/models/topic/phaseController.svelte.js', () => ({
+	createPhaseController: vi.fn(() => ({
+		phase: 5,
+		logicalState: 'generated',
+		inFlight: false,
+		error: null,
+		runGenerate: vi.fn().mockResolvedValue(undefined),
+		runApprove: vi.fn().mockResolvedValue(undefined),
+		runRegenerate: vi.fn().mockResolvedValue(undefined),
+		runStop: vi.fn().mockResolvedValue(undefined),
+		runRestart: vi.fn().mockResolvedValue(undefined),
+		clearError: vi.fn()
+	}))
+}));
+
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get topic() {

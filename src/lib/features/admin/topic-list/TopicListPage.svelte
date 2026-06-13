@@ -3,19 +3,19 @@
 	import { Button } from '@14ch/svelte-ui';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import { topicsStore } from '$lib/stores/topics.svelte.js';
-	import type { DebateStatus } from '$lib/models/topic/topic.types.js';
+	import { phaseDisplayLabel, deriveLegacyPhaseState } from '$lib/utils/phase.js';
+	import type { Phase, PhaseStatus } from '$lib/utils/phase.js';
 
-	const statusLabel: Record<DebateStatus, string> = {
-		pending: '未着手',
-		surveying: '調査中',
-		generating_personas: 'ペルソナ生成中',
-		interviewing: '取材中',
-		chapters_ready: '章立て準備中',
-		chapters_approved: '章立て完了',
-		cancelled: '討論停止',
-		debating: '討論中',
-		completed: '討論完了',
-		published: '公開済み'
+	const getBadge = (topic: {
+		phase?: Phase;
+		phaseStatus?: PhaseStatus;
+		status: string;
+	}): { label: string; styleKey: string } => {
+		if (topic.phase) {
+			return phaseDisplayLabel({ phase: topic.phase, phaseStatus: topic.phaseStatus ?? 'not_started' });
+		}
+		const { phase, phaseStatus } = deriveLegacyPhaseState(topic.status);
+		return phaseDisplayLabel({ phase, phaseStatus });
 	};
 </script>
 
@@ -35,10 +35,11 @@
 	{:else}
 		<ul class="topic-list">
 			{#each topicsStore.topics as topic (topic.id)}
+				{@const badge = getBadge(topic)}
 				<li class="topic-card">
 					<a href={`/admin/topics/${topic.id}`}>
 						<span class="title">{topic.title}</span>
-						<span class="badge status-{topic.status}">{statusLabel[topic.status]}</span>
+						<span class="badge style-{badge.styleKey}">{badge.label}</span>
 					</a>
 				</li>
 			{/each}
@@ -88,32 +89,20 @@
 		font-size: 0.75rem;
 		font-weight: 600;
 	}
-	.status-pending {
+	.style-pending {
 		background: #e0e0e0;
 	}
-	.status-surveying,
-	.status-generating_personas,
-	.status-interviewing,
-	.status-debating {
+	.style-running {
 		background: #bbdefb;
 		color: #1565c0;
 	}
-	.status-chapters_ready,
-	.status-chapters_approved {
+	.style-ready {
 		background: #fff9c4;
 		color: #f57f17;
 	}
-	.status-cancelled {
-		background: #ffcdd2;
-		color: #b71c1c;
-	}
-	.status-completed {
+	.style-completed {
 		background: #c8e6c9;
 		color: #2e7d32;
-	}
-	.status-published {
-		background: #b39ddb;
-		color: #4527a0;
 	}
 	.empty {
 		color: #757575;

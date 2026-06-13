@@ -1,25 +1,19 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { Button } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
+	import { createPhaseController } from '$lib/models/topic/phaseController.svelte.js';
+	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
-	interface Props {
-		topicId: string;
-		topicTitle: string;
-	}
-	let { topicId, topicTitle }: Props = $props();
-
+	const controller = createPhaseController(3);
 	const personasStore = $derived(currentTopicStore.personasStore);
 
-	let starting = $state(false);
-	let started = $state(false);
 	let expanded = $state<Set<string>>(new Set());
 
-	function toggle(id: string) {
+	const toggle = (id: string) => {
 		expanded = new Set(
 			expanded.has(id) ? [...expanded].filter((x) => x !== id) : [...expanded, id]
 		);
-	}
+	};
 
 	const interviews = $derived(
 		personasStore.personas.map((p) => ({
@@ -41,132 +35,99 @@
 	);
 	const pendingCount = $derived(personasStore.personas.filter((p) => p.interview == null).length);
 	const totalCount = $derived(personasStore.personas.length);
-	const allCompleted = $derived(completedCount === totalCount && totalCount > 0);
-	const hasAnyStarted = $derived(personasStore.personas.some((p) => p.interview != null));
 
-	async function doRunInterview(personaId: string): Promise<void> {
-		await personasStore.runInterview(personaId, topicTitle);
-	}
-
-	async function doRunAll() {
-		started = true;
-		starting = true;
-		const pending = personasStore.personas.filter((p) => p.interview?.status !== 'completed');
-		await Promise.all(pending.map((p) => doRunInterview(p.id)));
-		starting = false;
-	}
-
-	async function handleRetry(personaId: string) {
-		await doRunInterview(personaId);
-	}
-
-	async function handleApprove() {
-		await currentTopicStore.topic?.approveInterviews();
-		goto(`/admin/topics/${topicId}/debate`);
-	}
-
+	const handleRetry = async (personaId: string) => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		await personasStore.runInterview(personaId, topic.title);
+		const allDone = personasStore.personas.every((p) => p.interview?.status === 'completed');
+		if (allDone) {
+			await personasStore.markInterviewsComplete();
+		}
+	};
 </script>
 
-<section>
-	<h2>フェーズ 3: ペルソナ取材</h2>
-	<p class="topic">{topicTitle}</p>
-
-	{#if !personasStore.isLoaded}
-		<p class="hint">読み込み中...</p>
-	{:else if totalCount > 0}
-		<div class="progress-summary">
-			<span class="count completed">{completedCount} 完了</span>
-			{#if pendingCount > 0}<span class="count pending">{pendingCount} 待機中</span>{/if}
-			{#if errorCount > 0}<span class="count error-count">{errorCount} エラー</span>{/if}
-			<span class="count total">/ {totalCount} 件</span>
-			{#if starting}<span class="hint">（取材中...）</span>{/if}
-		</div>
-	{/if}
-
-	{#if interviews.length > 0}
-		<ul class="list">
-			{#each interviews as iv (iv.personaId)}
-				<li
-					class="item"
-					class:item-completed={iv.status === 'completed'}
-					class:item-error={iv.status === 'error'}
-					class:item-pending={iv.status === 'pending'}
-				>
-					<div class="toggle-row">
-						<button class="toggle" onclick={() => toggle(iv.personaId)}>
-							<span class="name-role">
-								<strong>{iv.personaName}</strong>
-								<span class="role">{iv.stakeholderRole}</span>
-							</span>
-							<span
-								class="status-badge"
-								class:done={iv.status === 'completed'}
-								class:active={iv.status === 'in_progress'}
-								class:err={iv.status === 'error'}
-							>
-								{#if iv.status === 'completed'}完了
-								{:else if iv.status === 'in_progress'}取材中
-								{:else if iv.status === 'error'}エラー
-								{:else}待機中{/if}
-							</span>
-							{#if iv.initialBelief}
-								<span class="arrow">{expanded.has(iv.personaId) ? '▲' : '▼'}</span>
-							{/if}
-						</button>
-						{#if iv.status === 'error'}
-							<Button variant="outlined" onclick={() => void handleRetry(iv.personaId)}
-								>リトライ</Button
-							>
-						{/if}
-					</div>
-
-					{#if expanded.has(iv.personaId) && iv.initialBelief}
-						<div class="detail">
-							{#if iv.researchSummary}
-								<div class="section">
-									<p class="section-label">リサーチ内容</p>
-									<pre class="record research">{iv.researchSummary}</pre>
-								</div>
-							{/if}
-							{#if iv.interviewRecord}
-								<div class="section">
-									<p class="section-label">取材記録</p>
-									<pre class="record research">{iv.interviewRecord}</pre>
-								</div>
-							{/if}
-							<div class="section">
-								<p class="section-label">初期信念</p>
-								<pre class="record belief">{iv.initialBelief}</pre>
-							</div>
-						</div>
-					{/if}
-				</li>
-			{/each}
-		</ul>
-	{/if}
-
-	<div class="actions">
-		{#if personasStore.isLoaded && !started && !hasAnyStarted && totalCount > 0}
-			<Button variant="filled" onclick={doRunAll}>取材を開始する</Button>
-		{:else if allCompleted}
-			<Button variant="filled" onclick={handleApprove}>承認する</Button>
+<PhasePanel {controller} title="フェーズ 3: ペルソナ取材">
+	{#snippet progress()}
+		{#if totalCount > 0}
+			<div class="progress-summary">
+				<span class="count completed">{completedCount} 完了</span>
+				{#if pendingCount > 0}<span class="count pending">{pendingCount} 待機中</span>{/if}
+				{#if errorCount > 0}<span class="count error-count">{errorCount} エラー</span>{/if}
+				<span class="count total">/ {totalCount} 件</span>
+			</div>
 		{/if}
-	</div>
-</section>
+	{/snippet}
+	{#snippet content()}
+		{#if interviews.length > 0}
+			<ul class="list">
+				{#each interviews as iv (iv.personaId)}
+					<li
+						class="item"
+						class:item-completed={iv.status === 'completed'}
+						class:item-error={iv.status === 'error'}
+						class:item-pending={iv.status === 'pending'}
+					>
+						<div class="toggle-row">
+							<button class="toggle" onclick={() => toggle(iv.personaId)}>
+								<span class="name-role">
+									<strong>{iv.personaName}</strong>
+									<span class="role">{iv.stakeholderRole}</span>
+								</span>
+								<span
+									class="status-badge"
+									class:done={iv.status === 'completed'}
+									class:active={iv.status === 'in_progress'}
+									class:err={iv.status === 'error'}
+								>
+									{#if iv.status === 'completed'}完了
+									{:else if iv.status === 'in_progress'}取材中
+									{:else if iv.status === 'error'}エラー
+									{:else}待機中{/if}
+								</span>
+								{#if iv.initialBelief}
+									<span class="arrow">{expanded.has(iv.personaId) ? '▲' : '▼'}</span>
+								{/if}
+							</button>
+							{#if iv.status === 'error'}
+								<Button variant="outlined" onclick={() => void handleRetry(iv.personaId)}>
+									リトライ
+								</Button>
+							{/if}
+						</div>
+
+						{#if expanded.has(iv.personaId) && iv.initialBelief}
+							<div class="detail">
+								{#if iv.researchSummary}
+									<div class="section">
+										<p class="section-label">リサーチ内容</p>
+										<pre class="record research">{iv.researchSummary}</pre>
+									</div>
+								{/if}
+								{#if iv.interviewRecord}
+									<div class="section">
+										<p class="section-label">取材記録</p>
+										<pre class="record research">{iv.interviewRecord}</pre>
+									</div>
+								{/if}
+								<div class="section">
+									<p class="section-label">初期信念</p>
+									<pre class="record belief">{iv.initialBelief}</pre>
+								</div>
+							</div>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	{/snippet}
+</PhasePanel>
 
 <style>
-	section {
-		padding: 16px;
-	}
-	.topic {
-		color: #555;
-		margin-bottom: 16px;
-	}
 	.progress-summary {
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		margin-bottom: 8px;
 		font-size: 0.95rem;
 	}
 	.count {
@@ -184,10 +145,6 @@
 	.count.total {
 		color: #555;
 		font-weight: 400;
-	}
-	.hint {
-		color: #888;
-		font-size: 0.875rem;
 	}
 	.list {
 		list-style: none;
@@ -294,10 +251,5 @@
 	}
 	.belief {
 		color: #1a237e;
-	}
-	.actions {
-		margin-top: 16px;
-		display: flex;
-		gap: 8px;
 	}
 </style>

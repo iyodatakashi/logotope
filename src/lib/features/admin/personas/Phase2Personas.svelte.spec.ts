@@ -2,10 +2,23 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
+vi.mock('$lib/models/topic/phaseController.svelte.js', () => ({
+	createPhaseController: vi.fn(() => ({
+		phase: 2,
+		logicalState: 'generated',
+		inFlight: false,
+		error: null,
+		runGenerate: vi.fn().mockResolvedValue(undefined),
+		runApprove: vi.fn().mockResolvedValue(undefined),
+		runRegenerate: vi.fn().mockResolvedValue(undefined),
+		clearError: vi.fn()
+	}))
+}));
+
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get topic() {
-			return { id: 't1', title: 'テストテーマ', status: 'generating_personas', generatePersonas: vi.fn() };
+			return { id: 't1', title: 'テストテーマ' };
 		},
 		get personasStore() {
 			return {
@@ -26,13 +39,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 							sortOrder: 0
 						}
 					];
-				},
-				get isLoaded() {
-					return true;
-				},
-				start: vi.fn(),
-				stop: vi.fn(),
-				approvePersonas: vi.fn()
+				}
 			};
 		}
 	}
@@ -41,15 +48,13 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 import Phase2Personas from './Phase2Personas.svelte';
 
 describe('Phase2Personas.svelte', () => {
-	it('ペルソナが存在する場合は承認ボタンを表示する', async () => {
-		render(Phase2Personas, { topicId: 't1', topicTitle: 'テストテーマ' });
-
-		await expect.element(page.getByRole('button', { name: '承認する' })).toBeInTheDocument();
+	it('ペルソナデータを表示する', async () => {
+		render(Phase2Personas);
+		await expect.element(page.getByText('田中太郎')).toBeInTheDocument();
 	});
 
-	it('ペルソナデータを表示する', async () => {
-		render(Phase2Personas, { topicId: 't1', topicTitle: 'テストテーマ' });
-
-		await expect.element(page.getByText('田中太郎')).toBeInTheDocument();
+	it('承認ボタンを表示する（PhasePanel経由、generated状態）', async () => {
+		render(Phase2Personas);
+		await expect.element(page.getByRole('button', { name: '承認して次へ進む' })).toBeInTheDocument();
 	});
 });
