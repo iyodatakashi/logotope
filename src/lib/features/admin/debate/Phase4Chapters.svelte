@@ -12,6 +12,7 @@
 
 	const chapters = $derived(currentTopicStore.sessionStore.session?.chapters ?? null);
 	const hasChapters = $derived(!!chapters?.length);
+	const chapterIssues = $derived(currentTopicStore.sessionStore.session?.chapterIssues ?? null);
 
 	async function handleGenerate() {
 		generating = true;
@@ -53,6 +54,30 @@
 			<Button href="/admin/topics/{topicId}/debate">討論フェーズへ進む</Button>
 			<Button variant="outlined" onclick={handleGenerate}>章立てを再生成</Button>
 		</div>
+
+		{#if chapterIssues}
+			<details class="issues-debug">
+				<summary>Step 1 切り口（検証用）</summary>
+				<div class="issues-grid">
+					<div class="issues-col">
+						<h4>一般的な切り口（ペルソナなし）</h4>
+						<ol>
+							{#each chapterIssues.general as issue}
+								<li>{issue}</li>
+							{/each}
+						</ol>
+					</div>
+					<div class="issues-col">
+						<h4>ペルソナ固有の切り口</h4>
+						<ol>
+							{#each chapterIssues.persona as issue}
+								<li>{issue}</li>
+							{/each}
+						</ol>
+					</div>
+				</div>
+			</details>
+		{/if}
 	{/if}
 </section>
 
@@ -94,5 +119,42 @@
 		gap: 8px;
 		margin-top: 16px;
 		flex-wrap: wrap;
+	}
+	.issues-debug {
+		margin-top: 24px;
+		border: 1px solid #e0e0e0;
+		border-radius: 6px;
+		padding: 0 12px;
+	}
+	.issues-debug summary {
+		padding: 10px 0;
+		cursor: pointer;
+		font-size: 0.875rem;
+		color: #757575;
+		user-select: none;
+	}
+	.issues-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 16px;
+		padding-bottom: 12px;
+	}
+	.issues-col h4 {
+		font-size: 0.8rem;
+		color: #555;
+		margin: 0 0 8px;
+		font-weight: 600;
+	}
+	.issues-col ol {
+		margin: 0;
+		padding-left: 20px;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.issues-col li {
+		font-size: 0.8rem;
+		color: #444;
+		line-height: 1.5;
 	}
 </style>

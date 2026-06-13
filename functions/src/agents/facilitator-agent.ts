@@ -250,7 +250,7 @@ export class FacilitatorAgentService {
   async generateChapters(
     topicTitle: string,
     personas: PersonaAttributes[]
-  ): Promise<Result<DebateChapter[], PipelineError>> {
+  ): Promise<Result<{ chapters: DebateChapter[]; generalIssues: string[]; personaIssues: string[] }, PipelineError>> {
     try {
       // Step 1: 切り口洗い出し（一般切り口とペルソナ固有切り口を並列生成）
       const [generalIssuesResponse, personaIssuesResponse] = await Promise.all([
@@ -320,7 +320,7 @@ export class FacilitatorAgentService {
         startTurnIndex: 0,
       }));
 
-      return { ok: true, value: debateChapters };
+      return { ok: true, value: { chapters: debateChapters, generalIssues, personaIssues } };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };

@@ -320,6 +320,16 @@ export const saveChapters = async (
   });
 };
 
+export const saveChapterIssues = async (
+  topicId: string,
+  generalIssues: string[],
+  personaIssues: string[]
+): Promise<void> => {
+  await db().doc(`topics/${topicId}/sessions/0`).update({
+    chapterIssues: { general: generalIssues, persona: personaIssues },
+  });
+};
+
 export const updateCurrentChapterIndex = async (
   topicId: string,
   index: number

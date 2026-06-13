@@ -32,6 +32,11 @@ export type PostDebateCommentDoc = {
 	sortOrder: number;
 };
 
+export type ChapterIssuesDoc = {
+	general: string[];
+	persona: string[];
+};
+
 export type SessionDoc = {
 	status: DebateStatus;
 	totalTurns?: number;
@@ -42,6 +47,7 @@ export type SessionDoc = {
 	postDebateComments: PostDebateCommentDoc[];
 	chapters?: ChapterDoc[];
 	currentChapterIndex?: number;
+	chapterIssues?: ChapterIssuesDoc;
 };
 
 export type PublishedTurn = {

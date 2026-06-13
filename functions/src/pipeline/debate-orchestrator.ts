@@ -68,10 +68,13 @@ export class DebateOrchestratorService {
     const { personas, topicTitle } = await this.loadSessionContext(topicId);
     const chaptersResult = await this.facilitator.generateChapters(topicTitle, personas);
     if (!chaptersResult.ok) throw new Error(pipelineErrorMessage(chaptersResult.error));
-    const chapters = chaptersResult.value;
-    await repo.saveChapters(topicId, chapters.map(c => ({
-      index: c.index, title: c.title, focusQuestion: c.focusQuestion,
-    })));
+    const { chapters, generalIssues, personaIssues } = chaptersResult.value;
+    await Promise.all([
+      repo.saveChapters(topicId, chapters.map(c => ({
+        index: c.index, title: c.title, focusQuestion: c.focusQuestion,
+      }))),
+      repo.saveChapterIssues(topicId, generalIssues, personaIssues),
+    ]);
   }
 
   /** @returns 次章が存在する場合 true（呼び出し元が次章タスクを投入する） */
