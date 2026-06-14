@@ -67,18 +67,21 @@
 				};
 			});
 
-		const postDebateComments: PublishedComment[] = (session.postDebateComments ?? [])
-			.slice()
-			.sort((a, b) => a.sortOrder - b.sortOrder)
-			.map((c) => {
-				const persona = personaMap.get(c.personaId);
-				return {
-					personaId: c.personaId,
-					personaName: persona?.name ?? '',
-					personaRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
-					content: c.content
-				};
-			});
+		// 現在のペルソナを起点にコメントを引く。古いペルソナidのコメント残骸は表示しない。
+		const commentMap = new Map((session.postDebateComments ?? []).map((c) => [c.personaId, c]));
+		const postDebateComments: PublishedComment[] = personasStore.personas.flatMap((p) => {
+			const comment = commentMap.get(p.id);
+			return comment
+				? [
+						{
+							personaId: p.id,
+							personaName: p.name,
+							personaRole: p.specificRole ?? p.stakeholderRole,
+							content: comment.content
+						}
+					]
+				: [];
+		});
 
 		return {
 			id: topic.id,

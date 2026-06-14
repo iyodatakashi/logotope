@@ -2,6 +2,7 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 	import { phaseLogicalState } from '$lib/utils/phase.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import EngagementList from './EngagementList.svelte';
 
 	const PHASE = 5;
 	// 討論は開始・再生成・停止・再開。承認フェーズは無い
@@ -46,12 +47,8 @@
 					fromQueue: t.fromQueue,
 					personaId: t.personaId,
 					addressedPersonaName: addressedPersona?.name ?? null,
-					engagements: (
-						currentTopicStore.engagementsStore.engagementsMap.get(t.turnIndex) ?? []
-					).map((e) => ({
-						...e,
-						name: personaMap.get(e.personaId)?.name ?? e.personaId
-					})),
+					engagements:
+						currentTopicStore.engagementsStore.engagementsMap.get(t.turnIndex) ?? [],
 					beliefChangesTriggered: currentTopicStore.personasStore.personas.flatMap((p) =>
 						(p.beliefs ?? [])
 							.filter((b) => b.triggeredByTurnId === t.id)
@@ -137,17 +134,11 @@
 						{#if turn.addressedPersonaName}
 							<p class="nominated">次の指名: {turn.addressedPersonaName}</p>
 						{/if}
-						{#if turn.engagements.length > 0}
-							{@const nextPersonaId = turns[i + 1]?.personaId}
-							<div class="engagements">
-								{#each turn.engagements as e}
-									{@const selected = !!nextPersonaId && e.personaId === nextPersonaId}
-									<span class="engagement" data-mode={e.mode} class:selected>
-										{e.name}: {e.mode}({e.score}){#if selected}→選択{/if}
-									</span>
-								{/each}
-							</div>
-						{/if}
+						<EngagementList
+							engagements={turn.engagements}
+							{personaMap}
+							selectedPersonaId={turns[i + 1]?.personaId}
+						/>
 						{#if turn.beliefChangesTriggered.length > 0}
 							<ul class="beliefs">
 								{#each turn.beliefChangesTriggered as bc}
@@ -232,35 +223,6 @@
 	.content {
 		margin: 0;
 		line-height: 1.6;
-	}
-	.engagements {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 4px;
-		margin-top: 6px;
-	}
-	.engagement {
-		font-size: 0.72rem;
-		padding: 1px 6px;
-		border-radius: 3px;
-		background: #eee;
-		color: #555;
-	}
-	.engagement[data-mode='full'] {
-		background: #e3f2fd;
-		color: #1565c0;
-	}
-	.engagement[data-mode='reaction'] {
-		background: #f3e5f5;
-		color: #6a1b9a;
-	}
-	.engagement[data-mode='none'] {
-		background: #f5f5f5;
-		color: #999;
-	}
-	.engagement.selected {
-		font-weight: 700;
-		outline: 1px solid currentColor;
 	}
 	.nominated {
 		margin: 4px 0 0;
