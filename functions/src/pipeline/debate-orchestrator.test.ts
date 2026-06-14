@@ -53,7 +53,8 @@ const twoChapters: DebateChapter[] = [
 function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}) {
   return {
     generateOpening: vi.fn().mockResolvedValue({ ok: true, value: { content: '討論を始めます。', firstPersonaId: 'p1' } }),
-    evaluateIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
+    evaluateTopicDrift: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
+    evaluateStallIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
     generateClosing: vi.fn().mockResolvedValue({ ok: true, value: 'お疲れ様でした。' }),
     generateChapters: vi.fn().mockResolvedValue({ ok: true, value: { chapters: twoChapters, generalIssues: ['一般論点X'], personaIssues: ['ペルソナ論点Y'] } }),
     generateChapterSummary: vi.fn().mockResolvedValue({ ok: true, value: '章のまとめです。' }),
@@ -368,7 +369,7 @@ describe('DebateOrchestratorService', () => {
     it('invite 介入はファシリテーターターンとして chapterIndex・addressedPersonaId 付きで保存され、指名先が次話者になる', async () => {
       const mockPersonaAgent = makeMockPersonaAgent();
       const mockFacilitator = makeMockFacilitator({
-        evaluateIntervention: vi.fn()
+        evaluateStallIntervention: vi.fn()
           .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, content: '鈴木さんはいかがですか？', targetPersonaId: 'p2' } })
           .mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
       });
@@ -391,7 +392,7 @@ describe('DebateOrchestratorService', () => {
     it('invite 介入に targetPersonaId がない場合は指名せず評価ベースの選択に進む（名前マッチは行わない）', async () => {
       const mockPersonaAgent = makeMockPersonaAgent();
       const mockFacilitator = makeMockFacilitator({
-        evaluateIntervention: vi.fn()
+        evaluateStallIntervention: vi.fn()
           .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, content: '鈴木花子さんはいかがですか？' } })
           .mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
       });

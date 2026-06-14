@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveDirectAddress, decideNextSpeaker } from './speaker-selection.js';
+import { resolveDirectAddress, decideNextSpeaker, speechFromAssessment } from './speaker-selection.js';
 import type { SpeakerSelectionInput } from './speaker-selection.js';
 import type { PendingIntent } from '../../types/index.js';
 
@@ -66,7 +66,7 @@ describe('decideNextSpeaker', () => {
   });
 
   describe('優先順位 (1): invite 指名', () => {
-    it('invite 指名は score 最高でなくても優先され、指名された本人の意欲評価に従う', () => {
+    it('invite 指名は score 最高でなくても優先される', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [
           { personaId: 'p2', score: 5, mode: 'opinion' },
@@ -76,8 +76,6 @@ describe('decideNextSpeaker', () => {
       }));
       expect(decision.personaId).toBe('p3');
       expect(decision.source).toBe('nomination');
-      expect(decision.mode).toBe('fact');
-      expect(decision.score).toBe(3);
     });
 
     it('invite 指名のIDが不正な場合は無視してスコア選択にフォールバックする', () => {
@@ -90,7 +88,7 @@ describe('decideNextSpeaker', () => {
   });
 
   describe('優先順位 (3): 意図キュー（全員 score <= 3）', () => {
-    it('全員の score が3以下のとき、キューの最古エントリ保持者を本人の意欲評価で選ぶ', () => {
+    it('全員の score が3以下のとき、キューの最古エントリ保持者を選ぶ', () => {
       const pendingIntents = new Map<string, PendingIntent[]>([
         ['p2', [{ triggerTurnIndex: 5, intentSummary: 'p2の意図' }]],
         ['p3', [{ triggerTurnIndex: 2, intentSummary: 'p3の意図' }]],
@@ -98,8 +96,6 @@ describe('decideNextSpeaker', () => {
       const decision = decideNextSpeaker(baseInput({ pendingIntents }));
       expect(decision.personaId).toBe('p3'); // triggerTurnIndex 2 が最古
       expect(decision.source).toBe('queue');
-      expect(decision.mode).toBe('opinion'); // p3 の評価（score 2 / opinion）に従う
-      expect(decision.score).toBe(2);
       expect(decision.intentSummary).toBe('p3の意図');
     });
 
@@ -130,20 +126,14 @@ describe('decideNextSpeaker', () => {
   });
 
   describe('優先順位 (5): スコア選択', () => {
-    it('score 降順で選択し、申告モードと intentSummary を引き継ぐ', () => {
+    it('score 降順で選択する', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [
           { personaId: 'p2', score: 4, mode: 'opinion', intentSummary: '意見がある' },
           { personaId: 'p3', score: 2, mode: 'opinion' },
         ],
       }));
-      expect(decision).toEqual({
-        personaId: 'p2',
-        source: 'score',
-        mode: 'opinion',
-        score: 4,
-        intentSummary: '意見がある',
-      });
+      expect(decision).toEqual({ personaId: 'p2', source: 'score' });
     });
 
     it('同点時は沈黙ターン数の長い方を優先する', () => {
@@ -157,13 +147,12 @@ describe('decideNextSpeaker', () => {
       expect(decision.personaId).toBe('p3');
     });
 
-    it('score 1（none）でも選ばれたら最小発言（opinion・score 2）に切り上げる', () => {
+    it('候補が1人しかいなければ score 1（none）でもその人を選ぶ', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [{ personaId: 'p2', score: 1, mode: 'none' }],
       }));
       expect(decision.personaId).toBe('p2');
-      expect(decision.mode).toBe('opinion');
-      expect(decision.score).toBe(2);
+      expect(decision.source).toBe('score');
     });
 
     it('直前話者は連続して選択しない（他に候補がいる場合）', () => {
@@ -209,5 +198,23 @@ describe('decideNextSpeaker', () => {
       }));
       expect(personaIds).toContain(decision.personaId);
     });
+  });
+});
+
+describe('speechFromAssessment', () => {
+  it('評価が無ければ空（生成側の既定に委ねる）', () => {
+    expect(speechFromAssessment(undefined)).toEqual({});
+  });
+
+  it('opinion/fact はその mode と score をそのまま使う', () => {
+    expect(speechFromAssessment({ mode: 'fact', score: 3 })).toEqual({ mode: 'fact', score: 3 });
+  });
+
+  it('none・score1 は最小発言（opinion・score 2）に切り上げる', () => {
+    expect(speechFromAssessment({ mode: 'none', score: 1 })).toEqual({ mode: 'opinion', score: 2 });
+  });
+
+  it('score が 2 未満なら 2 に切り上げる', () => {
+    expect(speechFromAssessment({ mode: 'opinion', score: 1 })).toEqual({ mode: 'opinion', score: 2 });
   });
 });

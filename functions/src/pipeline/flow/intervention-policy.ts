@@ -1,11 +1,9 @@
 export interface InterventionPolicyInput {
-  speakerPredetermined: boolean;
   personaTurnsSinceFacilitator: number;
   cooldownTurns: number;
 }
 
-/** 次話者未確定かつクールダウン経過で true（毎ターン評価が原則） */
+/** クールダウン経過で true（論点戻し・出尽くしの両介入に共通のレート制限） */
 export const shouldEvaluateIntervention = (input: InterventionPolicyInput): boolean => {
-  if (input.speakerPredetermined) return false;
   return input.personaTurnsSinceFacilitator >= input.cooldownTurns;
 };

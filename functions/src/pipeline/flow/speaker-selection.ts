@@ -56,10 +56,9 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
       ? b.score - a.score
       : (silenceMap.get(b.personaId) ?? 0) - (silenceMap.get(a.personaId) ?? 0);
 
-  // (1) invite 指名（不正 ID は無視してスコア選択へ）。指名された本人の意欲評価を発言に反映する
+  // (1) invite 指名（不正 ID は無視してスコア選択へ）
   if (interventionTargetId && personaIds.includes(interventionTargetId)) {
-    const targetAssessment = assessments.find(a => a.personaId === interventionTargetId);
-    return { personaId: interventionTargetId, source: 'nomination', ...speechFromAssessment(targetAssessment) };
+    return { personaId: interventionTargetId, source: 'nomination' };
   }
 
   // (3) 全員 score <= 3 → キューの最古エントリ保持者（直前話者を除く）。本人の意欲評価を発言に反映する
@@ -78,11 +77,9 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
     if (oldestPersonaId) {
       const items = [...(pendingIntents.get(oldestPersonaId) ?? [])]
         .sort((a, b) => a.triggerTurnIndex - b.triggerTurnIndex);
-      const queuedAssessment = assessments.find(a => a.personaId === oldestPersonaId);
       return {
         personaId: oldestPersonaId,
         source: 'queue',
-        ...speechFromAssessment(queuedAssessment),
         intentSummary: items[0]?.intentSummary,
       };
     }
@@ -100,10 +97,5 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
   const selected = isLastSpeakerUniqueTop
     ? sorted[0]
     : (sorted.find(a => a.personaId !== lastSpeakerId) ?? sorted[0]);
-  return {
-    personaId: selected.personaId,
-    source: 'score',
-    ...speechFromAssessment(selected),
-    intentSummary: selected.intentSummary,
-  };
+  return { personaId: selected.personaId, source: 'score' };
 };

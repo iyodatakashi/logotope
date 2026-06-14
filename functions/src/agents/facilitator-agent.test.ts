@@ -154,7 +154,7 @@ describe('FacilitatorAgentService', () => {
         }],
       });
 
-      const result = await service.evaluateIntervention(testHistory, testPersonas);
+      const result = await service.evaluateStallIntervention(testHistory, testPersonas);
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -172,7 +172,7 @@ describe('FacilitatorAgentService', () => {
         }],
       });
 
-      const result = await service.evaluateIntervention(testHistory, testPersonas);
+      const result = await service.evaluateStallIntervention(testHistory, testPersonas);
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -184,11 +184,42 @@ describe('FacilitatorAgentService', () => {
     it('returns error result when Claude API fails', async () => {
       mockCreate.mockRejectedValue(new Error('API error'));
 
-      const result = await service.evaluateIntervention(testHistory, testPersonas);
+      const result = await service.evaluateStallIntervention(testHistory, testPersonas);
 
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error.code).toBe('AI_API_ERROR');
+    });
+  });
+
+  describe('evaluateTopicDrift（論点ずれ判定）', () => {
+    it('プロンプトは論点逸脱のみを判定し、出尽くしには言及しない', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+      });
+
+      await service.evaluateTopicDrift(testHistory, testPersonas);
+
+      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
+      expect(msg).toMatch(/逸脱/);
+      expect(msg).not.toMatch(/出尽くし/);
+    });
+
+    it('逸脱時は content と targetPersonaId を返す', async () => {
+      mockCreate.mockResolvedValue({
+        content: [{
+          type: 'tool_use',
+          name: 'evaluate_intervention',
+          input: { shouldIntervene: true, content: '山田さん、本題に戻すと？', targetPersonaId: 'p3' },
+        }],
+      });
+
+      const result = await service.evaluateTopicDrift(testHistory, testPersonas);
+
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.shouldIntervene).toBe(true);
+      expect(result.value.targetPersonaId).toBe('p3');
     });
   });
 
@@ -199,7 +230,7 @@ describe('FacilitatorAgentService', () => {
       });
 
       const speakCount = new Map([['p1', 5], ['p2', 2], ['p3', 0]]);
-      await service.evaluateIntervention(testHistory, testPersonas, speakCount);
+      await service.evaluateStallIntervention(testHistory, testPersonas, speakCount);
 
       const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
       expect(msg).toMatch(/田中太郎.*5|5.*田中太郎/);
@@ -212,7 +243,7 @@ describe('FacilitatorAgentService', () => {
       });
 
       const speakCount = new Map([['p1', 3], ['p2', 1]]);
-      await service.evaluateIntervention(testHistory, testPersonas, speakCount);
+      await service.evaluateStallIntervention(testHistory, testPersonas, speakCount);
 
       const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
       expect(msg).toMatch(/発言数.*優先|優先.*invite/);
@@ -224,7 +255,7 @@ describe('FacilitatorAgentService', () => {
       });
 
       const speakCount = new Map([['p1', 10], ['p2', 0]]);
-      const result = await service.evaluateIntervention(testHistory, testPersonas, speakCount);
+      const result = await service.evaluateStallIntervention(testHistory, testPersonas, speakCount);
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -315,7 +346,7 @@ describe('FacilitatorAgentService', () => {
         content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
       });
 
-      await service.evaluateIntervention(testHistory, testPersonas);
+      await service.evaluateStallIntervention(testHistory, testPersonas);
 
       const tools = mockCreate.mock.calls[0][0].tools;
       const properties = tools[0].input_schema.properties;
@@ -328,7 +359,7 @@ describe('FacilitatorAgentService', () => {
         content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
       });
 
-      await service.evaluateIntervention(testHistory, testPersonas);
+      await service.evaluateStallIntervention(testHistory, testPersonas);
 
       const properties = mockCreate.mock.calls[0][0].tools[0].input_schema.properties;
       const keys = Object.keys(properties);
@@ -343,7 +374,7 @@ describe('FacilitatorAgentService', () => {
         content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
       });
 
-      await service.evaluateIntervention(testHistory, testPersonas);
+      await service.evaluateStallIntervention(testHistory, testPersonas);
 
       const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
       expect(msg).toMatch(/targetPersonaId/);
@@ -355,24 +386,13 @@ describe('FacilitatorAgentService', () => {
         content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
       });
 
-      await service.evaluateIntervention(testHistory, testPersonas);
+      await service.evaluateStallIntervention(testHistory, testPersonas);
 
       const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
       expect(msg).not.toMatch(/close/);
       expect(msg).not.toMatch(/章を終了|章の終了/);
     });
 
-    it('プロンプトに「活発に議論中は介入不要」が明示される', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
-      });
-
-      await service.evaluateIntervention(testHistory, testPersonas);
-
-      const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
-      expect(msg).toMatch(/活発/);
-      expect(msg).toMatch(/shouldIntervene=false|介入不要/);
-    });
   });
 
   describe('generateChapterSummary / generateChapterIntroduction - task 3.2', () => {
@@ -448,7 +468,7 @@ describe('FacilitatorAgentService', () => {
       });
       const currentChapter: DebateChapter = { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 5 };
 
-      await service.evaluateIntervention(testHistory, testPersonas, new Map(), currentChapter);
+      await service.evaluateStallIntervention(testHistory, testPersonas, new Map(), currentChapter);
 
       const msg: string = mockCreate.mock.calls[0][0].messages[0].content;
       expect(msg).toMatch(/核心的対立/);
@@ -460,7 +480,7 @@ describe('FacilitatorAgentService', () => {
         content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
       });
 
-      const result = await service.evaluateIntervention(testHistory, testPersonas);
+      const result = await service.evaluateStallIntervention(testHistory, testPersonas);
 
       expect(result.ok).toBe(true);
     });

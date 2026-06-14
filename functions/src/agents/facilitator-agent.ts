@@ -187,18 +187,13 @@ export class FacilitatorAgentService {
     }
   }
 
-  async evaluateIntervention(
+  private async runInterventionCheck(
     history: DebateTurn[],
     personas: PersonaAttributes[],
-    speakCount: Map<string, number> = new Map(),
-    currentChapter?: DebateChapter,
-    hasHighEngagement: boolean = false
+    currentChapter: DebateChapter | undefined,
+    criteriaSection: string
   ): Promise<Result<FacilitatorIntervention, PipelineError>> {
     try {
-      const speakCountInfo = personas
-        .map(p => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
-        .join(', ');
-      const engagementNote = `\n\n累計発言数: ${speakCountInfo}\nこの章で発言意欲の高い参加者の有無: ${hasHighEngagement ? 'いる' : 'いない（＝基準Bに該当）'}`;
       const chapterContext = currentChapter
         ? `\n\n【この章のミッション】「${currentChapter.title}」\nフォーカス問い: ${currentChapter.focusQuestion}\n司会の役割: この章の間、会話が常にこのフォーカス問いに関連するよう誘導する。`
         : '';
@@ -211,7 +206,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'evaluate_intervention' },
         messages: [{
           role: 'user',
-          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${engagementNote}\n\n介入するのは次のどちらかに当てはまる場合だけです：\nA. 会話がこの章のフォーカス問いから逸脱している（別の話題に流れている）\nB. この章で発言意欲の高い参加者がいなくなった（＝今の論点での議論が出尽くし、落ち着いた）\n\nA・Bのどちらにも当てはまらない（フォーカス問いに沿って活発に議論が続いている）場合は、たとえまだ発言していない参加者がいても介入せず shouldIntervene=false を返してください。活発な議論を止めないこと。\n\n章をいつ終えるかはあなたの判断対象外です。議論が深まったと感じても、それだけでは介入せず shouldIntervene=false を返してください。\n\n介入する場合は、必ず新しい論点へ切り替えて特定の参加者に振ること。手順：\n(1) この章のフォーカス問いに沿って「次に話すべき論点」を決める。\n    - B（落ち着いた）の場合: まだ十分に議論されていない新しい論点に切り替える\n    - A（逸脱）の場合: フォーカス問いに引き戻す論点を示す\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。選ぶ基準: 第一にその新しい論点との関連性が高い人。関連性が同程度なら発言数の少ない人を優先する。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。`,
+          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${criteriaSection}`,
         }],
       });
 
@@ -239,6 +234,30 @@ export class FacilitatorAgentService {
       const message = err instanceof Error ? err.message : String(err);
       return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
     }
+  }
+
+  /** A（論点ずれ）: 会話がフォーカス問いから逸脱しているときだけ介入し、論点を引き戻す。指名済みターンでも上書きしうる */
+  async evaluateTopicDrift(
+    history: DebateTurn[],
+    personas: PersonaAttributes[],
+    speakCount: Map<string, number> = new Map(),
+    currentChapter?: DebateChapter
+  ): Promise<Result<FacilitatorIntervention, PipelineError>> {
+    const speakCountInfo = personas.map(p => `${p.name}: ${speakCount.get(p.id) ?? 0}回`).join(', ');
+    const criteria = `\n\n累計発言数: ${speakCountInfo}\n\n会話がこの章のフォーカス問いから明確に逸脱している（別の話題に流れている）場合のみ介入してください。逸脱していなければ shouldIntervene=false を返してください。\n\n介入する場合は、フォーカス問いに引き戻す論点を決め、ふさわしい参加者を1人選んで targetPersonaId に設定し、content でその人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。`;
+    return this.runInterventionCheck(history, personas, currentChapter, criteria);
+  }
+
+  /** B（出尽くし）: 今の論点で議論が落ち着いたとき、まだ議論されていない新しい論点に切り替えて次の話者を振る */
+  async evaluateStallIntervention(
+    history: DebateTurn[],
+    personas: PersonaAttributes[],
+    speakCount: Map<string, number> = new Map(),
+    currentChapter?: DebateChapter
+  ): Promise<Result<FacilitatorIntervention, PipelineError>> {
+    const speakCountInfo = personas.map(p => `${p.name}: ${speakCount.get(p.id) ?? 0}回`).join(', ');
+    const criteria = `\n\n累計発言数: ${speakCountInfo}\n\nこの章の今の論点は議論が出尽くし、落ち着いています。まだ十分に議論されていない新しい論点に切り替えて、特定の参加者に振ってください。章をいつ終えるかはあなたの判断対象外です。\n\n手順：\n(1) この章のフォーカス問いに沿って、まだ十分に議論されていない新しい論点を決める。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。基準: 関連性が高い人。同程度なら発言数の少ない人を優先。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。\n\n適切な切り替え先が無ければ shouldIntervene=false を返してください。`;
+    return this.runInterventionCheck(history, personas, currentChapter, criteria);
   }
 
   async generateChapters(
