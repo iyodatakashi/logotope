@@ -304,11 +304,16 @@ export class PersonaAgentService {
 						system,
 						tools: REACTION_TURN_TOOLS,
 						toolChoice: { type: 'tool', toolName: 'submit_reaction' } as const,
-						messages: [{ role: 'user', content: userContent }]
+						messages: [{ role: 'user', content: userContent }],
+						providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } }
 					});
 				let reactionResult;
 				try {
 					reactionResult = await callReaction(getPersonaModel(llmType));
+					if (!reactionResult.toolCalls[0] && llmType !== 'claude') {
+						console.error(`[llm] no tool call: ${llmType}, falling back to claude`);
+						reactionResult = await callReaction(getPersonaModel('claude'));
+					}
 				} catch (err) {
 					console.error(`[llm] provider error: ${llmType} - ${err}`);
 					reactionResult = await callReaction(getPersonaModel('claude'));
@@ -336,11 +341,16 @@ export class PersonaAgentService {
 					system,
 					tools: fullTools,
 					toolChoice: { type: 'tool', toolName: 'submit_turn' } as const,
-					messages: [{ role: 'user', content: userContent }]
+					messages: [{ role: 'user', content: userContent }],
+					providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } }
 				});
 			let fullResult;
 			try {
 				fullResult = await callFull(getPersonaModel(llmType));
+				if (!fullResult.toolCalls[0] && llmType !== 'claude') {
+					console.error(`[llm] no tool call: ${llmType}, falling back to claude`);
+					fullResult = await callFull(getPersonaModel('claude'));
+				}
 			} catch (err) {
 				console.error(`[llm] provider error: ${llmType} - ${err}`);
 				fullResult = await callFull(getPersonaModel('claude'));
@@ -403,6 +413,7 @@ export class PersonaAgentService {
 				system: buildPersonaSystemPrompt(persona, interviewRecord, currentBelief),
 				tools: ASSESS_ENGAGEMENT_TOOLS,
 				toolChoice: { type: 'tool', toolName: 'assess_engagement' },
+				providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
 				messages: [
 					{
 						role: 'user',
