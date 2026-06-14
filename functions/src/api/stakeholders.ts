@@ -21,7 +21,7 @@ const STAKEHOLDER_TOOLS = {
             type: 'object' as const,
             additionalProperties: false as const,
             properties: {
-              role: { type: 'string' as const, description: '立場・役割名' },
+              role: { type: 'string' as const, description: '立場・役割の総称（ステークホルダーのグループ／カテゴリ。例: F1チーム関係者、地域住民、規制当局、ヘビーユーザー）。オーナー／メカニックのような個人の具体的な役職までは絞り込まない（具体化はペルソナ段階で行う）' },
               reason: { type: 'string' as const, description: 'この立場が当事者である理由' },
               mainInterests: { type: 'array' as const, items: { type: 'string' as const }, description: '主な関心事' },
               stanceDirection: { type: 'string' as const, enum: ['pro', 'against', 'conditional', 'neutral'] },
