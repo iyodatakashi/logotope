@@ -28,7 +28,8 @@
 					turnIndex: t.turnIndex,
 					speakerType: t.speakerType,
 					speakerName: t.speakerName ?? persona?.name ?? 'ファシリテーター',
-					speakerRole: t.speakerRole ?? persona?.stakeholderRole ?? '',
+					// 話者の役割はステークホルダーのカテゴリではなく、ペルソナ個人の具体的な職業を表示する
+					speakerRole: persona?.occupation ?? t.speakerRole ?? '',
 					content: t.content,
 					speechMode: t.speechMode,
 					fromQueue: t.fromQueue,

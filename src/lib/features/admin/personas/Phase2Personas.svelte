@@ -31,10 +31,10 @@
 					<li class="item">
 						<div class="item-header">
 							<strong>{p.name}</strong>
-							<span class="age">{p.age}歳 / {p.occupation}</span>
+							<span class="age">{p.age}歳</span>
 						</div>
 						<div class="meta">
-							<span class="badge">{p.stakeholderRole}</span>
+							<span class="badge">{p.occupation}</span>
 							<span class="stance">{p.stanceDirection}</span>
 							<span
 								class="engagement"

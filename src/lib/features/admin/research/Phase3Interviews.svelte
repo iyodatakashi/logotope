@@ -26,7 +26,7 @@
 		personasStore.personas.map((p) => ({
 			personaId: p.id,
 			personaName: p.name,
-			stakeholderRole: p.stakeholderRole,
+			occupation: p.occupation,
 			researchSummary: p.interview?.researchSummary ?? '',
 			interviewRecord: p.interview?.interviewRecord ?? '',
 			initialBelief: p.beliefs[0]?.content ?? '',
@@ -87,7 +87,7 @@
 							<button class="toggle" onclick={() => toggle(iv.personaId)}>
 								<span class="name-role">
 									<strong>{iv.personaName}</strong>
-									<span class="role">{iv.stakeholderRole}</span>
+									<span class="role">{iv.occupation}</span>
 								</span>
 								<span
 									class="status-badge"
