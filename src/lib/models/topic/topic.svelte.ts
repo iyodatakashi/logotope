@@ -95,8 +95,13 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		);
 	};
 
-	// 討論（セッションの turns・進行状態。章立ては残す）を消す。session '0' 未作成でも安全。
+	// 討論（セッションの turns・進行状態・発言意欲。章立ては残す）を消す。session '0' 未作成でも安全。
 	const resetDebate = async (): Promise<void> => {
+		// engagements はペルソナidをキーにした討論時データ。古いペルソナidが残らないよう全削除する。
+		const engagementsSnap = await getDocs(
+			collection(db, 'topics', topicId, 'sessions', '0', 'engagements')
+		);
+		await Promise.all(engagementsSnap.docs.map((engagementDoc) => deleteDoc(engagementDoc.ref)));
 		await setDoc(
 			doc(db, 'topics', topicId, 'sessions', '0'),
 			{

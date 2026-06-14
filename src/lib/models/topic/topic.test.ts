@@ -199,6 +199,18 @@ describe('createTopicStore', () => {
 			expect(call?.[1]).not.toHaveProperty('chapters');
 			expect(call?.[1]).not.toHaveProperty('status');
 		});
+
+		it('resetDebate は engagements 文書（古いペルソナidが残る）を全削除する', async () => {
+			const ref1 = { path: 'topics/t1/sessions/0/engagements/old-p1' };
+			const ref2 = { path: 'topics/t1/sessions/0/engagements/old-p2' };
+			vi.mocked(getDocs).mockResolvedValue({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never);
+
+			const store = createTopicStore({ id: 't1' } as never);
+			await store.resetDebate();
+
+			expect(deleteDoc).toHaveBeenCalledWith(ref1);
+			expect(deleteDoc).toHaveBeenCalledWith(ref2);
+		});
 	});
 
 	it('旧 reset 名・バンドル操作は撲滅され、データ層ごとの reset へ統一されている', () => {
