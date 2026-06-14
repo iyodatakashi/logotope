@@ -18,6 +18,7 @@ vi.mock('firebase/firestore', () => ({
 	doc: vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') })),
 	updateDoc: vi.fn().mockResolvedValue(undefined),
 	deleteDoc: vi.fn().mockResolvedValue(undefined),
+	setDoc: vi.fn().mockResolvedValue(undefined),
 	addDoc: vi.fn(() => Promise.resolve({ id: 'new' })),
 	writeBatch: vi.fn(() => mockBatch),
 	Timestamp: { now: vi.fn(() => 'NOW') },
@@ -86,7 +87,7 @@ describe('createTopicStore', () => {
 	});
 
 	describe('生成・再生成の2軸遷移と下流削除 (task 3.1)', () => {
-		it('generateStakeholders は (1, running)→生成成功後に下流削除して (1, generated)', async () => {
+		it('generateStakeholders は (1, running)→開始時に下流削除→生成成功で (1, generated)', async () => {
 			vi.mocked(httpsCallable).mockReturnValue(
 				vi.fn().mockResolvedValue({ data: { stakeholders: [{ role: 'A' }] } }) as never
 			);
@@ -96,16 +97,16 @@ describe('createTopicStore', () => {
 			const calls = updateCallsFor('topics/t1');
 			// 生成開始でまず running を書く
 			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 1, phaseStatus: 'running' }));
-			// 成功後は batch で stakeholders + generated を書く（下流削除を伴う）
-			expect(mockBatch.update).toHaveBeenCalledWith(
-				TOPIC_PATH,
-				expect.objectContaining({ phase: 1, phaseStatus: 'generated' })
-			);
+			// 開始時に下流（session・ペルソナ）を batch 削除する
 			expect(mockBatch.delete).toHaveBeenCalledWith({ path: 'topics/t1/sessions/0' });
 			expect(mockBatch.commit).toHaveBeenCalled();
+			// 生成成功後に stakeholders + generated を書く
+			expect(calls.at(-1)?.[1]).toEqual(
+				expect.objectContaining({ phase: 1, phaseStatus: 'generated' })
+			);
 		});
 
-		it('generateStakeholders は生成（fn 呼び出し）より後に下流を削除する', async () => {
+		it('generateStakeholders は生成（fn 呼び出し）より前に下流を削除する', async () => {
 			const order: string[] = [];
 			vi.mocked(httpsCallable).mockReturnValue(
 				vi.fn(async () => {
@@ -119,7 +120,7 @@ describe('createTopicStore', () => {
 			}) as never);
 			const store = createTopicStore({ id: 't1', title: 'T' } as never);
 			await store.generateStakeholders();
-			expect(order).toEqual(['generate', 'getPersonas']);
+			expect(order).toEqual(['getPersonas', 'generate']);
 		});
 
 		it('generatePersonas は (2, running)→生成成功後に (2, generated)', async () => {
