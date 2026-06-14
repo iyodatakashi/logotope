@@ -96,6 +96,7 @@ export interface DebateTurn {
   createdAt: string;
   chapterIndex?: number;
   speechMode?: 'opinion' | 'fact';
+  engagementScore?: number;
   fromQueue?: boolean;
   addressedPersonaId?: string;
   engagements?: EngagementEntry[];
@@ -143,6 +144,7 @@ export interface CreateDebateTurnParams {
   content: string;
   chapterIndex?: number;
   speechMode?: 'opinion' | 'fact';
+  engagementScore?: number;
   fromQueue?: boolean;
   addressedPersonaId?: string;
 }
@@ -364,6 +366,7 @@ export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<
   if (params.speakerRole !== undefined) turn.speakerRole = params.speakerRole;
   if (params.chapterIndex !== undefined) turn.chapterIndex = params.chapterIndex;
   if (params.speechMode !== undefined) turn.speechMode = params.speechMode;
+  if (params.engagementScore !== undefined) turn.engagementScore = params.engagementScore;
   if (params.fromQueue) turn.fromQueue = true;
   if (params.addressedPersonaId !== undefined) turn.addressedPersonaId = params.addressedPersonaId;
 

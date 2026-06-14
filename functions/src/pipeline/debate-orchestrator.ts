@@ -432,6 +432,7 @@ export class DebateOrchestratorService {
       personaId: persona.id, speakerName: persona.name, speakerRole: persona.specificRole,
       content: turnResult.value.content ?? '',
       chapterIndex, speechMode: turnResult.value.speechMode,
+      engagementScore: decision.score,
       fromQueue: fromQueue || undefined,
       addressedPersonaId,
     });

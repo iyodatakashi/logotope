@@ -20,6 +20,7 @@ export type TurnDoc = {
 	createdAt: Timestamp;
 	chapterIndex?: number;
 	speechMode?: 'opinion' | 'fact';
+	engagementScore?: number;
 	fromQueue?: boolean;
 	addressedPersonaId?: string;
 };

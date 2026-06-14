@@ -44,6 +44,7 @@
 					speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? t.speakerRole ?? '',
 					content: t.content,
 					speechMode: t.speechMode,
+					engagementScore: t.engagementScore,
 					fromQueue: t.fromQueue,
 					personaId: t.personaId,
 					addressedPersonaName: addressedPersona?.name ?? null,
@@ -124,7 +125,9 @@
 								<span class="role">({turn.speakerRole})</span>
 							{/if}
 							{#if turn.speechMode}
-								<span class="speech-mode">[{turn.speechMode}]</span>
+								<span class="speech-mode" data-mode={turn.speechMode}>
+									{turn.speechMode}{#if turn.engagementScore}({turn.engagementScore}){/if}
+								</span>
 							{/if}
 							{#if turn.fromQueue}
 								<span class="from-queue">[キュー]</span>
@@ -207,10 +210,18 @@
 	.speech-mode {
 		font-size: 0.75rem;
 		margin-left: 6px;
-		color: #fff;
-		background: #888;
+		color: #555;
+		background: #eee;
 		padding: 1px 5px;
 		border-radius: 3px;
+	}
+	.speech-mode[data-mode='opinion'] {
+		background: #e8f5e9;
+		color: #2e7d32;
+	}
+	.speech-mode[data-mode='fact'] {
+		background: #e3f2fd;
+		color: #1565c0;
 	}
 	.from-queue {
 		font-size: 0.75rem;
