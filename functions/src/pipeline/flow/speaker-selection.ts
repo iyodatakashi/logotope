@@ -15,7 +15,7 @@ export const resolveDirectAddress = (input: DirectAddressInput): SpeakerDecision
   if (!personaIds.includes(pendingAddress.personaId)) return null;
 
   if (pendingAddress.byFacilitator) {
-    return { personaId: pendingAddress.personaId, source: 'nomination', mode: 'opinion' };
+    return { personaId: pendingAddress.personaId, source: 'nomination' };
   }
   if (consecutiveDirectExchanges >= MAX_CONSECUTIVE_DIRECT) return null;
   return { personaId: pendingAddress.personaId, source: 'direct_address' };
@@ -37,9 +37,14 @@ export interface SpeakerSelectionInput {
   personaIds: ReadonlyArray<string>;
 }
 
-const toDeclaredMode = (
-  mode: 'opinion' | 'fact' | 'none'
-): 'opinion' | 'fact' | undefined => (mode === 'none' ? undefined : mode);
+/** 選ばれた話者の発言は本人の意欲評価に従う（mode と score→長さ）。選ばれた以上は必ず発言するため none・低スコアは最小発言（score 2 / opinion）に切り上げる */
+export const speechFromAssessment = (
+  assessment?: { mode: 'opinion' | 'fact' | 'none'; score: number }
+): { mode?: 'opinion' | 'fact'; score?: number } => {
+  if (!assessment) return {};
+  if (assessment.mode === 'none') return { mode: 'opinion', score: 2 };
+  return { mode: assessment.mode, score: Math.max(2, assessment.score) };
+};
 
 /** 評価後: invite 指名 > キュー > スコアの順で決定する */
 export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision => {
@@ -51,12 +56,13 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
       ? b.score - a.score
       : (silenceMap.get(b.personaId) ?? 0) - (silenceMap.get(a.personaId) ?? 0);
 
-  // (1) invite 指名（不正 ID は無視してスコア選択へ）
+  // (1) invite 指名（不正 ID は無視してスコア選択へ）。指名された本人の意欲評価を発言に反映する
   if (interventionTargetId && personaIds.includes(interventionTargetId)) {
-    return { personaId: interventionTargetId, source: 'nomination', mode: 'opinion' };
+    const targetAssessment = assessments.find(a => a.personaId === interventionTargetId);
+    return { personaId: interventionTargetId, source: 'nomination', ...speechFromAssessment(targetAssessment) };
   }
 
-  // (3) 全員 score <= 3 → キューの最古エントリ保持者（直前話者を除く、opinion 固定）
+  // (3) 全員 score <= 3 → キューの最古エントリ保持者（直前話者を除く）。本人の意欲評価を発言に反映する
   const topScore = Math.max(0, ...assessments.map(a => a.score));
   if (topScore <= 3) {
     let oldestIdx = Infinity;
@@ -72,10 +78,11 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
     if (oldestPersonaId) {
       const items = [...(pendingIntents.get(oldestPersonaId) ?? [])]
         .sort((a, b) => a.triggerTurnIndex - b.triggerTurnIndex);
+      const queuedAssessment = assessments.find(a => a.personaId === oldestPersonaId);
       return {
         personaId: oldestPersonaId,
         source: 'queue',
-        mode: 'opinion',
+        ...speechFromAssessment(queuedAssessment),
         intentSummary: items[0]?.intentSummary,
       };
     }
@@ -96,8 +103,7 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
   return {
     personaId: selected.personaId,
     source: 'score',
-    mode: toDeclaredMode(selected.mode),
-    score: selected.score,
+    ...speechFromAssessment(selected),
     intentSummary: selected.intentSummary,
   };
 };

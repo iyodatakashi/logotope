@@ -206,7 +206,7 @@ describe('DebateOrchestratorService', () => {
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       const queueCall = generateTurnCalls.find(c => (c[0] as { id: string }).id === 'p2');
       expect(queueCall).toBeDefined();
-      expect(queueCall![3]).toMatchObject({ mode: 'opinion', intentSummary: 'キューの意図' });
+      expect(queueCall![3]).toMatchObject({ intentSummary: 'キューの意図' });
     });
 
     it('トピックの停止ゲートが不成立なら何も生成せず false を返す', async () => {
@@ -255,7 +255,7 @@ describe('DebateOrchestratorService', () => {
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       expect(generateTurnCalls.length).toBeGreaterThanOrEqual(1);
       expect((generateTurnCalls[0][0] as { id: string }).id).toBe('p2');
-      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true, mode: 'opinion' });
+      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true });
     });
   });
 
@@ -271,7 +271,7 @@ describe('DebateOrchestratorService', () => {
 
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       expect((generateTurnCalls[0][0] as { id: string }).id).toBe('p2');
-      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true, mode: 'opinion' });
+      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true });
     });
 
     it('addressedToPersonaId あり: 指名されたペルソナが次の発言者になる', async () => {
@@ -289,7 +289,7 @@ describe('DebateOrchestratorService', () => {
       expect((generateTurnCalls[1][0] as { id: string }).id).toBe('p2');
     });
 
-    it('次話者未確定のターンで意欲評価（直前話者を除く）と評価保存を行う', async () => {
+    it('指名された本人を評価し、次話者未確定のターンでは直前話者を除いて意欲評価する', async () => {
       const mockPersonaAgent = makeMockPersonaAgent();
       const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
 
@@ -297,7 +297,10 @@ describe('DebateOrchestratorService', () => {
 
       const assessCalls = (mockPersonaAgent.assessEngagement as ReturnType<typeof vi.fn>).mock.calls;
       expect(assessCalls.length).toBeGreaterThanOrEqual(1);
-      expect(assessCalls[0][0].id).not.toBe('p1');
+      // 開会で指名された本人（p1）を評価する
+      expect(assessCalls[0][0].id).toBe('p1');
+      // 続く評価ターンは直前話者（p1）を除外して評価する
+      expect(assessCalls[1][0].id).not.toBe('p1');
       expect(vi.mocked(repo.saveEngagements)).toHaveBeenCalled();
     });
 

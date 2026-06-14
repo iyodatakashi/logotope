@@ -1,7 +1,7 @@
 import * as repo from '../db/repository.js';
 import { FacilitatorAgentService } from '../agents/facilitator-agent.js';
 import { PersonaAgentService } from '../agents/persona-agent.js';
-import { resolveDirectAddress, decideNextSpeaker } from './flow/speaker-selection.js';
+import { resolveDirectAddress, decideNextSpeaker, speechFromAssessment } from './flow/speaker-selection.js';
 import type { SpeakerAssessment } from './flow/speaker-selection.js';
 import { toEngagementSignal, shouldEndChapterEarly, chapterTurnCap } from './flow/chapter-progress.js';
 import { shouldEvaluateIntervention } from './flow/intervention-policy.js';
@@ -209,7 +209,12 @@ export class DebateOrchestratorService {
         } else {
           state.consecutiveDirectExchanges++;
         }
-        // 評価スキップターンは常に活性として記録する
+        // 全員評価はせず、指名された本人だけ意欲を評価して発言に反映する
+        decision = {
+          ...decision,
+          ...(await this.assessNominee(sessionId, decision.personaId, personas, interviewRecords, state)),
+        };
+        // 指名ターンは常に活性として記録する
         state.engagementSignals.push(1);
       } else {
         state.consecutiveDirectExchanges = 0;
@@ -347,6 +352,38 @@ export class DebateOrchestratorService {
     return decision;
   }
 
+  /** 指名された本人だけ意欲を評価し、発言の mode/score（と意図）に変換する。表示用に評価も保存する */
+  private async assessNominee(
+    sessionId: string,
+    personaId: string,
+    personas: PersonaAttributes[],
+    interviewRecords: Map<string, string>,
+    state: DebateState
+  ): Promise<{ mode?: 'opinion' | 'fact'; score?: number; intentSummary?: string }> {
+    const persona = personas.find(p => p.id === personaId);
+    if (!persona) return {};
+    const result = await this.personaAgent.assessEngagement(
+      persona,
+      state.currentBeliefs.get(personaId)?.content ?? '',
+      interviewRecords.get(personaId) ?? '',
+      state.history
+    );
+    const assessment = result.ok
+      ? { mode: result.value.mode, score: result.value.score }
+      : { mode: 'opinion' as const, score: 2 };
+    const speech = speechFromAssessment(assessment);
+    const intentSummary = result.ok ? result.value.intentSummary : undefined;
+    const lastTurnIndex = state.history.length > 0
+      ? state.history[state.history.length - 1].turnIndex
+      : 0;
+    await repo.saveEngagements({
+      sessionId,
+      turnIndex: lastTurnIndex,
+      assessments: [{ personaId, score: speech.score ?? 2, mode: speech.mode ?? 'opinion', intentSummary }],
+    });
+    return { ...speech, intentSummary };
+  }
+
   /** 決定に基づきペルソナ発言を生成・保存し、状態（沈黙・キュー・信念・次ターン指名）を更新する */
   private async generatePersonaTurn(
     sessionId: string,
@@ -472,8 +509,14 @@ export class DebateOrchestratorService {
     });
     if (!decision) return;
 
+    // 指名された本人だけ意欲を評価して発言に反映する
+    const enrichedDecision = {
+      ...decision,
+      ...(await this.assessNominee(sessionId, decision.personaId, personas, interviewRecords, state)),
+    };
+
     await this.generatePersonaTurn(
-      sessionId, topicId, personas, interviewRecords, chapter, chapterIndex, state, decision
+      sessionId, topicId, personas, interviewRecords, chapter, chapterIndex, state, enrichedDecision
     );
     // 章は終了するため、応答ターン由来の直接質問は引き継がない
     state.pendingAddress = undefined;
