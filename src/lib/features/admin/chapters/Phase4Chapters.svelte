@@ -14,8 +14,17 @@
 	const chapters = $derived(currentTopicStore.sessionStore.session?.chapters ?? null);
 	const chapterIssues = $derived(currentTopicStore.sessionStore.session?.chapterIssues ?? null);
 
-	// 生成・再生成・やり直しはいずれも章立てを作り直す
 	const generate = () => currentTopicStore.topic?.generateChapters();
+
+	// 再生成: 章立てと下流（討論）を破棄してから作り直す
+	const regenerate = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		await topic.resetChapters();
+		await topic.resetDebate();
+		await topic.generateChapters();
+	};
+
 	const approve = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
@@ -38,8 +47,8 @@
 	}}
 	onGenerate={() => void generate()}
 	onApprove={() => void approve()}
-	onRegenerate={() => void generate()}
-	onRetry={() => void generate()}
+	onRegenerate={() => void regenerate()}
+	onRetry={() => void regenerate()}
 >
 	{#snippet content()}
 		{#if chapters?.length}

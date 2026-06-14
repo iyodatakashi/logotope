@@ -6,9 +6,16 @@
 	const PHASE = 5;
 	// 討論は開始・再生成・停止・再開。承認フェーズは無い
 	const generate = () => currentTopicStore.topic?.startDebate();
-	const regenerate = () => currentTopicStore.topic?.regenerateDebate();
 	const stop = () => currentTopicStore.topic?.stopDebate();
 	const restart = () => currentTopicStore.topic?.restartDebate();
+
+	// 再生成: 討論ターンのみ破棄（章立ては残す）して最初から討論し直す
+	const regenerate = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		await topic.resetDebate();
+		await topic.startDebate();
+	};
 	const logicalState = $derived.by(() => {
 		const topic = currentTopicStore.topic;
 		return topic

@@ -14,8 +14,18 @@
 	});
 	const stakeholders = $derived(currentTopicStore.topic?.stakeholders?.items ?? []);
 
-	// 生成・再生成・やり直しはいずれもステークホルダーを作り直す
 	const generate = () => currentTopicStore.topic?.generateStakeholders();
+
+	// 再生成: ステークホルダーと下流（ペルソナ・章立て・討論）を破棄してから作り直す
+	const regenerate = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		await topic.resetStakeholders();
+		await topic.resetPersonas();
+		await topic.resetChapters();
+		await topic.resetDebate();
+		await topic.generateStakeholders();
+	};
 
 	const approve = async () => {
 		const topic = currentTopicStore.topic;
@@ -39,8 +49,8 @@
 	}}
 	onGenerate={() => void generate()}
 	onApprove={() => void approve()}
-	onRegenerate={() => void generate()}
-	onRetry={() => void generate()}
+	onRegenerate={() => void regenerate()}
+	onRetry={() => void regenerate()}
 >
 	{#snippet content()}
 		{#if stakeholders.length > 0}

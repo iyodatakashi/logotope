@@ -62,7 +62,8 @@
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
-		await topic.clearDebateSession();
+		await topic.resetChapters();
+		await topic.resetDebate();
 		await personasStore.runInterviews(topic.title, true);
 	};
 	const approve = async () => {

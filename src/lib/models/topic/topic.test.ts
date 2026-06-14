@@ -29,7 +29,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { httpsCallable } from 'firebase/functions';
-import { updateDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
+import { updateDoc, setDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
 import { createTopicStore } from './topic.svelte.js';
 
 const TOPIC_PATH = { path: 'topics/t1' };
@@ -86,8 +86,8 @@ describe('createTopicStore', () => {
 		});
 	});
 
-	describe('生成・再生成の2軸遷移と下流削除 (task 3.1)', () => {
-		it('generateStakeholders は (1, running)→開始時に下流削除→生成成功で (1, generated)', async () => {
+	describe('生成の2軸遷移（生成のみ。旧データ削除は reset が担う）', () => {
+		it('generateStakeholders は (1, running)→生成成功で (1, generated)。削除はしない', async () => {
 			vi.mocked(httpsCallable).mockReturnValue(
 				vi.fn().mockResolvedValue({ data: { stakeholders: [{ role: 'A' }] } }) as never
 			);
@@ -95,32 +95,13 @@ describe('createTopicStore', () => {
 			await store.generateStakeholders();
 
 			const calls = updateCallsFor('topics/t1');
-			// 生成開始でまず running を書く
 			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 1, phaseStatus: 'running' }));
-			// 開始時に下流（session・ペルソナ）を batch 削除する
-			expect(mockBatch.delete).toHaveBeenCalledWith({ path: 'topics/t1/sessions/0' });
-			expect(mockBatch.commit).toHaveBeenCalled();
-			// 生成成功後に stakeholders + generated を書く
 			expect(calls.at(-1)?.[1]).toEqual(
 				expect.objectContaining({ phase: 1, phaseStatus: 'generated' })
 			);
-		});
-
-		it('generateStakeholders は生成（fn 呼び出し）より前に下流を削除する', async () => {
-			const order: string[] = [];
-			vi.mocked(httpsCallable).mockReturnValue(
-				vi.fn(async () => {
-					order.push('generate');
-					return { data: { stakeholders: [] } };
-				}) as never
-			);
-			vi.mocked(getDocs).mockImplementation((async () => {
-				order.push('getPersonas');
-				return { docs: [] };
-			}) as never);
-			const store = createTopicStore({ id: 't1', title: 'T' } as never);
-			await store.generateStakeholders();
-			expect(order).toEqual(['getPersonas', 'generate']);
+			// 生成関数は削除を行わない
+			expect(mockBatch.delete).not.toHaveBeenCalled();
+			expect(deleteDoc).not.toHaveBeenCalled();
 		});
 
 		it('generatePersonas は (2, running)→生成成功後に (2, generated)', async () => {
@@ -144,26 +125,6 @@ describe('createTopicStore', () => {
 			expect(calls.at(-1)?.[1]).toEqual(
 				expect.objectContaining({ phase: 4, phaseStatus: 'generated' })
 			);
-		});
-	});
-
-	describe('regenerateDebate (task 3.1)', () => {
-		it('討論ターンを初期化して（session に status を書かず）startDebate を呼ぶ', async () => {
-			const mockStartFn = vi.fn().mockResolvedValue({ data: {} });
-			vi.mocked(httpsCallable).mockReturnValue(mockStartFn as never);
-
-			const store = createTopicStore({ id: 't1', title: 'T' } as never);
-			await store.regenerateDebate();
-
-			const sessionUpdate = vi
-				.mocked(updateDoc)
-				.mock.calls.find((c) => (c[0] as { path: string }).path === 'topics/t1/sessions/0');
-			expect(sessionUpdate?.[1]).toEqual(
-				expect.objectContaining({ turns: [], postDebateComments: [] })
-			);
-			expect(sessionUpdate?.[1]).not.toHaveProperty('status');
-			expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'startDebate', expect.any(Object));
-			expect(mockStartFn).toHaveBeenCalledWith({ topicId: 't1' });
 		});
 	});
 
@@ -194,38 +155,65 @@ describe('createTopicStore', () => {
 		});
 	});
 
-	describe('generateStakeholders の下流ペルソナ削除 (task 3.1)', () => {
-		it('既存ペルソナドキュメントを batch.delete する', async () => {
-			vi.mocked(httpsCallable).mockReturnValue(
-				vi.fn().mockResolvedValue({ data: { stakeholders: [] } }) as never
+	describe('旧データのリセット（データ層ごと。名前＝役割範囲）', () => {
+		it('resetStakeholders は stakeholders を空に戻す', async () => {
+			const store = createTopicStore({ id: 't1' } as never);
+			await store.resetStakeholders();
+			expect(updateDoc).toHaveBeenCalledWith(
+				TOPIC_PATH,
+				expect.objectContaining({
+					stakeholders: { items: [], approved: false, createdAt: 'NOW' }
+				})
 			);
+		});
+
+		it('resetPersonas は既存ペルソナ文書を全削除する', async () => {
 			const ref1 = { path: 'topics/t1/personas/p1' };
 			const ref2 = { path: 'topics/t1/personas/p2' };
 			vi.mocked(getDocs).mockResolvedValue({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never);
 
-			const store = createTopicStore({ id: 't1', title: 'T' } as never);
-			await store.generateStakeholders();
-
-			expect(mockBatch.delete).toHaveBeenCalledWith(ref1);
-			expect(mockBatch.delete).toHaveBeenCalledWith(ref2);
-		});
-	});
-
-	describe('clearDebateSession', () => {
-		it('討論セッションを削除する', async () => {
 			const store = createTopicStore({ id: 't1' } as never);
-			await store.clearDebateSession();
+			await store.resetPersonas();
 
-			expect(deleteDoc).toHaveBeenCalledWith({ path: 'topics/t1/sessions/0' });
+			expect(deleteDoc).toHaveBeenCalledWith(ref1);
+			expect(deleteDoc).toHaveBeenCalledWith(ref2);
+		});
+
+		it('resetChapters は session の chapters を消す（merge・章立て層のみ）', async () => {
+			const store = createTopicStore({ id: 't1' } as never);
+			await store.resetChapters();
+			expect(setDoc).toHaveBeenCalledWith(
+				{ path: 'topics/t1/sessions/0' },
+				expect.objectContaining({ chapters: 'DELETE_FIELD' }),
+				{ merge: true }
+			);
+		});
+
+		it('resetDebate は session の turns を消し、章立て・status は触らない', async () => {
+			const store = createTopicStore({ id: 't1' } as never);
+			await store.resetDebate();
+			const call = vi
+				.mocked(setDoc)
+				.mock.calls.find((c) => (c[0] as { path: string }).path === 'topics/t1/sessions/0');
+			expect(call?.[1]).toEqual(expect.objectContaining({ turns: [], postDebateComments: [] }));
+			expect(call?.[1]).not.toHaveProperty('chapters');
+			expect(call?.[1]).not.toHaveProperty('status');
 		});
 	});
 
-	it('reset系メソッドは撲滅されている（regenerateに統合済み）', () => {
+	it('旧 reset 名・バンドル操作は撲滅され、データ層ごとの reset へ統一されている', () => {
 		const store = createTopicStore({ id: 't1' } as never);
+		// 旧: フェーズ番号ベース／reset と生成を兼ねたバンドル操作は無い
 		expect('resetToPhase1' in store).toBe(false);
 		expect('resetToPhase2' in store).toBe(false);
 		expect('resetToPhase3' in store).toBe(false);
 		expect('resetToPhase4' in store).toBe(false);
-		expect('resetDebate' in store).toBe(false);
+		expect('clearDebateSession' in store).toBe(false);
+		expect('regenerateDebate' in store).toBe(false);
+		// 新: データ層ごとの純粋な reset（名前＝役割範囲）
+		expect('resetStakeholders' in store).toBe(true);
+		expect('resetPersonas' in store).toBe(true);
+		expect('resetChapters' in store).toBe(true);
+		expect('resetDebate' in store).toBe(true);
 	});
 });

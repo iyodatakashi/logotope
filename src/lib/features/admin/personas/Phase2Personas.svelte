@@ -14,8 +14,18 @@
 	});
 	const personas = $derived(currentTopicStore.personasStore.personas);
 
-	// 生成・再生成・やり直しはいずれもペルソナを作り直す
 	const generate = () => currentTopicStore.topic?.generatePersonas();
+
+	// 再生成: ペルソナと下流（取材・章立て・討論）を破棄してから作り直す
+	const regenerate = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		await topic.resetPersonas();
+		await topic.resetChapters();
+		await topic.resetDebate();
+		await topic.generatePersonas();
+	};
+
 	const approve = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
@@ -37,8 +47,8 @@
 	}}
 	onGenerate={() => void generate()}
 	onApprove={() => void approve()}
-	onRegenerate={() => void generate()}
-	onRetry={() => void generate()}
+	onRegenerate={() => void regenerate()}
+	onRetry={() => void regenerate()}
 >
 	{#snippet content()}
 		{#if personas.length > 0}
