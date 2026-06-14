@@ -340,9 +340,9 @@ export class DebateOrchestratorService {
       personaIds,
     });
 
-    // キュー追加（score 5 で非選択）を発生の都度 write-through
+    // キュー追加（score 4 以上で非選択）を発生の都度 write-through
     for (const assessment of assessments) {
-      if (assessment.score < 5 || assessment.personaId === decision.personaId) continue;
+      if (assessment.score < 4 || assessment.personaId === decision.personaId) continue;
       const existing = state.pendingIntents.get(assessment.personaId) ?? [];
       const updated = [...existing, { triggerTurnIndex: lastTurnIndex, intentSummary: assessment.intentSummary ?? '' }];
       state.pendingIntents.set(assessment.personaId, updated);
