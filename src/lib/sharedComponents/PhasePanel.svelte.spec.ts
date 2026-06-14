@@ -15,7 +15,6 @@ const makeProps = (overrides: Record<string, unknown> = {}) => ({
 	onGenerate: vi.fn(),
 	onApprove: vi.fn(),
 	onRegenerate: vi.fn(),
-	onRetry: vi.fn(),
 	...overrides
 });
 
@@ -34,7 +33,6 @@ const makePhase5Props = (overrides: Record<string, unknown> = {}) => ({
 	restartLabel: '討論を再開する',
 	onGenerate: vi.fn(),
 	onRegenerate: vi.fn(),
-	onRetry: vi.fn(),
 	onStop: vi.fn(),
 	onRestart: vi.fn(),
 	...overrides
@@ -80,18 +78,11 @@ describe('PhasePanel.svelte', () => {
 			await expect.element(page.getByRole('status')).toBeInTheDocument();
 		});
 
-		it('「やり直す」（回復アクション）を表示し、生成・承認は表示しない', async () => {
+		it('回復用に再生成ボタンを表示し、生成・承認は表示しない', async () => {
 			render(PhasePanel, makeProps({ logicalState: 'running' }));
-			await expect.element(page.getByRole('button', { name: 'やり直す' })).toBeInTheDocument();
+			await expect.element(page.getByRole('button', { name: '再生成する' })).toBeInTheDocument();
 			expect(page.getByRole('button', { name: '調査を開始する' }).elements()).toHaveLength(0);
 			expect(page.getByRole('button', { name: '承認して次へ進む' }).elements()).toHaveLength(0);
-		});
-
-		it('「やり直す」クリックで onRetry を呼ぶ', async () => {
-			const onRetry = vi.fn();
-			render(PhasePanel, makeProps({ logicalState: 'running', onRetry }));
-			await page.getByRole('button', { name: 'やり直す' }).click();
-			expect(onRetry).toHaveBeenCalled();
 		});
 	});
 
@@ -134,11 +125,9 @@ describe('PhasePanel.svelte', () => {
 	});
 
 	describe('stopped 状態（フェーズ1〜4）', () => {
-		it('「やり直す」で再実行できる', async () => {
-			const onRetry = vi.fn();
-			render(PhasePanel, makeProps({ logicalState: 'stopped', onRetry }));
-			await page.getByRole('button', { name: 'やり直す' }).click();
-			expect(onRetry).toHaveBeenCalled();
+		it('再生成ボタンを表示する（確認付きで回復）', async () => {
+			render(PhasePanel, makeProps({ logicalState: 'stopped' }));
+			await expect.element(page.getByRole('button', { name: '再生成する' })).toBeInTheDocument();
 		});
 	});
 

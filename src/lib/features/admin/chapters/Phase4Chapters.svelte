@@ -45,10 +45,9 @@
 		description: '現在の章立てと、生成済みの討論が削除されます。',
 		submitLabel: '再生成する'
 	}}
-	onGenerate={() => void generate()}
-	onApprove={() => void approve()}
-	onRegenerate={() => void regenerate()}
-	onRetry={() => void regenerate()}
+	onGenerate={generate}
+	onApprove={approve}
+	onRegenerate={regenerate}
 >
 	{#snippet content()}
 		{#if chapters?.length}

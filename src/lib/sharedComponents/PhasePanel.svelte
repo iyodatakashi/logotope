@@ -12,8 +12,7 @@
 		regenerateLabel: string;
 		regenerateConfirm: { title: string; description: string; submitLabel: string };
 		onGenerate: () => void;
-		onRegenerate: () => void;
-		onRetry: () => void; // running 固着・停止からの再実行（フェーズ1〜4の共通回復）
+		onRegenerate: () => void; // generated/approved/stopped/running(固着) からのやり直し。確認ダイアログ付き
 		approveLabel?: string; // generated での前進ボタン（フェーズ5は前進なし）
 		onApprove?: () => void;
 		stopLabel?: string; // running 中の停止（フェーズ5）
@@ -33,7 +32,6 @@
 		regenerateConfirm,
 		onGenerate,
 		onRegenerate,
-		onRetry,
 		approveLabel,
 		onApprove,
 		stopLabel,
@@ -71,7 +69,9 @@
 			{#if onStop}
 				<Button variant="outlined" onclick={onStop}>{stopLabel ?? '停止する'}</Button>
 			{:else}
-				<Button variant="outlined" onclick={onRetry}>やり直す</Button>
+				<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
+					{regenerateLabel}
+				</Button>
 			{/if}
 		</div>
 
@@ -79,12 +79,10 @@
 		<div class="actions">
 			{#if onRestart}
 				<Button variant="filled" onclick={onRestart}>{restartLabel ?? '再開する'}</Button>
-				<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
-					{regenerateLabel}
-				</Button>
-			{:else}
-				<Button variant="filled" onclick={onRetry}>やり直す</Button>
 			{/if}
+			<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
+				{regenerateLabel}
+			</Button>
 		</div>
 
 	{:else if logicalState === 'generated'}

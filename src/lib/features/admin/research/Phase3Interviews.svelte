@@ -85,10 +85,9 @@
 		description: '現在の取材記録と、以降のフェーズで生成済みのデータ（章立て・討論）が削除されます。',
 		submitLabel: '再取材する'
 	}}
-	onGenerate={() => void generate()}
-	onApprove={() => void approve()}
-	onRegenerate={() => void regenerate()}
-	onRetry={() => void generate()}
+	onGenerate={generate}
+	onApprove={approve}
+	onRegenerate={regenerate}
 >
 	{#snippet progress()}
 		{#if totalCount > 0}
@@ -132,7 +131,7 @@
 								{/if}
 							</button>
 							{#if iv.status === 'error'}
-								<Button variant="outlined" onclick={() => void handleRetry(iv.personaId)}>
+								<Button variant="outlined" onclick={() => handleRetry(iv.personaId)}>
 									リトライ
 								</Button>
 							{/if}

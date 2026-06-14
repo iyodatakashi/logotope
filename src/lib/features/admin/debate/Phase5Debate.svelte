@@ -88,11 +88,10 @@
 	}}
 	stopLabel="討論を停止する"
 	restartLabel="討論を再開する"
-	onGenerate={() => void generate()}
-	onRegenerate={() => void regenerate()}
-	onRetry={() => void generate()}
-	onStop={() => void stop()}
-	onRestart={() => void restart()}
+	onGenerate={generate}
+	onRegenerate={regenerate}
+	onStop={stop}
+	onRestart={restart}
 >
 	{#snippet progress()}
 		{#if logicalState === 'running'}

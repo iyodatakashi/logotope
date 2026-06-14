@@ -47,10 +47,9 @@
 			'現在のステークホルダーと、以降のフェーズで生成済みのデータ（ペルソナ・取材・章立て・討論）が削除されます。',
 		submitLabel: '再生成する'
 	}}
-	onGenerate={() => void generate()}
-	onApprove={() => void approve()}
-	onRegenerate={() => void regenerate()}
-	onRetry={() => void regenerate()}
+	onGenerate={generate}
+	onApprove={approve}
+	onRegenerate={regenerate}
 >
 	{#snippet content()}
 		{#if stakeholders.length > 0}
