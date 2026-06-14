@@ -114,6 +114,7 @@ export const createPersonasStore = (topicId: string) => {
 					age: persona.age,
 					occupation: persona.occupation,
 					stakeholderRole: persona.stakeholderRole,
+					specificRole: persona.specificRole ?? persona.stakeholderRole,
 					background: persona.background,
 					interests: persona.interests
 				}

@@ -26,6 +26,7 @@ export type PersonaDoc = {
 	id: string;
 	topicId: string;
 	stakeholderRole: string;
+	specificRole?: string;
 	name: string;
 	age: number;
 	occupation: string;
@@ -63,6 +64,7 @@ export type BeliefChangeTrigger = {
 
 export type PersonaData = {
 	stakeholderRole: string;
+	specificRole: string;
 	name: string;
 	nationality?: string;
 	age: number;
@@ -79,6 +81,7 @@ export type PersonaForInterview = {
 	age: number;
 	occupation: string;
 	stakeholderRole: string;
+	specificRole: string;
 	background: string;
 	interests: string;
 };

@@ -12,6 +12,7 @@ interface PersonaInput {
   age: number;
   occupation: string;
   stakeholderRole: string;
+  specificRole?: string;
   background: string;
   interests: string;
 }
@@ -105,7 +106,7 @@ export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, as
 氏名: ${persona.name}
 年齢: ${persona.age}歳
 職業: ${persona.occupation}
-立場: ${persona.stakeholderRole}
+立場: ${persona.specificRole || persona.stakeholderRole}
 背景: ${persona.background}
 関心事: ${persona.interests}`,
       }],

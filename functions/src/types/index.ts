@@ -20,6 +20,7 @@ export interface Stakeholder {
 export interface PersonaAttributes {
   id: string;
   stakeholderRole: string;
+  specificRole: string;
   name: string;
   nationality?: string;
   age: number;

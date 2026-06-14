@@ -46,6 +46,7 @@ function toPersonaAttributes(p: repo.PersonaProfile): PersonaAttributes {
   return {
     id: p.id,
     stakeholderRole: p.stakeholderRole,
+    specificRole: p.specificRole ?? p.stakeholderRole,
     name: p.name,
     age: p.age,
     occupation: p.occupation,
@@ -389,7 +390,7 @@ export class DebateOrchestratorService {
 
     const savedTurn = await repo.createDebateTurn({
       sessionId, turnIndex: state.currentTurnIndex, speakerType: 'persona',
-      personaId: persona.id, speakerName: persona.name, speakerRole: persona.stakeholderRole,
+      personaId: persona.id, speakerName: persona.name, speakerRole: persona.specificRole,
       content: turnResult.value.content ?? '',
       chapterIndex, speechMode: turnResult.value.speechMode,
       fromQueue: fromQueue || undefined,
@@ -398,7 +399,7 @@ export class DebateOrchestratorService {
     state.history.push({
       id: savedTurn.id, sessionId, turnIndex: state.currentTurnIndex,
       speakerType: 'persona', personaId: persona.id,
-      speakerName: persona.name, speakerRole: persona.stakeholderRole,
+      speakerName: persona.name, speakerRole: persona.specificRole,
       content: turnResult.value.content, createdAt: new Date().toISOString(),
       chapterIndex, fromQueue: fromQueue || undefined,
       addressedPersonaId,

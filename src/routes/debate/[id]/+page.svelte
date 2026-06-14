@@ -30,7 +30,7 @@
 		const personas: PersonaSummaryForViewer[] = personasStore.personas.map((p) => ({
 			id: p.id,
 			name: p.name,
-			role: p.stakeholderRole,
+			role: p.specificRole ?? p.stakeholderRole,
 			beliefHistory: (p.beliefs ?? []).map((b) => ({
 				version: b.version,
 				content: b.content,
@@ -60,7 +60,7 @@
 					turnIndex: t.turnIndex,
 					speakerType: t.speakerType,
 					speakerName: persona?.name ?? 'ファシリテーター',
-					speakerRole: persona?.stakeholderRole ?? '',
+					speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
 					content: t.content,
 					beliefChangesTriggered,
 					chapterIndex: t.chapterIndex
@@ -75,7 +75,7 @@
 				return {
 					personaId: c.personaId,
 					personaName: persona?.name ?? '',
-					personaRole: persona?.stakeholderRole ?? '',
+					personaRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
 					content: c.content
 				};
 			});

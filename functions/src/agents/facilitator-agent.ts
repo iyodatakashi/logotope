@@ -145,7 +145,7 @@ const CLOSING_TOOL: Anthropic.Tool = {
 
 function formatPersonas(personas: PersonaAttributes[]): string {
   return personas
-    .map(p => `- ID: ${p.id}, 名前: ${p.name}, 立場: ${p.stakeholderRole}, 主張方向: ${p.stanceDirection}`)
+    .map(p => `- ID: ${p.id}, 名前: ${p.name}, 立場: ${p.specificRole || p.stakeholderRole}, 主張方向: ${p.stanceDirection}`)
     .join('\n');
 }
 

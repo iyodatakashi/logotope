@@ -17,6 +17,7 @@ export interface PersonaProfile {
   id: string;
   topicId: string;
   stakeholderRole: string;
+  specificRole?: string;
   name: string;
   nationality?: string;
   age: number;

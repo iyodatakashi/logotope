@@ -56,7 +56,7 @@ function currentDateString(): string {
 
 export function buildSpeechStyleGuide(persona: PersonaAttributes & { gender?: string }): string {
 	const expLevel = estimateExperienceLevel(persona.age, persona.occupation);
-	const authLevel = estimateAuthorityLevel(persona.stakeholderRole);
+	const authLevel = estimateAuthorityLevel(persona.specificRole || persona.stakeholderRole);
 	const lines: string[] = [];
 
 	lines.push(
@@ -125,12 +125,13 @@ ${styleGuide}
 - **発言の根拠は自分が直接経験したこと・職場で見聞きしたことに限る**。立場を守るために遠い政策事例・海外制度・統計数値を持ち出すのは不自然。自分の生活や仕事の実感として話すこと。
 - **相手が知らない前提で情報を扱う**。専門的な事例・固有名詞を出す際は「〜って知ってますか？」「〜という話があって」など、相手の理解を確認しながら導入すること。いきなり知っていて当然のように使わない。
 - **会話は共通理解を積み上げるもの**。最初から高い専門知識ベースを前提にせず、相手の反応を見ながら話を展開すること。
+- **知らないこと・わからないことは、知ったかぶりせず素直に「わからない」「詳しくは知らない」と言う**。自分の知識や経験を超える専門的・制度的な話題で、もっともらしく語るのは不自然。わからないなりの素朴な疑問や生活実感を返せばよく、無理に意見を作る必要はない。
 
 ## ペルソナプロフィール
 - 名前: ${persona.name}
 - 年齢: ${persona.age}歳
 - 職業: ${persona.occupation}
-- 立場: ${persona.stakeholderRole}
+- 立場: ${persona.specificRole || persona.stakeholderRole}
 - 背景: ${persona.background}
 - 関心事: ${persona.interests}
 

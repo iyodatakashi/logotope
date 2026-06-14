@@ -26,7 +26,7 @@ const STAKEHOLDER_TOOLS = {
               mainInterests: { type: 'array' as const, items: { type: 'string' as const }, description: '主な関心事' },
               stanceDirection: { type: 'string' as const, enum: ['pro', 'against', 'conditional', 'neutral'] },
               minorityLevel: { type: 'string' as const, enum: ['high', 'medium', 'low'], description: 'マイノリティ度' },
-              engagementLevel: { type: 'string' as const, enum: ['high', 'medium', 'low'], description: 'テーマへの関与度・当事者性の強さ。high=直接の当事者で強い関心を持ち明確な持論がある層、medium=一定の関心はあるが専門的ではない層、low=テーマに薄く影響を受ける／普段ほとんど意識していない一般層・傍観者' },
+              engagementLevel: { type: 'string' as const, enum: ['high', 'medium', 'low'], description: 'テーマに対する専門・意識レベル。high=専門知識を持ち深く考えている当事者・専門家、medium=一定の知識と関心を持つ等身大の市民、low=専門知識は乏しいが生活者目線で自分なりの意見を持つ一般層（無関心・傍観者ではなく、議論には参加する立場）' },
             },
             required: ['role', 'reason', 'mainInterests', 'stanceDirection', 'minorityLevel', 'engagementLevel'],
           },
@@ -49,7 +49,7 @@ export const generateStakeholders = onCall({ timeoutSeconds: 300, secrets: SECRE
       maxTokens: MAX_TOKENS.STAKEHOLDER,
       tools: STAKEHOLDER_TOOLS,
       toolChoice: { type: 'tool', toolName: 'submit_stakeholders' } as const,
-      messages: [{ role: 'user', content: `以下のテーマについて、直接・間接の全利害関係者を網羅的に分析してください。\n\nテーマ: ${title}\n\nマイノリティや少数意見の立場も忘れずに含めてください。\n\nまた、世の中は専門家や強い当事者ばかりではありません。関与度（engagementLevel）には必ず幅を持たせ、テーマに薄く影響を受けるだけの一般層・普段ほとんど意識していない傍観者など、関与度 low の立場も2件以上含めてください。当事者性の強い層（high）だけに偏らせないこと。` }],
+      messages: [{ role: 'user', content: `以下のテーマについて、直接・間接の全利害関係者を網羅的に分析してください。\n\nテーマ: ${title}\n\nマイノリティや少数意見の立場も忘れずに含めてください。\n\nまた、世の中は専門家や強い当事者ばかりではありません。専門・意識レベル（engagementLevel）には必ず幅を持たせ、専門知識は乏しいが生活者目線でテーマに向き合う一般層も含めてください。ただし各レベルの人数は固定せず、そのテーマで実際に当事者がどう分布しているかに応じて自然な構成にすること（レベルごとに均等な人数にしたり、機械的に何件ずつと割り当てたりしない）。low はあくまで議論に参加する立場であり、テーマに無関心な傍観者ではありません。専門家・当事者層（high）だけに偏らせないこと。` }],
     });
   } catch (err) {
     throw new HttpsError('internal', err instanceof Error ? err.message : String(err));
