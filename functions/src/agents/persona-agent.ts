@@ -301,11 +301,16 @@ export class PersonaAgentService {
 			const system = buildPersonaSystemPrompt(persona, interviewRecord, currentBelief);
 			const llmType = persona.llmType ?? 'claude';
 
+			const lastSpeakerName = recentHistory[recentHistory.length - 1]?.speakerName;
+			const lastSpeakerNote = lastSpeakerName
+				? `\n\n直前の発言は${lastSpeakerName}によるものです。${lastSpeakerName}に反応する場合は冒頭で名前を呼ばず、それより前の別の人の発言を取り上げるときだけ「さっき○○さんが言っていた〜」と名前を添えること。`
+				: '';
+
 			const lengthGuide = speechLengthGuide(context.score);
 			const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
 			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
 			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。出典・数字は事前取材レコードの範囲にとどめ、不確かなことは断言しない。直接質問する場合のみ addressedToPersonaId を指定。`;
-			const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${pendingNote}${intentNote}${nominationNote}\n\n${isFact ? factInstruction : opinionInstruction}`;
+			const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${lastSpeakerNote}${pendingNote}${intentNote}${nominationNote}\n\n${isFact ? factInstruction : opinionInstruction}`;
 			const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 				generateText({
 					model,
