@@ -117,7 +117,7 @@ function buildPersonaSystemPrompt(
 ## 発言スタイルの厳守事項
 ${styleGuide}
 - **このペルソナは討論のプロではない**。自分の意見を「正しいと証明する」必要はなく、ただ感じていること・思っていることを話しているだけ。意識が高すぎる発言・勝ちにいく発言は不自然。
-- 発言は **reaction（相槌・短い反応）** か **full（意見・論点をしっかり述べる）** のどちらかで行う。会話の流れに応じて自然に使い分けること。演説禁止。
+- 発言は **reaction（直前の発言への反応。相槌に加え、なぜそう感じたかを一言添える）** か **full（意見・論点をしっかり述べる）** のどちらかで行う。会話の流れに応じて自然に使い分けること。演説禁止。
 - 必ず直前の誰かの発言を受けて、その内容に具体的に反応する。
 - **発言の冒頭で相手の名前を呼んではいけない**（「○○さんのおっしゃる通り」「○○さんが言ったように」などは禁止）。
 - 自分の信念・立場に基づいて反論・疑問を呈することを恐れない。相手の意見に同意しない場合は、はっきりそう言う。同意一辺倒は不自然。
@@ -145,7 +145,7 @@ ${currentBelief}`;
 
 const REACTION_TURN_TOOLS = {
 	submit_reaction: {
-		description: '直前の発言への短いリアクションを提出する（10〜25文字）',
+		description: '直前の発言への短いリアクションを提出する（20〜60文字）',
 		parameters: jsonSchema({
 			type: 'object' as const,
 			additionalProperties: false as const,
@@ -153,7 +153,7 @@ const REACTION_TURN_TOOLS = {
 				content: {
 					type: 'string' as const,
 					description:
-						'10〜25文字の短いリアクション。「なるほど」「それは違う」「確かに、でも〜」「そうかな？」など。同じ語尾・フレーズの繰り返しは禁止。'
+						'20〜60文字程度のリアクション。相槌だけで終わらせず、なぜそう感じたかを一言添える（「なるほど、それは確かにありそうですね」「いや、それはちょっと違うと思うな」「確かに。でも現場だと逆のことも多いんですよ」など）。新しい論点までは展開せず、直前の発言への反応にとどめる。同じ語尾・フレーズの繰り返しは禁止。'
 				}
 			},
 			required: ['content']
@@ -218,7 +218,7 @@ const ASSESS_ENGAGEMENT_TOOLS = {
 					enum: ['full', 'reaction', 'none'],
 					description: `発言形式（score とは独立して選択する）。
 
-reaction（直前の発言への短い反応。新論点は出さない）:
+reaction（直前の発言への反応。一言理由を添えてよいが、新論点は出さない）:
   score 1: パス（反応しない）
   score 2: 反応したい（軽い相槌・同意）
   score 3: 強く反応したい（明確な肯定・否定を一言で伝えたい）
@@ -237,7 +237,7 @@ none: score 1 のときのみ選択する`
 				intentSummary: {
 					type: 'string' as const,
 					description:
-						'mode が reaction の場合は25文字以内、full の場合は80文字以内で「今伝えたいこと」を要約する。mode が none の場合は省略する。'
+						'mode が reaction の場合は40文字以内、full の場合は80文字以内で「今伝えたいこと」を要約する。mode が none の場合は省略する。'
 				}
 			},
 			required: ['score', 'mode']
@@ -297,7 +297,7 @@ export class PersonaAgentService {
 			const llmType = persona.llmType ?? 'claude';
 
 			if (isReaction) {
-				const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${pendingNote}${intentNote}\n\n${persona.name}として発言してください。10〜25文字の短いリアクションのみ。冒頭で相手の名前を呼ぶことは禁止。`;
+				const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${pendingNote}${intentNote}\n\n${persona.name}として発言してください。20〜60文字程度のリアクションのみ。相槌で終わらせず、なぜそう感じたかを一言添える。新しい論点までは展開しない。冒頭で相手の名前を呼ぶことは禁止。`;
 				const callReaction = (model: ReturnType<typeof getPersonaModel>) =>
 					generateText({
 						model,
