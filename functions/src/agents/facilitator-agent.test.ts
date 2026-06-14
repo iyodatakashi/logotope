@@ -160,15 +160,15 @@ describe('FacilitatorAgentService', () => {
       if (!result.ok) return;
       expect(result.value.shouldIntervene).toBe(false);
       expect(result.value.content).toBeUndefined();
-      expect(result.value.type).toBeUndefined();
+      expect(result.value.targetPersonaId).toBeUndefined();
     });
 
-    it('when shouldIntervene=true with invite, returns type and content', async () => {
+    it('when shouldIntervene=true, returns content and targetPersonaId', async () => {
       mockCreate.mockResolvedValue({
         content: [{
           type: 'tool_use',
           name: 'evaluate_intervention',
-          input: { shouldIntervene: true, type: 'invite', content: '山田さん、研究者の観点からいかがですか？', targetPersonaId: 'p3' },
+          input: { shouldIntervene: true, content: '山田さん、研究者の観点からいかがですか？', targetPersonaId: 'p3' },
         }],
       });
 
@@ -177,26 +177,8 @@ describe('FacilitatorAgentService', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value.shouldIntervene).toBe(true);
-      expect(result.value.type).toBe('invite');
       expect(result.value.content).toBeTruthy();
       expect(result.value.targetPersonaId).toBe('p3');
-    });
-
-    it('when shouldIntervene=true with topic_shift, type is valid', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{
-          type: 'tool_use',
-          name: 'evaluate_intervention',
-          input: { shouldIntervene: true, type: 'topic_shift', content: '経済的な側面からも考えてみましょう。' },
-        }],
-      });
-
-      const result = await service.evaluateIntervention(testHistory, testPersonas);
-
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      const validTypes = ['topic_shift', 'invite'];
-      expect(validTypes).toContain(result.value.type);
     });
 
     it('returns error result when Claude API fails', async () => {
@@ -327,8 +309,8 @@ describe('FacilitatorAgentService', () => {
     });
   });
 
-  describe('evaluateIntervention - task 1.3: close 廃止（介入契約3値化）', () => {
-    it('ツールスキーマの type enum が topic_shift / invite のみで close を含まない', async () => {
+  describe('evaluateIntervention - 介入は常に論点提示＋指名に一本化', () => {
+    it('ツールスキーマに type 分岐がなく targetPersonaId を持つ', async () => {
       mockCreate.mockResolvedValue({
         content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
       });
@@ -336,8 +318,9 @@ describe('FacilitatorAgentService', () => {
       await service.evaluateIntervention(testHistory, testPersonas);
 
       const tools = mockCreate.mock.calls[0][0].tools;
-      const typeEnum: string[] = tools[0].input_schema.properties.type.enum;
-      expect(typeEnum).toEqual(['topic_shift', 'invite']);
+      const properties = tools[0].input_schema.properties;
+      expect(properties.type).toBeUndefined();
+      expect(properties.targetPersonaId).toBeDefined();
     });
 
     it('ツールスキーマで targetPersonaId が content より先に定義される（指名先を決めてから発言を書く生成順）', async () => {

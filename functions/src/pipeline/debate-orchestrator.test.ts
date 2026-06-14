@@ -366,7 +366,7 @@ describe('DebateOrchestratorService', () => {
       const mockPersonaAgent = makeMockPersonaAgent();
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn()
-          .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, type: 'invite', content: '鈴木さんはいかがですか？', targetPersonaId: 'p2' } })
+          .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, content: '鈴木さんはいかがですか？', targetPersonaId: 'p2' } })
           .mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
       });
       const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
@@ -389,7 +389,7 @@ describe('DebateOrchestratorService', () => {
       const mockPersonaAgent = makeMockPersonaAgent();
       const mockFacilitator = makeMockFacilitator({
         evaluateIntervention: vi.fn()
-          .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, type: 'invite', content: '鈴木花子さんはいかがですか？' } })
+          .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, content: '鈴木花子さんはいかがですか？' } })
           .mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
       });
       const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);

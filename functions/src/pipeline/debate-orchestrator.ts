@@ -275,29 +275,31 @@ export class DebateOrchestratorService {
 
     const chapterHistory = state.history.filter(t => t.turnIndex >= chapter.startTurnIndex);
 
-    // 意欲評価と介入評価は相互依存がないため並列実行する
-    const [assessments, interventionResult] = await Promise.all([
-      Promise.all(
-        assessTargets.map(async (p): Promise<SpeakerAssessment> => {
-          const result = await this.personaAgent.assessEngagement(
-            p,
-            state.currentBeliefs.get(p.id)?.content ?? '',
-            interviewRecords.get(p.id) ?? '',
-            state.history
-          );
-          // 評価失敗は最低意欲（score 1）として継続する
-          return {
-            personaId: p.id,
-            score: result.ok ? result.value.score : 1,
-            mode: result.ok ? result.value.mode : 'none',
-            intentSummary: result.ok ? result.value.intentSummary : undefined,
-          };
-        })
-      ),
-      evaluateIntervention
-        ? this.facilitator.evaluateIntervention(chapterHistory, personas, state.speakCount, chapter)
-        : Promise.resolve(undefined),
-    ]);
+    // 介入判定が意欲スコアに依存するため、先に意欲評価を確定させてから介入評価を行う
+    const assessments = await Promise.all(
+      assessTargets.map(async (p): Promise<SpeakerAssessment> => {
+        const result = await this.personaAgent.assessEngagement(
+          p,
+          state.currentBeliefs.get(p.id)?.content ?? '',
+          interviewRecords.get(p.id) ?? '',
+          state.history
+        );
+        // 評価失敗は最低意欲（score 1）として継続する
+        return {
+          personaId: p.id,
+          score: result.ok ? result.value.score : 1,
+          mode: result.ok ? result.value.mode : 'none',
+          intentSummary: result.ok ? result.value.intentSummary : undefined,
+        };
+      })
+    );
+
+    // 発言意欲の高い人（score >= 4）が残っている間は介入せず議論を続けさせる
+    const hasHighEngagement = assessments.some(a => a.score >= 4);
+
+    const interventionResult = evaluateIntervention
+      ? await this.facilitator.evaluateIntervention(chapterHistory, personas, state.speakCount, chapter, hasHighEngagement)
+      : undefined;
 
     // 活性シグナルをターンごとに必ず記録する
     state.engagementSignals.push(toEngagementSignal(assessments));

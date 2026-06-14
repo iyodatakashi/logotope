@@ -74,7 +74,6 @@ export interface FacilitatorOpeningResult {
 export interface FacilitatorIntervention {
   shouldIntervene: boolean;
   content?: string;
-  type?: 'topic_shift' | 'invite';
   targetPersonaId?: string;
 }
 

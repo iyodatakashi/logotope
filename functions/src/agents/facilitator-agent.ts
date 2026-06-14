@@ -49,14 +49,9 @@ const INTERVENTION_TOOL: Anthropic.Tool = {
     type: 'object' as const,
     properties: {
       shouldIntervene: { type: 'boolean', description: '介入が必要かどうか' },
-      type: {
-        type: 'string',
-        enum: ['topic_shift', 'invite'],
-        description: '介入タイプ。shouldIntervene=trueの場合のみ指定',
-      },
       targetPersonaId: {
         type: 'string',
-        description: '問いかけを向ける参加者のID。参加者リストに記載されたIDをそのまま指定する（名前ではなくID）。inviteの場合は必須。topic_shiftでも特定の参加者に問いを向ける場合は指定する。先にここで指名先を確定させてから content を書くこと',
+        description: '次の論点を振る参加者のID。参加者リストに記載されたIDをそのまま指定する（名前ではなくID）。介入する場合は必須。先にここで指名先を確定させてから content を書くこと',
       },
       content: {
         type: 'string',
@@ -196,13 +191,14 @@ export class FacilitatorAgentService {
     history: DebateTurn[],
     personas: PersonaAttributes[],
     speakCount: Map<string, number> = new Map(),
-    currentChapter?: DebateChapter
+    currentChapter?: DebateChapter,
+    hasHighEngagement: boolean = false
   ): Promise<Result<FacilitatorIntervention, PipelineError>> {
     try {
       const speakCountInfo = personas
         .map(p => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
         .join(', ');
-      const speakCountNote = `\n\n累計発言数: ${speakCountInfo}\ninviteの場合、発言数が少なく現在の論点との関連性が高い人を優先して選ぶこと。`;
+      const engagementNote = `\n\n累計発言数: ${speakCountInfo}\nこの章で発言意欲の高い参加者の有無: ${hasHighEngagement ? 'いる' : 'いない（＝基準Bに該当）'}`;
       const chapterContext = currentChapter
         ? `\n\n【この章のミッション】「${currentChapter.title}」\nフォーカス問い: ${currentChapter.focusQuestion}\n司会の役割: この章の間、会話が常にこのフォーカス問いに関連するよう誘導する。`
         : '';
@@ -215,7 +211,7 @@ export class FacilitatorAgentService {
         tool_choice: { type: 'tool', name: 'evaluate_intervention' },
         messages: [{
           role: 'user',
-          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${speakCountNote}\n\n介入基準（優先順）：\n1. 会話がこの章のフォーカス問いから外れている → topic_shift（フォーカス問いに引き戻す具体的な問いかけ）\n2. 同じ論点を繰り返している → topic_shift（フォーカス問いの別の角度から問いかけ）\n3. 発言していない参加者がいる → invite（その人にフォーカス問いに関連した問いを向ける）\n4. フォーカスに沿って活発に議論中 → shouldIntervene=false（介入不要）\n\n章をいつ終えるかはあなたの判断対象外です。議論が深まったと感じても介入せず shouldIntervene=false を返してください。\n\n介入する場合の手順：\n(1) まず誰に問いを向けるかを決め、targetPersonaId に参加者リストのIDを設定する（inviteでは必須）\n(2) 次に content を書く。targetPersonaId の参加者に名前で呼びかけ、「○○さん、〜についてはどうですか？」のように、この章のフォーカス問いに関連した具体的な問いかけにする`,
+          content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${engagementNote}\n\n介入するのは次のどちらかに当てはまる場合だけです：\nA. 会話がこの章のフォーカス問いから逸脱している（別の話題に流れている）\nB. この章で発言意欲の高い参加者がいなくなった（＝今の論点での議論が出尽くし、落ち着いた）\n\nA・Bのどちらにも当てはまらない（フォーカス問いに沿って活発に議論が続いている）場合は、たとえまだ発言していない参加者がいても介入せず shouldIntervene=false を返してください。活発な議論を止めないこと。\n\n章をいつ終えるかはあなたの判断対象外です。議論が深まったと感じても、それだけでは介入せず shouldIntervene=false を返してください。\n\n介入する場合は、必ず新しい論点へ切り替えて特定の参加者に振ること。手順：\n(1) この章のフォーカス問いに沿って「次に話すべき論点」を決める。\n    - B（落ち着いた）の場合: まだ十分に議論されていない新しい論点に切り替える\n    - A（逸脱）の場合: フォーカス問いに引き戻す論点を示す\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。選ぶ基準: 第一にその新しい論点との関連性が高い人。関連性が同程度なら発言数の少ない人を優先する。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。`,
         }],
       });
 
@@ -228,14 +224,12 @@ export class FacilitatorAgentService {
 
       const raw = toolBlock.input as {
         shouldIntervene: boolean;
-        type?: 'topic_shift' | 'invite';
         content?: string;
         targetPersonaId?: string;
       };
 
       const intervention: FacilitatorIntervention = { shouldIntervene: raw.shouldIntervene };
       if (raw.shouldIntervene) {
-        intervention.type = raw.type;
         intervention.content = raw.content;
         intervention.targetPersonaId = raw.targetPersonaId;
       }
