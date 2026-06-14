@@ -54,12 +54,12 @@ export interface DebateSession {
 export interface EngagementEntry {
   personaId: string;
   score: number;
-  mode: 'opinion' | 'fact' | 'reaction' | 'none';
+  mode: 'opinion' | 'fact' | 'none';
 }
 
 export interface EngagementHistoryEntry {
   score: number;
-  mode: 'opinion' | 'fact' | 'reaction' | 'none';
+  mode: 'opinion' | 'fact' | 'none';
   intentSummary?: string;
 }
 
@@ -79,7 +79,7 @@ export interface SaveEngagementsParams {
   assessments: Array<{
     personaId: string;
     score: number;
-    mode: 'opinion' | 'fact' | 'reaction' | 'none';
+    mode: 'opinion' | 'fact' | 'none';
     intentSummary?: string;
   }>;
 }
@@ -95,7 +95,7 @@ export interface DebateTurn {
   content: string;
   createdAt: string;
   chapterIndex?: number;
-  speechMode?: 'reaction' | 'opinion' | 'fact';
+  speechMode?: 'opinion' | 'fact';
   fromQueue?: boolean;
   addressedPersonaId?: string;
   engagements?: EngagementEntry[];
@@ -142,7 +142,7 @@ export interface CreateDebateTurnParams {
   speakerRole?: string;
   content: string;
   chapterIndex?: number;
-  speechMode?: 'reaction' | 'opinion' | 'fact';
+  speechMode?: 'opinion' | 'fact';
   fromQueue?: boolean;
   addressedPersonaId?: string;
 }

@@ -19,7 +19,7 @@ export type TurnDoc = {
 	content: string;
 	createdAt: Timestamp;
 	chapterIndex?: number;
-	speechMode?: 'reaction' | 'opinion' | 'fact';
+	speechMode?: 'opinion' | 'fact';
 	fromQueue?: boolean;
 	addressedPersonaId?: string;
 };

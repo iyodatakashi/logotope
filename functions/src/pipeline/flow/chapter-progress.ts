@@ -4,7 +4,7 @@ const TURN_CAP_RATIO = 1.5;
 
 /** 評価結果から活性シグナルを算出する。評価スキップターン（評価なし）は常に 1 とする */
 export const toEngagementSignal = (
-  assessments: ReadonlyArray<{ score: number; mode: 'opinion' | 'fact' | 'reaction' | 'none' }>
+  assessments: ReadonlyArray<{ score: number; mode: 'opinion' | 'fact' | 'none' }>
 ): 0 | 1 => {
   if (assessments.length === 0) return 1;
   const hasActiveEngagement = assessments.some(

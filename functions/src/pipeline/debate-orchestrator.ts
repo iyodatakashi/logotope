@@ -377,6 +377,7 @@ export class DebateOrchestratorService {
       chapterHistory,
       chapter,
       mode: decision.mode,
+      score: decision.score,
       intentSummary: decision.intentSummary,
       pendingTrigger,
       nominatedByFacilitator: decision.source === 'nomination',

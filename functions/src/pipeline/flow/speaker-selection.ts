@@ -24,7 +24,7 @@ export const resolveDirectAddress = (input: DirectAddressInput): SpeakerDecision
 export interface SpeakerAssessment {
   personaId: string;
   score: number;
-  mode: 'opinion' | 'fact' | 'reaction' | 'none';
+  mode: 'opinion' | 'fact' | 'none';
   intentSummary?: string;
 }
 
@@ -38,10 +38,10 @@ export interface SpeakerSelectionInput {
 }
 
 const toDeclaredMode = (
-  mode: 'opinion' | 'fact' | 'reaction' | 'none'
-): 'opinion' | 'fact' | 'reaction' | undefined => (mode === 'none' ? undefined : mode);
+  mode: 'opinion' | 'fact' | 'none'
+): 'opinion' | 'fact' | undefined => (mode === 'none' ? undefined : mode);
 
-/** 評価後: invite 指名 > 緊急リアクション > キュー > スコアの順で決定する */
+/** 評価後: invite 指名 > キュー > スコアの順で決定する */
 export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision => {
   const { interventionTargetId, pendingIntents, silenceMap, lastSpeakerId, personaIds } = input;
   const assessments = input.assessments.filter(a => personaIds.includes(a.personaId));
@@ -56,20 +56,7 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
     return { personaId: interventionTargetId, source: 'nomination', mode: 'opinion' };
   }
 
-  // (3) 緊急リアクション（reaction かつ score >= 4、直前話者を除く）
-  const urgentReactions = assessments
-    .filter(a => a.mode === 'reaction' && a.score >= 4 && a.personaId !== lastSpeakerId)
-    .sort(byScoreThenSilence);
-  if (urgentReactions.length > 0) {
-    return {
-      personaId: urgentReactions[0].personaId,
-      source: 'urgent_reaction',
-      mode: 'reaction',
-      intentSummary: urgentReactions[0].intentSummary,
-    };
-  }
-
-  // (4) 全員 score <= 3 → キューの最古エントリ保持者（直前話者を除く、opinion 固定）
+  // (3) 全員 score <= 3 → キューの最古エントリ保持者（直前話者を除く、opinion 固定）
   const topScore = Math.max(0, ...assessments.map(a => a.score));
   if (topScore <= 3) {
     let oldestIdx = Infinity;
@@ -110,6 +97,7 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
     personaId: selected.personaId,
     source: 'score',
     mode: toDeclaredMode(selected.mode),
+    score: selected.score,
     intentSummary: selected.intentSummary,
   };
 };

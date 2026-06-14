@@ -56,7 +56,7 @@ describe('decideNextSpeaker', () => {
   const baseInput = (overrides: Partial<SpeakerSelectionInput> = {}): SpeakerSelectionInput => ({
     assessments: [
       { personaId: 'p2', score: 3, mode: 'opinion' },
-      { personaId: 'p3', score: 2, mode: 'reaction' },
+      { personaId: 'p3', score: 2, mode: 'opinion' },
     ],
     pendingIntents: new Map<string, PendingIntent[]>(),
     silenceMap: new Map([['p1', 0], ['p2', 1], ['p3', 2]]),
@@ -66,10 +66,10 @@ describe('decideNextSpeaker', () => {
   });
 
   describe('優先順位 (1): invite 指名', () => {
-    it('invite 指名は緊急リアクションより優先される（mode full 固定）', () => {
+    it('invite 指名は score 最高のペルソナより優先される（mode opinion 固定）', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [
-          { personaId: 'p2', score: 5, mode: 'reaction' },
+          { personaId: 'p2', score: 5, mode: 'opinion' },
           { personaId: 'p3', score: 2, mode: 'opinion' },
         ],
         interventionTargetId: 'p3',
@@ -88,46 +88,8 @@ describe('decideNextSpeaker', () => {
     });
   });
 
-  describe('優先順位 (3): 緊急リアクション', () => {
-    it('mode=reaction かつ score>=4 のペルソナが即時選択される', () => {
-      const decision = decideNextSpeaker(baseInput({
-        assessments: [
-          { personaId: 'p2', score: 4, mode: 'reaction' },
-          { personaId: 'p3', score: 5, mode: 'opinion', intentSummary: '反論したい' },
-        ],
-      }));
-      expect(decision.personaId).toBe('p2');
-      expect(decision.source).toBe('urgent_reaction');
-      expect(decision.mode).toBe('reaction');
-    });
-
-    it('緊急リアクションが複数いる場合はスコア降順・同点は沈黙の長い方を優先する', () => {
-      const decision = decideNextSpeaker(baseInput({
-        assessments: [
-          { personaId: 'p2', score: 4, mode: 'reaction' },
-          { personaId: 'p3', score: 4, mode: 'reaction' },
-        ],
-        silenceMap: new Map([['p2', 1], ['p3', 5]]),
-      }));
-      expect(decision.personaId).toBe('p3');
-    });
-
-    it('直前話者は緊急リアクションの対象外（他の緊急リアクションが優先される）', () => {
-      const decision = decideNextSpeaker(baseInput({
-        assessments: [
-          { personaId: 'p1', score: 5, mode: 'reaction' },
-          { personaId: 'p2', score: 4, mode: 'reaction' },
-          { personaId: 'p3', score: 3, mode: 'opinion' },
-        ],
-        lastSpeakerId: 'p1',
-      }));
-      expect(decision.personaId).toBe('p2');
-      expect(decision.source).toBe('urgent_reaction');
-    });
-  });
-
-  describe('優先順位 (4): 意図キュー（全員 score <= 3）', () => {
-    it('全員の score が3以下のとき、キューの最古エントリ保持者を full モードで選ぶ', () => {
+  describe('優先順位 (3): 意図キュー（全員 score <= 3）', () => {
+    it('全員の score が3以下のとき、キューの最古エントリ保持者を opinion モードで選ぶ', () => {
       const pendingIntents = new Map<string, PendingIntent[]>([
         ['p2', [{ triggerTurnIndex: 5, intentSummary: 'p2の意図' }]],
         ['p3', [{ triggerTurnIndex: 2, intentSummary: 'p3の意図' }]],
@@ -170,13 +132,14 @@ describe('decideNextSpeaker', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [
           { personaId: 'p2', score: 4, mode: 'opinion', intentSummary: '意見がある' },
-          { personaId: 'p3', score: 2, mode: 'reaction' },
+          { personaId: 'p3', score: 2, mode: 'opinion' },
         ],
       }));
       expect(decision).toEqual({
         personaId: 'p2',
         source: 'score',
         mode: 'opinion',
+        score: 4,
         intentSummary: '意見がある',
       });
     });

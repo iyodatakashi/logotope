@@ -117,8 +117,7 @@ function buildPersonaSystemPrompt(
 ## 発言スタイルの厳守事項
 ${styleGuide}
 - **このペルソナは討論のプロではない**。自分の意見を「正しいと証明する」必要はなく、ただ感じていること・思っていることを話しているだけ。意識が高すぎる発言・勝ちにいく発言は不自然。
-- 発言は **reaction（直前の発言への反応。相槌に加え、なぜそう感じたかを一言添える）** か **full（意見・論点をしっかり述べる）** のどちらかで行う。会話の流れに応じて自然に使い分けること。演説禁止。
-- 必ず直前の誰かの発言を受けて、その内容に具体的に反応する。
+- 発言は、自分の考え・意見を述べる／知っている事実・データを紹介する／直前の発言に短く反応する、のいずれかの形で行う。会話の流れに応じて自然に使い分けること。演説禁止。
 - **発言の冒頭で相手の名前を呼んではいけない**（「○○さんのおっしゃる通り」「○○さんが言ったように」などは禁止）。
 - 自分の信念・立場に基づいて反論・疑問を呈することを恐れない。相手の意見に同意しない場合は、はっきりそう言う。同意一辺倒は不自然。
 - **信念ドキュメントは内面の一貫性を保つための参照資料であり、発言で直接述べるものではない**。立場・価値観は、相手の発言の具体的な内容への反応として自然に滲み出すこと。「私の立場は〜」「私は〜と考えており」のような宣言的な表明は避ける。
@@ -145,25 +144,23 @@ ${interviewRecord}
 ${currentBelief}`;
 }
 
-const REACTION_TURN_TOOLS = {
-	submit_reaction: {
-		description: '直前の発言への短いリアクションを提出する（20〜60文字）',
-		parameters: jsonSchema({
-			type: 'object' as const,
-			additionalProperties: false as const,
-			properties: {
-				content: {
-					type: 'string' as const,
-					description:
-						'20〜60文字程度のリアクション。相槌だけで終わらせず、なぜそう感じたかを一言添える（「なるほど、それは確かにありそうですね」「いや、それはちょっと違うと思うな」「確かに。でも現場だと逆のことも多いんですよ」など）。新しい論点までは展開せず、直前の発言への反応にとどめる。同じ語尾・フレーズの繰り返しは禁止。'
-				}
-			},
-			required: ['content']
-		})
+// 発言意欲スコア（2〜5）に応じた発言の長さ。score 不明時（指名・キュー）は中くらい。
+function speechLengthGuide(score?: number): string {
+	switch (score) {
+		case 2:
+			return '20〜50文字程度（一言）';
+		case 3:
+			return '50〜100文字程度';
+		case 4:
+			return '100〜160文字程度';
+		case 5:
+			return '150〜220文字程度';
+		default:
+			return '80〜140文字程度';
 	}
-} as const;
+}
 
-function buildFullTurnTools(styleGuide: string) {
+function buildFullTurnTools(styleGuide: string, lengthGuide: string) {
 	const styleSummary = styleGuide.split('\n')[0];
 	return {
 		submit_turn: {
@@ -174,7 +171,7 @@ function buildFullTurnTools(styleGuide: string) {
 				properties: {
 					content: {
 						type: 'string' as const,
-						description: `思ったこと・感じたことを自分の言葉で話す（最大200文字）。語り口: ${styleSummary}`
+						description: `発言内容を自分の言葉で話す（${lengthGuide}）。語り口: ${styleSummary}`
 					},
 					beliefChangeType: {
 						type: 'string' as const,
@@ -217,22 +214,13 @@ const ASSESS_ENGAGEMENT_TOOLS = {
 				},
 				mode: {
 					type: 'string' as const,
-					enum: ['opinion', 'fact', 'reaction', 'none'],
-					description: `発言形式（score とは独立して選択する）。
+					enum: ['fact', 'opinion', 'none'],
+					description: `発言形式（score とは独立して選択する）。score の強さがそのまま発言の長さになる（低い＝一言、高い＝しっかり）。
 
-reaction（直前の発言への反応。一言理由を添えてよいが、新論点は出さない）:
-  score 1: 反応しなくてよい（直前の発言に関心がない）
-  score 2: 軽く反応したい（相槌・同意を返したい）
-  score 3: 反応したい（自分の賛否を一言伝えたい）
-  score 4: ぜひ反応したい（はっきり肯定・否定を伝えたい）
-  score 5: すぐ反応したい（黙っていられず即座に返したい）
-
-opinion（自分の考え・意見・実感を展開する発言）:
-  score 1: 発言しなくてよい（この話題に付け加えることがない）
-  score 2: 発言してもよい（自分の立場・感じ方を簡潔に述べたい）
-  score 3: 発言したい（自分の体験・実感・専門のいずれかから言いたいことがある）
-  score 4: ぜひ発言したい（自分の生活・仕事・専門に関わる話題で、思うことを伝えたい）
-  score 5: すぐ発言したい（自分の立場・生活・専門に強く関わり、黙っていられない）
+【mode の選び方】
+1. 相手に紹介すべき事実・データ・調査結果を持っているなら → fact
+2. それ以外で、自分の考え・意見・実感を述べたいなら → opinion
+まず「紹介できる事実があるか」を先に確認し、あれば fact を優先する。付け加える中身がなく発言する必要がなければ score 1（none）。
 
 fact（リサーチ・事実・データに基づく説明をする発言。皆が知っている前提にせず、相手に紹介・共有するトーンで話す）:
   score 1: 説明しなくてよい（共有すべき事実・データがない）
@@ -241,12 +229,19 @@ fact（リサーチ・事実・データに基づく説明をする発言。皆�
   score 4: ぜひ説明したい（議論に欠けている重要な事実・データを共有したい）
   score 5: すぐ説明したい（誤解や事実誤認があり、正確な情報を今すぐ伝えたい）
 
+opinion（自分の考え・意見・実感を展開する発言）:
+  score 1: 発言しなくてよい（この話題に付け加えることがない）
+  score 2: 発言してもよい（自分の立場・感じ方を一言だけ述べたい）
+  score 3: 発言したい（自分の体験・実感・専門のいずれかから言いたいことがある）
+  score 4: ぜひ発言したい（自分の生活・仕事・専門に関わる話題で、思うことを伝えたい）
+  score 5: すぐ発言したい（自分の立場・生活・専門に強く関わり、黙っていられない）
+
 none: score 1 のときのみ選択する`
 				},
 				intentSummary: {
 					type: 'string' as const,
 					description:
-						'mode が reaction の場合は40文字以内、opinion / fact の場合は80文字以内で「今伝えたいこと」を要約する。mode が none の場合は省略する。'
+						'opinion / fact の場合は80文字以内で「今伝えたいこと」を要約する。mode が none の場合は省略する。'
 				}
 			},
 			required: ['score', 'mode']
@@ -275,7 +270,8 @@ const POST_DEBATE_COMMENT_TOOLS = {
 export interface TurnGenerationContext {
 	chapterHistory: ReadonlyArray<DebateTurn>;
 	chapter: DebateChapter;
-	mode?: 'opinion' | 'fact' | 'reaction';
+	mode?: 'opinion' | 'fact';
+	score?: number;
 	intentSummary?: string;
 	pendingTrigger?: { speakerName: string; content: string };
 	nominatedByFacilitator: boolean;
@@ -301,51 +297,14 @@ export class PersonaAgentService {
 				? '\n\n【指名】ファシリテーターが直接あなたに話を向けました。この問いかけに対して、自分の立場・生活・仕事の経験から具体的に答えてください。'
 				: '';
 
-			const isReaction = context.mode === 'reaction';
 			const isFact = context.mode === 'fact';
 			const system = buildPersonaSystemPrompt(persona, interviewRecord, currentBelief);
 			const llmType = persona.llmType ?? 'claude';
 
-			if (isReaction) {
-				const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${pendingNote}${intentNote}\n\n${persona.name}として発言してください。20〜60文字程度のリアクションのみ。相槌で終わらせず、なぜそう感じたかを一言添える。新しい論点までは展開しない。冒頭で相手の名前を呼ぶことは禁止。`;
-				const callReaction = (model: ReturnType<typeof getPersonaModel>) =>
-					generateText({
-						model,
-						maxTokens: MAX_TOKENS.PERSONA_ENGAGEMENT,
-						system,
-						tools: REACTION_TURN_TOOLS,
-						toolChoice: { type: 'tool', toolName: 'submit_reaction' } as const,
-						messages: [{ role: 'user', content: userContent }],
-						providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } }
-					});
-				let reactionResult;
-				try {
-					reactionResult = await callReaction(getPersonaModel(llmType));
-					if (!reactionResult.toolCalls[0] && llmType !== 'claude') {
-						console.error(`[llm] no tool call: ${llmType}, falling back to claude`);
-						reactionResult = await callReaction(getPersonaModel('claude'));
-					}
-				} catch (err) {
-					console.error(`[llm] provider error: ${llmType} - ${err}`);
-					reactionResult = await callReaction(getPersonaModel('claude'));
-				}
-				const reactionCall = reactionResult.toolCalls[0];
-				if (!reactionCall) {
-					return {
-						ok: false,
-						error: { code: 'AI_API_ERROR', message: 'No tool call in response', retryable: true }
-					};
-				}
-				const { content: reactionContent } = reactionCall.args as { content: string };
-				return {
-					ok: true,
-					value: { content: reactionContent, speechMode: 'reaction', beliefChange: null }
-				};
-			}
-
-			const fullTools = buildFullTurnTools(styleGuide);
-			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（最大200文字）。冒頭で相手の名前を呼ぶことは禁止。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
-			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（最大200文字）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。出典・数字は事前取材レコードの範囲にとどめ、不確かなことは断言しない。冒頭で相手の名前を呼ぶことは禁止。直接質問する場合のみ addressedToPersonaId を指定。`;
+			const lengthGuide = speechLengthGuide(context.score);
+			const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
+			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。冒頭で相手の名前を呼ぶことは禁止。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
+			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。出典・数字は事前取材レコードの範囲にとどめ、不確かなことは断言しない。冒頭で相手の名前を呼ぶことは禁止。直接質問する場合のみ addressedToPersonaId を指定。`;
 			const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${pendingNote}${intentNote}${nominationNote}\n\n${isFact ? factInstruction : opinionInstruction}`;
 			const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 				generateText({
@@ -435,7 +394,7 @@ export class PersonaAgentService {
 				messages: [
 					{
 						role: 'user',
-						content: `現在の会話:\n\n${formatHistory(recentHistory)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。score は mode ごとのスコアラベルに素直に当てはめて選んでください。発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まり、専門知識の有無では決めません。専門知識がなくても、素朴な疑問・違和感・生活実感があれば高く評価してよく、逆に専門家でもその話題に関心がなければ低くてかまいません。すでに同じ論点・主張を述べており、新たに付け加えるべきことがない場合: opinion なら score 1（発言しなくてよい）、reaction なら score 2（軽く反応したい）を選択してください。`
+						content: `現在の会話:\n\n${formatHistory(recentHistory)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。score は mode ごとのスコアラベルに素直に当てはめて選んでください。score の強さがそのまま発言の長さになります（低い＝一言、高い＝しっかり）。mode は、まず相手に紹介すべき事実・データを持っているなら fact、そうでなく自分の考え・意見・実感を述べたいなら opinion を選びます。発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まり、専門知識の有無では決めません。専門知識がなくても、素朴な疑問・違和感・生活実感があれば高く評価してよく、逆に専門家でもその話題に関心がなければ低くてかまいません。すでに同じ論点・主張を述べており、新たに付け加えるべきことがなければ score 1（発言しなくてよい）を選んでください。`
 					}
 				]
 			});
@@ -447,12 +406,11 @@ export class PersonaAgentService {
 
 			const { score, mode, intentSummary } = toolCall.args as {
 				score: number;
-				mode: 'opinion' | 'fact' | 'reaction' | 'none';
+				mode: 'opinion' | 'fact' | 'none';
 				intentSummary?: string;
 			};
 			const clampedScore = Math.max(1, Math.min(5, Math.round(score)));
-			const resolvedMode: 'opinion' | 'fact' | 'reaction' | 'none' =
-				clampedScore === 1 ? 'none' : mode;
+			const resolvedMode: 'opinion' | 'fact' | 'none' = clampedScore === 1 ? 'none' : mode;
 			const resolvedIntentSummary = resolvedMode === 'none' ? undefined : intentSummary;
 			return {
 				ok: true,

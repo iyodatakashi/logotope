@@ -355,12 +355,12 @@ describe('saveEngagements', () => {
       sessionId: 'topic-1',
       turnIndex: 5,
       assessments: [
-        { personaId: 'p1', score: 3, mode: 'reaction', intentSummary: '短く同意' },
+        { personaId: 'p1', score: 3, mode: 'opinion', intentSummary: '短く同意' },
       ],
     });
     expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0/engagements/p1');
     expect(mockDocRef.set).toHaveBeenCalledWith(
-      { history: { '5': { score: 3, mode: 'reaction', intentSummary: '短く同意' } } },
+      { history: { '5': { score: 3, mode: 'opinion', intentSummary: '短く同意' } } },
       { mergeFields: ['history.5'] }
     );
   });
@@ -370,7 +370,7 @@ describe('saveEngagements', () => {
       sessionId: 'topic-1',
       turnIndex: 3,
       assessments: [
-        { personaId: 'p1', score: 2, mode: 'reaction' },
+        { personaId: 'p1', score: 2, mode: 'opinion' },
         { personaId: 'p2', score: 5, mode: 'opinion', intentSummary: '言いたい' },
       ],
     });

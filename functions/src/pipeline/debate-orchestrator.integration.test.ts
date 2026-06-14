@@ -84,7 +84,7 @@ function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof
   } as unknown as FacilitatorAgentService;
 }
 
-type AssessImpl = (personaId: string) => { score: number; mode: 'opinion' | 'reaction' | 'none'; intentSummary?: string };
+type AssessImpl = (personaId: string) => { score: number; mode: 'opinion' | 'fact' | 'none'; intentSummary?: string };
 
 function makeMockPersonaAgent(
   assessImplRef: { current: AssessImpl },
@@ -103,7 +103,7 @@ function makeMockPersonaAgent(
   } as unknown as PersonaAgentService;
 }
 
-const lowEngagement: AssessImpl = () => ({ score: 2, mode: 'reaction' });
+const lowEngagement: AssessImpl = () => ({ score: 2, mode: 'opinion' });
 
 const shortOptions: OrchestratorOptions = {
   turnsPerChapter: 1, // 章上限 = ceil(1.5) = 2 ターン
@@ -119,8 +119,8 @@ describe('executeChapterTask 統合テスト（Firestore エミュレータ）',
     // 第1章: p3 が緊急リアクションで選ばれ、p2（score 5・未選択）がキューに入る
     const assessImplRef = { current: ((personaId: string) => {
       if (personaId === 'p2') return { score: 5, mode: 'opinion' as const, intentSummary: '持ち越したい意見' };
-      if (personaId === 'p3') return { score: 5, mode: 'reaction' as const };
-      return { score: 2, mode: 'reaction' as const };
+      if (personaId === 'p3') return { score: 5, mode: 'opinion' as const };
+      return { score: 2, mode: 'opinion' as const };
     }) as AssessImpl };
     const personaAgent = makeMockPersonaAgent(assessImplRef);
     const chapter0 = new DebateOrchestratorService(makeMockFacilitator(), personaAgent, shortOptions);

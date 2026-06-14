@@ -10,17 +10,13 @@ describe('toEngagementSignal', () => {
   });
 
   it('score 5 はモードに関わらず活性（1）', () => {
-    expect(toEngagementSignal([{ score: 5, mode: 'reaction' }])).toBe(1);
+    expect(toEngagementSignal([{ score: 5, mode: 'none' }])).toBe(1);
   });
 
-  it('reaction score 4 は新論点を出さないため非活性（0）', () => {
-    expect(toEngagementSignal([{ score: 4, mode: 'reaction' }])).toBe(0);
-  });
-
-  it('full でも score 3 以下なら非活性（0）', () => {
+  it('opinion/fact でも score 3 以下なら非活性（0）', () => {
     expect(toEngagementSignal([
       { score: 3, mode: 'opinion' },
-      { score: 2, mode: 'reaction' },
+      { score: 2, mode: 'fact' },
     ])).toBe(0);
   });
 

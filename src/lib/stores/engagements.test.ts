@@ -16,13 +16,13 @@ describe('buildEngagementsMap', () => {
         personaId: 'p1',
         history: {
           '1': { score: 4, mode: 'opinion' as const },
-          '2': { score: 2, mode: 'reaction' as const },
+          '2': { score: 2, mode: 'opinion' as const },
         },
       },
       {
         personaId: 'p2',
         history: {
-          '1': { score: 3, mode: 'reaction' as const },
+          '1': { score: 3, mode: 'opinion' as const },
         },
       },
     ];

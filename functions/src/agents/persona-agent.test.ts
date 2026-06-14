@@ -163,7 +163,7 @@ describe('task 1.2: スタイルガイドのシステムプロンプトとツー
     const system: string = mockGenerateText.mock.calls[0][0].system;
     const sectionStart = system.indexOf('## 発言スタイルの厳守事項');
     const styleIdx = system.indexOf('口語', sectionStart);
-    const constraintIdx = system.indexOf('reaction', sectionStart);
+    const constraintIdx = system.indexOf('討論のプロではない', sectionStart);
 
     expect(styleIdx).toBeGreaterThan(sectionStart);
     expect(styleIdx).toBeLessThan(constraintIdx);
@@ -378,22 +378,7 @@ describe('PersonaAgentService', () => {
       expect(msg).toContain('費用負担が大きくなることが非常に心配です');
     });
 
-    it('mode: reaction のとき submit_reaction ツールで短いリアクションを生成する', async () => {
-      mockGenerateText.mockResolvedValue({
-        toolCalls: [{ toolName: 'submit_reaction', args: { content: 'なるほど、確かに。' } }],
-        text: '', toolResults: [], finishReason: 'tool-calls', usage: { promptTokens: 0, completionTokens: 0 },
-      });
-
-      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ mode: 'reaction' }));
-
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value.speechMode).toBe('reaction');
-      const call = mockGenerateText.mock.calls[0][0];
-      expect(call.toolChoice).toEqual({ type: 'tool', toolName: 'submit_reaction' });
-    });
-
-    it('mode: full のとき submit_turn ツールで意見発言を生成する', async () => {
+    it('mode: opinion のとき submit_turn ツールで意見発言を生成する', async () => {
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ mode: 'opinion' }));
 
       expect(result.ok).toBe(true);
@@ -453,7 +438,7 @@ describe('PersonaAgentService', () => {
     });
 
     it('intentSummary フィールドが返り値に含まれる', async () => {
-      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'reaction', intentSummary: 'そうですね' }));
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'opinion', intentSummary: 'そうですね' }));
       const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -477,7 +462,7 @@ describe('PersonaAgentService', () => {
     });
 
     it('ASSESS_ENGAGEMENT_TOOL スキーマに mode フィールドが含まれる', async () => {
-      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'reaction' }));
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'opinion' }));
       await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       const tools = mockGenerateText.mock.calls[0][0].tools as Record<string, { parameters: { properties: Record<string, unknown> } }>;
       expect(tools['assess_engagement'].parameters.properties).toHaveProperty('mode');
@@ -491,7 +476,7 @@ describe('PersonaAgentService', () => {
     });
 
     it('assessEngagement が persona.llmType に応じた getPersonaModel を呼び出す（task 5.2）', async () => {
-      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'reaction' }));
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'opinion' }));
       const personaWithLlmType = { ...testPersona, llmType: 'gemini' as const };
       await service.assessEngagement(personaWithLlmType, testCurrentBelief, testInterviewRecord, testHistory);
       expect(mockGetPersonaModel).toHaveBeenCalledWith('gemini');

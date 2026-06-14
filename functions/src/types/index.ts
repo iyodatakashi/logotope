@@ -37,7 +37,7 @@ export interface BeliefChangeEvent {
 
 export interface AgentTurnResult {
   content: string;
-  speechMode?: 'reaction' | 'opinion' | 'fact';
+  speechMode?: 'opinion' | 'fact';
   beliefChange: BeliefChangeEvent | null;
   addressedToPersonaId?: string;
 }
@@ -76,7 +76,7 @@ export interface FacilitatorIntervention {
 
 export interface EngagementAssessment {
   score: number;
-  mode: 'opinion' | 'fact' | 'reaction' | 'none';
+  mode: 'opinion' | 'fact' | 'none';
   intentSummary?: string;
 }
 
@@ -85,12 +85,13 @@ export interface PendingIntent {
   intentSummary: string;
 }
 
-export type SpeakerSource = 'nomination' | 'direct_address' | 'urgent_reaction' | 'queue' | 'score';
+export type SpeakerSource = 'nomination' | 'direct_address' | 'queue' | 'score';
 
 export interface SpeakerDecision {
   personaId: string;
   source: SpeakerSource;
-  mode?: 'opinion' | 'fact' | 'reaction';
+  mode?: 'opinion' | 'fact';
+  score?: number;
   intentSummary?: string;
 }
 
