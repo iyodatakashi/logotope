@@ -22,7 +22,6 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 							occupation: '外科医',
 							background: '',
 							interests: '',
-							stanceDirection: 'pro',
 							approved: true,
 							beliefs: [{ version: 0, content: '初期信念の内容', createdAt: {} }],
 							interview: { interviewRecord: '取材記録の内容', status: 'completed', completedAt: {} },

@@ -155,7 +155,7 @@ describe('createPersonaProfile', () => {
   it('creates persona doc with nanoid ID, stores id field, returns {id}', async () => {
     const params = {
       topicId: 'topic-1', stakeholderRole: 'market', name: '田中', age: 30,
-      occupation: 'eng', background: 'bg', interests: 'tech', stanceDirection: 'pro', sortOrder: 0,
+      occupation: 'eng', background: 'bg', interests: 'tech', sortOrder: 0,
     };
     const result = await repo.createPersonaProfile(params);
     expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/personas/mock-id');
@@ -371,7 +371,7 @@ describe('saveEngagements', () => {
       turnIndex: 3,
       assessments: [
         { personaId: 'p1', score: 2, mode: 'reaction' },
-        { personaId: 'p2', score: 5, mode: 'full', intentSummary: '言いたい' },
+        { personaId: 'p2', score: 5, mode: 'opinion', intentSummary: '言いたい' },
       ],
     });
     expect(mockDocRef.set).toHaveBeenCalledTimes(2);
@@ -382,7 +382,7 @@ describe('saveEngagements', () => {
       sessionId: 'topic-1',
       turnIndex: 5,
       assessments: [
-        { personaId: 'p1', score: 5, mode: 'full', intentSummary: '反論したい' },
+        { personaId: 'p1', score: 5, mode: 'opinion', intentSummary: '反論したい' },
       ],
     });
     for (const call of mockDocRef.set.mock.calls) {

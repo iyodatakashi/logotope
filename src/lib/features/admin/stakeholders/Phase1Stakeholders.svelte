@@ -58,7 +58,6 @@
 					<li class="item">
 						<div class="item-header">
 							<strong>{s.role}</strong>
-							<span class="badge">{s.stanceDirection}</span>
 							<span
 								class="engagement"
 								style:color={engagementStyle(s.engagementLevel).color}
@@ -92,12 +91,6 @@
 		align-items: center;
 		gap: 8px;
 		flex-wrap: wrap;
-	}
-	.badge {
-		padding: 2px 8px;
-		background: #e3f2fd;
-		border-radius: 12px;
-		font-size: 0.875rem;
 	}
 	.engagement {
 		padding: 2px 8px;

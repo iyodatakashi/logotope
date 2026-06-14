@@ -12,7 +12,7 @@ describe('resolveDirectAddress', () => {
       consecutiveDirectExchanges: 3,
       personaIds,
     });
-    expect(decision).toEqual({ personaId: 'p2', source: 'nomination', mode: 'full' });
+    expect(decision).toEqual({ personaId: 'p2', source: 'nomination', mode: 'opinion' });
   });
 
   it('ペルソナ間の直接質問は上限未満なら確定する', () => {
@@ -55,7 +55,7 @@ describe('resolveDirectAddress', () => {
 describe('decideNextSpeaker', () => {
   const baseInput = (overrides: Partial<SpeakerSelectionInput> = {}): SpeakerSelectionInput => ({
     assessments: [
-      { personaId: 'p2', score: 3, mode: 'full' },
+      { personaId: 'p2', score: 3, mode: 'opinion' },
       { personaId: 'p3', score: 2, mode: 'reaction' },
     ],
     pendingIntents: new Map<string, PendingIntent[]>(),
@@ -70,13 +70,13 @@ describe('decideNextSpeaker', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [
           { personaId: 'p2', score: 5, mode: 'reaction' },
-          { personaId: 'p3', score: 2, mode: 'full' },
+          { personaId: 'p3', score: 2, mode: 'opinion' },
         ],
         interventionTargetId: 'p3',
       }));
       expect(decision.personaId).toBe('p3');
       expect(decision.source).toBe('nomination');
-      expect(decision.mode).toBe('full');
+      expect(decision.mode).toBe('opinion');
     });
 
     it('invite 指名のIDが不正な場合は無視してスコア選択にフォールバックする', () => {
@@ -93,7 +93,7 @@ describe('decideNextSpeaker', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [
           { personaId: 'p2', score: 4, mode: 'reaction' },
-          { personaId: 'p3', score: 5, mode: 'full', intentSummary: '反論したい' },
+          { personaId: 'p3', score: 5, mode: 'opinion', intentSummary: '反論したい' },
         ],
       }));
       expect(decision.personaId).toBe('p2');
@@ -117,7 +117,7 @@ describe('decideNextSpeaker', () => {
         assessments: [
           { personaId: 'p1', score: 5, mode: 'reaction' },
           { personaId: 'p2', score: 4, mode: 'reaction' },
-          { personaId: 'p3', score: 3, mode: 'full' },
+          { personaId: 'p3', score: 3, mode: 'opinion' },
         ],
         lastSpeakerId: 'p1',
       }));
@@ -135,7 +135,7 @@ describe('decideNextSpeaker', () => {
       const decision = decideNextSpeaker(baseInput({ pendingIntents }));
       expect(decision.personaId).toBe('p3'); // triggerTurnIndex 2 が最古
       expect(decision.source).toBe('queue');
-      expect(decision.mode).toBe('full');
+      expect(decision.mode).toBe('opinion');
       expect(decision.intentSummary).toBe('p3の意図');
     });
 
@@ -145,7 +145,7 @@ describe('decideNextSpeaker', () => {
       ]);
       const decision = decideNextSpeaker(baseInput({
         assessments: [
-          { personaId: 'p2', score: 4, mode: 'full' },
+          { personaId: 'p2', score: 4, mode: 'opinion' },
           { personaId: 'p3', score: 2, mode: 'none' },
         ],
         pendingIntents,
@@ -169,14 +169,14 @@ describe('decideNextSpeaker', () => {
     it('score 降順で選択し、申告モードと intentSummary を引き継ぐ', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [
-          { personaId: 'p2', score: 4, mode: 'full', intentSummary: '意見がある' },
+          { personaId: 'p2', score: 4, mode: 'opinion', intentSummary: '意見がある' },
           { personaId: 'p3', score: 2, mode: 'reaction' },
         ],
       }));
       expect(decision).toEqual({
         personaId: 'p2',
         source: 'score',
-        mode: 'full',
+        mode: 'opinion',
         intentSummary: '意見がある',
       });
     });
@@ -184,8 +184,8 @@ describe('decideNextSpeaker', () => {
     it('同点時は沈黙ターン数の長い方を優先する', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [
-          { personaId: 'p2', score: 3, mode: 'full' },
-          { personaId: 'p3', score: 3, mode: 'full' },
+          { personaId: 'p2', score: 3, mode: 'opinion' },
+          { personaId: 'p3', score: 3, mode: 'opinion' },
         ],
         silenceMap: new Map([['p2', 1], ['p3', 4]]),
       }));
@@ -203,8 +203,8 @@ describe('decideNextSpeaker', () => {
     it('直前話者は連続して選択しない（他に候補がいる場合）', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [
-          { personaId: 'p1', score: 4, mode: 'full' },
-          { personaId: 'p2', score: 4, mode: 'full' },
+          { personaId: 'p1', score: 4, mode: 'opinion' },
+          { personaId: 'p2', score: 4, mode: 'opinion' },
         ],
         lastSpeakerId: 'p1',
         silenceMap: new Map([['p1', 0], ['p2', 0]]),
@@ -215,8 +215,8 @@ describe('decideNextSpeaker', () => {
     it('直前話者が唯一の最高スコア保持者の場合は連続発言を許容する', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [
-          { personaId: 'p1', score: 5, mode: 'full' },
-          { personaId: 'p2', score: 3, mode: 'full' },
+          { personaId: 'p1', score: 5, mode: 'opinion' },
+          { personaId: 'p2', score: 3, mode: 'opinion' },
         ],
         lastSpeakerId: 'p1',
       }));
@@ -237,8 +237,8 @@ describe('decideNextSpeaker', () => {
     it('戻り値の personaId は必ず personaIds に含まれる', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [
-          { personaId: 'ghost', score: 5, mode: 'full' },
-          { personaId: 'p2', score: 2, mode: 'full' },
+          { personaId: 'ghost', score: 5, mode: 'opinion' },
+          { personaId: 'p2', score: 2, mode: 'opinion' },
         ],
       }));
       expect(personaIds).toContain(decision.personaId);

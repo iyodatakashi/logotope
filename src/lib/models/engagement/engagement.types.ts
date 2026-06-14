@@ -1,12 +1,12 @@
 export type EngagementEntry = {
 	personaId: string;
 	score: number;
-	mode: 'full' | 'reaction' | 'none';
+	mode: 'opinion' | 'fact' | 'reaction' | 'none';
 };
 
 export type EngagementHistoryEntry = {
 	score: number;
-	mode: 'full' | 'reaction' | 'none';
+	mode: 'opinion' | 'fact' | 'reaction' | 'none';
 	intentSummary?: string;
 };
 

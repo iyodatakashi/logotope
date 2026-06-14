@@ -30,7 +30,6 @@ const buildPersonaTools = (count: number) => ({
               occupation: { type: 'string' as const, description: '実生活上の職業（具体的な職種・役職を1つ。例: 中学校の理科教師、物流会社の経理担当）。テーマに職業として関わる人物では specificRole と一致するが、ファンや利用者などテーマへの関わりが職業由来でない人物では、テーマと無関係な職業（例: 市役所職員）でよい。カテゴリ名や職種の列挙は禁止' },
               background: { type: 'string' as const, description: '人物像を具体的に描写（200字以内）。家族構成・居住地・年収・趣味・生活習慣など、この人物をリアルに想像できる情報を盛り込む。例：「妻と小学生の子ども2人の4人家族。埼玉県の一戸建てに住む。年収600万円台。週末はサッカーコーチとして地域の少年団に関わる。」' },
               interests: { type: 'string' as const, description: 'テーマに対して持つ具体的な関心事・懸念・期待（200字以内）。抽象的な価値観ではなく、この人物の生活・立場から生まれる具体的な視点を記述する' },
-              stanceDirection: { type: 'string' as const, description: 'テーマへのスタンス方向' },
               engagementLevel: { type: 'string' as const, enum: ['high', 'medium', 'low'], description: '対応するステークホルダーの専門・意識レベルをそのまま引き継ぐ。high=専門知識を持ち明確な持論がある当事者・専門家、medium=一定の知識と関心を持つ等身大の市民、low=専門知識は乏しいが生活者目線で自分なりの意見を持つ一般層' },
               llmType: {
                 type: 'string' as const,
@@ -38,7 +37,7 @@ const buildPersonaTools = (count: number) => ({
                 description: 'gemini=最新情報重視・SNS世論に敏感(記者・アナリスト・活動家等)、claude=学術・論理重視(研究者・教授等)、gpt=バランス型(一般市民・会社員等)',
               },
             },
-            required: ['stakeholderRole', 'specificRole', 'name', 'nationality', 'age', 'occupation', 'background', 'interests', 'stanceDirection', 'engagementLevel', 'llmType'],
+            required: ['stakeholderRole', 'specificRole', 'name', 'nationality', 'age', 'occupation', 'background', 'interests', 'engagementLevel', 'llmType'],
           },
         },
       },
@@ -56,7 +55,7 @@ export const generatePersonas = onCall({ timeoutSeconds: 300, secrets: SECRETS }
   const engagementLabel = (level?: string) =>
     level === 'high' ? '専門・意識:高' : level === 'low' ? '専門・意識:低' : '専門・意識:中';
   const rolesDesc = stakeholders
-    .map((s, i) => `${i + 1}. ${s.role}（${s.stanceDirection} / ${engagementLabel(s.engagementLevel)}）`)
+    .map((s, i) => `${i + 1}. ${s.role}（${engagementLabel(s.engagementLevel)}）`)
     .join('\n');
 
   let result;

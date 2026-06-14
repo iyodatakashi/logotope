@@ -53,7 +53,6 @@ async function seedTopic(topicId: string, personas: SeedPersona[] = defaultPerso
       occupation: '会社員',
       background: '背景',
       interests: '関心事',
-      stanceDirection: 'pro',
       approved: true,
       sortOrder: i,
       beliefs: [{ id: `belief-${p.id}`, version: 0, content: '# 初期信念', createdAt: Timestamp.now() }],
@@ -85,14 +84,14 @@ function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof
   } as unknown as FacilitatorAgentService;
 }
 
-type AssessImpl = (personaId: string) => { score: number; mode: 'full' | 'reaction' | 'none'; intentSummary?: string };
+type AssessImpl = (personaId: string) => { score: number; mode: 'opinion' | 'reaction' | 'none'; intentSummary?: string };
 
 function makeMockPersonaAgent(
   assessImplRef: { current: AssessImpl },
   overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}
 ) {
   return {
-    generateTurn: vi.fn().mockResolvedValue({ ok: true, value: { content: '私の意見です。', speechMode: 'full', beliefChange: null, addressedToPersonaId: undefined } }),
+    generateTurn: vi.fn().mockResolvedValue({ ok: true, value: { content: '私の意見です。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: undefined } }),
     assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => ({
       ok: true,
       value: assessImplRef.current(persona.id),
@@ -119,7 +118,7 @@ describe('executeChapterTask 統合テスト（Firestore エミュレータ）',
 
     // 第1章: p3 が緊急リアクションで選ばれ、p2（score 5・未選択）がキューに入る
     const assessImplRef = { current: ((personaId: string) => {
-      if (personaId === 'p2') return { score: 5, mode: 'full' as const, intentSummary: '持ち越したい意見' };
+      if (personaId === 'p2') return { score: 5, mode: 'opinion' as const, intentSummary: '持ち越したい意見' };
       if (personaId === 'p3') return { score: 5, mode: 'reaction' as const };
       return { score: 2, mode: 'reaction' as const };
     }) as AssessImpl };
@@ -168,7 +167,7 @@ describe('executeChapterTask 統合テスト（Firestore エミュレータ）',
       generateTurn: vi.fn().mockImplementation(async (persona: { id: string }) => ({
         ok: true,
         value: {
-          content: '質問です。', speechMode: 'full', beliefChange: null,
+          content: '質問です。', speechMode: 'opinion', beliefChange: null,
           addressedToPersonaId: persona.id === 'p1' ? 'p2' : 'p1',
         },
       })),
@@ -194,7 +193,7 @@ describe('executeChapterTask 統合テスト（Firestore エミュレータ）',
       generateTurn: vi.fn().mockImplementation(async () => {
         // 最初のペルソナ発言の生成中にトピックが停止される
         await db().doc(`topics/${topicId}`).update({ phaseStatus: 'stopped' });
-        return { ok: true, value: { content: '発言。', speechMode: 'full', beliefChange: null, addressedToPersonaId: undefined } };
+        return { ok: true, value: { content: '発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: undefined } };
       }),
     });
     const mockFacilitator = makeMockFacilitator();
@@ -237,7 +236,7 @@ describe('executeChapterTask 統合テスト（Firestore エミュレータ）',
     const assessImplRef = { current: lowEngagement };
     const failingAgent = makeMockPersonaAgent(assessImplRef, {
       generateTurn: vi.fn()
-        .mockResolvedValueOnce({ ok: true, value: { content: '1人目の発言。', speechMode: 'full', beliefChange: null, addressedToPersonaId: undefined } })
+        .mockResolvedValueOnce({ ok: true, value: { content: '1人目の発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: undefined } })
         .mockResolvedValue({ ok: false, error: { code: 'AI_API_ERROR', message: 'generation failed', retryable: true } }),
     });
     const firstFacilitator = makeMockFacilitator();

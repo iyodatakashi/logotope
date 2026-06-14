@@ -4,7 +4,6 @@ export type PhaseStatus = 'not_started' | 'running' | 'generated' | 'stopped';
 
 export type MinorityLevel = 'high' | 'medium' | 'low';
 export type EngagementLevel = 'high' | 'medium' | 'low';
-export type StanceDirection = 'pro' | 'against' | 'conditional' | 'neutral';
 export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
 export type SpeakerType = 'facilitator' | 'persona';
 
@@ -12,7 +11,6 @@ export interface Stakeholder {
   role: string;
   reason: string;
   mainInterests: string[];
-  stanceDirection: StanceDirection;
   minorityLevel: MinorityLevel;
   engagementLevel?: EngagementLevel;
 }
@@ -27,7 +25,6 @@ export interface PersonaAttributes {
   occupation: string;
   background: string;
   interests: string;
-  stanceDirection: string;
   engagementLevel?: EngagementLevel;
   llmType?: LLMType;
 }
@@ -40,7 +37,7 @@ export interface BeliefChangeEvent {
 
 export interface AgentTurnResult {
   content: string;
-  speechMode?: 'reaction' | 'full';
+  speechMode?: 'reaction' | 'opinion' | 'fact';
   beliefChange: BeliefChangeEvent | null;
   addressedToPersonaId?: string;
 }
@@ -79,7 +76,7 @@ export interface FacilitatorIntervention {
 
 export interface EngagementAssessment {
   score: number;
-  mode: 'full' | 'reaction' | 'none';
+  mode: 'opinion' | 'fact' | 'reaction' | 'none';
   intentSummary?: string;
 }
 
@@ -93,7 +90,7 @@ export type SpeakerSource = 'nomination' | 'direct_address' | 'urgent_reaction' 
 export interface SpeakerDecision {
   personaId: string;
   source: SpeakerSource;
-  mode?: 'full' | 'reaction';
+  mode?: 'opinion' | 'fact' | 'reaction';
   intentSummary?: string;
 }
 

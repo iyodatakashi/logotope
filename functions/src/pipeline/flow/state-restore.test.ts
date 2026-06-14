@@ -4,8 +4,8 @@ import type { DebateTurn } from '../../db/repository.js';
 import type { PersonaAttributes, PendingIntent } from '../../types/index.js';
 
 const personas: PersonaAttributes[] = [
-  { id: 'p1', stakeholderRole: '医師', name: '田中太郎', age: 45, occupation: '外科医', background: '', interests: '', stanceDirection: 'pro' },
-  { id: 'p2', stakeholderRole: '患者', name: '鈴木花子', age: 35, occupation: '会社員', background: '', interests: '', stanceDirection: 'against' },
+  { id: 'p1', stakeholderRole: '医師', name: '田中太郎', age: 45, occupation: '外科医', background: '', interests: '' },
+  { id: 'p2', stakeholderRole: '患者', name: '鈴木花子', age: 35, occupation: '会社員', background: '', interests: '' },
 ];
 
 const turn = (turnIndex: number, speakerType: 'facilitator' | 'persona', personaId?: string): DebateTurn => ({

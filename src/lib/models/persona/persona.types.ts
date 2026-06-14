@@ -32,7 +32,6 @@ export type PersonaDoc = {
 	occupation: string;
 	background: string;
 	interests: string;
-	stanceDirection: string;
 	engagementLevel?: EngagementLevel;
 	approved: boolean;
 	sortOrder: number;
@@ -71,7 +70,6 @@ export type PersonaData = {
 	occupation: string;
 	background: string;
 	interests: string;
-	stanceDirection: string;
 	engagementLevel?: EngagementLevel;
 	llmType?: string;
 };

@@ -51,7 +51,6 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 							occupation: '外科医',
 							background: '',
 							interests: '',
-							stanceDirection: 'pro',
 							sortOrder: 0,
 							topicId: 't1'
 						},
@@ -65,7 +64,6 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 							occupation: '会社員',
 							background: '',
 							interests: '',
-							stanceDirection: 'against',
 							sortOrder: 1,
 							topicId: 't1'
 						}
@@ -81,7 +79,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 		get engagementsStore() {
 			return {
 				get engagementsMap() {
-					return new Map([[1, [{ turnIndex: 1, score: 4, mode: 'full', personaId: 'p2' }]]]);
+					return new Map([[1, [{ turnIndex: 1, score: 4, mode: 'opinion', personaId: 'p2' }]]]);
 				},
 				start: vi.fn(),
 				stop: vi.fn()
@@ -106,7 +104,7 @@ describe('Phase5Debate.svelte', () => {
 	it('engagementsストアからエンゲージメントデータを表示する', async () => {
 		render(Phase5Debate);
 
-		// p2 with mode='full', score=4 → displayed as "鈴木花子: full(4)"
+		// p2 with mode='opinion', score=4 → displayed as "鈴木花子: full(4)"
 		await expect.element(page.getByText(/鈴木花子/)).toBeInTheDocument();
 	});
 

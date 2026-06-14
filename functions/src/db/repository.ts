@@ -24,7 +24,6 @@ export interface PersonaProfile {
   occupation: string;
   background: string;
   interests: string;
-  stanceDirection: string;
   llmType?: LLMType;
   approved: boolean;
   sortOrder: number;
@@ -55,12 +54,12 @@ export interface DebateSession {
 export interface EngagementEntry {
   personaId: string;
   score: number;
-  mode: 'full' | 'reaction' | 'none';
+  mode: 'opinion' | 'fact' | 'reaction' | 'none';
 }
 
 export interface EngagementHistoryEntry {
   score: number;
-  mode: 'full' | 'reaction' | 'none';
+  mode: 'opinion' | 'fact' | 'reaction' | 'none';
   intentSummary?: string;
 }
 
@@ -80,7 +79,7 @@ export interface SaveEngagementsParams {
   assessments: Array<{
     personaId: string;
     score: number;
-    mode: 'full' | 'reaction' | 'none';
+    mode: 'opinion' | 'fact' | 'reaction' | 'none';
     intentSummary?: string;
   }>;
 }
@@ -96,7 +95,7 @@ export interface DebateTurn {
   content: string;
   createdAt: string;
   chapterIndex?: number;
-  speechMode?: 'reaction' | 'full';
+  speechMode?: 'reaction' | 'opinion' | 'fact';
   fromQueue?: boolean;
   addressedPersonaId?: string;
   engagements?: EngagementEntry[];
@@ -120,7 +119,6 @@ export interface CreatePersonaProfileParams {
   occupation: string;
   background: string;
   interests: string;
-  stanceDirection: string;
   llmType: LLMType;
   sortOrder: number;
 }
@@ -144,7 +142,7 @@ export interface CreateDebateTurnParams {
   speakerRole?: string;
   content: string;
   chapterIndex?: number;
-  speechMode?: 'reaction' | 'full';
+  speechMode?: 'reaction' | 'opinion' | 'fact';
   fromQueue?: boolean;
   addressedPersonaId?: string;
 }
@@ -223,7 +221,6 @@ export const createPersonaProfile = async (params: CreatePersonaProfileParams): 
     occupation: params.occupation,
     background: params.background,
     interests: params.interests,
-    stanceDirection: params.stanceDirection,
     llmType: params.llmType,
     approved: false,
     sortOrder: params.sortOrder,

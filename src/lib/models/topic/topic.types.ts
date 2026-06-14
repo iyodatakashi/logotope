@@ -22,7 +22,6 @@ export type StakeholderDoc = {
 	role: string;
 	reason: string;
 	mainInterests: string[];
-	stanceDirection: string;
 	minorityLevel: string;
 	engagementLevel?: EngagementLevel;
 };

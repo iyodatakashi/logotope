@@ -28,7 +28,6 @@ const testPersona: PersonaAttributes = {
   occupation: '外科医',
   background: '30年の臨床経験を持つベテラン外科医',
   interests: '医療安全・患者ケアの質向上',
-  stanceDirection: 'pro',
 };
 
 const testInterviewRecord =
@@ -92,7 +91,6 @@ describe('buildSpeechStyleGuide', () => {
     id: 'p1',
     background: '特になし',
     interests: '特になし',
-    stanceDirection: 'neutral' as const,
   };
 
   it('若手ペルソナ: 口語体・疑問形の語り口指針を含む', () => {
@@ -152,11 +150,11 @@ describe('buildSpeechStyleGuide', () => {
 describe('task 1.2: スタイルガイドのシステムプロンプトとツール定義への統合', () => {
   const youngPersona: PersonaAttributes = {
     id: 'y1', stakeholderRole: '一般市民', name: '若者', age: 22, occupation: '大学生',
-    background: '特になし', interests: '特になし', stanceDirection: 'neutral',
+    background: '特になし', interests: '特になし',
   };
   const executivePersona: PersonaAttributes = {
     id: 'e1', stakeholderRole: '経営者', name: '社長', age: 55, occupation: '代表取締役',
-    background: '特になし', interests: '特になし', stanceDirection: 'pro',
+    background: '特になし', interests: '特になし',
   };
 
   it('発言スタイルセクション先頭（発言の長さルールより前）に語り口指針が含まれる', async () => {
@@ -396,11 +394,11 @@ describe('PersonaAgentService', () => {
     });
 
     it('mode: full のとき submit_turn ツールで意見発言を生成する', async () => {
-      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ mode: 'full' }));
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ mode: 'opinion' }));
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.speechMode).toBe('full');
+      expect(result.value.speechMode).toBe('opinion');
       const call = mockGenerateText.mock.calls[0][0];
       expect(call.toolChoice).toEqual({ type: 'tool', toolName: 'submit_turn' });
     });
@@ -447,11 +445,11 @@ describe('PersonaAgentService', () => {
 
   describe('assessEngagement — Task 2.1 スキーマ拡張', () => {
     it('mode フィールドが返り値に含まれる', async () => {
-      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 4, mode: 'full', intentSummary: '医療費問題に反論したい' }));
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 4, mode: 'opinion', intentSummary: '医療費問題に反論したい' }));
       const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.mode).toBe('full');
+      expect(result.value.mode).toBe('opinion');
     });
 
     it('intentSummary フィールドが返り値に含まれる', async () => {
@@ -463,7 +461,7 @@ describe('PersonaAgentService', () => {
     });
 
     it('score === 1 のとき mode が強制的に none になる', async () => {
-      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 1, mode: 'full', intentSummary: '発言したい' }));
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 1, mode: 'opinion', intentSummary: '発言したい' }));
       const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
@@ -486,7 +484,7 @@ describe('PersonaAgentService', () => {
     });
 
     it('ASSESS_ENGAGEMENT_TOOL スキーマに intentSummary フィールドが含まれる', async () => {
-      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'full', intentSummary: '意見あり' }));
+      mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'opinion', intentSummary: '意見あり' }));
       await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       const tools = mockGenerateText.mock.calls[0][0].tools as Record<string, { parameters: { properties: Record<string, unknown> } }>;
       expect(tools['assess_engagement'].parameters.properties).toHaveProperty('intentSummary');

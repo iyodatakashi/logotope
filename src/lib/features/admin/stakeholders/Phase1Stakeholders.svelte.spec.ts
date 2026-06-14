@@ -16,7 +16,6 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 					items: [
 						{
 							role: '外科医師',
-							stanceDirection: 'pro',
 							minorityLevel: 'low',
 							reason: '専門的見地',
 							engagementLevel: 'medium'

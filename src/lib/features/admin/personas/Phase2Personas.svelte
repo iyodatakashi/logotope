@@ -64,7 +64,6 @@
 							{#if p.occupation && p.occupation !== (p.specificRole ?? p.stakeholderRole)}
 								<span class="occupation">{p.occupation}</span>
 							{/if}
-							<span class="stance">{p.stanceDirection}</span>
 							<span
 								class="engagement"
 								style:color={engagementStyle(p.engagementLevel).color}
@@ -121,10 +120,6 @@
 	}
 	.occupation {
 		color: #757575;
-		font-size: 0.875rem;
-	}
-	.stance {
-		color: #555;
 		font-size: 0.875rem;
 	}
 	.engagement {

@@ -4,7 +4,7 @@ import { toEngagementSignal, shouldEndChapterEarly, chapterTurnCap } from './cha
 describe('toEngagementSignal', () => {
   it('full かつ score>=4 のペルソナがいれば活性（1）', () => {
     expect(toEngagementSignal([
-      { score: 4, mode: 'full' },
+      { score: 4, mode: 'opinion' },
       { score: 1, mode: 'none' },
     ])).toBe(1);
   });
@@ -19,7 +19,7 @@ describe('toEngagementSignal', () => {
 
   it('full でも score 3 以下なら非活性（0）', () => {
     expect(toEngagementSignal([
-      { score: 3, mode: 'full' },
+      { score: 3, mode: 'opinion' },
       { score: 2, mode: 'reaction' },
     ])).toBe(0);
   });

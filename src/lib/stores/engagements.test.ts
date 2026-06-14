@@ -15,7 +15,7 @@ describe('buildEngagementsMap', () => {
       {
         personaId: 'p1',
         history: {
-          '1': { score: 4, mode: 'full' as const },
+          '1': { score: 4, mode: 'opinion' as const },
           '2': { score: 2, mode: 'reaction' as const },
         },
       },
@@ -34,7 +34,7 @@ describe('buildEngagementsMap', () => {
 
   it('各エントリにpersonaIdとturnIndexが付与される', () => {
     const docs = [
-      { personaId: 'p99', history: { '5': { score: 3, mode: 'full' as const } } },
+      { personaId: 'p99', history: { '5': { score: 3, mode: 'opinion' as const } } },
     ];
     const result = buildEngagementsMap(docs);
     expect(result.get(5)?.[0].personaId).toBe('p99');
@@ -49,7 +49,7 @@ describe('buildEngagementsMap', () => {
 
   it('同じturnIndexのエントリを蓄積する（上書きしない）', () => {
     const docs = [
-      { personaId: 'p1', history: { '3': { score: 5, mode: 'full' as const } } },
+      { personaId: 'p1', history: { '3': { score: 5, mode: 'opinion' as const } } },
       { personaId: 'p2', history: { '3': { score: 2, mode: 'none' as const } } },
     ];
     const result = buildEngagementsMap(docs);

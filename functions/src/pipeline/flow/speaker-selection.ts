@@ -15,7 +15,7 @@ export const resolveDirectAddress = (input: DirectAddressInput): SpeakerDecision
   if (!personaIds.includes(pendingAddress.personaId)) return null;
 
   if (pendingAddress.byFacilitator) {
-    return { personaId: pendingAddress.personaId, source: 'nomination', mode: 'full' };
+    return { personaId: pendingAddress.personaId, source: 'nomination', mode: 'opinion' };
   }
   if (consecutiveDirectExchanges >= MAX_CONSECUTIVE_DIRECT) return null;
   return { personaId: pendingAddress.personaId, source: 'direct_address' };
@@ -24,7 +24,7 @@ export const resolveDirectAddress = (input: DirectAddressInput): SpeakerDecision
 export interface SpeakerAssessment {
   personaId: string;
   score: number;
-  mode: 'full' | 'reaction' | 'none';
+  mode: 'opinion' | 'fact' | 'reaction' | 'none';
   intentSummary?: string;
 }
 
@@ -37,8 +37,9 @@ export interface SpeakerSelectionInput {
   personaIds: ReadonlyArray<string>;
 }
 
-const toDeclaredMode = (mode: 'full' | 'reaction' | 'none'): 'full' | 'reaction' | undefined =>
-  mode === 'none' ? undefined : mode;
+const toDeclaredMode = (
+  mode: 'opinion' | 'fact' | 'reaction' | 'none'
+): 'opinion' | 'fact' | 'reaction' | undefined => (mode === 'none' ? undefined : mode);
 
 /** 評価後: invite 指名 > 緊急リアクション > キュー > スコアの順で決定する */
 export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision => {
@@ -52,7 +53,7 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
 
   // (1) invite 指名（不正 ID は無視してスコア選択へ）
   if (interventionTargetId && personaIds.includes(interventionTargetId)) {
-    return { personaId: interventionTargetId, source: 'nomination', mode: 'full' };
+    return { personaId: interventionTargetId, source: 'nomination', mode: 'opinion' };
   }
 
   // (3) 緊急リアクション（reaction かつ score >= 4、直前話者を除く）
@@ -68,7 +69,7 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
     };
   }
 
-  // (4) 全員 score <= 3 → キューの最古エントリ保持者（直前話者を除く、full 固定）
+  // (4) 全員 score <= 3 → キューの最古エントリ保持者（直前話者を除く、opinion 固定）
   const topScore = Math.max(0, ...assessments.map(a => a.score));
   if (topScore <= 3) {
     let oldestIdx = Infinity;
@@ -87,7 +88,7 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
       return {
         personaId: oldestPersonaId,
         source: 'queue',
-        mode: 'full',
+        mode: 'opinion',
         intentSummary: items[0]?.intentSummary,
       };
     }

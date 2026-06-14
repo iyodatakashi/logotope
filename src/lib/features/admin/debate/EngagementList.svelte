@@ -44,9 +44,13 @@
 		background: #eee;
 		color: #555;
 	}
-	.engagement[data-mode='full'] {
+	.engagement[data-mode='opinion'] {
 		background: #e3f2fd;
 		color: #1565c0;
+	}
+	.engagement[data-mode='fact'] {
+		background: #e8f5e9;
+		color: #2e7d32;
 	}
 	.engagement[data-mode='reaction'] {
 		background: #f3e5f5;

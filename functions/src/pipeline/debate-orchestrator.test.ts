@@ -35,14 +35,14 @@ import type { PersonaAgentService } from '../agents/persona-agent.js';
 // ---- helpers ----
 
 const testPersonaProfiles = [
-  { id: 'p1', topicId: 't1', stakeholderRole: '医師', name: '田中太郎', age: 45, occupation: '外科医', background: '30年経験', interests: '医療安全', stanceDirection: 'pro', approved: true, sortOrder: 0 },
-  { id: 'p2', topicId: 't1', stakeholderRole: '患者', name: '鈴木花子', age: 35, occupation: '会社員', background: '患者歴10年', interests: '費用負担', stanceDirection: 'against', approved: true, sortOrder: 1 },
+  { id: 'p1', topicId: 't1', stakeholderRole: '医師', name: '田中太郎', age: 45, occupation: '外科医', background: '30年経験', interests: '医療安全', approved: true, sortOrder: 0 },
+  { id: 'p2', topicId: 't1', stakeholderRole: '患者', name: '鈴木花子', age: 35, occupation: '会社員', background: '患者歴10年', interests: '費用負担', approved: true, sortOrder: 1 },
 ];
 
 const p3Profile = {
   id: 'p3', topicId: 't1', stakeholderRole: '研究者', name: '山田次郎',
   age: 50, occupation: '大学教授', background: '経済学専攻', interests: '社会保障',
-  stanceDirection: 'conditional', approved: true, sortOrder: 2,
+  approved: true, sortOrder: 2,
 };
 
 const twoChapters: DebateChapter[] = [
@@ -64,10 +64,10 @@ function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof
 
 function makeMockPersonaAgent(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}) {
   return {
-    generateTurn: vi.fn().mockResolvedValue({ ok: true, value: { content: '私の意見です。', speechMode: 'full', beliefChange: null, addressedToPersonaId: undefined } }),
+    generateTurn: vi.fn().mockResolvedValue({ ok: true, value: { content: '私の意見です。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: undefined } }),
     // デフォルト: p1=score4/full, p2=score2/reaction で交互に発言が進む
     assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => ({
-      ok: true, value: { score: persona.id === 'p1' ? 4 : 2, mode: persona.id === 'p1' ? 'full' : 'reaction', intentSummary: undefined },
+      ok: true, value: { score: persona.id === 'p1' ? 4 : 2, mode: persona.id === 'p1' ? 'opinion' : 'reaction', intentSummary: undefined },
     })),
     generatePostDebateComment: vi.fn().mockImplementation(async (persona: { id: string }) => ({
       ok: true, value: { personaId: persona.id, content: '討論後のコメントです。' },
@@ -206,7 +206,7 @@ describe('DebateOrchestratorService', () => {
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       const queueCall = generateTurnCalls.find(c => (c[0] as { id: string }).id === 'p2');
       expect(queueCall).toBeDefined();
-      expect(queueCall![3]).toMatchObject({ mode: 'full', intentSummary: 'キューの意図' });
+      expect(queueCall![3]).toMatchObject({ mode: 'opinion', intentSummary: 'キューの意図' });
     });
 
     it('トピックの停止ゲートが不成立なら何も生成せず false を返す', async () => {
@@ -255,7 +255,7 @@ describe('DebateOrchestratorService', () => {
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       expect(generateTurnCalls.length).toBeGreaterThanOrEqual(1);
       expect((generateTurnCalls[0][0] as { id: string }).id).toBe('p2');
-      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true, mode: 'full' });
+      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true, mode: 'opinion' });
     });
   });
 
@@ -271,14 +271,14 @@ describe('DebateOrchestratorService', () => {
 
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       expect((generateTurnCalls[0][0] as { id: string }).id).toBe('p2');
-      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true, mode: 'full' });
+      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true, mode: 'opinion' });
     });
 
     it('addressedToPersonaId あり: 指名されたペルソナが次の発言者になる', async () => {
       const mockPersonaAgent = makeMockPersonaAgent({
         generateTurn: vi.fn()
-          .mockResolvedValueOnce({ ok: true, value: { content: 'p1の発言。', speechMode: 'full', beliefChange: null, addressedToPersonaId: 'p2' } })
-          .mockResolvedValue({ ok: true, value: { content: '発言。', speechMode: 'full', beliefChange: null, addressedToPersonaId: undefined } }),
+          .mockResolvedValueOnce({ ok: true, value: { content: 'p1の発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: 'p2' } })
+          .mockResolvedValue({ ok: true, value: { content: '発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: undefined } }),
       });
       const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
 
@@ -306,7 +306,7 @@ describe('DebateOrchestratorService', () => {
         assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) =>
           persona.id === 'p2'
             ? { ok: false, error: { code: 'AI_API_ERROR', message: 'assess failed', retryable: true } }
-            : { ok: true, value: { score: 3, mode: 'full', intentSummary: undefined } }
+            : { ok: true, value: { score: 3, mode: 'opinion', intentSummary: undefined } }
         ),
       });
       const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
@@ -319,7 +319,7 @@ describe('DebateOrchestratorService', () => {
       vi.mocked(repo.getPersonasByTopicId).mockResolvedValue([...testPersonaProfiles, p3Profile]);
       const mockPersonaAgent = makeMockPersonaAgent({
         assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => {
-          if (persona.id === 'p2') return { ok: true, value: { score: 5, mode: 'full', intentSummary: '言いたいこと' } };
+          if (persona.id === 'p2') return { ok: true, value: { score: 5, mode: 'opinion', intentSummary: '言いたいこと' } };
           if (persona.id === 'p3') return { ok: true, value: { score: 5, mode: 'reaction', intentSummary: undefined } };
           return { ok: true, value: { score: 2, mode: 'reaction', intentSummary: undefined } };
         }),
@@ -418,8 +418,8 @@ describe('DebateOrchestratorService', () => {
     it('ペルソナの直接質問先が addressedPersonaId としてターンに保存される', async () => {
       const mockPersonaAgent = makeMockPersonaAgent({
         generateTurn: vi.fn()
-          .mockResolvedValueOnce({ ok: true, value: { content: 'p1の発言。', speechMode: 'full', beliefChange: null, addressedToPersonaId: 'p2' } })
-          .mockResolvedValue({ ok: true, value: { content: '発言。', speechMode: 'full', beliefChange: null, addressedToPersonaId: undefined } }),
+          .mockResolvedValueOnce({ ok: true, value: { content: 'p1の発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: 'p2' } })
+          .mockResolvedValue({ ok: true, value: { content: '発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: undefined } }),
       });
       const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
 
@@ -453,12 +453,12 @@ describe('DebateOrchestratorService', () => {
             ok: true,
             value: {
               content: 'p1の発言。',
-              speechMode: 'full',
+              speechMode: 'opinion',
               beliefChange: { type: 'opinion_change', summary: '考えが変わった', updatedBelief: '# 更新後の信念\n反対に転じた。' },
               addressedToPersonaId: undefined,
             },
           })
-          .mockResolvedValue({ ok: true, value: { content: '発言。', speechMode: 'full', beliefChange: null, addressedToPersonaId: undefined } }),
+          .mockResolvedValue({ ok: true, value: { content: '発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: undefined } }),
       });
       const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
 
@@ -509,7 +509,7 @@ describe('DebateOrchestratorService', () => {
         generateTurn: vi.fn().mockImplementation(async (persona: { id: string }) => ({
           ok: true,
           value: {
-            content: '質問です。', speechMode: 'full', beliefChange: null,
+            content: '質問です。', speechMode: 'opinion', beliefChange: null,
             addressedToPersonaId: persona.id === 'p1' ? 'p2' : 'p1',
           },
         })),

@@ -11,9 +11,9 @@ import type { PersonaAttributes, ConversationTurn, DebateChapter } from '../type
 const mockCreate = vi.fn();
 
 const testPersonas: PersonaAttributes[] = [
-  { id: 'p1', stakeholderRole: '医師', name: '田中太郎', age: 45, occupation: '外科医', background: '30年の経験', interests: '医療安全', stanceDirection: 'pro' },
-  { id: 'p2', stakeholderRole: '患者', name: '鈴木花子', age: 35, occupation: '会社員', background: '慢性疾患あり', interests: '医療費負担', stanceDirection: 'against' },
-  { id: 'p3', stakeholderRole: '研究者', name: '山田次郎', age: 50, occupation: '大学教授', background: '医療政策専門', interests: '政策立案', stanceDirection: 'conditional' },
+  { id: 'p1', stakeholderRole: '医師', name: '田中太郎', age: 45, occupation: '外科医', background: '30年の経験', interests: '医療安全' },
+  { id: 'p2', stakeholderRole: '患者', name: '鈴木花子', age: 35, occupation: '会社員', background: '慢性疾患あり', interests: '医療費負担' },
+  { id: 'p3', stakeholderRole: '研究者', name: '山田次郎', age: 50, occupation: '大学教授', background: '医療政策専門', interests: '政策立案' },
 ];
 
 const testHistory: ConversationTurn[] = [
