@@ -3,7 +3,7 @@ export interface InterventionPolicyInput {
   cooldownTurns: number;
 }
 
-/** クールダウン経過で true（論点戻し・出尽くしの両介入に共通のレート制限） */
+/** クールダウン経過で true（論点ずれ介入(A)専用。B は高意欲者なしを gate とし、クールダウン不問） */
 export const shouldEvaluateIntervention = (input: InterventionPolicyInput): boolean => {
   return input.personaTurnsSinceFacilitator >= input.cooldownTurns;
 };

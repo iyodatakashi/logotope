@@ -1,7 +1,6 @@
 import type { DebateTurn } from '../../db/repository.js';
 import type { PersonaAttributes, PendingIntent } from '../../types/index.js';
-
-const INTENT_EXPIRY_TURNS = 8;
+import { INTENT_EXPIRY_TURNS } from './constants.js';
 
 export interface DebateState {
   history: DebateTurn[];

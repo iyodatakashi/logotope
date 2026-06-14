@@ -244,7 +244,7 @@ export class FacilitatorAgentService {
     currentChapter?: DebateChapter
   ): Promise<Result<FacilitatorIntervention, PipelineError>> {
     const speakCountInfo = personas.map(p => `${p.name}: ${speakCount.get(p.id) ?? 0}回`).join(', ');
-    const criteria = `\n\n累計発言数: ${speakCountInfo}\n\n会話がこの章のフォーカス問いから明確に逸脱している（別の話題に流れている）場合のみ介入してください。逸脱していなければ shouldIntervene=false を返してください。\n\n介入する場合は、フォーカス問いに引き戻す論点を決め、ふさわしい参加者を1人選んで targetPersonaId に設定し、content でその人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。`;
+    const criteria = `\n\n累計発言数: ${speakCountInfo}\n\n会話がこの章のフォーカス問いから明確に逸脱している（別の話題に流れている）場合のみ介入してください。逸脱していなければ shouldIntervene=false を返してください。\n\n介入する場合は、フォーカス問いに引き戻す論点を決め、ふさわしい参加者を1人選んで targetPersonaId に設定してください。content は、まず話が逸れていることに触れて「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。`;
     return this.runInterventionCheck(history, personas, currentChapter, criteria);
   }
 

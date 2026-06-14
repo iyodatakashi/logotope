@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { resolveDirectAddress, decideNextSpeaker, speechFromAssessment } from './speaker-selection.js';
+import {
+  resolveDirectAddress,
+  decideNextSpeaker,
+  speechFromAssessment,
+  isHighEngagement,
+  hasHighEngagement,
+} from './speaker-selection.js';
+import { HIGH_ENGAGEMENT_SCORE } from './constants.js';
 import type { SpeakerSelectionInput } from './speaker-selection.js';
 import type { PendingIntent } from '../../types/index.js';
 
@@ -52,6 +59,35 @@ describe('resolveDirectAddress', () => {
   });
 });
 
+describe('isHighEngagement / hasHighEngagement', () => {
+  it('HIGH_ENGAGEMENT_SCORE 以上のスコアを高意欲とみなす', () => {
+    expect(isHighEngagement({ score: HIGH_ENGAGEMENT_SCORE })).toBe(true);
+    expect(isHighEngagement({ score: HIGH_ENGAGEMENT_SCORE + 1 })).toBe(true);
+  });
+
+  it('HIGH_ENGAGEMENT_SCORE 未満は高意欲でない（境界）', () => {
+    expect(isHighEngagement({ score: HIGH_ENGAGEMENT_SCORE - 1 })).toBe(false);
+  });
+
+  it('hasHighEngagement は1人でも高意欲がいれば true', () => {
+    expect(hasHighEngagement([
+      { score: 2 },
+      { score: HIGH_ENGAGEMENT_SCORE },
+    ])).toBe(true);
+  });
+
+  it('hasHighEngagement は全員が境界未満なら false', () => {
+    expect(hasHighEngagement([
+      { score: 1 },
+      { score: HIGH_ENGAGEMENT_SCORE - 1 },
+    ])).toBe(false);
+  });
+
+  it('hasHighEngagement は空集合で false', () => {
+    expect(hasHighEngagement([])).toBe(false);
+  });
+});
+
 describe('decideNextSpeaker', () => {
   const baseInput = (overrides: Partial<SpeakerSelectionInput> = {}): SpeakerSelectionInput => ({
     assessments: [
@@ -65,29 +101,7 @@ describe('decideNextSpeaker', () => {
     ...overrides,
   });
 
-  describe('優先順位 (1): invite 指名', () => {
-    it('invite 指名は score 最高でなくても優先される', () => {
-      const decision = decideNextSpeaker(baseInput({
-        assessments: [
-          { personaId: 'p2', score: 5, mode: 'opinion' },
-          { personaId: 'p3', score: 3, mode: 'fact' },
-        ],
-        interventionTargetId: 'p3',
-      }));
-      expect(decision.personaId).toBe('p3');
-      expect(decision.source).toBe('nomination');
-    });
-
-    it('invite 指名のIDが不正な場合は無視してスコア選択にフォールバックする', () => {
-      const decision = decideNextSpeaker(baseInput({
-        interventionTargetId: 'unknown',
-      }));
-      expect(decision.personaId).toBe('p2'); // score 3 が最高
-      expect(decision.source).toBe('score');
-    });
-  });
-
-  describe('優先順位 (3): 意図キュー（全員 score <= 3）', () => {
+  describe('優先順位 (1): 意図キュー（高意欲者なし）', () => {
     it('全員の score が3以下のとき、キューの最古エントリ保持者を選ぶ', () => {
       const pendingIntents = new Map<string, PendingIntent[]>([
         ['p2', [{ triggerTurnIndex: 5, intentSummary: 'p2の意図' }]],
@@ -125,7 +139,7 @@ describe('decideNextSpeaker', () => {
     });
   });
 
-  describe('優先順位 (5): スコア選択', () => {
+  describe('優先順位 (2): スコア選択', () => {
     it('score 降順で選択する', () => {
       const decision = decideNextSpeaker(baseInput({
         assessments: [

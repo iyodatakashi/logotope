@@ -1,6 +1,14 @@
 import type { PendingIntent, SpeakerDecision } from '../../types/index.js';
+import { HIGH_ENGAGEMENT_SCORE, MAX_CONSECUTIVE_DIRECT } from './constants.js';
 
-const MAX_CONSECUTIVE_DIRECT = 3;
+/** 単一ペルソナが高意欲か（>= HIGH_ENGAGEMENT_SCORE）。キュー追加・キュー選択ゲートと共有 */
+export const isHighEngagement = (assessment: { score: number }): boolean =>
+  assessment.score >= HIGH_ENGAGEMENT_SCORE;
+
+/** 集合に高意欲のペルソナが1人でもいるか。B ゲート・キュー選択・活性シグナルで共有 */
+export const hasHighEngagement = (
+  assessments: ReadonlyArray<{ score: number }>
+): boolean => assessments.some(isHighEngagement);
 
 export interface DirectAddressInput {
   pendingAddress?: { personaId: string; byFacilitator: boolean };
@@ -30,7 +38,6 @@ export interface SpeakerAssessment {
 
 export interface SpeakerSelectionInput {
   assessments: ReadonlyArray<SpeakerAssessment>;
-  interventionTargetId?: string;
   pendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>;
   silenceMap: ReadonlyMap<string, number>;
   lastSpeakerId?: string;
@@ -46,9 +53,9 @@ export const speechFromAssessment = (
   return { mode: assessment.mode, score: Math.max(2, assessment.score) };
 };
 
-/** 評価後: invite 指名 > キュー > スコアの順で決定する */
+/** 評価後: キュー > スコアの2段で次話者を決定する */
 export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision => {
-  const { interventionTargetId, pendingIntents, silenceMap, lastSpeakerId, personaIds } = input;
+  const { pendingIntents, silenceMap, lastSpeakerId, personaIds } = input;
   const assessments = input.assessments.filter(a => personaIds.includes(a.personaId));
 
   const byScoreThenSilence = (a: SpeakerAssessment, b: SpeakerAssessment) =>
@@ -56,14 +63,8 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
       ? b.score - a.score
       : (silenceMap.get(b.personaId) ?? 0) - (silenceMap.get(a.personaId) ?? 0);
 
-  // (1) invite 指名（不正 ID は無視してスコア選択へ）
-  if (interventionTargetId && personaIds.includes(interventionTargetId)) {
-    return { personaId: interventionTargetId, source: 'nomination' };
-  }
-
-  // (3) 全員 score <= 3 → キューの最古エントリ保持者（直前話者を除く）。本人の意欲評価を発言に反映する
-  const topScore = Math.max(0, ...assessments.map(a => a.score));
-  if (topScore <= 3) {
+  // (1) 高意欲者なし（キュー選択ゲート、追加と同一境界を逆向きに使う）→ キューの最古エントリ保持者（直前話者を除く）
+  if (!hasHighEngagement(assessments)) {
     let oldestIdx = Infinity;
     let oldestPersonaId: string | undefined;
     for (const [personaId, items] of pendingIntents.entries()) {
@@ -85,7 +86,7 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
     }
   }
 
-  // (5) スコア降順（同点は沈黙優先）。直前話者は唯一の最高スコアでない限り回避
+  // (2) スコア降順（同点は沈黙優先）。直前話者は唯一の最高スコアでない限り回避
   const sorted = [...assessments].sort(byScoreThenSilence);
   if (sorted.length === 0) {
     const fallbackId = personaIds.find(id => id !== lastSpeakerId) ?? personaIds[0];

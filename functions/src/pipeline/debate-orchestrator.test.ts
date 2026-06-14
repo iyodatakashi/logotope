@@ -260,6 +260,36 @@ describe('DebateOrchestratorService', () => {
     });
   });
 
+  describe('BC3: 毎ターン全員評価（evaluateEngagement）', () => {
+    it('指名ターンでも saveEngagements が毎ターン呼ばれる（可視化の穴なし）', async () => {
+      // shortOptions: cap=3。開会でp1指名→turn1(指名)→turn2→turn3 の 3 ペルソナターン
+      // BC3 前: turn1 は directDecision 分岐で saveEngagements をスキップ（2回のみ）
+      // BC3 後: 全ターンで evaluateEngagement を実行するため 3 回呼ばれる
+      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), shortOptions);
+
+      await service.executeChapterTask('t1', 0);
+
+      const personaTurns = personaTurnCalls().length;
+      expect(vi.mocked(repo.saveEngagements).mock.calls.length).toBe(personaTurns);
+    });
+
+    it('論点ずれ介入(A)ターンでも saveEngagements が呼ばれる', async () => {
+      // A 介入が発火するターン（driftDecision 分岐）でも saveEngagements が呼ばれることを確認
+      const mockFacilitator = makeMockFacilitator({
+        evaluateTopicDrift: vi.fn()
+          .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, content: '論点が逸れています。', targetPersonaId: 'p2' } })
+          .mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
+
+      await service.executeChapterTask('t1', 0);
+
+      // A 介入が発火した turn でも saveEngagements は呼ばれるはず
+      const personaTurns = personaTurnCalls().length;
+      expect(vi.mocked(repo.saveEngagements).mock.calls.length).toBe(personaTurns);
+    });
+  });
+
   describe('task 4.2: ターンループ', () => {
     it('オープニングで指名された firstPersonaId が最初のペルソナ発言者になる（full・指名フラグ付き）', async () => {
       const mockPersonaAgent = makeMockPersonaAgent();
@@ -543,6 +573,51 @@ describe('DebateOrchestratorService', () => {
       expect(mockFacilitator.generateClosing).not.toHaveBeenCalled();
     });
 
+  describe('BC1: 出尽くし介入(B)のクールダウン非依存', () => {
+    it('クールダウン未経過でも高意欲者なしなら B 介入が発火する', async () => {
+      const mockFacilitator = makeMockFacilitator({
+        evaluateStallIntervention: vi.fn()
+          .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, content: '議論が止まりました。', targetPersonaId: 'p2' } })
+          .mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
+      });
+      const mockPersonaAgent = makeMockPersonaAgent({
+        assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
+      });
+      // interventionCooldown=99 → 現行コードでは B が一切発火しない（interventionAllowed=false）
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, {
+        ...shortOptions, interventionCooldown: 99,
+      });
+
+      await service.executeChapterTask('t1', 0);
+
+      // BC1 後: クールダウンに関わらず B 介入発言が保存される
+      const stallTurns = vi.mocked(repo.createDebateTurn).mock.calls.filter(
+        c => c[0].speakerType === 'facilitator' && c[0].content === '議論が止まりました。'
+      );
+      expect(stallTurns).toHaveLength(1);
+    });
+  });
+
+  describe('BC2: 指名の優先（A 介入に上書きされない）', () => {
+    it('保留指名があるターンでは A 介入を評価せず指名を先に消化する', async () => {
+      const mockPersonaAgent = makeMockPersonaAgent();
+      const mockFacilitator = makeMockFacilitator({
+        // A は常に介入すると主張するが、BC2 後は指名ターンでは評価されない
+        evaluateTopicDrift: vi.fn()
+          .mockResolvedValue({ ok: true, value: { shouldIntervene: true, content: '論点が逸れています。', targetPersonaId: 'p2' } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
+
+      await service.executeChapterTask('t1', 0);
+
+      // BC2 後: opening で指名された p1 が最初に発言する（A 介入に上書きされない）
+      const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
+      expect(generateTurnCalls.length).toBeGreaterThanOrEqual(1);
+      expect((generateTurnCalls[0][0] as { id: string }).id).toBe('p1');
+      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true });
+    });
+  });
+
     it('最終章後にクロージング（chapterIndex 付き）・事後コメント・セッション完了を行い false を返す', async () => {
       // 事前保存された章立てが単一章のケース（index 0 が最終章）
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
@@ -564,6 +639,62 @@ describe('DebateOrchestratorService', () => {
       expect(vi.mocked(repo.completeDebateSession)).toHaveBeenCalledWith('t1', expect.any(Number));
       // 討論完了は「実行中のときのみ generated」で確定する（停止を上書きしない）
       expect(vi.mocked(repo.finalizeTopicIfRunning)).toHaveBeenCalledWith('t1');
+    });
+  });
+
+  describe('task 5.2: 論点ずれをまたいだ意図キューの保持', () => {
+    it('A 介入を挟んでも意図キューが保持され、A 通過後のターンでキュー発言者が選ばれる', async () => {
+      vi.mocked(repo.getPersonasByTopicId).mockResolvedValue([...testPersonaProfiles, p3Profile]);
+      vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([
+        { id: 't0', sessionId: 't1', turnIndex: 0, speakerType: 'facilitator', content: '討論を始めます。', createdAt: '', chapterIndex: 0 },
+      ]);
+      vi.mocked(repo.loadPendingIntents).mockResolvedValue(new Map([
+        ['p3', [{ triggerTurnIndex: 0, intentSummary: 'p3の言いたいこと' }]],
+      ]));
+      const mockFacilitator = makeMockFacilitator({
+        evaluateTopicDrift: vi.fn()
+          .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, content: '論点が逸れています。', targetPersonaId: 'p2' } })
+          .mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
+      });
+      const mockPersonaAgent = makeMockPersonaAgent({
+        assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
+      });
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
+
+      await service.executeChapterTask('t1', 0);
+
+      // A 介入後も p3 のキューが保持され、p3 がキュー発言者として選ばれ意図が引き継がれる
+      const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
+      const p3Turn = generateTurnCalls.find(c => (c[0] as { id: string }).id === 'p3');
+      expect(p3Turn).toBeDefined();
+      expect(p3Turn![3]).toMatchObject({ intentSummary: 'p3の言いたいこと' });
+    });
+  });
+
+  describe('task 5.3: 停止ゲート回帰', () => {
+    it('ターンループ境界で停止された場合は発言を生成せず false を返す', async () => {
+      vi.mocked(repo.isDebateActive)
+        .mockResolvedValueOnce(true)
+        .mockResolvedValue(false);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), shortOptions);
+
+      const hasNext = await service.executeChapterTask('t1', 0);
+
+      expect(hasNext).toBe(false);
+      expect(personaTurnCalls()).toHaveLength(0);
+    });
+
+    it('ペルソナ発言生成後に停止された場合はセリフを保存せず false を返す', async () => {
+      vi.mocked(repo.isDebateActive)
+        .mockResolvedValueOnce(true)  // executeChapterTask 初期ゲート
+        .mockResolvedValueOnce(true)  // runChapterLoop ターン1境界
+        .mockResolvedValueOnce(false); // generatePersonaTurn: 生成後の停止チェック
+      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), shortOptions);
+
+      const hasNext = await service.executeChapterTask('t1', 0);
+
+      expect(hasNext).toBe(false);
+      expect(personaTurnCalls()).toHaveLength(0);
     });
   });
 });

@@ -1,6 +1,10 @@
-const RECENT_SIGNAL_WINDOW = 5;
-const EARLY_END_PROGRESS_RATIO = 0.75;
-const TURN_CAP_RATIO = 1.5;
+import {
+  RECENT_SIGNAL_WINDOW,
+  EARLY_END_PROGRESS_RATIO,
+  TURN_CAP_RATIO,
+  ACTIVE_SIGNAL_STRONG_SCORE,
+} from './constants.js';
+import { isHighEngagement } from './speaker-selection.js';
 
 /** 評価結果から活性シグナルを算出する。評価スキップターン（評価なし）は常に 1 とする */
 export const toEngagementSignal = (
@@ -8,7 +12,8 @@ export const toEngagementSignal = (
 ): 0 | 1 => {
   if (assessments.length === 0) return 1;
   const hasActiveEngagement = assessments.some(
-    a => ((a.mode === 'opinion' || a.mode === 'fact') && a.score >= 4) || a.score >= 5
+    a => ((a.mode === 'opinion' || a.mode === 'fact') && isHighEngagement(a))
+      || a.score >= ACTIVE_SIGNAL_STRONG_SCORE
   );
   return hasActiveEngagement ? 1 : 0;
 };

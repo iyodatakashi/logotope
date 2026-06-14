@@ -1,12 +1,18 @@
 import * as repo from '../db/repository.js';
 import { FacilitatorAgentService } from '../agents/facilitator-agent.js';
 import { PersonaAgentService } from '../agents/persona-agent.js';
-import { resolveDirectAddress, decideNextSpeaker, speechFromAssessment } from './flow/speaker-selection.js';
+import { resolveDirectAddress, decideNextSpeaker, speechFromAssessment, isHighEngagement, hasHighEngagement } from './flow/speaker-selection.js';
 import type { SpeakerAssessment } from './flow/speaker-selection.js';
 import { toEngagementSignal, shouldEndChapterEarly, chapterTurnCap } from './flow/chapter-progress.js';
 import { shouldEvaluateIntervention } from './flow/intervention-policy.js';
 import { restoreDebateState } from './flow/state-restore.js';
 import type { DebateState } from './flow/state-restore.js';
+import {
+  INTENT_EXPIRY_TURNS,
+  DEFAULT_INTERVENTION_COOLDOWN,
+  TURNS_PER_CHAPTER,
+  MAX_TURNS,
+} from './flow/constants.js';
 import type {
   PersonaAttributes,
   PipelineError,
@@ -23,16 +29,14 @@ function pipelineErrorMessage(e: PipelineError): string {
 export interface OrchestratorOptions {
   turnsPerChapter: number;
   maxTurns: number;
-  interventionCooldown: number;
+  interventionCooldown: number; // 論点ずれ介入(A)専用（B はクールダウン不問）
 }
 
 export const DEFAULT_OPTIONS: OrchestratorOptions = {
-  turnsPerChapter: 15,
-  maxTurns: 200,
-  interventionCooldown: 2,
+  turnsPerChapter: TURNS_PER_CHAPTER,
+  maxTurns: MAX_TURNS,
+  interventionCooldown: DEFAULT_INTERVENTION_COOLDOWN,
 };
-
-const INTENT_EXPIRY_TURNS = 8;
 
 /** ID が参加ペルソナに存在する場合のみ返す（LLM 由来の不正 ID を無視する） */
 function validPersonaId(
@@ -171,8 +175,72 @@ export class DebateOrchestratorService {
   }
 
   /**
-   * ターンループ: 確定判定 →（並列: 意欲評価＋介入評価）→ 評価保存 → 介入ターン保存 →
-   * 話者決定 → 発言生成 → ターン保存 → 状態更新 の固定順で進行する
+   * 正準フロー「全員評価」ステップ: 毎ターン全員（直前話者除く）の発言意欲を評価し、
+   * saveEngagements（可視化保存）・活性シグナル記録・キュー失効を行う。
+   * 返り値は当ターンの評価結果（直前話者を除く）。キュー追加は話者決定後に行う（runChapterLoop 内）。
+   */
+  private async evaluateEngagement(
+    sessionId: string,
+    personas: PersonaAttributes[],
+    interviewRecords: Map<string, string>,
+    state: DebateState
+  ): Promise<SpeakerAssessment[]> {
+    const lastTurnIndex = state.history.length > 0
+      ? state.history[state.history.length - 1].turnIndex
+      : 0;
+
+    // キュー失効（トリガーから INTENT_EXPIRY_TURNS 超過）を毎ターン適用し write-through
+    for (const [personaId, items] of state.pendingIntents.entries()) {
+      const alive = items.filter(item => state.currentTurnIndex - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS);
+      if (alive.length === items.length) continue;
+      if (alive.length === 0) {
+        state.pendingIntents.delete(personaId);
+      } else {
+        state.pendingIntents.set(personaId, alive);
+      }
+      await repo.setPendingIntents(sessionId, personaId, alive);
+    }
+
+    // 直前話者を除く全員の発言意欲を評価する。評価失敗は最低意欲（score 1）として継続する
+    const assessTargets = personas.filter(p => p.id !== state.lastSpeakerId);
+    const assessments = await Promise.all(
+      assessTargets.map(async (p): Promise<SpeakerAssessment> => {
+        const result = await this.personaAgent.assessEngagement(
+          p,
+          state.currentBeliefs.get(p.id)?.content ?? '',
+          interviewRecords.get(p.id) ?? '',
+          state.history
+        );
+        return {
+          personaId: p.id,
+          score: result.ok ? result.value.score : 1,
+          mode: result.ok ? result.value.mode : 'none',
+          intentSummary: result.ok ? result.value.intentSummary : undefined,
+        };
+      })
+    );
+
+    // 活性シグナルをターンごとに1回だけ記録する
+    state.engagementSignals.push(toEngagementSignal(assessments));
+
+    // 評価結果を毎ターン保存する（管理画面での可視化用）
+    await repo.saveEngagements({
+      sessionId,
+      turnIndex: lastTurnIndex,
+      assessments: assessments.map(a => ({
+        personaId: a.personaId,
+        score: a.score,
+        mode: a.mode,
+        intentSummary: a.intentSummary,
+      })),
+    });
+
+    return assessments;
+  }
+
+  /**
+   * 正準フロー「章ループ」: 1ターンを「停止ゲート → 全員評価 → 話者決定 → 発言パラメータ取得 → 発言生成・保存 → 状態更新 → 章終了判定」の固定順で進行する。
+   * 話者決定の優先順位: 指名・直接質問 > A（論点ずれ、クールダウン後かつ指名なし時のみ評価）> B（出尽くし、高意欲者なし時のみ評価・クールダウン不問）> キュー > スコア。
    */
   private async runChapterLoop(
     sessionId: string,
@@ -194,7 +262,7 @@ export class DebateOrchestratorService {
       // 各ターン境界でトピックのゲートを確認する（上流再生成でフェーズが戻った場合も停止）
       if (!(await repo.isDebateActive(topicId))) return 'cancelled';
 
-      // 1. 繰り越しの指名・直接質問があるか判定する
+      // 1. 繰り越し指名・直接質問を確認する（BC2: 指名は介入より優先）
       const pendingAddress = state.pendingAddress;
       state.pendingAddress = undefined;
       const directDecision = resolveDirectAddress({
@@ -203,49 +271,62 @@ export class DebateOrchestratorService {
         personaIds,
       });
 
-      // 介入のレート制限（論点戻し・出尽くしに共通のクールダウン）
+      // 2. 毎ターン全員（直前話者除く）の発言意欲を評価・保存・キュー失効を実行する（BC3）
+      const assessments = await this.evaluateEngagement(sessionId, personas, interviewRecords, state);
+      const lastTurnIndex = state.history.length > 0
+        ? state.history[state.history.length - 1].turnIndex
+        : 0;
+
+      // 3. 論点ずれ介入(A)専用のクールダウン判定
       const personaTurnsSinceFacilitator = state.history.filter(
         t => t.speakerType === 'persona' && t.turnIndex > state.lastFacilitatorTurnIndex
       ).length;
-      const interventionAllowed = shouldEvaluateIntervention({
+      const driftCooldownPassed = shouldEvaluateIntervention({
         personaTurnsSinceFacilitator,
         cooldownTurns: this.options.interventionCooldown,
       });
 
+      // 4. 話者決定: 指名・直接質問 > A > B > キュー > スコア（BC1: B はクールダウン不問 / BC2: 指名を先行評価）
       let decision: SpeakerDecision;
-      let turnAssessments: SpeakerAssessment[] | undefined;
-
-      // (A) 論点ずれガード: 指名の有無に関係なく毎ターン先に判定する
-      const driftDecision = interventionAllowed
-        ? await this.tryTopicDriftIntervention(sessionId, personas, chapter, chapterIndex, state)
-        : undefined;
-
-      if (driftDecision) {
-        // A 介入: 繰り越し指名があっても上書きする
-        decision = driftDecision;
-        state.consecutiveDirectExchanges = 0;
-        state.engagementSignals.push(1);
-      } else if (directDecision) {
-        // 繰り越し指名あり（A 不成立）: そのまま消費する
+      if (directDecision) {
         decision = directDecision;
-        state.consecutiveDirectExchanges =
-          directDecision.source === 'nomination' ? 0 : state.consecutiveDirectExchanges + 1;
-        state.engagementSignals.push(1);
-      } else {
-        // 繰り越し指名なし: 全員評価 → 出尽くし(B)介入 or キュー/スコア
-        state.consecutiveDirectExchanges = 0;
-        const result = await this.evaluateAndDecide(
-          sessionId, personas, interviewRecords, chapter, chapterIndex, state, personaIds, interventionAllowed
+      } else if (driftCooldownPassed) {
+        const driftDecision = await this.tryTopicDriftIntervention(
+          sessionId, personas, chapter, chapterIndex, state
         );
-        decision = result.decision;
-        turnAssessments = result.assessments;
-        // 介入ターンで討論全体の上限に達した場合は打ち切る
-        if (state.currentTurnIndex >= maxTurns) break;
+        if (driftDecision) {
+          decision = driftDecision;
+        } else {
+          decision =
+            await this.tryStallIntervention(sessionId, personas, chapter, chapterIndex, state, assessments)
+            ?? decideNextSpeaker({ assessments, pendingIntents: state.pendingIntents, silenceMap: state.silenceMap, lastSpeakerId: state.lastSpeakerId, personaIds });
+        }
+      } else {
+        decision =
+          await this.tryStallIntervention(sessionId, personas, chapter, chapterIndex, state, assessments)
+          ?? decideNextSpeaker({ assessments, pendingIntents: state.pendingIntents, silenceMap: state.silenceMap, lastSpeakerId: state.lastSpeakerId, personaIds });
       }
 
-      // 選ばれた話者の発言パラメータ（mode/score）を確定する。評価があれば使い、無ければ本人を評価する
-      const speech = await this.resolveSpeech(
-        decision.personaId, personas, interviewRecords, state, turnAssessments
+      // 5. 介入ターンで討論全体の上限に達した場合は打ち切る
+      if (state.currentTurnIndex >= maxTurns) break;
+
+      // 6. キュー追加（高意欲・非選択）を発生の都度 write-through
+      for (const assessment of assessments) {
+        if (!isHighEngagement(assessment) || assessment.personaId === decision.personaId) continue;
+        const existing = state.pendingIntents.get(assessment.personaId) ?? [];
+        const updated = [...existing, { triggerTurnIndex: lastTurnIndex, intentSummary: assessment.intentSummary ?? '' }];
+        state.pendingIntents.set(assessment.personaId, updated);
+        await repo.setPendingIntents(sessionId, assessment.personaId, updated);
+      }
+
+      // 7. 連続直接質問カウントを一元更新する（direct_address:+1、その他:0）
+      state.consecutiveDirectExchanges = decision.source === 'direct_address'
+        ? state.consecutiveDirectExchanges + 1
+        : 0;
+
+      // 8. 発言パラメータを確定する
+      const speech = await this.resolveSpeechParams(
+        decision.personaId, personas, interviewRecords, state, assessments
       );
       decision = {
         ...decision,
@@ -254,13 +335,14 @@ export class DebateOrchestratorService {
         intentSummary: decision.intentSummary ?? speech.intentSummary,
       };
 
-      // 生成中に停止された場合はセリフを保存せず打ち切る
+      // 9. 発言生成・保存・状態更新
       const saved = await this.generatePersonaTurn(
         sessionId, topicId, personas, interviewRecords, chapter, chapterIndex, state, decision
       );
       if (!saved) return 'cancelled';
       chapterTurnCount++;
 
+      // 10. 章終了判定（早期終了）
       if (shouldEndChapterEarly({
         chapterTurnCount,
         targetTurns: turnsPerChapter,
@@ -272,111 +354,28 @@ export class DebateOrchestratorService {
     return 'ended';
   }
 
-  /** 並列評価（意欲＋介入）から次話者を決定する。介入発言・評価結果の保存とキュー追加の永続化を含む */
-  private async evaluateAndDecide(
+  /** B（出尽くし）介入: 高意欲者がいない場合のみ発火し、クールダウンを参照しない（BC1）。介入する場合は指名 decision を返す */
+  private async tryStallIntervention(
     sessionId: string,
     personas: PersonaAttributes[],
-    interviewRecords: Map<string, string>,
     chapter: DebateChapter,
     chapterIndex: number,
     state: DebateState,
-    personaIds: string[],
-    interventionAllowed: boolean
-  ): Promise<{ decision: SpeakerDecision; assessments: SpeakerAssessment[] }> {
-    const lastTurnIndex = state.history.length > 0
-      ? state.history[state.history.length - 1].turnIndex
-      : 0;
-
-    // キュー失効（トリガーから8ターン超過）を適用し write-through
-    for (const [personaId, items] of state.pendingIntents.entries()) {
-      const alive = items.filter(item => state.currentTurnIndex - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS);
-      if (alive.length === items.length) continue;
-      if (alive.length === 0) {
-        state.pendingIntents.delete(personaId);
-      } else {
-        state.pendingIntents.set(personaId, alive);
-      }
-      await repo.setPendingIntents(sessionId, personaId, alive);
-    }
-
-    const assessTargets = personas.filter(p => p.id !== state.lastSpeakerId);
+    assessments: SpeakerAssessment[]
+  ): Promise<SpeakerDecision | undefined> {
+    if (hasHighEngagement(assessments)) return undefined;
     const chapterHistory = state.history.filter(t => t.turnIndex >= chapter.startTurnIndex);
-
-    // 介入判定が意欲スコアに依存するため、先に意欲評価を確定させてから介入評価を行う
-    const assessments = await Promise.all(
-      assessTargets.map(async (p): Promise<SpeakerAssessment> => {
-        const result = await this.personaAgent.assessEngagement(
-          p,
-          state.currentBeliefs.get(p.id)?.content ?? '',
-          interviewRecords.get(p.id) ?? '',
-          state.history
-        );
-        // 評価失敗は最低意欲（score 1）として継続する
-        return {
-          personaId: p.id,
-          score: result.ok ? result.value.score : 1,
-          mode: result.ok ? result.value.mode : 'none',
-          intentSummary: result.ok ? result.value.intentSummary : undefined,
-        };
-      })
+    const result = await this.facilitator.evaluateStallIntervention(
+      chapterHistory, personas, state.speakCount, chapter
     );
-
-    // 発言意欲の高い人（score >= 4）が残っている間は介入せず議論を続けさせる。
-    // 出尽くし（高意欲者なし）のときだけ B 介入で新しい論点に振る
-    const hasHighEngagement = assessments.some(a => a.score >= 4);
-
-    const interventionResult = interventionAllowed && !hasHighEngagement
-      ? await this.facilitator.evaluateStallIntervention(chapterHistory, personas, state.speakCount, chapter)
-      : undefined;
-
-    // 活性シグナルをターンごとに必ず記録する
-    state.engagementSignals.push(toEngagementSignal(assessments));
-
-    // 評価結果を毎ターン保存する（管理画面での可視化用）
-    await repo.saveEngagements({
-      sessionId,
-      turnIndex: lastTurnIndex,
-      assessments: assessments.map(a => ({
-        personaId: a.personaId,
-        score: a.score,
-        mode: a.mode,
-        intentSummary: a.intentSummary,
-      })),
-    });
-
-    // 介入発言の保存と invite 指名の解決（指名は targetPersonaId の ID 検証のみで行う）
-    let interventionTargetId: string | undefined;
-    if (interventionResult) {
-      if (!interventionResult.ok) throw new Error(pipelineErrorMessage(interventionResult.error));
-      const intervention = interventionResult.value;
-      if (intervention.shouldIntervene) {
-        interventionTargetId = validPersonaId(intervention.targetPersonaId, personas);
-        await this.saveFacilitatorTurn(sessionId, state, intervention.content ?? '', chapterIndex, interventionTargetId);
-      }
-    }
-
-    const decision = decideNextSpeaker({
-      assessments,
-      interventionTargetId,
-      pendingIntents: state.pendingIntents,
-      silenceMap: state.silenceMap,
-      lastSpeakerId: state.lastSpeakerId,
-      personaIds,
-    });
-
-    // キュー追加（score 4 以上で非選択）を発生の都度 write-through
-    for (const assessment of assessments) {
-      if (assessment.score < 4 || assessment.personaId === decision.personaId) continue;
-      const existing = state.pendingIntents.get(assessment.personaId) ?? [];
-      const updated = [...existing, { triggerTurnIndex: lastTurnIndex, intentSummary: assessment.intentSummary ?? '' }];
-      state.pendingIntents.set(assessment.personaId, updated);
-      await repo.setPendingIntents(sessionId, assessment.personaId, updated);
-    }
-
-    return { decision, assessments };
+    if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
+    if (!result.value.shouldIntervene) return undefined;
+    const targetId = validPersonaId(result.value.targetPersonaId, personas);
+    await this.saveFacilitatorTurn(sessionId, state, result.value.content ?? '', chapterIndex, targetId);
+    return targetId ? { personaId: targetId, source: 'nomination' } : undefined;
   }
 
-  /** A（論点ずれ）: 逸脱していれば介入を保存して指名 decision を返す。指名・通常選択より前に毎ターン評価する */
+  /** A（論点ずれ）: 逸脱していれば介入を保存して指名 decision を返す。クールダウン通過後かつ指名なし時のみ評価する */
   private async tryTopicDriftIntervention(
     sessionId: string,
     personas: PersonaAttributes[],
@@ -394,8 +393,8 @@ export class DebateOrchestratorService {
     return { personaId: targetId, source: 'nomination' };
   }
 
-  /** 選ばれた話者の発言パラメータ（mode/score・意図）を決める。当ターンの評価があれば使い、無ければ本人を評価する */
-  private async resolveSpeech(
+  /** 選ばれた話者の発言パラメータ（mode/score・意図）を決める。evaluateEngagement の結果を優先し、評価対象外（直前話者など）のときのみ単独評価へフォールバックする */
+  private async resolveSpeechParams(
     speakerId: string,
     personas: PersonaAttributes[],
     interviewRecords: Map<string, string>,
@@ -532,7 +531,7 @@ export class DebateOrchestratorService {
     return true;
   }
 
-  /** 章終了時に未応答の指名・直接質問が残っていれば応答ターンを1件生成する（要件 2.7） */
+  /** 章終了時に未応答の指名・直接質問が残っていれば応答ターンを1件生成する（本体と同じ評価・発言生成の流れ） */
   private async generateUnansweredReply(
     sessionId: string,
     topicId: string,
@@ -553,8 +552,8 @@ export class DebateOrchestratorService {
     });
     if (!decision) return;
 
-    // 指名された本人の評価から発言パラメータを決める
-    const speech = await this.resolveSpeech(decision.personaId, personas, interviewRecords, state);
+    const assessments = await this.evaluateEngagement(sessionId, personas, interviewRecords, state);
+    const speech = await this.resolveSpeechParams(decision.personaId, personas, interviewRecords, state, assessments);
     const enrichedDecision = {
       ...decision,
       mode: speech.mode,
@@ -569,7 +568,7 @@ export class DebateOrchestratorService {
     state.pendingAddress = undefined;
   }
 
-  /** ファシリテーター発言を chapterIndex・指名先 ID 付きで保存し、クールダウン起点を更新する */
+  /** ファシリテーター発言を chapterIndex・指名先 ID 付きで保存し、A 介入クールダウンの起点（lastFacilitatorTurnIndex）を更新する */
   private async saveFacilitatorTurn(
     sessionId: string,
     state: DebateState,
