@@ -42,6 +42,11 @@ const mockCollectionGet = vi.fn();
 const mockOrderByGet = vi.fn();
 const mockWhereForOrderBy = vi.fn(() => ({ get: mockOrderByGet }));
 
+const mockTx = {
+  get: vi.fn(),
+  update: vi.fn(),
+};
+
 const mockDb = {
   doc: vi.fn(() => mockDocRef),
   collection: vi.fn(() => ({
@@ -54,6 +59,7 @@ const mockDb = {
     })),
   })),
   batch: vi.fn(() => mockBatch),
+  runTransaction: vi.fn((fn: (tx: typeof mockTx) => unknown) => Promise.resolve(fn(mockTx))),
 };
 
 beforeEach(() => {
@@ -61,18 +67,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getFirestore).mockReturnValue(mockDb as ReturnType<typeof getFirestore>);
   mockDocRef.get.mockResolvedValue({ exists: false, id: 'doc-id', data: () => undefined });
-});
-
-// ---- updateTopicStatus ----
-
-describe('updateTopicStatus', () => {
-  it('updates status and updatedAt on topics/{id}', async () => {
-    await repo.updateTopicStatus('topic-1', 'debating');
-    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1');
-    expect(mockDocRef.update).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'debating' })
-    );
-  });
 });
 
 // ---- updateTopicPhase (task 2.1) ----
@@ -92,9 +86,8 @@ describe('updateTopicPhase', () => {
 // ---- discardChapterProgress (task 2.3) ----
 
 describe('discardChapterProgress', () => {
-  it('現在章以降の途中ターンを破棄し、派生信念とエンゲージメントを巻き戻して進行中へ戻す', async () => {
+  it('現在章以降の途中ターンを破棄し、派生信念とエンゲージメントを巻き戻す', async () => {
     const sessionData = {
-      status: 'cancelled',
       turns: [
         { id: 'turn-0', turnIndex: 0, chapterIndex: 0, content: 'a' },
         { id: 'turn-1', turnIndex: 1, chapterIndex: 1, content: 'b' },
@@ -124,10 +117,9 @@ describe('discardChapterProgress', () => {
 
     await repo.discardChapterProgress('topic-1', 1);
 
-    // 完了済み章(turn-0)のみ残し、進行中に戻す
+    // 完了済み章(turn-0)のみ残す（進行状態はトピックが保持）
     expect(mockDocRef.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        status: 'debating',
         currentChapterIndex: 1,
         turns: [expect.objectContaining({ id: 'turn-0' })],
       })
@@ -230,13 +222,13 @@ describe('createDebateSession', () => {
     const result = await repo.createDebateSession('topic-1');
     expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0');
     expect(mockDocRef.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'chapters_ready', turns: [], postDebateComments: [] })
+      expect.objectContaining({ turns: [], postDebateComments: [] })
     );
     expect(result.id).toBe('topic-1');
   });
 
   it('skips creation when sessions/0 already exists (idempotent)', async () => {
-    mockDocRef.get.mockResolvedValue({ exists: true, id: 'session-0', data: () => ({ status: 'debating' }) });
+    mockDocRef.get.mockResolvedValue({ exists: true, id: 'session-0', data: () => ({}) });
     const result = await repo.createDebateSession('topic-1');
     expect(mockDocRef.set).not.toHaveBeenCalled();
     expect(result.id).toBe('topic-1');
@@ -246,12 +238,13 @@ describe('createDebateSession', () => {
 // ---- completeDebateSession ----
 
 describe('completeDebateSession', () => {
-  it('updates sessions/0 with completed status and totalTurns', async () => {
+  it('updates sessions/0 with totalTurns and completedAt (no status)', async () => {
     await repo.completeDebateSession('topic-1', 42);
     expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0');
-    expect(mockDocRef.update).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'completed', totalTurns: 42 })
-    );
+    const call = mockDocRef.update.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(call).toMatchObject({ totalTurns: 42 });
+    expect(call).toHaveProperty('completedAt');
+    expect(call).not.toHaveProperty('status');
   });
 });
 
@@ -398,7 +391,7 @@ describe('saveEngagements', () => {
   });
 });
 
-// ---- setPendingIntents / markSessionError (task 3.2) ----
+// ---- setPendingIntents / トピック状態の権威書き込み ----
 
 describe('setPendingIntents - task 3.2: キュー write-through', () => {
   it('ペルソナ単位で pendingIntents 配列を全置換で書き込む', async () => {
@@ -428,11 +421,49 @@ describe('setPendingIntents - task 3.2: キュー write-through', () => {
   });
 });
 
-describe('markSessionError - task 3.2: エラー終端', () => {
-  it('sessions/0 の status を error にする', async () => {
-    await repo.markSessionError('topic-1');
-    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1/sessions/0');
-    expect(mockDocRef.update).toHaveBeenCalledWith({ status: 'error' });
+describe('markTopicStopped - 停止終端', () => {
+  it('トピックの phaseStatus を stopped にする', async () => {
+    await repo.markTopicStopped('topic-1');
+    expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1');
+    expect(mockDocRef.update).toHaveBeenCalledWith(
+      expect.objectContaining({ phaseStatus: 'stopped' })
+    );
+  });
+});
+
+describe('isDebateActive - 停止ゲート', () => {
+  it('phase=5 かつ phaseStatus=running のとき true', async () => {
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => ({ phase: 5, phaseStatus: 'running' }) });
+    expect(await repo.isDebateActive('topic-1')).toBe(true);
+  });
+
+  it('phaseStatus が stopped のとき false', async () => {
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => ({ phase: 5, phaseStatus: 'stopped' }) });
+    expect(await repo.isDebateActive('topic-1')).toBe(false);
+  });
+
+  it('phase が 5 でない（上流再生成）とき false', async () => {
+    mockDocRef.get.mockResolvedValue({ exists: true, data: () => ({ phase: 2, phaseStatus: 'running' }) });
+    expect(await repo.isDebateActive('topic-1')).toBe(false);
+  });
+});
+
+describe('finalizeTopicIfRunning - 実行中のときのみ生成完了', () => {
+  it('running なら generated を書き true を返す', async () => {
+    mockTx.get.mockResolvedValue({ exists: true, data: () => ({ phaseStatus: 'running' }) });
+    const result = await repo.finalizeTopicIfRunning('topic-1');
+    expect(result).toBe(true);
+    expect(mockTx.update).toHaveBeenCalledWith(
+      mockDocRef,
+      expect.objectContaining({ phaseStatus: 'generated' })
+    );
+  });
+
+  it('stopped なら無変更で false を返す（停止を上書きしない）', async () => {
+    mockTx.get.mockResolvedValue({ exists: true, data: () => ({ phaseStatus: 'stopped' }) });
+    const result = await repo.finalizeTopicIfRunning('topic-1');
+    expect(result).toBe(false);
+    expect(mockTx.update).not.toHaveBeenCalled();
   });
 });
 

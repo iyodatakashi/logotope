@@ -147,35 +147,49 @@ describe('createTopicStore', () => {
 	});
 
 	describe('regenerateDebate (task 3.1)', () => {
-		it('討論ターンを初期化して sessions/0 を chapters_ready に戻し startDebate を呼ぶ', async () => {
-			vi.mocked(getDoc).mockResolvedValue({ exists: () => false, data: () => undefined } as never);
+		it('討論ターンを初期化して（session に status を書かず）startDebate を呼ぶ', async () => {
 			const mockStartFn = vi.fn().mockResolvedValue({ data: {} });
 			vi.mocked(httpsCallable).mockReturnValue(mockStartFn as never);
 
 			const store = createTopicStore({ id: 't1', title: 'T' } as never);
 			await store.regenerateDebate();
 
-			expect(updateDoc).toHaveBeenCalledWith(
-				{ path: 'topics/t1/sessions/0' },
-				expect.objectContaining({ status: 'chapters_ready', turns: [], postDebateComments: [] })
+			const sessionUpdate = vi
+				.mocked(updateDoc)
+				.mock.calls.find((c) => (c[0] as { path: string }).path === 'topics/t1/sessions/0');
+			expect(sessionUpdate?.[1]).toEqual(
+				expect.objectContaining({ turns: [], postDebateComments: [] })
 			);
+			expect(sessionUpdate?.[1]).not.toHaveProperty('status');
 			expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'startDebate', expect.any(Object));
 			expect(mockStartFn).toHaveBeenCalledWith({ topicId: 't1' });
 		});
+	});
 
-		it('実行中の討論があればキャンセルしてから sessions/0 を初期化する', async () => {
-			vi.mocked(getDoc).mockResolvedValue({
-				exists: () => true,
-				data: () => ({ status: 'debating' })
-			} as never);
-			vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: {} }) as never);
-
+	describe('stopDebate (task 2.1)', () => {
+		it('トピックの phaseStatus を stopped にする（session には書かない）', async () => {
 			const store = createTopicStore({ id: 't1', title: 'T' } as never);
-			await store.regenerateDebate();
+			await store.stopDebate();
 
-			const updateCalls = vi.mocked(updateDoc).mock.calls.map((c) => c[1]);
-			expect(updateCalls.some((u) => (u as Record<string, unknown>).status === 'cancelled')).toBe(true);
-			expect(updateCalls.some((u) => (u as Record<string, unknown>).status === 'chapters_ready')).toBe(true);
+			expect(updateDoc).toHaveBeenCalledWith(
+				TOPIC_PATH,
+				expect.objectContaining({ phaseStatus: 'stopped' })
+			);
+		});
+	});
+
+	describe('生成失敗時の停止書き込み (task 2.1)', () => {
+		it('generateStakeholders が失敗したらトピックを (1, stopped) にして再スローする', async () => {
+			vi.mocked(httpsCallable).mockReturnValue(
+				vi.fn().mockRejectedValue(new Error('生成失敗')) as never
+			);
+			const store = createTopicStore({ id: 't1', title: 'T' } as never);
+
+			await expect(store.generateStakeholders()).rejects.toThrow('生成失敗');
+			const calls = updateCallsFor('topics/t1');
+			expect(calls.at(-1)?.[1]).toEqual(
+				expect.objectContaining({ phase: 1, phaseStatus: 'stopped' })
+			);
 		});
 	});
 
@@ -198,30 +212,9 @@ describe('createTopicStore', () => {
 
 	describe('clearDebateSession', () => {
 		it('討論セッションを削除する', async () => {
-			vi.mocked(getDoc).mockResolvedValue({
-				exists: () => false,
-				data: () => undefined
-			} as never);
-
 			const store = createTopicStore({ id: 't1' } as never);
 			await store.clearDebateSession();
 
-			expect(deleteDoc).toHaveBeenCalledWith({ path: 'topics/t1/sessions/0' });
-		});
-
-		it('実行中討論があればキャンセルしてから削除する', async () => {
-			vi.mocked(getDoc).mockResolvedValue({
-				exists: () => true,
-				data: () => ({ status: 'debating' })
-			} as never);
-
-			const store = createTopicStore({ id: 't1' } as never);
-			await store.clearDebateSession();
-
-			expect(updateDoc).toHaveBeenCalledWith(
-				{ path: 'topics/t1/sessions/0' },
-				{ status: 'cancelled' }
-			);
 			expect(deleteDoc).toHaveBeenCalledWith({ path: 'topics/t1/sessions/0' });
 		});
 	});

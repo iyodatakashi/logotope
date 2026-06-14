@@ -6,7 +6,7 @@
 
 	const debates = $derived<PublishedDebateSummary[]>(
 		topicsStore.topics
-			.filter((topic) => topic.status === 'published')
+			.filter((topic) => topic.publishedAt != null)
 			.sort(
 				(a, b) =>
 					(b.publishedAt?.seconds ?? b.updatedAt.seconds) -

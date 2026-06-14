@@ -3,20 +3,14 @@
 	import { Button } from '@14ch/svelte-ui';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import { topicsStore } from '$lib/stores/topics.svelte.js';
-	import { phaseDisplayLabel, deriveLegacyPhaseState } from '$lib/utils/phase.js';
+	import { phaseDisplayLabel } from '$lib/utils/phase.js';
 	import type { Phase, PhaseStatus } from '$lib/utils/phase.js';
 
 	const getBadge = (topic: {
-		phase?: Phase;
-		phaseStatus?: PhaseStatus;
-		status: string;
-	}): { label: string; styleKey: string } => {
-		if (topic.phase) {
-			return phaseDisplayLabel({ phase: topic.phase, phaseStatus: topic.phaseStatus ?? 'not_started' });
-		}
-		const { phase, phaseStatus } = deriveLegacyPhaseState(topic.status);
-		return phaseDisplayLabel({ phase, phaseStatus });
-	};
+		phase: Phase;
+		phaseStatus: PhaseStatus;
+	}): { label: string; styleKey: string } =>
+		phaseDisplayLabel({ phase: topic.phase, phaseStatus: topic.phaseStatus });
 </script>
 
 <div class="dashboard">
@@ -103,6 +97,10 @@
 	.style-completed {
 		background: #c8e6c9;
 		color: #2e7d32;
+	}
+	.style-stopped {
+		background: #ffcdd2;
+		color: #c62828;
 	}
 	.empty {
 		color: #757575;

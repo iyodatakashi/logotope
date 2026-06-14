@@ -1,9 +1,16 @@
 <script lang="ts">
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { createPhaseController } from '$lib/models/topic/phaseController.svelte.js';
+	import { phaseActions } from '$lib/models/topic/phaseActions.js';
+	import { phaseLogicalState } from '$lib/utils/phase.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
-	const controller = createPhaseController(5);
+	const PHASE = 5;
+	const logicalState = $derived.by(() => {
+		const topic = currentTopicStore.topic;
+		return topic
+			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
+			: 'not_started';
+	});
 
 	const personaMap = $derived(
 		new Map(currentTopicStore.personasStore.personas.map((p) => [p.id, p]))
@@ -57,9 +64,19 @@
 	const totalTurns = $derived(currentTopicStore.sessionStore.session?.totalTurns ?? 0);
 </script>
 
-<PhasePanel {controller} title="フェーズ 5: 討論">
+<PhasePanel
+	phase={PHASE}
+	{logicalState}
+	title="フェーズ 5: 討論"
+	onGenerate={() => void phaseActions.generate(PHASE)}
+	onApprove={() => void phaseActions.approve(PHASE)}
+	onRegenerate={() => void phaseActions.regenerate(PHASE)}
+	onRetry={() => void phaseActions.retry(PHASE)}
+	onStop={() => void phaseActions.stopDebate()}
+	onRestart={() => void phaseActions.restartDebate()}
+>
 	{#snippet progress()}
-		{#if controller.logicalState === 'running'}
+		{#if logicalState === 'running'}
 			{#if currentChapter}
 				<p class="chapter-progress">
 					第{(currentChapterIndex ?? 0) + 1}章「{currentChapter.title}」

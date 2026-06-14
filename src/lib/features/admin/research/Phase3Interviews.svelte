@@ -1,10 +1,17 @@
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { createPhaseController } from '$lib/models/topic/phaseController.svelte.js';
+	import { phaseActions } from '$lib/models/topic/phaseActions.js';
+	import { phaseLogicalState } from '$lib/utils/phase.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
-	const controller = createPhaseController(3);
+	const PHASE = 3;
+	const logicalState = $derived.by(() => {
+		const topic = currentTopicStore.topic;
+		return topic
+			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
+			: 'not_started';
+	});
 	const personasStore = $derived(currentTopicStore.personasStore);
 
 	let expanded = $state<Set<string>>(new Set());
@@ -47,7 +54,15 @@
 	};
 </script>
 
-<PhasePanel {controller} title="フェーズ 3: ペルソナ取材">
+<PhasePanel
+	phase={PHASE}
+	{logicalState}
+	title="フェーズ 3: ペルソナ取材"
+	onGenerate={() => void phaseActions.generate(PHASE)}
+	onApprove={() => void phaseActions.approve(PHASE)}
+	onRegenerate={() => void phaseActions.regenerate(PHASE)}
+	onRetry={() => void phaseActions.retry(PHASE)}
+>
 	{#snippet progress()}
 		{#if totalCount > 0}
 			<div class="progress-summary">

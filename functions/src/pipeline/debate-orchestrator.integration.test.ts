@@ -37,7 +37,8 @@ const uniqueTopicId = () => `it-topic-${Date.now()}-${topicCounter++}`;
 async function seedTopic(topicId: string, personas: SeedPersona[] = defaultPersonas): Promise<void> {
   await db().doc(`topics/${topicId}`).set({
     title: 'AI医療診断の導入',
-    status: 'debating',
+    phase: 5,
+    phaseStatus: 'running',
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   });
@@ -61,7 +62,6 @@ async function seedTopic(topicId: string, personas: SeedPersona[] = defaultPerso
     });
   }
   await db().doc(`topics/${topicId}/sessions/0`).set({
-    status: 'debating',
     createdAt: Timestamp.now(),
     turns: [],
     postDebateComments: [],
@@ -185,15 +185,15 @@ describe('executeChapterTask 統合テスト（Firestore エミュレータ）',
     expect(personaTurns.map(t => t.personaId)).toEqual(['p1', 'p2', 'p1']);
   });
 
-  it('実行中にセッションがキャンセルされたら以降のターン生成を行わず終了する', async () => {
+  it('実行中にトピックが停止されたら以降のターン生成を行わず終了する', async () => {
     const topicId = uniqueTopicId();
     await seedTopic(topicId);
 
     const assessImplRef = { current: lowEngagement };
     const personaAgent = makeMockPersonaAgent(assessImplRef, {
       generateTurn: vi.fn().mockImplementation(async () => {
-        // 最初のペルソナ発言の生成中にキャンセルされる
-        await db().doc(`topics/${topicId}/sessions/0`).update({ status: 'cancelled' });
+        // 最初のペルソナ発言の生成中にトピックが停止される
+        await db().doc(`topics/${topicId}`).update({ phaseStatus: 'stopped' });
         return { ok: true, value: { content: '発言。', speechMode: 'full', beliefChange: null, addressedToPersonaId: undefined } };
       }),
     });

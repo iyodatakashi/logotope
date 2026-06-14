@@ -68,6 +68,32 @@ export const createPersonasStore = (topicId: string) => {
 		});
 	};
 
+	// 取材失敗時にトピックを停止状態にする（実行中・完了は既存のまま）
+	const markInterviewsStopped = async (): Promise<void> => {
+		await updateDoc(doc(db, 'topics', topicId), {
+			phase: 3,
+			phaseStatus: 'stopped',
+			updatedAt: Timestamp.now()
+		});
+	};
+
+	// 取材フローの実行: 実行中→（未完了ペルソナの取材）→生成完了。
+	// 途中で失敗を捕捉した場合はトピックを停止状態にする。
+	// all=true で全ペルソナを再取材する（再生成・やり直し用）。
+	const runInterviews = async (topicTitle: string, all = false): Promise<void> => {
+		await markInterviewsStarted();
+		try {
+			const targets = all
+				? personas
+				: personas.filter((p) => p.interview?.status !== 'completed');
+			await Promise.all(targets.map((p) => runInterview(p.id, topicTitle)));
+			await markInterviewsComplete();
+		} catch (e) {
+			await markInterviewsStopped();
+			throw e;
+		}
+	};
+
 	const runInterview = async (personaId: string, topicTitle: string): Promise<void> => {
 		const persona = personas.find((p) => p.id === personaId);
 		if (!persona) return;
@@ -119,9 +145,11 @@ export const createPersonasStore = (topicId: string) => {
 		start,
 		stop,
 		runInterview,
+		runInterviews,
 		approvePersonas,
 		resetPersonas,
 		markInterviewsStarted,
-		markInterviewsComplete
+		markInterviewsComplete,
+		markInterviewsStopped
 	};
 };

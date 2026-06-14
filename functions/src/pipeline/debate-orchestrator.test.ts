@@ -12,8 +12,9 @@ vi.mock('../db/repository.js', () => ({
   createPersonaBelief: vi.fn(),
   createPostDebateComment: vi.fn(),
   completeDebateSession: vi.fn(),
-  updateTopicStatus: vi.fn(),
   updateTopicPhase: vi.fn(),
+  isDebateActive: vi.fn(),
+  finalizeTopicIfRunning: vi.fn(),
   saveChapters: vi.fn(),
   saveChapterIssues: vi.fn(),
   updateCurrentChapterIndex: vi.fn(),
@@ -76,7 +77,7 @@ function makeMockPersonaAgent(overrides: Partial<Record<string, ReturnType<typeo
 }
 
 function setupRepoDefaults() {
-  vi.mocked(repo.getTopicById).mockResolvedValue({ id: 't1', title: 'AI医療診断の導入', status: 'debating', createdAt: '', updatedAt: '' });
+  vi.mocked(repo.getTopicById).mockResolvedValue({ id: 't1', title: 'AI医療診断の導入', createdAt: '', updatedAt: '' });
   vi.mocked(repo.getPersonasByTopicId).mockResolvedValue(testPersonaProfiles);
   vi.mocked(repo.getPersonaBeliefsByPersonaId).mockImplementation(async (personaId) => [
     { id: `belief-${personaId}`, personaId, version: 0, content: '# 初期信念\n賛成。', createdAt: '' },
@@ -88,12 +89,14 @@ function setupRepoDefaults() {
   vi.mocked(repo.createPersonaBelief).mockResolvedValue({ id: 'belief-new' });
   vi.mocked(repo.createPostDebateComment).mockResolvedValue({ id: 'comment-1' });
   vi.mocked(repo.completeDebateSession).mockResolvedValue(undefined);
-  vi.mocked(repo.updateTopicStatus).mockResolvedValue(undefined);
   vi.mocked(repo.updateTopicPhase).mockResolvedValue(undefined);
+  // 停止ゲート: 既定では討論アクティブ（phase=5, running 相当）
+  vi.mocked(repo.isDebateActive).mockResolvedValue(true);
+  vi.mocked(repo.finalizeTopicIfRunning).mockResolvedValue(true);
   vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([]);
   // 章立ては generateChaptersOnly で事前保存済み（executeChapterTask はこれを前提とする）
   vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
-    id: 't1', topicId: 't1', status: 'debating', createdAt: '',
+    id: 't1', topicId: 't1', createdAt: '',
     chapters: twoChapters.map(c => ({ index: c.index, title: c.title, focusQuestion: c.focusQuestion })),
     currentChapterIndex: 0,
   });
@@ -174,7 +177,7 @@ describe('DebateOrchestratorService', () => {
     });
 
     it('chapterIndex > 0 で章情報が存在しない場合は例外を送出する', async () => {
-      vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({ id: 't1', topicId: 't1', status: 'debating', createdAt: '' });
+      vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({ id: 't1', topicId: 't1', createdAt: '' });
       const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), shortOptions);
 
       await expect(service.executeChapterTask('t1', 1)).rejects.toThrow();
@@ -182,7 +185,7 @@ describe('DebateOrchestratorService', () => {
 
     it('永続化済みキューを復元し、全員低意欲時にキュー保持者が full モードで発言する', async () => {
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
-        id: 't1', topicId: 't1', status: 'debating', createdAt: '',
+        id: 't1', topicId: 't1', createdAt: '',
         chapters: twoChapters.map(c => ({ index: c.index, title: c.title, focusQuestion: c.focusQuestion })),
         currentChapterIndex: 0,
       });
@@ -206,8 +209,8 @@ describe('DebateOrchestratorService', () => {
       expect(queueCall![3]).toMatchObject({ mode: 'full', intentSummary: 'キューの意図' });
     });
 
-    it('キャンセル済みセッションでは何も生成せず false を返す', async () => {
-      vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({ id: 't1', topicId: 't1', status: 'cancelled', createdAt: '' });
+    it('トピックの停止ゲートが不成立なら何も生成せず false を返す', async () => {
+      vi.mocked(repo.isDebateActive).mockResolvedValue(false);
       const mockFacilitator = makeMockFacilitator();
       const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
 
@@ -220,7 +223,7 @@ describe('DebateOrchestratorService', () => {
 
     it('処理済みの章（currentChapterIndex > chapterIndex）はスキップし次章有無を返す', async () => {
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
-        id: 't1', topicId: 't1', status: 'debating', createdAt: '',
+        id: 't1', topicId: 't1', createdAt: '',
         chapters: twoChapters.map(c => ({ index: c.index, title: c.title, focusQuestion: c.focusQuestion })),
         currentChapterIndex: 1,
       });
@@ -234,7 +237,7 @@ describe('DebateOrchestratorService', () => {
 
     it('章またぎの指名を復元する: 直前の章導入の addressedPersonaId のペルソナが章の最初の発言者になる', async () => {
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
-        id: 't1', topicId: 't1', status: 'debating', createdAt: '',
+        id: 't1', topicId: 't1', createdAt: '',
         chapters: twoChapters.map(c => ({ index: c.index, title: c.title, focusQuestion: c.focusQuestion })),
         currentChapterIndex: 1,
       });
@@ -335,7 +338,7 @@ describe('DebateOrchestratorService', () => {
 
     it('キュー発言後に消費が setPendingIntents で永続化される', async () => {
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
-        id: 't1', topicId: 't1', status: 'debating', createdAt: '',
+        id: 't1', topicId: 't1', createdAt: '',
         chapters: twoChapters.map(c => ({ index: c.index, title: c.title, focusQuestion: c.focusQuestion })),
         currentChapterIndex: 0,
       });
@@ -539,7 +542,7 @@ describe('DebateOrchestratorService', () => {
     it('最終章後にクロージング（chapterIndex 付き）・事後コメント・セッション完了を行い false を返す', async () => {
       // 事前保存された章立てが単一章のケース（index 0 が最終章）
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
-        id: 't1', topicId: 't1', status: 'debating', createdAt: '',
+        id: 't1', topicId: 't1', createdAt: '',
         chapters: [{ index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？' }],
         currentChapterIndex: 0,
       });
@@ -555,9 +558,8 @@ describe('DebateOrchestratorService', () => {
       expect(closingTurn?.[0].chapterIndex).toBe(0);
       expect(mockPersonaAgent.generatePostDebateComment).toHaveBeenCalledTimes(testPersonaProfiles.length);
       expect(vi.mocked(repo.completeDebateSession)).toHaveBeenCalledWith('t1', expect.any(Number));
-      // task 2.2: 討論完了でトピックを (5, generated) に確定する
-      expect(vi.mocked(repo.updateTopicPhase)).toHaveBeenCalledWith('t1', 5, 'generated');
-      expect(vi.mocked(repo.updateTopicStatus)).not.toHaveBeenCalled();
+      // 討論完了は「実行中のときのみ generated」で確定する（停止を上書きしない）
+      expect(vi.mocked(repo.finalizeTopicIfRunning)).toHaveBeenCalledWith('t1');
     });
   });
 });

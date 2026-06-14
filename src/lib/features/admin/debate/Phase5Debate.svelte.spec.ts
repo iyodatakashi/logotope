@@ -2,25 +2,21 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
-vi.mock('$lib/models/topic/phaseController.svelte.js', () => ({
-	createPhaseController: vi.fn(() => ({
-		phase: 5,
-		logicalState: 'generated',
-		inFlight: false,
-		error: null,
-		runGenerate: vi.fn().mockResolvedValue(undefined),
-		runApprove: vi.fn().mockResolvedValue(undefined),
-		runRegenerate: vi.fn().mockResolvedValue(undefined),
-		runStop: vi.fn().mockResolvedValue(undefined),
-		runRestart: vi.fn().mockResolvedValue(undefined),
-		clearError: vi.fn()
-	}))
+vi.mock('$lib/models/topic/phaseActions.js', () => ({
+	phaseActions: {
+		generate: vi.fn(),
+		approve: vi.fn(),
+		regenerate: vi.fn(),
+		retry: vi.fn(),
+		stopDebate: vi.fn(),
+		restartDebate: vi.fn()
+	}
 }));
 
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get topic() {
-			return { id: 'test-topic', startDebate: vi.fn().mockResolvedValue(undefined), publishDebate: vi.fn() };
+			return { id: 'test-topic', phase: 5, phaseStatus: 'generated' };
 		},
 		get sessionStore() {
 			return {
@@ -111,27 +107,27 @@ describe('Phase5Debate.svelte', () => {
 	});
 
 	it('ターンの発言内容を表示する', async () => {
-		render(Phase5Debate, { topicId: 'test-topic', topicTitle: 'テストトピック' });
+		render(Phase5Debate);
 
 		await expect.element(page.getByText('テスト発言内容')).toBeInTheDocument();
 	});
 
 	it('engagementsストアからエンゲージメントデータを表示する', async () => {
-		render(Phase5Debate, { topicId: 'test-topic', topicTitle: 'テストトピック' });
+		render(Phase5Debate);
 
 		// p2 with mode='full', score=4 → displayed as "鈴木花子: full(4)"
 		await expect.element(page.getByText(/鈴木花子/)).toBeInTheDocument();
 	});
 
 	it('「前のフェーズに戻る」ボタンは存在しない', async () => {
-		render(Phase5Debate, { topicId: 'test-topic', topicTitle: 'テストトピック' });
+		render(Phase5Debate);
 
 		await expect.element(page.getByText('テスト発言内容')).toBeInTheDocument();
 		expect(page.getByRole('button', { name: '前のフェーズに戻る' }).elements()).toHaveLength(0);
 	});
 
 	it('討論完了時は公開ボタンを描画しない（ターン完了後のみ表示）', async () => {
-		render(Phase5Debate, { topicId: 'test-topic', topicTitle: 'テストトピック' });
+		render(Phase5Debate);
 
 		await expect.element(page.getByText('テスト発言内容')).toBeInTheDocument();
 	});

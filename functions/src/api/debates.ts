@@ -21,7 +21,7 @@ export const generateChapters = onCall({ timeoutSeconds: 120 }, async (request) 
 
   // 章立てはクライアント権威。Functions はセッション作成と章立て生成のみ行い、
   // トピックの状態書き込みは行わない（client が解決後に (4, generated) を書く）。
-  await repo.createDebateSession(topicId, 'chapters_ready');
+  await repo.createDebateSession(topicId);
   const orchestrator = new DebateOrchestratorService();
   await orchestrator.generateChaptersOnly(topicId);
 
@@ -35,7 +35,6 @@ export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   const topic = await repo.getTopicById(topicId);
   if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
-  await repo.updateDebateSessionStatus(topicId, 'debating');
   await repo.updateTopicPhase(topicId, 5, 'running');
   await enqueueChapterTask(topicId, 0);
 
@@ -79,9 +78,9 @@ export const runChapter = onTaskDispatched(
         await enqueueChapterTask(topicId, chapterIndex + 1);
       }
     } catch (err) {
-      // 最終リトライでも失敗した場合のみセッションをエラー終端にする
+      // 最終リトライでも失敗した場合のみトピックを停止状態にする
       if ((req.retryCount ?? 0) >= MAX_ATTEMPTS - 1) {
-        await repo.markSessionError(topicId);
+        await repo.markTopicStopped(topicId);
       }
       throw err;
     }

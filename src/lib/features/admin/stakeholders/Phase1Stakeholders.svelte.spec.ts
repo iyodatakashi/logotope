@@ -2,17 +2,15 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
-vi.mock('$lib/models/topic/phaseController.svelte.js', () => ({
-	createPhaseController: vi.fn(() => ({
-		phase: 1,
-		logicalState: 'generated',
-		inFlight: false,
-		error: null,
-		runGenerate: vi.fn().mockResolvedValue(undefined),
-		runApprove: vi.fn().mockResolvedValue(undefined),
-		runRegenerate: vi.fn().mockResolvedValue(undefined),
-		clearError: vi.fn()
-	}))
+vi.mock('$lib/models/topic/phaseActions.js', () => ({
+	phaseActions: {
+		generate: vi.fn(),
+		approve: vi.fn(),
+		regenerate: vi.fn(),
+		retry: vi.fn(),
+		stopDebate: vi.fn(),
+		restartDebate: vi.fn()
+	}
 }));
 
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
@@ -21,6 +19,8 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 			return {
 				id: 't1',
 				title: 'テストテーマ',
+				phase: 1,
+				phaseStatus: 'generated',
 				stakeholders: {
 					items: [
 						{

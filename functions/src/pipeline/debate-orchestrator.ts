@@ -81,9 +81,11 @@ export class DebateOrchestratorService {
   async executeChapterTask(topicId: string, chapterIndex: number): Promise<boolean> {
     const sessionId = topicId;
 
+    // 停止ゲート: トピックが討論かつ実行中でなければ何も生成・上書きしない
+    if (!(await repo.isDebateActive(topicId))) return false;
+
     const session = await repo.getDebateSessionByTopicId(topicId);
     if (!session) throw new Error('Session not found');
-    if (session.status === 'cancelled') return false;
     if (!session.chapters?.length) throw new Error('Chapters not found');
 
     // 冪等性: 処理済みの章はスキップする
@@ -189,8 +191,8 @@ export class DebateOrchestratorService {
     ).length;
 
     while (chapterTurnCount < cap && state.currentTurnIndex < maxTurns) {
-      const sessionCheck = await repo.getDebateSessionByTopicId(topicId);
-      if (!sessionCheck || sessionCheck.status === 'cancelled') return 'cancelled';
+      // 各ターン境界でトピックのゲートを確認する（上流再生成でフェーズが戻った場合も停止）
+      if (!(await repo.isDebateActive(topicId))) return 'cancelled';
 
       // 1. ターン冒頭の確定判定（前ターン由来の指名・直接質問）
       const pendingAddress = state.pendingAddress;
@@ -551,7 +553,9 @@ export class DebateOrchestratorService {
       }
     }
 
+    // セッションには討論コンテンツ（totalTurns/completedAt）のみ書き、
+    // 進行状態は「実行中のときのみ generated」で確定する（停止を上書きしない）
     await repo.completeDebateSession(sessionId, state.currentTurnIndex);
-    await repo.updateTopicPhase(topicId, 5, 'generated');
+    await repo.finalizeTopicIfRunning(topicId);
   }
 }

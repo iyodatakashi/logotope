@@ -1,14 +1,6 @@
 export type LLMType = 'gemini' | 'claude' | 'gpt';
 
-export type PhaseStatus = 'not_started' | 'running' | 'generated';
-
-// 討論セッション専用のステータス（トピックの進行状態は phase/phaseStatus で表す）
-export type SessionStatus =
-  | 'chapters_ready'
-  | 'debating'
-  | 'completed'
-  | 'cancelled'
-  | 'error';
+export type PhaseStatus = 'not_started' | 'running' | 'generated' | 'stopped';
 
 export type MinorityLevel = 'high' | 'medium' | 'low';
 export type EngagementLevel = 'high' | 'medium' | 'low';

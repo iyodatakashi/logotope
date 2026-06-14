@@ -1,15 +1,12 @@
-import type { DebateStatus } from '$lib/models/topic/topic.types.js';
-import type { SessionStatus } from '$lib/models/session/session.types.js';
-
 export type Phase = 1 | 2 | 3 | 4 | 5;
 
 export type PhaseSlug = 'stakeholders' | 'personas' | 'interviews' | 'chapters' | 'debate';
 
-// 永続する状態（approved/stopped は永続せず導出する）
-export type PhaseStatus = 'not_started' | 'running' | 'generated';
+// 永続する状態（stopped は全フェーズ共通の失敗・停止状態。error は stopped に集約）
+export type PhaseStatus = 'not_started' | 'running' | 'generated' | 'stopped';
 
-// 表示用の論理状態（approved は導出、stopped はフェーズ5のみ）
-export type PhaseLogicalState = 'not_started' | 'running' | 'stopped' | 'generated' | 'approved';
+// 表示用の論理状態（approved は phase 比較で導出するのみで永続しない）
+export type PhaseLogicalState = PhaseStatus | 'approved';
 
 // generated 状態での主操作。現状は承認のみ（publish は今回スコープ外・将来 kind 追加余地）
 export type ForwardAction = { kind: 'approve'; label: string };
@@ -108,88 +105,16 @@ export const phasePath = (topicId: string, phase: Phase): string => {
 	return `/admin/topics/${topicId}/${def.slug}`;
 };
 
-const STATUS_PHASE_MAP: Record<DebateStatus, Phase> = {
-	pending: 1,
-	surveying: 1,
-	generating_personas: 2,
-	interviewing: 3,
-	chapters_ready: 4,
-	chapters_approved: 5,
-	debating: 5,
-	cancelled: 4,
-	completed: 5,
-	published: 5
-};
-
-// 旧 status 単一enumからフェーズを得る互換ヘルパー（移行期間中のみ使用）
-export const statusToPhase = (status: DebateStatus): Phase => STATUS_PHASE_MAP[status] ?? 1;
-
-// topic.phase（新モデル）を優先し、未設定なら旧 status から導出する互換ヘルパー
-export const resolveCurrentPhase = (topic: { phase?: Phase; status: DebateStatus }): Phase =>
-	topic.phase ?? statusToPhase(topic.status);
-
-// (phase, phaseStatus) と対象フェーズ p、(フェーズ5のみ) session 終端情報から表示状態を導出する純粋関数
+// (phase, phaseStatus) と対象フェーズ番号のみから表示状態を導出する純粋関数。
+// セッション・クライアントのヒントは参照しない（トピック状態のみで完結）。
 export const phaseLogicalState = (
 	current: { phase: Phase; phaseStatus: PhaseStatus },
-	target: Phase,
-	hints?: { sessionStatus?: SessionStatus; debateComplete?: boolean; clientPhaseInFlight?: boolean }
+	target: Phase
 ): PhaseLogicalState => {
 	if (target < current.phase) return 'approved';
 	if (target > current.phase) return 'not_started';
-	// target === current.phase
-	if (current.phaseStatus !== 'running') return current.phaseStatus;
-	// running の再調整（hints 未指定なら保守的に running のまま）
-	if (!hints) return 'running';
-	if (target === 5) {
-		if (hints.sessionStatus === 'completed' || hints.debateComplete) return 'generated';
-		if (hints.sessionStatus === 'cancelled') return 'stopped';
-		return 'running';
-	}
-	// クライアント権威フェーズ(1〜4): inFlight でなければ中断とみなし not_started に戻す
-	return hints.clientPhaseInFlight ? 'running' : 'not_started';
-};
-
-const LEGACY_PHASE_STATE: Record<DebateStatus, { phase: Phase; phaseStatus: PhaseStatus }> = {
-	pending: { phase: 1, phaseStatus: 'not_started' },
-	surveying: { phase: 1, phaseStatus: 'running' },
-	generating_personas: { phase: 2, phaseStatus: 'running' },
-	interviewing: { phase: 3, phaseStatus: 'running' },
-	chapters_ready: { phase: 4, phaseStatus: 'generated' },
-	chapters_approved: { phase: 5, phaseStatus: 'not_started' },
-	debating: { phase: 5, phaseStatus: 'running' },
-	cancelled: { phase: 5, phaseStatus: 'running' },
-	completed: { phase: 5, phaseStatus: 'generated' },
-	published: { phase: 5, phaseStatus: 'generated' }
-};
-
-// 旧 status を持つ既存トピックを新2軸へ遅延移行する互換関数
-export const deriveLegacyPhaseState = (
-	legacyStatus: string,
-	hints?: {
-		hasStakeholders: boolean;
-		stakeholdersApproved: boolean;
-		hasPersonas: boolean;
-		allInterviewsDone: boolean;
-		hasChapters: boolean;
-		sessionStatus?: SessionStatus;
-	}
-): { phase: Phase; phaseStatus: PhaseStatus } => {
-	const known = LEGACY_PHASE_STATE[legacyStatus as DebateStatus];
-	if (known) return known;
-	// 未知 status はサブコレクションのヒントから到達済みフェーズを再構築する
-	if (hints) {
-		if (hints.hasChapters) {
-			if (hints.sessionStatus === 'completed') return { phase: 5, phaseStatus: 'generated' };
-			if (hints.sessionStatus === 'cancelled' || hints.sessionStatus === 'debating')
-				return { phase: 5, phaseStatus: 'running' };
-			return { phase: 4, phaseStatus: 'generated' };
-		}
-		if (hints.allInterviewsDone) return { phase: 4, phaseStatus: 'not_started' };
-		if (hints.hasPersonas) return { phase: 3, phaseStatus: 'not_started' };
-		if (hints.stakeholdersApproved) return { phase: 2, phaseStatus: 'not_started' };
-		if (hints.hasStakeholders) return { phase: 1, phaseStatus: 'generated' };
-	}
-	return { phase: 1, phaseStatus: 'not_started' };
+	// target === current.phase: phaseStatus（not_started/running/generated/stopped）をそのまま返す
+	return current.phaseStatus;
 };
 
 const RUNNING_LABEL: Record<Phase, string> = {
@@ -216,6 +141,14 @@ const NOT_STARTED_LABEL: Record<Phase, string> = {
 	5: '章立て完了'
 };
 
+const STOPPED_LABEL: Record<Phase, string> = {
+	1: '調査停止',
+	2: 'ペルソナ生成停止',
+	3: '取材停止',
+	4: '章立て生成停止',
+	5: '討論停止'
+};
+
 // ダッシュボード一覧のバッジ用に (phase, phaseStatus) からラベル/スタイルキーを導出する
 export const phaseDisplayLabel = (current: {
 	phase: Phase;
@@ -223,6 +156,7 @@ export const phaseDisplayLabel = (current: {
 }): { label: string; styleKey: string } => {
 	const { phase, phaseStatus } = current;
 	if (phaseStatus === 'running') return { label: RUNNING_LABEL[phase], styleKey: 'running' };
+	if (phaseStatus === 'stopped') return { label: STOPPED_LABEL[phase], styleKey: 'stopped' };
 	if (phaseStatus === 'generated')
 		return { label: GENERATED_LABEL[phase], styleKey: phase === 5 ? 'completed' : 'ready' };
 	return { label: NOT_STARTED_LABEL[phase], styleKey: 'pending' };

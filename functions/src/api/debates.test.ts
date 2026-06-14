@@ -21,12 +21,10 @@ vi.mock('firebase-admin/functions', () => ({
 vi.mock('../db/repository.js', () => ({
   getTopicById: vi.fn(),
   createDebateSession: vi.fn(),
-  updateTopicStatus: vi.fn(),
   updateTopicPhase: vi.fn(),
-  updateDebateSessionStatus: vi.fn(),
   getDebateSessionByTopicId: vi.fn(),
   discardChapterProgress: vi.fn(),
-  markSessionError: vi.fn(),
+  markTopicStopped: vi.fn(),
 }));
 vi.mock('../pipeline/debate-orchestrator.js', () => ({
   // コンストラクタとして new されるため、アロー関数ではなく function 式でモックする（vitest 4）
@@ -49,7 +47,7 @@ type CallHandler = (req: { data: { topicId: string } }) => Promise<unknown>;
 const runChapterHandler = (): TaskHandler =>
   vi.mocked(onTaskDispatched).mock.calls[0][1] as unknown as TaskHandler;
 
-const topicStub = { id: 't1', title: 'T', status: 'x', createdAt: '', updatedAt: '' };
+const topicStub = { id: 't1', title: 'T', createdAt: '', updatedAt: '' };
 
 beforeEach(() => {
   mockExecuteChapterTask.mockReset();
@@ -57,45 +55,40 @@ beforeEach(() => {
   mockEnqueue.mockReset();
   vi.mocked(repo.getTopicById).mockReset();
   vi.mocked(repo.createDebateSession).mockReset();
-  vi.mocked(repo.updateTopicStatus).mockReset();
   vi.mocked(repo.updateTopicPhase).mockReset();
-  vi.mocked(repo.updateDebateSessionStatus).mockReset();
   vi.mocked(repo.getDebateSessionByTopicId).mockReset();
   vi.mocked(repo.discardChapterProgress).mockReset();
-  vi.mocked(repo.markSessionError).mockClear();
+  vi.mocked(repo.markTopicStopped).mockClear();
 });
 
-describe('generateChapters - task 2.2: client権威化', () => {
+describe('generateChapters - client権威化', () => {
   it('セッション作成と章立て生成を行い、トピックの状態は書き込まない', async () => {
     vi.mocked(repo.getTopicById).mockResolvedValue(topicStub);
 
     await (generateChapters as unknown as CallHandler)({ data: { topicId: 't1' } });
 
-    expect(vi.mocked(repo.createDebateSession)).toHaveBeenCalledWith('t1', 'chapters_ready');
+    expect(vi.mocked(repo.createDebateSession)).toHaveBeenCalledWith('t1');
     expect(mockGenerateChaptersOnly).toHaveBeenCalledWith('t1');
-    expect(vi.mocked(repo.updateTopicStatus)).not.toHaveBeenCalled();
     expect(vi.mocked(repo.updateTopicPhase)).not.toHaveBeenCalled();
   });
 });
 
-describe('startDebate - task 2.2: フェーズ5実行中の確定', () => {
-  it('セッションを debating、トピックを (5, running) にして第0章を投入する', async () => {
+describe('startDebate - フェーズ5実行中の確定', () => {
+  it('トピックを (5, running) にして第0章を投入する（セッションには状態を書かない）', async () => {
     vi.mocked(repo.getTopicById).mockResolvedValue(topicStub);
 
     await (startDebate as unknown as CallHandler)({ data: { topicId: 't1' } });
 
-    expect(vi.mocked(repo.updateDebateSessionStatus)).toHaveBeenCalledWith('t1', 'debating');
     expect(vi.mocked(repo.updateTopicPhase)).toHaveBeenCalledWith('t1', 5, 'running');
-    expect(vi.mocked(repo.updateTopicStatus)).not.toHaveBeenCalled();
     expect(mockEnqueue).toHaveBeenCalledWith({ topicId: 't1', chapterIndex: 0 }, expect.anything());
   });
 });
 
-describe('restartDebate - task 2.3: 章単位再開', () => {
+describe('restartDebate - 章単位再開', () => {
   it('停止時の章の途中ターンを破棄し、(5, running) にして当該章を頭から投入する', async () => {
     vi.mocked(repo.getTopicById).mockResolvedValue(topicStub);
     vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
-      id: 't1', topicId: 't1', status: 'cancelled', createdAt: '', currentChapterIndex: 2,
+      id: 't1', topicId: 't1', createdAt: '', currentChapterIndex: 2,
     });
 
     await (restartDebate as unknown as CallHandler)({ data: { topicId: 't1' } });
@@ -108,7 +101,7 @@ describe('restartDebate - task 2.3: 章単位再開', () => {
   it('currentChapterIndex 未設定なら第0章から再開する', async () => {
     vi.mocked(repo.getTopicById).mockResolvedValue(topicStub);
     vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
-      id: 't1', topicId: 't1', status: 'cancelled', createdAt: '',
+      id: 't1', topicId: 't1', createdAt: '',
     });
 
     await (restartDebate as unknown as CallHandler)({ data: { topicId: 't1' } });
@@ -118,14 +111,14 @@ describe('restartDebate - task 2.3: 章単位再開', () => {
   });
 });
 
-describe('runChapter - task 4.4: エラー終端', () => {
-  it('成功時（次章あり）は次章タスクを投入し、markSessionError を呼ばない', async () => {
+describe('runChapter - エラー終端（トピック停止）', () => {
+  it('成功時（次章あり）は次章タスクを投入し、markTopicStopped を呼ばない', async () => {
     mockExecuteChapterTask.mockResolvedValue(true);
 
     await runChapterHandler()({ data: { topicId: 't1', chapterIndex: 0 }, retryCount: 0 });
 
     expect(mockEnqueue).toHaveBeenCalledWith({ topicId: 't1', chapterIndex: 1 }, expect.anything());
-    expect(vi.mocked(repo.markSessionError)).not.toHaveBeenCalled();
+    expect(vi.mocked(repo.markTopicStopped)).not.toHaveBeenCalled();
   });
 
   it('成功時（次章なし）は次章タスクを投入しない', async () => {
@@ -136,23 +129,23 @@ describe('runChapter - task 4.4: エラー終端', () => {
     expect(mockEnqueue).not.toHaveBeenCalled();
   });
 
-  it('失敗時、最終リトライ前（retryCount < 2）は status を変えずに再スローする', async () => {
+  it('失敗時、最終リトライ前（retryCount < 2）はトピックを変えずに再スローする', async () => {
     mockExecuteChapterTask.mockRejectedValue(new Error('chapter failed'));
 
     await expect(
       runChapterHandler()({ data: { topicId: 't1', chapterIndex: 0 }, retryCount: 1 })
     ).rejects.toThrow('chapter failed');
 
-    expect(vi.mocked(repo.markSessionError)).not.toHaveBeenCalled();
+    expect(vi.mocked(repo.markTopicStopped)).not.toHaveBeenCalled();
   });
 
-  it('最終リトライ（retryCount = 2）でも失敗した場合はセッションを error にして再スローする', async () => {
+  it('最終リトライ（retryCount = 2）でも失敗した場合はトピックを停止にして再スローする', async () => {
     mockExecuteChapterTask.mockRejectedValue(new Error('chapter failed'));
 
     await expect(
       runChapterHandler()({ data: { topicId: 't1', chapterIndex: 0 }, retryCount: 2 })
     ).rejects.toThrow('chapter failed');
 
-    expect(vi.mocked(repo.markSessionError)).toHaveBeenCalledWith('t1');
+    expect(vi.mocked(repo.markTopicStopped)).toHaveBeenCalledWith('t1');
   });
 });

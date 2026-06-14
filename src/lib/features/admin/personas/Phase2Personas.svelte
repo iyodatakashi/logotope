@@ -1,14 +1,29 @@
 <script lang="ts">
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { createPhaseController } from '$lib/models/topic/phaseController.svelte.js';
+	import { phaseActions } from '$lib/models/topic/phaseActions.js';
+	import { phaseLogicalState } from '$lib/utils/phase.js';
 	import { engagementStyle } from '$lib/utils/engagement.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
-	const controller = createPhaseController(2);
+	const PHASE = 2;
+	const logicalState = $derived.by(() => {
+		const topic = currentTopicStore.topic;
+		return topic
+			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
+			: 'not_started';
+	});
 	const personas = $derived(currentTopicStore.personasStore.personas);
 </script>
 
-<PhasePanel {controller} title="フェーズ 2: ペルソナ生成">
+<PhasePanel
+	phase={PHASE}
+	{logicalState}
+	title="フェーズ 2: ペルソナ生成"
+	onGenerate={() => void phaseActions.generate(PHASE)}
+	onApprove={() => void phaseActions.approve(PHASE)}
+	onRegenerate={() => void phaseActions.regenerate(PHASE)}
+	onRetry={() => void phaseActions.retry(PHASE)}
+>
 	{#snippet content()}
 		{#if personas.length > 0}
 			<ul class="list">

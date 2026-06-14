@@ -1,15 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-	PHASE_DEFS,
-	statusToPhase,
-	phasePath,
-	phaseLogicalState,
-	deriveLegacyPhaseState,
-	phaseDisplayLabel,
-	resolveCurrentPhase
-} from './phase.js';
+import { PHASE_DEFS, phasePath, phaseLogicalState, phaseDisplayLabel } from './phase.js';
 import type { Phase, PhaseStatus } from './phase.js';
-import type { DebateStatus } from '$lib/models/topic/topic.types.js';
 
 describe('PHASE_DEFS', () => {
 	it('5フェーズがphase昇順で定義されている', () => {
@@ -25,29 +16,6 @@ describe('PHASE_DEFS', () => {
 		for (const def of PHASE_DEFS) {
 			expect(def.label.length).toBeGreaterThan(0);
 		}
-	});
-});
-
-describe('statusToPhase', () => {
-	const cases: [DebateStatus, number][] = [
-		['pending', 1],
-		['surveying', 1],
-		['generating_personas', 2],
-		['interviewing', 3],
-		['chapters_ready', 4],
-		['cancelled', 4],
-		['chapters_approved', 5],
-		['debating', 5],
-		['completed', 5],
-		['published', 5],
-	];
-
-	it.each(cases)('%s → Phase %i', (status, phase) => {
-		expect(statusToPhase(status)).toBe(phase);
-	});
-
-	it('未知のstatusはPhase 1にフォールバックする', () => {
-		expect(statusToPhase('unknown_status' as DebateStatus)).toBe(1);
 	});
 });
 
@@ -99,100 +67,17 @@ describe('phaseLogicalState', () => {
 		expect(phaseLogicalState({ phase: 1, phaseStatus: 'running' }, 5)).toBe('not_started');
 	});
 
-	it('現在フェーズが not_started / generated ならそのまま返す', () => {
+	it('現在フェーズに一致する場合は phaseStatus をそのまま返す（ヒント参照なし）', () => {
 		expect(phaseLogicalState({ phase: 2, phaseStatus: 'not_started' }, 2)).toBe('not_started');
-		expect(phaseLogicalState({ phase: 2, phaseStatus: 'generated' }, 2)).toBe('generated');
-	});
-
-	it('running でヒント未指定なら再調整せず running を返す', () => {
 		expect(phaseLogicalState({ phase: 2, phaseStatus: 'running' }, 2)).toBe('running');
+		expect(phaseLogicalState({ phase: 2, phaseStatus: 'generated' }, 2)).toBe('generated');
+		expect(phaseLogicalState({ phase: 2, phaseStatus: 'stopped' }, 2)).toBe('stopped');
+	});
+
+	it('停止は全フェーズで導出できる（フェーズ5の running/stopped も同じ規則）', () => {
 		expect(phaseLogicalState({ phase: 5, phaseStatus: 'running' }, 5)).toBe('running');
-	});
-
-	it('フェーズ5 running + session cancelled（未完了）は stopped に再調整', () => {
-		expect(
-			phaseLogicalState({ phase: 5, phaseStatus: 'running' }, 5, { sessionStatus: 'cancelled' })
-		).toBe('stopped');
-	});
-
-	it('フェーズ5 running + session completed は generated に再調整', () => {
-		expect(
-			phaseLogicalState({ phase: 5, phaseStatus: 'running' }, 5, { sessionStatus: 'completed' })
-		).toBe('generated');
-		expect(
-			phaseLogicalState({ phase: 5, phaseStatus: 'running' }, 5, { debateComplete: true })
-		).toBe('generated');
-	});
-
-	it('フェーズ5 running + session debating は running のまま', () => {
-		expect(
-			phaseLogicalState({ phase: 5, phaseStatus: 'running' }, 5, { sessionStatus: 'debating' })
-		).toBe('running');
-	});
-
-	it('クライアント権威フェーズ(1〜4)の running は inFlight でなければ not_started に再調整', () => {
-		expect(
-			phaseLogicalState({ phase: 2, phaseStatus: 'running' }, 2, { clientPhaseInFlight: false })
-		).toBe('not_started');
-		expect(phaseLogicalState({ phase: 3, phaseStatus: 'running' }, 3, {})).toBe('not_started');
-	});
-
-	it('クライアント権威フェーズの running は inFlight 中なら running のまま', () => {
-		expect(
-			phaseLogicalState({ phase: 2, phaseStatus: 'running' }, 2, { clientPhaseInFlight: true })
-		).toBe('running');
-	});
-});
-
-describe('deriveLegacyPhaseState', () => {
-	const cases: [DebateStatus, Phase, PhaseStatus][] = [
-		['pending', 1, 'not_started'],
-		['surveying', 1, 'running'],
-		['generating_personas', 2, 'running'],
-		['interviewing', 3, 'running'],
-		['chapters_ready', 4, 'generated'],
-		['chapters_approved', 5, 'not_started'],
-		['debating', 5, 'running'],
-		['cancelled', 5, 'running'],
-		['completed', 5, 'generated'],
-		['published', 5, 'generated']
-	];
-
-	it.each(cases)('旧status %s → (%i, %s)', (status, phase, phaseStatus) => {
-		expect(deriveLegacyPhaseState(status)).toEqual({ phase, phaseStatus });
-	});
-
-	it('未知のstatusはヒントなしで (1, not_started) にフォールバック', () => {
-		expect(deriveLegacyPhaseState('unknown')).toEqual({ phase: 1, phaseStatus: 'not_started' });
-	});
-
-	it('未知のstatusでもヒントから到達済みフェーズを再構築する', () => {
-		expect(
-			deriveLegacyPhaseState('unknown', {
-				hasStakeholders: true,
-				stakeholdersApproved: true,
-				hasPersonas: true,
-				allInterviewsDone: true,
-				hasChapters: true,
-				sessionStatus: 'completed'
-			})
-		).toEqual({ phase: 5, phaseStatus: 'generated' });
-	});
-});
-
-describe('resolveCurrentPhase', () => {
-	it('topic.phase が設定されていればそれを使う（新モデル優先）', () => {
-		expect(resolveCurrentPhase({ phase: 3 as Phase, status: 'pending' as DebateStatus })).toBe(3);
-		expect(resolveCurrentPhase({ phase: 5 as Phase, status: 'surveying' as DebateStatus })).toBe(5);
-	});
-
-	it('topic.phase が未設定なら statusToPhase にフォールバック（旧モデル互換）', () => {
-		expect(resolveCurrentPhase({ status: 'interviewing' as DebateStatus })).toBe(3);
-		expect(resolveCurrentPhase({ status: 'completed' as DebateStatus })).toBe(5);
-	});
-
-	it('topic.phase が undefined なら statusToPhase にフォールバック', () => {
-		expect(resolveCurrentPhase({ phase: undefined, status: 'chapters_ready' as DebateStatus })).toBe(4);
+		expect(phaseLogicalState({ phase: 5, phaseStatus: 'stopped' }, 5)).toBe('stopped');
+		expect(phaseLogicalState({ phase: 3, phaseStatus: 'stopped' }, 3)).toBe('stopped');
 	});
 });
 
@@ -200,11 +85,14 @@ describe('phaseDisplayLabel', () => {
 	const cases: [Phase, PhaseStatus, string, string][] = [
 		[1, 'not_started', '未着手', 'pending'],
 		[1, 'running', '調査中', 'running'],
+		[1, 'stopped', '調査停止', 'stopped'],
 		[2, 'running', 'ペルソナ生成中', 'running'],
 		[3, 'running', '取材中', 'running'],
+		[3, 'stopped', '取材停止', 'stopped'],
 		[4, 'generated', '章立て準備中', 'ready'],
 		[5, 'not_started', '章立て完了', 'pending'],
 		[5, 'running', '討論中', 'running'],
+		[5, 'stopped', '討論停止', 'stopped'],
 		[5, 'generated', '討論完了', 'completed']
 	];
 

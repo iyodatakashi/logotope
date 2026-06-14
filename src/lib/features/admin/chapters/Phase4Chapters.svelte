@@ -1,17 +1,29 @@
 <script lang="ts">
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { createPhaseController } from '$lib/models/topic/phaseController.svelte.js';
+	import { phaseActions } from '$lib/models/topic/phaseActions.js';
+	import { phaseLogicalState } from '$lib/utils/phase.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
-	const controller = createPhaseController(4);
+	const PHASE = 4;
+	const logicalState = $derived.by(() => {
+		const topic = currentTopicStore.topic;
+		return topic
+			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
+			: 'not_started';
+	});
 	const chapters = $derived(currentTopicStore.sessionStore.session?.chapters ?? null);
 	const chapterIssues = $derived(currentTopicStore.sessionStore.session?.chapterIssues ?? null);
 </script>
 
 <PhasePanel
-	{controller}
+	phase={PHASE}
+	{logicalState}
 	title="フェーズ 4: 章立て"
 	generateHint="取材結果をもとに討論の章立てを生成します。"
+	onGenerate={() => void phaseActions.generate(PHASE)}
+	onApprove={() => void phaseActions.approve(PHASE)}
+	onRegenerate={() => void phaseActions.regenerate(PHASE)}
+	onRetry={() => void phaseActions.retry(PHASE)}
 >
 	{#snippet content()}
 		{#if chapters?.length}

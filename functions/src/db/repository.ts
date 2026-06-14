@@ -9,7 +9,6 @@ const db = () => getFirestore();
 export interface DebateTopic {
   id: string;
   title: string;
-  status: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,7 +43,6 @@ export interface PersonaBelief {
 export interface DebateSession {
   id: string;
   topicId: string;
-  status: string;
   totalTurns?: number | null;
   createdAt: string;
   completedAt?: string | null;
@@ -164,10 +162,6 @@ const personaDocRef = (topicId: string, personaId: string) =>
 
 // ---- Write functions (AI pipeline) ----
 
-export const updateTopicStatus = async (id: string, status: string): Promise<void> => {
-  await db().doc(`topics/${id}`).update({ status, updatedAt: Timestamp.now() });
-};
-
 // トピックの進行状態を 2軸（フェーズ・状態）で確定する
 export const updateTopicPhase = async (
   id: string,
@@ -175,6 +169,32 @@ export const updateTopicPhase = async (
   phaseStatus: PhaseStatus
 ): Promise<void> => {
   await db().doc(`topics/${id}`).update({ phase, phaseStatus, updatedAt: Timestamp.now() });
+};
+
+// 討論の停止ゲート: トピックが討論フェーズかつ実行中のときのみ討論を継続する
+export const isDebateActive = async (topicId: string): Promise<boolean> => {
+  const snap = await db().doc(`topics/${topicId}`).get();
+  if (!snap.exists) return false;
+  const data = snap.data() as { phase?: number; phaseStatus?: string };
+  return data.phase === 5 && data.phaseStatus === 'running';
+};
+
+// 討論を停止状態にする（最終リトライ失敗の終端、停止ボタンの権威）
+export const markTopicStopped = async (topicId: string): Promise<void> => {
+  await db().doc(`topics/${topicId}`).update({ phaseStatus: 'stopped', updatedAt: Timestamp.now() });
+};
+
+// 討論完了の確定: 現在 running のときのみ generated を書き、停止を上書きしない
+export const finalizeTopicIfRunning = async (topicId: string): Promise<boolean> => {
+  const ref = db().doc(`topics/${topicId}`);
+  return db().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return false;
+    const data = snap.data() as { phaseStatus?: string };
+    if (data.phaseStatus !== 'running') return false;
+    tx.update(ref, { phaseStatus: 'generated', updatedAt: Timestamp.now() });
+    return true;
+  });
 };
 
 export const createStakeholderMap = async (topicId: string, content: string): Promise<{ id: string }> => {
@@ -259,33 +279,17 @@ export const createPersonaBelief = async (params: CreatePersonaBeliefParams): Pr
   return { id };
 };
 
-export const createDebateSession = async (topicId: string, status = 'chapters_ready'): Promise<{ id: string }> => {
+export const createDebateSession = async (topicId: string): Promise<{ id: string }> => {
   const sessionRef = db().doc(`topics/${topicId}/sessions/0`);
   const snap = await sessionRef.get();
   if (!snap.exists) {
     await sessionRef.set({
-      status,
       createdAt: Timestamp.now(),
       turns: [],
       postDebateComments: [],
     });
   }
   return { id: topicId };
-};
-
-export const updateDebateSessionStatus = async (topicId: string, status: string): Promise<void> => {
-  await db().doc(`topics/${topicId}/sessions/0`).update({ status });
-};
-
-export const resetDebateTurns = async (topicId: string): Promise<void> => {
-  await db().doc(`topics/${topicId}/sessions/0`).update({
-    status: 'chapters_ready',
-    turns: [],
-    postDebateComments: [],
-    currentChapterIndex: FieldValue.delete(),
-    totalTurns: FieldValue.delete(),
-    completedAt: FieldValue.delete(),
-  });
 };
 
 // 章単位再開のためのクリーンアップ: 指定章以降の途中ターンを破棄し、
@@ -306,10 +310,9 @@ export const discardChapterProgress = async (
   const removedTurnIds = new Set(removed.map((t) => t.id));
   const removedTurnIndexes = removed.map((t) => t.turnIndex);
 
-  // セッションのターンを完了済み章のみに巻き戻し、進行中状態へ戻す
+  // セッションのターンを完了済み章のみに巻き戻す（進行状態はトピックが保持）
   await sessionRef.update({
     turns: kept,
-    status: 'debating',
     currentChapterIndex: chapterIndex,
     postDebateComments: [],
     totalTurns: FieldValue.delete(),
@@ -344,7 +347,6 @@ export const discardChapterProgress = async (
 
 export const completeDebateSession = async (id: string, totalTurns: number): Promise<void> => {
   await db().doc(`topics/${id}/sessions/0`).update({
-    status: 'completed',
     totalTurns,
     completedAt: Timestamp.now(),
   });
@@ -440,10 +442,6 @@ export const setPendingIntents = async (
   );
 };
 
-export const markSessionError = async (topicId: string): Promise<void> => {
-  await db().doc(`topics/${topicId}/sessions/0`).update({ status: 'error' });
-};
-
 export const loadPendingIntents = async (sessionId: string): Promise<Map<string, PendingIntentEntry[]>> => {
   const snap = await db().collection(`topics/${sessionId}/sessions/0/engagements`).get();
   const result = new Map<string, PendingIntentEntry[]>();
@@ -488,7 +486,6 @@ export const getDebateSessionByTopicId = async (topicId: string): Promise<Debate
   const snap = await db().doc(`topics/${topicId}/sessions/0`).get();
   if (!snap.exists) return null;
   const data = snap.data() as {
-    status: string;
     totalTurns?: number;
     createdAt: Timestamp;
     completedAt?: Timestamp;
@@ -499,7 +496,6 @@ export const getDebateSessionByTopicId = async (topicId: string): Promise<Debate
   return {
     id: topicId,
     topicId,
-    status: data.status,
     totalTurns: data.totalTurns ?? null,
     createdAt: data.createdAt?.toDate().toISOString() ?? '',
     completedAt: data.completedAt?.toDate().toISOString() ?? null,
@@ -569,11 +565,10 @@ export const getPersonaInterviewByPersonaId = async (topicId: string, personaId:
 export const getTopicById = async (id: string): Promise<DebateTopic | null> => {
   const snap = await db().doc(`topics/${id}`).get();
   if (!snap.exists) return null;
-  const data = snap.data() as { title: string; status: string; createdAt: Timestamp; updatedAt: Timestamp };
+  const data = snap.data() as { title: string; createdAt: Timestamp; updatedAt: Timestamp };
   return {
     id: snap.id,
     title: data.title,
-    status: data.status,
     createdAt: data.createdAt?.toDate().toISOString() ?? '',
     updatedAt: data.updatedAt?.toDate().toISOString() ?? '',
   };

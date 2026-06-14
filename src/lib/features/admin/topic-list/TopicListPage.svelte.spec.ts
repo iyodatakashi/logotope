@@ -17,17 +17,15 @@ vi.mock('$lib/stores/topics.svelte.js', () => ({
 			return [
 				{
 					id: 't1',
-					title: '新モデルのテーマ',
+					title: '実行中のテーマ',
 					phase: 3,
-					phaseStatus: 'running',
-					status: 'pending'
+					phaseStatus: 'running'
 				},
 				{
 					id: 't2',
-					title: '旧モデルのテーマ',
-					phase: undefined,
-					phaseStatus: undefined,
-					status: 'completed'
+					title: '停止したテーマ',
+					phase: 5,
+					phaseStatus: 'stopped'
 				}
 			];
 		}
@@ -37,15 +35,15 @@ vi.mock('$lib/stores/topics.svelte.js', () => ({
 import TopicListPage from './TopicListPage.svelte';
 
 describe('TopicListPage.svelte', () => {
-	it('新モデルのトピック（phase/phaseStatus）はphaseDisplayLabelでバッジを表示する', async () => {
+	it('トピックの (phase, phaseStatus) からバッジを表示する', async () => {
 		render(TopicListPage);
-		await expect.element(page.getByText('新モデルのテーマ')).toBeInTheDocument();
+		await expect.element(page.getByText('実行中のテーマ')).toBeInTheDocument();
 		await expect.element(page.getByText('取材中')).toBeInTheDocument();
 	});
 
-	it('旧モデルのトピック（statusのみ）はlegacyフォールバックでバッジを表示する', async () => {
+	it('停止状態は「討論停止」バッジを表示する', async () => {
 		render(TopicListPage);
-		await expect.element(page.getByText('旧モデルのテーマ')).toBeInTheDocument();
-		await expect.element(page.getByText('討論完了')).toBeInTheDocument();
+		await expect.element(page.getByText('停止したテーマ')).toBeInTheDocument();
+		await expect.element(page.getByText('討論停止')).toBeInTheDocument();
 	});
 });
