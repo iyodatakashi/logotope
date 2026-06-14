@@ -57,6 +57,7 @@
 						<div class="item-header">
 							<strong>{p.name}</strong>
 							<span class="age">{p.age}歳</span>
+							<span class="id">{p.id}</span>
 						</div>
 						<div class="meta">
 							<span class="badge">{p.specificRole ?? p.stakeholderRole}</span>
@@ -99,6 +100,13 @@
 	.age {
 		color: #757575;
 		font-size: 0.875rem;
+	}
+	.id {
+		margin-left: auto;
+		color: #9e9e9e;
+		font-size: 0.75rem;
+		font-family: monospace;
+		user-select: all;
 	}
 	.meta {
 		margin-top: 4px;
