@@ -1,7 +1,7 @@
 {
-  "feature_name": "debate-quality-improvement",
-  "created_at": "2026-06-08T00:00:00Z",
-  "updated_at": "2026-06-08T00:00:00Z",
+  "feature_name": "debate-flow-simplification",
+  "created_at": "2026-06-14T14:17:50Z",
+  "updated_at": "2026-06-15T03:30:00Z",
   "language": "ja",
   "phase": "tasks-generated",
   "approvals": {
@@ -15,8 +15,8 @@
     },
     "tasks": {
       "generated": true,
-      "approved": true
+      "approved": false
     }
   },
-  "ready_for_implementation": true
+  "ready_for_implementation": false
 }
