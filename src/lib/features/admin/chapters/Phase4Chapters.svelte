@@ -1,7 +1,7 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { phaseActions } from '$lib/models/topic/phaseActions.js';
-	import { phaseLogicalState } from '$lib/utils/phase.js';
+	import { phaseLogicalState, phasePath } from '$lib/utils/phase.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
 	const PHASE = 4;
@@ -13,17 +13,33 @@
 	});
 	const chapters = $derived(currentTopicStore.sessionStore.session?.chapters ?? null);
 	const chapterIssues = $derived(currentTopicStore.sessionStore.session?.chapterIssues ?? null);
+
+	// 生成・再生成・やり直しはいずれも章立てを作り直す
+	const generate = () => currentTopicStore.topic?.generateChapters();
+	const approve = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		await topic.approveChapters();
+		goto(phasePath(topic.id, 5));
+	};
 </script>
 
 <PhasePanel
-	phase={PHASE}
 	{logicalState}
 	title="フェーズ 4: 章立て"
 	generateHint="取材結果をもとに討論の章立てを生成します。"
-	onGenerate={() => void phaseActions.generate(PHASE)}
-	onApprove={() => void phaseActions.approve(PHASE)}
-	onRegenerate={() => void phaseActions.regenerate(PHASE)}
-	onRetry={() => void phaseActions.retry(PHASE)}
+	generateLabel="章立てを生成する"
+	approveLabel="承認して次へ進む"
+	regenerateLabel="再生成する"
+	regenerateConfirm={{
+		title: '章立てを再生成しますか？',
+		description: '現在の章立てと、生成済みの討論が削除されます。',
+		submitLabel: '再生成する'
+	}}
+	onGenerate={() => void generate()}
+	onApprove={() => void approve()}
+	onRegenerate={() => void generate()}
+	onRetry={() => void generate()}
 >
 	{#snippet content()}
 		{#if chapters?.length}

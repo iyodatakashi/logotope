@@ -1,10 +1,14 @@
 <script lang="ts">
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { phaseActions } from '$lib/models/topic/phaseActions.js';
 	import { phaseLogicalState } from '$lib/utils/phase.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
 	const PHASE = 5;
+	// 討論は開始・再生成・停止・再開。承認フェーズは無い
+	const generate = () => currentTopicStore.topic?.startDebate();
+	const regenerate = () => currentTopicStore.topic?.regenerateDebate();
+	const stop = () => currentTopicStore.topic?.stopDebate();
+	const restart = () => currentTopicStore.topic?.restartDebate();
 	const logicalState = $derived.by(() => {
 		const topic = currentTopicStore.topic;
 		return topic
@@ -28,8 +32,8 @@
 					turnIndex: t.turnIndex,
 					speakerType: t.speakerType,
 					speakerName: t.speakerName ?? persona?.name ?? 'ファシリテーター',
-					// 話者の役割はステークホルダーのカテゴリではなく、ペルソナ個人の具体的な職業を表示する
-					speakerRole: persona?.occupation ?? t.speakerRole ?? '',
+					// 話者の役割は、このテーマにおける具体的な立場（specificRole）を表示する
+					speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? t.speakerRole ?? '',
 					content: t.content,
 					speechMode: t.speechMode,
 					fromQueue: t.fromQueue,
@@ -66,15 +70,22 @@
 </script>
 
 <PhasePanel
-	phase={PHASE}
 	{logicalState}
 	title="フェーズ 5: 討論"
-	onGenerate={() => void phaseActions.generate(PHASE)}
-	onApprove={() => void phaseActions.approve(PHASE)}
-	onRegenerate={() => void phaseActions.regenerate(PHASE)}
-	onRetry={() => void phaseActions.retry(PHASE)}
-	onStop={() => void phaseActions.stopDebate()}
-	onRestart={() => void phaseActions.restartDebate()}
+	generateLabel="討論を開始する"
+	regenerateLabel="最初からやり直す"
+	regenerateConfirm={{
+		title: '討論を最初からやり直しますか？',
+		description: '現在の討論内容がすべて削除され、最初から討論し直します。',
+		submitLabel: '最初からやり直す'
+	}}
+	stopLabel="討論を停止する"
+	restartLabel="討論を再開する"
+	onGenerate={() => void generate()}
+	onRegenerate={() => void regenerate()}
+	onRetry={() => void generate()}
+	onStop={() => void stop()}
+	onRestart={() => void restart()}
 >
 	{#snippet progress()}
 		{#if logicalState === 'running'}

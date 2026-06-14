@@ -1,40 +1,49 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { Button, ConfirmDialog } from '@14ch/svelte-ui';
-	import { PHASE_DEFS } from '$lib/utils/phase.js';
-	import type { Phase, PhaseLogicalState } from '$lib/utils/phase.js';
+	import type { PhaseLogicalState } from '$lib/utils/phase.js';
 
+	// 表示専用。各ボタンの文言（label）と操作（on...）はいずれも親フェーズ画面から渡す。
+	// label と操作を同じ場所（親）に置くことで、ボタンの意味と実体を1ファイルで追える。
 	interface Props {
-		phase: Phase;
 		logicalState: PhaseLogicalState;
 		title: string;
-		generateHint?: string;
+		generateLabel: string;
+		regenerateLabel: string;
+		regenerateConfirm: { title: string; description: string; submitLabel: string };
 		onGenerate: () => void;
-		onApprove: () => void;
 		onRegenerate: () => void;
 		onRetry: () => void; // running 固着・停止からの再実行（フェーズ1〜4の共通回復）
-		onStop?: () => void; // 討論の停止（フェーズ5）
-		onRestart?: () => void; // 停止した討論の再開（フェーズ5）
+		approveLabel?: string; // generated での前進ボタン（フェーズ5は前進なし）
+		onApprove?: () => void;
+		stopLabel?: string; // running 中の停止（フェーズ5）
+		onStop?: () => void;
+		restartLabel?: string; // stopped からの再開（フェーズ5）
+		onRestart?: () => void;
+		generateHint?: string;
 		content?: Snippet;
 		progress?: Snippet;
 	}
 
 	let {
-		phase,
 		logicalState,
 		title,
-		generateHint,
+		generateLabel,
+		regenerateLabel,
+		regenerateConfirm,
 		onGenerate,
-		onApprove,
 		onRegenerate,
 		onRetry,
+		approveLabel,
+		onApprove,
+		stopLabel,
 		onStop,
+		restartLabel,
 		onRestart,
+		generateHint,
 		content,
 		progress
 	}: Props = $props();
-
-	const def = $derived(PHASE_DEFS.find((d) => d.phase === phase)!);
 
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 </script>
@@ -53,18 +62,14 @@
 			<p class="hint">{generateHint}</p>
 		{/if}
 		<div class="actions">
-			<Button variant="filled" onclick={onGenerate}>
-				{def.generateLabel}
-			</Button>
+			<Button variant="filled" onclick={onGenerate}>{generateLabel}</Button>
 		</div>
 
 	{:else if logicalState === 'running'}
 		<p class="indicator" role="status">実行中...</p>
 		<div class="actions">
-			{#if def.stoppable && onStop}
-				<Button variant="outlined" onclick={onStop}>
-					{def.stopLabel ?? '停止する'}
-				</Button>
+			{#if onStop}
+				<Button variant="outlined" onclick={onStop}>{stopLabel ?? '停止する'}</Button>
 			{:else}
 				<Button variant="outlined" onclick={onRetry}>やり直す</Button>
 			{/if}
@@ -72,12 +77,10 @@
 
 	{:else if logicalState === 'stopped'}
 		<div class="actions">
-			{#if def.restartable && onRestart}
-				<Button variant="filled" onclick={onRestart}>
-					{def.restartLabel ?? '再開する'}
-				</Button>
+			{#if onRestart}
+				<Button variant="filled" onclick={onRestart}>{restartLabel ?? '再開する'}</Button>
 				<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
-					{def.regenerateLabel}
+					{regenerateLabel}
 				</Button>
 			{:else}
 				<Button variant="filled" onclick={onRetry}>やり直す</Button>
@@ -86,20 +89,18 @@
 
 	{:else if logicalState === 'generated'}
 		<div class="actions">
-			{#if def.forwardAction}
-				<Button variant="filled" onclick={onApprove}>
-					{def.forwardAction.label}
-				</Button>
+			{#if approveLabel && onApprove}
+				<Button variant="filled" onclick={onApprove}>{approveLabel}</Button>
 			{/if}
 			<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
-				{def.regenerateLabel}
+				{regenerateLabel}
 			</Button>
 		</div>
 
 	{:else if logicalState === 'approved'}
 		<div class="actions">
 			<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
-				{def.regenerateLabel}
+				{regenerateLabel}
 			</Button>
 		</div>
 	{/if}
@@ -113,10 +114,10 @@
 
 <ConfirmDialog
 	bind:this={regenerateDialog}
-	title={def.regenerateConfirm.title}
-	description={def.regenerateConfirm.description}
+	title={regenerateConfirm.title}
+	description={regenerateConfirm.description}
 	danger
-	submitLabel={def.regenerateConfirm.submitLabel}
+	submitLabel={regenerateConfirm.submitLabel}
 	cancelLabel="キャンセル"
 	onSubmit={onRegenerate}
 />

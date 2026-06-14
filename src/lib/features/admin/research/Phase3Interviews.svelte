@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
+	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { phaseActions } from '$lib/models/topic/phaseActions.js';
-	import { phaseLogicalState } from '$lib/utils/phase.js';
+	import { phaseLogicalState, phasePath } from '$lib/utils/phase.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
 	const PHASE = 3;
@@ -26,7 +26,7 @@
 		personasStore.personas.map((p) => ({
 			personaId: p.id,
 			personaName: p.name,
-			occupation: p.occupation,
+			role: p.specificRole ?? p.stakeholderRole,
 			researchSummary: p.interview?.researchSummary ?? '',
 			interviewRecord: p.interview?.interviewRecord ?? '',
 			initialBelief: p.beliefs[0]?.content ?? '',
@@ -52,16 +52,42 @@
 			await personasStore.markInterviewsComplete();
 		}
 	};
+
+	// 生成・やり直しは未完了ペルソナのみ取材。再生成は下流を破棄して全ペルソナを再取材する
+	const generate = () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		return personasStore.runInterviews(topic.title);
+	};
+	const regenerate = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		await topic.clearDebateSession();
+		await personasStore.runInterviews(topic.title, true);
+	};
+	const approve = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		await topic.approveInterviews();
+		goto(phasePath(topic.id, 4));
+	};
 </script>
 
 <PhasePanel
-	phase={PHASE}
 	{logicalState}
 	title="フェーズ 3: ペルソナ取材"
-	onGenerate={() => void phaseActions.generate(PHASE)}
-	onApprove={() => void phaseActions.approve(PHASE)}
-	onRegenerate={() => void phaseActions.regenerate(PHASE)}
-	onRetry={() => void phaseActions.retry(PHASE)}
+	generateLabel="取材を開始する"
+	approveLabel="承認して次へ進む"
+	regenerateLabel="再取材する"
+	regenerateConfirm={{
+		title: '取材をやり直しますか？',
+		description: '現在の取材記録と、以降のフェーズで生成済みのデータ（章立て・討論）が削除されます。',
+		submitLabel: '再取材する'
+	}}
+	onGenerate={() => void generate()}
+	onApprove={() => void approve()}
+	onRegenerate={() => void regenerate()}
+	onRetry={() => void generate()}
 >
 	{#snippet progress()}
 		{#if totalCount > 0}
@@ -87,7 +113,7 @@
 							<button class="toggle" onclick={() => toggle(iv.personaId)}>
 								<span class="name-role">
 									<strong>{iv.personaName}</strong>
-									<span class="role">{iv.occupation}</span>
+									<span class="role">{iv.role}</span>
 								</span>
 								<span
 									class="status-badge"

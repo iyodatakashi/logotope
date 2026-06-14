@@ -29,33 +29,6 @@ describe('phasePath', () => {
 	});
 });
 
-describe('PhaseDef 拡張（操作設定）', () => {
-	it('全フェーズに生成・再生成ラベルと再生成確認文言がある', () => {
-		for (const def of PHASE_DEFS) {
-			expect(def.generateLabel.length).toBeGreaterThan(0);
-			expect(def.regenerateLabel.length).toBeGreaterThan(0);
-			expect(def.regenerateConfirm.title.length).toBeGreaterThan(0);
-			expect(def.regenerateConfirm.description.length).toBeGreaterThan(0);
-			expect(def.regenerateConfirm.submitLabel.length).toBeGreaterThan(0);
-		}
-	});
-
-	it('フェーズ1〜4は承認(forwardAction)を持ち、停止・再開を持たない', () => {
-		for (const def of PHASE_DEFS.filter((d) => d.phase !== 5)) {
-			expect(def.forwardAction).toEqual({ kind: 'approve', label: expect.any(String) });
-			expect(def.stoppable).toBeFalsy();
-			expect(def.restartable).toBeFalsy();
-		}
-	});
-
-	it('フェーズ5は承認を持たず、停止・再開が可能', () => {
-		const def = PHASE_DEFS.find((d) => d.phase === 5)!;
-		expect(def.forwardAction).toBeUndefined();
-		expect(def.stoppable).toBe(true);
-		expect(def.restartable).toBe(true);
-	});
-});
-
 describe('phaseLogicalState', () => {
 	it('対象フェーズが現在より前なら approved', () => {
 		expect(phaseLogicalState({ phase: 3, phaseStatus: 'running' }, 1)).toBe('approved');

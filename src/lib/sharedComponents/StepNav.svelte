@@ -5,10 +5,10 @@
 	let { topicId, currentPhase }: { topicId: string; currentPhase: Phase } = $props();
 
 	const tabItems = $derived(
-		PHASE_DEFS.map((def) => ({
-			label: def.label,
-			href: phasePath(topicId, def.phase),
-			disabled: def.phase > currentPhase
+		PHASE_DEFS.map((phaseDefinition) => ({
+			label: phaseDefinition.label,
+			href: phasePath(topicId, phaseDefinition.phase),
+			disabled: phaseDefinition.phase > currentPhase
 		}))
 	);
 </script>

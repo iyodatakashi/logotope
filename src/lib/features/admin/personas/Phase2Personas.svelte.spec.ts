@@ -2,16 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
-vi.mock('$lib/models/topic/phaseActions.js', () => ({
-	phaseActions: {
-		generate: vi.fn(),
-		approve: vi.fn(),
-		regenerate: vi.fn(),
-		retry: vi.fn(),
-		stopDebate: vi.fn(),
-		restartDebate: vi.fn()
-	}
-}));
+vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {

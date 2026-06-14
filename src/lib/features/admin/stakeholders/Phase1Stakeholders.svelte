@@ -1,7 +1,7 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { phaseActions } from '$lib/models/topic/phaseActions.js';
-	import { phaseLogicalState } from '$lib/utils/phase.js';
+	import { phaseLogicalState, phasePath } from '$lib/utils/phase.js';
 	import { engagementStyle } from '$lib/utils/engagement.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
@@ -13,16 +13,34 @@
 			: 'not_started';
 	});
 	const stakeholders = $derived(currentTopicStore.topic?.stakeholders?.items ?? []);
+
+	// 生成・再生成・やり直しはいずれもステークホルダーを作り直す
+	const generate = () => currentTopicStore.topic?.generateStakeholders();
+
+	const approve = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		await topic.approveStakeholders();
+		goto(phasePath(topic.id, 2));
+	};
 </script>
 
 <PhasePanel
-	phase={PHASE}
 	{logicalState}
 	title="フェーズ 1: ステークホルダー調査"
-	onGenerate={() => void phaseActions.generate(PHASE)}
-	onApprove={() => void phaseActions.approve(PHASE)}
-	onRegenerate={() => void phaseActions.regenerate(PHASE)}
-	onRetry={() => void phaseActions.retry(PHASE)}
+	generateLabel="調査を開始する"
+	approveLabel="承認して次へ進む"
+	regenerateLabel="再生成する"
+	regenerateConfirm={{
+		title: 'ステークホルダーを再生成しますか？',
+		description:
+			'現在のステークホルダーと、以降のフェーズで生成済みのデータ（ペルソナ・取材・章立て・討論）が削除されます。',
+		submitLabel: '再生成する'
+	}}
+	onGenerate={() => void generate()}
+	onApprove={() => void approve()}
+	onRegenerate={() => void generate()}
+	onRetry={() => void generate()}
 >
 	{#snippet content()}
 		{#if stakeholders.length > 0}
