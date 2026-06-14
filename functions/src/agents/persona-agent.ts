@@ -418,7 +418,7 @@ export class PersonaAgentService {
 				messages: [
 					{
 						role: 'user',
-						content: `現在の会話:\n\n${formatHistory(recentHistory)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。現在の論点が自分の立場・主張に強く関わる場合はスコアを高め（4〜5）に評価してください。すでに同じ論点・主張を述べており、新たに付け加えるべきことがない場合: full なら score 1（パス）、reaction なら score 2（反応したい）を選択してください。`
+						content: `現在の会話:\n\n${formatHistory(recentHistory)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。基本的に議論には積極的に参加したいと考え、少しでも関心・賛否・違和感があれば score 3 以上で評価してください。現在の論点が自分の立場・主張に関わる場合はスコアを高め（4〜5）に評価してください。score 1〜2 は、その論点に本当に関心がない・付け加えることが何もない場合に限ってください。すでに同じ論点・主張を述べており、新たに付け加えるべきことがない場合: full なら score 1（パス）、reaction なら score 2（反応したい）を選択してください。`
 					}
 				]
 			});
