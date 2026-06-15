@@ -2,7 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-import type { PhaseLogicalState } from '$lib/utils/phase.js';
+import type { PhaseLogicalState } from '$lib/models/phase/phase.js';
 
 // フェーズ1〜4 相当（承認あり・停止/再開なし）の既定プロップ
 const makeProps = (overrides: Record<string, unknown> = {}) => ({

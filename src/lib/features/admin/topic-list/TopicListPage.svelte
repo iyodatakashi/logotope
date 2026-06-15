@@ -3,8 +3,8 @@
 	import { Button } from '@14ch/svelte-ui';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import { topicsStore } from '$lib/stores/topics.svelte.js';
-	import { phaseDisplayLabel } from '$lib/utils/phase.js';
-	import type { Phase, PhaseStatus } from '$lib/utils/phase.js';
+	import { phaseDisplayLabel } from '$lib/models/phase/phase.js';
+	import type { Phase, PhaseStatus } from '$lib/models/phase/phase.js';
 
 	const getBadge = (topic: {
 		phase: Phase;

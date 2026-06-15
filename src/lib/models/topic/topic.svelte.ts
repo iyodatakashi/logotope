@@ -12,15 +12,26 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase.js';
-import type { TopicDoc, StakeholderDoc } from './topic.types.js';
+import type { Topic, TopicDoc, StakeholderDoc } from './topic.types.js';
 import type { PersonaData } from '../persona/persona.types.js';
+import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
 
 export const createTopicStore = (topicDoc: TopicDoc) => {
-	let topic = $state<TopicDoc>(topicDoc);
-	const topicId = topicDoc.id;
+	let id: string = $state(topicDoc.id);
+	let title: string = $state(topicDoc.title);
+	let phase: Phase = $state(topicDoc.phase);
+	let phaseStatus: PhaseStatus = $state(topicDoc.phaseStatus);
+	let stakeholders: {
+		items: StakeholderDoc[];
+		approved: boolean;
+	} = $state(topicDoc.stakeholders ?? { items: [], approved: false });
+	let personaCount: number = $state(topicDoc.personaCount ?? 0);
+	let createdAt: Date = topicDoc.createdAt.toDate();
+	let updatedAt: Date = topicDoc.updatedAt.toDate();
+	let publishedAt: Date | undefined = topicDoc.publishedAt?.toDate();
 
 	const approveStakeholders = async (): Promise<void> => {
-		await updateDoc(doc(db, 'topics', topicId), {
+		await updateDoc(doc(db, 'topics', id), {
 			'stakeholders.approved': true,
 			phase: 2,
 			phaseStatus: 'not_started',
@@ -29,7 +40,7 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 	};
 
 	const approveInterviews = async (): Promise<void> => {
-		await updateDoc(doc(db, 'topics', topicId), {
+		await updateDoc(doc(db, 'topics', id), {
 			phase: 4,
 			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
@@ -37,7 +48,7 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 	};
 
 	const approveChapters = async (): Promise<void> => {
-		await updateDoc(doc(db, 'topics', topicId), {
+		await updateDoc(doc(db, 'topics', id), {
 			phase: 5,
 			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
@@ -45,16 +56,16 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 	};
 
 	const publishDebate = async (): Promise<void> => {
-		const personasSnap = await getDocs(collection(db, 'topics', topicId, 'personas'));
+		const personasSnap = await getDocs(collection(db, 'topics', id, 'personas'));
 		const personaCount = personasSnap.size;
 		const now = Timestamp.now();
 		const batch = writeBatch(db);
-		batch.update(doc(db, 'topics', topicId), {
+		batch.update(doc(db, 'topics', id), {
 			personaCount,
 			publishedAt: now,
 			updatedAt: now
 		});
-		batch.update(doc(db, 'topics', topicId, 'sessions', '0'), {
+		batch.update(doc(db, 'topics', id, 'sessions', '0'), {
 			publishedAt: now
 		});
 		await batch.commit();
@@ -62,7 +73,7 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 
 	// フェーズ状態（実行中・生成完了・停止）をトピックに書く小さなヘルパー。
 	const setPhaseStatus = async (phase: 1 | 2 | 3 | 4 | 5, phaseStatus: string): Promise<void> => {
-		await updateDoc(doc(db, 'topics', topicId), {
+		await updateDoc(doc(db, 'topics', id), {
 			phase,
 			phaseStatus,
 			updatedAt: Timestamp.now()
@@ -74,7 +85,7 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 
 	// ステークホルダー（トピックの stakeholders フィールド）を空に戻す。
 	const resetStakeholders = async (): Promise<void> => {
-		await updateDoc(doc(db, 'topics', topicId), {
+		await updateDoc(doc(db, 'topics', id), {
 			stakeholders: { items: [], approved: false, createdAt: Timestamp.now() },
 			updatedAt: Timestamp.now()
 		});
@@ -82,14 +93,14 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 
 	// ペルソナ（personas サブコレクション。取材記録・信念もペルソナ文書に含まれる）を全削除する。
 	const resetPersonas = async (): Promise<void> => {
-		const personasSnap = await getDocs(collection(db, 'topics', topicId, 'personas'));
+		const personasSnap = await getDocs(collection(db, 'topics', id, 'personas'));
 		await Promise.all(personasSnap.docs.map((personaDoc) => deleteDoc(personaDoc.ref)));
 	};
 
 	// 章立て（セッションの chapters）を消す。session '0' 未作成でも安全なよう merge で書く。
 	const resetChapters = async (): Promise<void> => {
 		await setDoc(
-			doc(db, 'topics', topicId, 'sessions', '0'),
+			doc(db, 'topics', id, 'sessions', '0'),
 			{ chapters: deleteField(), chapterIssues: deleteField() },
 			{ merge: true }
 		);
@@ -99,11 +110,11 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 	const resetDebate = async (): Promise<void> => {
 		// engagements はペルソナidをキーにした討論時データ。古いペルソナidが残らないよう全削除する。
 		const engagementsSnap = await getDocs(
-			collection(db, 'topics', topicId, 'sessions', '0', 'engagements')
+			collection(db, 'topics', id, 'sessions', '0', 'engagements')
 		);
 		await Promise.all(engagementsSnap.docs.map((engagementDoc) => deleteDoc(engagementDoc.ref)));
 		await setDoc(
-			doc(db, 'topics', topicId, 'sessions', '0'),
+			doc(db, 'topics', id, 'sessions', '0'),
 			{
 				turns: [],
 				postDebateComments: [],
@@ -124,9 +135,9 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 				{ title: string },
 				{ stakeholders: StakeholderDoc[] }
 			>(functions, 'generateStakeholders', { timeout: 310000 });
-			const { data } = await generateStakeholdersCallable({ title: topic.title });
+			const { data } = await generateStakeholdersCallable({ title });
 
-			await updateDoc(doc(db, 'topics', topicId), {
+			await updateDoc(doc(db, 'topics', id), {
 				stakeholders: { items: data.stakeholders, approved: false, createdAt: Timestamp.now() },
 				phase: 1,
 				phaseStatus: 'generated',
@@ -141,17 +152,20 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 	const generatePersonas = async (): Promise<void> => {
 		await setPhaseStatus(2, 'running');
 		try {
-			const stakeholders = topic.stakeholders?.items ?? [];
+			const stakeholderItems = stakeholders?.items ?? [];
 			const generatePersonasCallable = httpsCallable<
 				{ title: string; stakeholders: StakeholderDoc[] },
 				{ personas: PersonaData[] }
 			>(functions, 'generatePersonas', { timeout: 310000 });
-			const { data } = await generatePersonasCallable({ title: topic.title, stakeholders });
+			const { data } = await generatePersonasCallable({
+				title: title,
+				stakeholders: stakeholderItems
+			});
 
 			await Promise.all(
 				data.personas.map((persona, index) =>
-					addDoc(collection(db, 'topics', topicId, 'personas'), {
-						topicId,
+					addDoc(collection(db, 'topics', id, 'personas'), {
+						id,
 						sortOrder: index,
 						approved: false,
 						beliefs: [],
@@ -175,7 +189,7 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 				'generateChapters',
 				{ timeout: 300000 }
 			);
-			await generateChaptersCallable({ topicId });
+			await generateChaptersCallable({ topicId: id });
 
 			await setPhaseStatus(4, 'generated');
 		} catch (e) {
@@ -185,12 +199,12 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 	};
 
 	const startDebate = async (): Promise<void> => {
-		const startDebateCallable = httpsCallable<{ topicId: string }, unknown>(
-			functions,
-			'startDebate',
-			{ timeout: 600000 }
-		);
-		await startDebateCallable({ topicId });
+		const startDebateCallable = httpsCallable<
+			{ topicId: string; singleChapterMode?: boolean },
+			unknown
+		>(functions, 'startDebate', { timeout: 600000 });
+		const singleChapterMode = import.meta.env.VITE_SINGLE_CHAPTER_MODE === 'true';
+		await startDebateCallable({ topicId: id, singleChapterMode: singleChapterMode || undefined });
 	};
 
 	// 停止した討論を currentChapterIndex から再開する。
@@ -200,13 +214,13 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 			'restartDebate',
 			{ timeout: 60000 }
 		);
-		await restartDebateCallable({ topicId });
+		await restartDebateCallable({ topicId: id });
 	};
 
 	// 討論の停止操作: トピックのフェーズ状態を停止にする。実行中のオーケストレータは
 	// 次のターン境界でこれを読み自己停止する（在席非依存）。
 	const stopDebate = async (): Promise<void> => {
-		await updateDoc(doc(db, 'topics', topicId), {
+		await updateDoc(doc(db, 'topics', id), {
 			phaseStatus: 'stopped',
 			updatedAt: Timestamp.now()
 		});
@@ -214,35 +228,33 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 
 	return {
 		get id() {
-			return topic.id;
+			return id;
 		},
 		get title() {
-			return topic.title;
+			return title;
 		},
 		get phase() {
-			return topic.phase;
+			return phase;
 		},
 		get phaseStatus() {
-			return topic.phaseStatus;
+			return phaseStatus;
 		},
 		get createdAt() {
-			return topic.createdAt;
+			return createdAt;
 		},
 		get updatedAt() {
-			return topic.updatedAt;
+			return updatedAt;
 		},
 		get publishedAt() {
-			return topic.publishedAt;
+			return publishedAt;
 		},
 		get personaCount() {
-			return topic.personaCount;
+			return personaCount;
 		},
 		get stakeholders() {
-			return topic.stakeholders;
+			return stakeholders;
 		},
-		_set(data: TopicDoc) {
-			topic = data;
-		},
+
 		generateStakeholders,
 		generatePersonas,
 		generateChapters,
@@ -259,5 +271,3 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		publishDebate
 	};
 };
-
-export type TopicStore = ReturnType<typeof createTopicStore>;

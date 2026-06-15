@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { phaseLogicalState, phasePath } from '$lib/utils/phase.js';
-	import { engagementStyle } from '$lib/utils/engagement.js';
+	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase.js';
+	import { engagementStyle } from '$lib/models/engagement/engagement.constants.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
 	const PHASE = 2;
@@ -42,7 +42,8 @@
 	regenerateLabel="再生成する"
 	regenerateConfirm={{
 		title: 'ペルソナを再生成しますか？',
-		description: '現在のペルソナと、以降のフェーズで生成済みのデータ（取材・章立て・討論）が削除されます。',
+		description:
+			'現在のペルソナと、以降のフェーズで生成済みのデータ（取材・章立て・討論）が削除されます。',
 		submitLabel: '再生成する'
 	}}
 	onGenerate={generate}

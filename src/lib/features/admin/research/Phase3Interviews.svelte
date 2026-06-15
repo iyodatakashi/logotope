@@ -2,7 +2,7 @@
 	import { Button } from '@14ch/svelte-ui';
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { phaseLogicalState, phasePath } from '$lib/utils/phase.js';
+	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
 	const PHASE = 3;

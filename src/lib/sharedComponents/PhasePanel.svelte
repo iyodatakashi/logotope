@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { Button, ConfirmDialog } from '@14ch/svelte-ui';
-	import type { PhaseLogicalState } from '$lib/utils/phase.js';
+	import type { PhaseLogicalState } from '$lib/models/phase/phase.js';
 
 	// 表示専用。各ボタンの文言（label）と操作（on...）はいずれも親フェーズ画面から渡す。
 	// label と操作を同じ場所（親）に置くことで、ボタンの意味と実体を1ファイルで追える。

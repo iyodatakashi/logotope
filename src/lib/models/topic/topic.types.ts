@@ -1,19 +1,38 @@
 import { Timestamp } from 'firebase/firestore';
-import type { Phase, PhaseStatus } from '$lib/utils/phase.js';
+import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
 
-export type TopicSummary = {
+/*
+export type Topic = {
 	id: string;
 	title: string;
 	phase: Phase;
 	phaseStatus: PhaseStatus;
 	createdAt: string;
 };
+*/
 
-export type PublishedDebateSummary = {
+export type TopicBase = {
 	id: string;
-	topicTitle: string;
-	personaCount: number;
-	publishedAt: string;
+	title: string;
+	phase: Phase;
+	phaseStatus: PhaseStatus;
+	stakeholders?: {
+		items: StakeholderDoc[];
+		approved: boolean;
+	};
+	personaCount?: number;
+};
+
+export type Topic = TopicBase & {
+	createdAt: Date;
+	updatedAt: Date;
+	publishedAt?: Date;
+};
+
+export type TopicDoc = TopicBase & {
+	createdAt: Timestamp;
+	updatedAt: Timestamp;
+	publishedAt?: Timestamp;
 };
 
 export type EngagementLevel = 'high' | 'medium' | 'low';
@@ -24,20 +43,4 @@ export type StakeholderDoc = {
 	mainInterests: string[];
 	minorityLevel: string;
 	engagementLevel?: EngagementLevel;
-};
-
-export type TopicDoc = {
-	id: string;
-	title: string;
-	phase: Phase;
-	phaseStatus: PhaseStatus;
-	createdAt: Timestamp;
-	updatedAt: Timestamp;
-	publishedAt?: Timestamp;
-	personaCount?: number;
-	stakeholders?: {
-		items: StakeholderDoc[];
-		approved: boolean;
-		createdAt: Timestamp;
-	};
 };

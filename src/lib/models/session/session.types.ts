@@ -4,9 +4,9 @@ import type { PersonaSummaryForViewer, BeliefChangeTrigger } from '../persona/pe
 export type SpeakerType = 'facilitator' | 'persona';
 
 export type ChapterDoc = {
-	index: number;
 	title: string;
 	focusQuestion: string;
+	startTurnIndex?: number;
 };
 
 export type TurnDoc = {
@@ -18,7 +18,6 @@ export type TurnDoc = {
 	speakerRole?: string;
 	content: string;
 	createdAt: Timestamp;
-	chapterIndex?: number;
 	speechMode?: 'opinion' | 'fact';
 	engagementScore?: number;
 	fromQueue?: boolean;
@@ -57,7 +56,6 @@ export type PublishedTurn = {
 	speakerRole: string;
 	content: string;
 	beliefChangesTriggered: BeliefChangeTrigger[];
-	chapterIndex?: number;
 };
 
 export type PublishedComment = {

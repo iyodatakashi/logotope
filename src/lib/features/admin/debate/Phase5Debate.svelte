@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { phaseLogicalState } from '$lib/utils/phase.js';
+	import { phaseLogicalState } from '$lib/models/phase/phase.js';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import EngagementList from './EngagementList.svelte';
 
@@ -106,8 +106,8 @@
 	{#snippet content()}
 		{#if chapters}
 			<ol class="chapters">
-				{#each chapters as chapter}
-					<li class:current={chapter.index === (currentChapterIndex ?? 0)}>
+				{#each chapters as chapter, i}
+					<li class:current={i === (currentChapterIndex ?? 0)}>
 						<strong>{chapter.title}</strong>
 						<span class="focus">{chapter.focusQuestion}</span>
 					</li>

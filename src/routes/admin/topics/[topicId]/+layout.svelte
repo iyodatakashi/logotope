@@ -2,7 +2,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
-	import { PHASE_DEFS, phasePath, type Phase } from '$lib/utils/phase.js';
+	import { PHASE_DEFS, phasePath, type Phase } from '$lib/models/phase/phase.js';
 	import StepNav from '$lib/sharedComponents/StepNav.svelte';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
 	import { topicsStore } from '$lib/stores/topics.svelte.js';
