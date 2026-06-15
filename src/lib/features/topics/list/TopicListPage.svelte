@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import TopicListItem from '$lib/features/topics/list/TopicListItem.svelte';
-	import { topicsStore } from '$lib/stores/topics.svelte.js';
-	import type { Topic } from '$lib/models/topic/topic.types.js';
+	import { topicsStore } from '$lib/stores/topics.svelte';
+	import type { Topic } from '$lib/models/topic/createTopic.svelte';
 
 	const topics = $derived<Topic[]>(
 		topicsStore.topics

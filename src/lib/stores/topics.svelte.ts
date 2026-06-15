@@ -9,13 +9,13 @@ import {
 	getDocs,
 	Timestamp
 } from 'firebase/firestore';
-import { db } from '$lib/firebase.js';
+import { db } from '$lib/firebase';
 import { nanoid } from 'nanoid';
 import type { TopicDoc } from '$lib/models/topic/topic.types';
-import { createTopicStore, type TopicStore } from '$lib/models/topic/topic.svelte.js';
+import { createTopicStates, type Topic } from '$lib/models/topic/createTopic.svelte';
 
 const create = () => {
-	let topics = $state<TopicStore[]>([]);
+	let topics = $state<Topic[]>([]);
 	let isLoaded = $state(false);
 	let unsubscribe: (() => void) | null = null;
 
@@ -23,7 +23,7 @@ const create = () => {
 		if (unsubscribe) return;
 		const q = query(collection(db, 'topics'), orderBy('createdAt', 'desc'));
 		unsubscribe = onSnapshot(q, (snap) => {
-			topics = snap.docs.map((d) => createTopicStore({ id: d.id, ...d.data() } as TopicDoc));
+			topics = snap.docs.map((d) => createTopicStates({ id: d.id, ...d.data() } as TopicDoc));
 			isLoaded = true;
 		});
 	};

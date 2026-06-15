@@ -1,16 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
 
-/*
-export type Topic = {
-	id: string;
-	title: string;
-	phase: Phase;
-	phaseStatus: PhaseStatus;
-	createdAt: string;
-};
-*/
-
 export type TopicBase = {
 	id: string;
 	title: string;
@@ -21,12 +11,6 @@ export type TopicBase = {
 		approved: boolean;
 	};
 	personaCount?: number;
-};
-
-export type Topic = TopicBase & {
-	createdAt: Date;
-	updatedAt: Date;
-	publishedAt?: Date;
 };
 
 export type TopicDoc = TopicBase & {

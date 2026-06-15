@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Topic } from '$lib/models/topic/topic.types.js';
+	import type { Topic } from '$lib/models/topic/createTopic.svelte';
 
 	interface Props {
 		topic: Topic;

@@ -30,13 +30,13 @@ vi.mock('firebase/firestore', () => ({
 
 import { httpsCallable } from 'firebase/functions';
 import { updateDoc, setDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
-import { createTopicStore } from './topic.svelte.js';
+import { createTopicStates } from './createTopic.svelte';
 
 const TOPIC_PATH = { path: 'topics/t1' };
 const updateCallsFor = (path: string) =>
 	vi.mocked(updateDoc).mock.calls.filter((c) => (c[0] as { path: string }).path === path);
 
-describe('createTopicStore', () => {
+describe('createTopicStates', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(getDoc).mockResolvedValue({ exists: () => false, data: () => undefined } as never);
@@ -45,7 +45,7 @@ describe('createTopicStore', () => {
 
 	describe('承認操作の2軸遷移 (task 3.1)', () => {
 		it('approveStakeholders は (2, not_started) へ前進しステークホルダーを承認する', async () => {
-			const store = createTopicStore({ id: 't1' } as never);
+			const store = createTopicStates({ id: 't1' } as never);
 			await store.approveStakeholders();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
@@ -58,7 +58,7 @@ describe('createTopicStore', () => {
 		});
 
 		it('approveInterviews は (4, not_started) へ前進する', async () => {
-			const store = createTopicStore({ id: 't1' } as never);
+			const store = createTopicStates({ id: 't1' } as never);
 			await store.approveInterviews();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
@@ -67,7 +67,7 @@ describe('createTopicStore', () => {
 		});
 
 		it('approveChapters は (5, not_started) へ前進する', async () => {
-			const store = createTopicStore({ id: 't1' } as never);
+			const store = createTopicStates({ id: 't1' } as never);
 			await store.approveChapters();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
@@ -76,7 +76,7 @@ describe('createTopicStore', () => {
 		});
 
 		it('承認操作は旧 status を書き込まない', async () => {
-			const store = createTopicStore({ id: 't1' } as never);
+			const store = createTopicStates({ id: 't1' } as never);
 			await store.approveChapters();
 			const call = vi.mocked(updateDoc).mock.calls.at(-1)?.[1] as unknown as Record<
 				string,
@@ -91,7 +91,7 @@ describe('createTopicStore', () => {
 			vi.mocked(httpsCallable).mockReturnValue(
 				vi.fn().mockResolvedValue({ data: { stakeholders: [{ role: 'A' }] } }) as never
 			);
-			const store = createTopicStore({ id: 't1', title: 'T' } as never);
+			const store = createTopicStates({ id: 't1', title: 'T' } as never);
 			await store.generateStakeholders();
 
 			const calls = updateCallsFor('topics/t1');
@@ -108,7 +108,7 @@ describe('createTopicStore', () => {
 			vi.mocked(httpsCallable).mockReturnValue(
 				vi.fn().mockResolvedValue({ data: { personas: [{ name: 'p' }] } }) as never
 			);
-			const store = createTopicStore({ id: 't1', title: 'T' } as never);
+			const store = createTopicStates({ id: 't1', title: 'T' } as never);
 			await store.generatePersonas();
 			const calls = updateCallsFor('topics/t1');
 			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 2, phaseStatus: 'running' }));
@@ -118,7 +118,7 @@ describe('createTopicStore', () => {
 		});
 
 		it('generateChapters は (4, running)→生成成功後に (4, generated)', async () => {
-			const store = createTopicStore({ id: 't1', title: 'T' } as never);
+			const store = createTopicStates({ id: 't1', title: 'T' } as never);
 			await store.generateChapters();
 			const calls = updateCallsFor('topics/t1');
 			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 4, phaseStatus: 'running' }));
@@ -130,7 +130,7 @@ describe('createTopicStore', () => {
 
 	describe('stopDebate (task 2.1)', () => {
 		it('トピックの phaseStatus を stopped にする（session には書かない）', async () => {
-			const store = createTopicStore({ id: 't1', title: 'T' } as never);
+			const store = createTopicStates({ id: 't1', title: 'T' } as never);
 			await store.stopDebate();
 
 			expect(updateDoc).toHaveBeenCalledWith(
@@ -145,7 +145,7 @@ describe('createTopicStore', () => {
 			vi.mocked(httpsCallable).mockReturnValue(
 				vi.fn().mockRejectedValue(new Error('生成失敗')) as never
 			);
-			const store = createTopicStore({ id: 't1', title: 'T' } as never);
+			const store = createTopicStates({ id: 't1', title: 'T' } as never);
 
 			await expect(store.generateStakeholders()).rejects.toThrow('生成失敗');
 			const calls = updateCallsFor('topics/t1');
@@ -157,7 +157,7 @@ describe('createTopicStore', () => {
 
 	describe('旧データのリセット（データ層ごと。名前＝役割範囲）', () => {
 		it('resetStakeholders は stakeholders を空に戻す', async () => {
-			const store = createTopicStore({ id: 't1' } as never);
+			const store = createTopicStates({ id: 't1' } as never);
 			await store.resetStakeholders();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
@@ -172,7 +172,7 @@ describe('createTopicStore', () => {
 			const ref2 = { path: 'topics/t1/personas/p2' };
 			vi.mocked(getDocs).mockResolvedValue({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never);
 
-			const store = createTopicStore({ id: 't1' } as never);
+			const store = createTopicStates({ id: 't1' } as never);
 			await store.resetPersonas();
 
 			expect(deleteDoc).toHaveBeenCalledWith(ref1);
@@ -180,7 +180,7 @@ describe('createTopicStore', () => {
 		});
 
 		it('resetChapters は session の chapters を消す（merge・章立て層のみ）', async () => {
-			const store = createTopicStore({ id: 't1' } as never);
+			const store = createTopicStates({ id: 't1' } as never);
 			await store.resetChapters();
 			expect(setDoc).toHaveBeenCalledWith(
 				{ path: 'topics/t1/sessions/0' },
@@ -190,7 +190,7 @@ describe('createTopicStore', () => {
 		});
 
 		it('resetDebate は session の turns を消し、章立て・status は触らない', async () => {
-			const store = createTopicStore({ id: 't1' } as never);
+			const store = createTopicStates({ id: 't1' } as never);
 			await store.resetDebate();
 			const call = vi
 				.mocked(setDoc)
@@ -205,7 +205,7 @@ describe('createTopicStore', () => {
 			const ref2 = { path: 'topics/t1/sessions/0/engagements/old-p2' };
 			vi.mocked(getDocs).mockResolvedValue({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never);
 
-			const store = createTopicStore({ id: 't1' } as never);
+			const store = createTopicStates({ id: 't1' } as never);
 			await store.resetDebate();
 
 			expect(deleteDoc).toHaveBeenCalledWith(ref1);
@@ -214,7 +214,7 @@ describe('createTopicStore', () => {
 	});
 
 	it('旧 reset 名・バンドル操作は撲滅され、データ層ごとの reset へ統一されている', () => {
-		const store = createTopicStore({ id: 't1' } as never);
+		const store = createTopicStates({ id: 't1' } as never);
 		// 旧: フェーズ番号ベース／reset と生成を兼ねたバンドル操作は無い
 		expect('resetToPhase1' in store).toBe(false);
 		expect('resetToPhase2' in store).toBe(false);

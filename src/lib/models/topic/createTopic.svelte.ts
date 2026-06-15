@@ -11,12 +11,12 @@ import {
 	deleteDoc
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '$lib/firebase.js';
-import type { Topic, TopicDoc, StakeholderDoc } from './topic.types.js';
-import type { PersonaData } from '../persona/persona.types.js';
+import { db, functions } from '$lib/firebase';
+import type { TopicDoc, StakeholderDoc } from './topic.types';
+import type { PersonaData } from '../persona/persona.types';
 import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
 
-export const createTopicStore = (topicDoc: TopicDoc) => {
+export const createTopicStates = (topicDoc: TopicDoc) => {
 	let id: string = $state(topicDoc.id);
 	let title: string = $state(topicDoc.title);
 	let phase: Phase = $state(topicDoc.phase);
@@ -271,3 +271,5 @@ export const createTopicStore = (topicDoc: TopicDoc) => {
 		publishDebate
 	};
 };
+
+export type Topic = ReturnType<typeof createTopicStates>;
