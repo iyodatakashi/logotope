@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
-	import { topicsStore } from '$lib/stores/topics.svelte.js';
-	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
-	import { createSessionStore } from '$lib/stores/session.svelte.js';
+	import { topicsStore } from '$lib/stores/topics.svelte';
+	import { createPersonasStore } from '$lib/stores/personas.svelte';
+	import { createSessionStore } from '$lib/stores/session.svelte';
 	import DebateViewer from '$lib/features/topics/detail/DebateViewer.svelte';
 	import PostDebateComments from '$lib/sharedComponents/PostDebateComments.svelte';
-	import type { PersonaSummaryForViewer } from '$lib/models/persona/persona.types.js';
+	import type { PersonaSummaryForViewer } from '$lib/models/persona/persona.types';
 	import type {
 		PublishedDebateDetail,
 		PublishedTurn,
 		PublishedComment
-	} from '$lib/models/session/session.types.js';
+	} from '$lib/models/session/session.types';
 
 	const topicId = page.params.id as string;
 	const personasStore = createPersonasStore(topicId);

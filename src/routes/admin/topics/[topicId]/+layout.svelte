@@ -2,10 +2,12 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
-	import { PHASE_DEFS, phasePath, type Phase } from '$lib/models/phase/phase.js';
+	import { phasePath } from '$lib/models/phase/phase';
+	import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
+	import { type Phase } from '$lib/models/phase/phase.types';
 	import StepNav from '$lib/sharedComponents/StepNav.svelte';
-	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { topicsStore } from '$lib/stores/topics.svelte.js';
+	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import { topicsStore } from '$lib/stores/topics.svelte';
 
 	let { children }: { children: Snippet } = $props();
 

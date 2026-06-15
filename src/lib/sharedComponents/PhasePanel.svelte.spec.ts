@@ -2,7 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-import type { PhaseLogicalState } from '$lib/models/phase/phase.js';
+import type { PhaseLogicalState } from '$lib/models/phase/phase.types';
 
 // フェーズ1〜4 相当（承認あり・停止/再開なし）の既定プロップ
 const makeProps = (overrides: Record<string, unknown> = {}) => ({
@@ -11,7 +11,11 @@ const makeProps = (overrides: Record<string, unknown> = {}) => ({
 	generateLabel: '調査を開始する',
 	approveLabel: '承認して次へ進む',
 	regenerateLabel: '再生成する',
-	regenerateConfirm: { title: '再生成しますか？', description: 'データが消えます', submitLabel: '再生成する' },
+	regenerateConfirm: {
+		title: '再生成しますか？',
+		description: 'データが消えます',
+		submitLabel: '再生成する'
+	},
 	onGenerate: vi.fn(),
 	onApprove: vi.fn(),
 	onRegenerate: vi.fn(),
@@ -60,7 +64,10 @@ describe('PhasePanel.svelte', () => {
 		});
 
 		it('generateHint を表示する', async () => {
-			render(PhasePanel, makeProps({ logicalState: 'not_started', generateHint: '準備が整ったら開始してください' }));
+			render(
+				PhasePanel,
+				makeProps({ logicalState: 'not_started', generateHint: '準備が整ったら開始してください' })
+			);
 			await expect.element(page.getByText('準備が整ったら開始してください')).toBeInTheDocument();
 		});
 
@@ -94,7 +101,9 @@ describe('PhasePanel.svelte', () => {
 
 		it('停止ボタンを表示する', async () => {
 			render(PhasePanel, makePhase5Props({ logicalState: 'running' }));
-			await expect.element(page.getByRole('button', { name: '討論を停止する' })).toBeInTheDocument();
+			await expect
+				.element(page.getByRole('button', { name: '討論を停止する' }))
+				.toBeInTheDocument();
 		});
 
 		it('停止ボタンクリックで onStop を呼ぶ', async () => {
@@ -108,12 +117,16 @@ describe('PhasePanel.svelte', () => {
 	describe('stopped 状態（フェーズ5）', () => {
 		it('再開ボタン（restartLabel）を表示する', async () => {
 			render(PhasePanel, makePhase5Props({ logicalState: 'stopped' }));
-			await expect.element(page.getByRole('button', { name: '討論を再開する' })).toBeInTheDocument();
+			await expect
+				.element(page.getByRole('button', { name: '討論を再開する' }))
+				.toBeInTheDocument();
 		});
 
 		it('再生成ボタン（regenerateLabel）を表示する', async () => {
 			render(PhasePanel, makePhase5Props({ logicalState: 'stopped' }));
-			await expect.element(page.getByRole('button', { name: '最初からやり直す' })).toBeInTheDocument();
+			await expect
+				.element(page.getByRole('button', { name: '最初からやり直す' }))
+				.toBeInTheDocument();
 		});
 
 		it('再開ボタンクリックで onRestart を呼ぶ', async () => {
@@ -134,7 +147,9 @@ describe('PhasePanel.svelte', () => {
 	describe('generated 状態（承認あり：フェーズ1〜4）', () => {
 		it('承認ボタン（approveLabel）を表示する', async () => {
 			render(PhasePanel, makeProps({ logicalState: 'generated' }));
-			await expect.element(page.getByRole('button', { name: '承認して次へ進む' })).toBeInTheDocument();
+			await expect
+				.element(page.getByRole('button', { name: '承認して次へ進む' }))
+				.toBeInTheDocument();
 		});
 
 		it('再生成ボタン（regenerateLabel）を表示する', async () => {
@@ -158,7 +173,9 @@ describe('PhasePanel.svelte', () => {
 
 		it('再生成ボタン（最初からやり直す）を表示する', async () => {
 			render(PhasePanel, makePhase5Props({ logicalState: 'generated' }));
-			await expect.element(page.getByRole('button', { name: '最初からやり直す' })).toBeInTheDocument();
+			await expect
+				.element(page.getByRole('button', { name: '最初からやり直す' }))
+				.toBeInTheDocument();
 		});
 	});
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { PHASE_DEFS, phasePath, phaseLogicalState, phaseDisplayLabel } from './phase.js';
-import type { Phase, PhaseStatus } from './phase.js';
+import { phasePath, phaseLogicalState, phaseDisplayLabel } from './phase';
+import { PHASE_DEFS } from './phase.constants';
+import type { Phase, PhaseStatus } from './phase.types';
 
 describe('PHASE_DEFS', () => {
 	it('5フェーズがphase昇順で定義されている', () => {

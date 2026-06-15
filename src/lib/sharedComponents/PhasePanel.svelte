@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { Button, ConfirmDialog } from '@14ch/svelte-ui';
-	import type { PhaseLogicalState } from '$lib/models/phase/phase.js';
+	import type { PhaseLogicalState } from '$lib/models/phase/phase.types';
 
 	// 表示専用。各ボタンの文言（label）と操作（on...）はいずれも親フェーズ画面から渡す。
 	// label と操作を同じ場所（親）に置くことで、ボタンの意味と実体を1ファイルで追える。
@@ -62,7 +62,6 @@
 		<div class="actions">
 			<Button variant="filled" onclick={onGenerate}>{generateLabel}</Button>
 		</div>
-
 	{:else if logicalState === 'running'}
 		<p class="indicator" role="status">実行中...</p>
 		<div class="actions">
@@ -74,7 +73,6 @@
 				</Button>
 			{/if}
 		</div>
-
 	{:else if logicalState === 'stopped'}
 		<div class="actions">
 			{#if onRestart}
@@ -84,7 +82,6 @@
 				{regenerateLabel}
 			</Button>
 		</div>
-
 	{:else if logicalState === 'generated'}
 		<div class="actions">
 			{#if approveLabel && onApprove}
@@ -94,7 +91,6 @@
 				{regenerateLabel}
 			</Button>
 		</div>
-
 	{:else if logicalState === 'approved'}
 		<div class="actions">
 			<Button variant="outlined" onclick={() => regenerateDialog?.open()}>

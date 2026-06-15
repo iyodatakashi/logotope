@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { Tab } from '@14ch/svelte-ui';
-	import { PHASE_DEFS, phasePath, type Phase } from '$lib/models/phase/phase.js';
+	import { phasePath } from '$lib/models/phase/phase';
+	import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
+	import { type Phase } from '$lib/models/phase/phase.types';
 
 	let { topicId, currentPhase }: { topicId: string; currentPhase: Phase } = $props();
 
