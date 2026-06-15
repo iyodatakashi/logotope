@@ -23,7 +23,7 @@ const create = () => {
 		if (unsubscribe) return;
 		const q = query(collection(db, 'topics'), orderBy('createdAt', 'desc'));
 		unsubscribe = onSnapshot(q, (snap) => {
-			topics = snap.docs.map((d) => createTopicStates({ id: d.id, ...d.data() } as TopicDoc));
+			topics = snap.docs.map((d) => createTopicStates({ ...d.data(), id: d.id } as TopicDoc));
 			isLoaded = true;
 		});
 	};

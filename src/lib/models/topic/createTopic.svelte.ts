@@ -161,7 +161,6 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 			await Promise.all(
 				data.personas.map((persona, index) =>
 					addDoc(collection(db, 'topics', id, 'personas'), {
-						id,
 						sortOrder: index,
 						approved: false,
 						beliefs: [],
