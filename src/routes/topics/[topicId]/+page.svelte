@@ -13,12 +13,14 @@
 		PublishedComment
 	} from '$lib/models/session/session.types';
 
-	const topicId = page.params.id as string;
+	const topicId = page.params.topicId as string;
 	const personasStore = createPersonasStore(topicId);
 	const sessionStore = createSessionStore(topicId);
 
 	const currentTopic = $derived(topicsStore.topics.find((topic) => topic.id === topicId));
-	const isLoaded = $derived(topicsStore.isLoaded && personasStore.isLoaded && sessionStore.isLoaded);
+	const isLoaded = $derived(
+		topicsStore.isLoaded && personasStore.isLoaded && sessionStore.isLoaded
+	);
 
 	const personaMap = $derived(new Map(personasStore.personas.map((p) => [p.id, p])));
 
@@ -62,7 +64,7 @@
 					speakerName: persona?.name ?? 'ファシリテーター',
 					speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
 					content: t.content,
-					beliefChangesTriggered,
+					beliefChangesTriggered
 				};
 			});
 
