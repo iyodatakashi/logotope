@@ -17,6 +17,12 @@ vi.mock('../llm/models.js', () => ({
 import { PersonaAgentService, buildSpeechStyleGuide } from './persona-agent.js';
 import type { TurnGenerationContext } from './persona-agent.js';
 import type { PersonaAttributes, DebateChapter } from '../types/index.js';
+import type { SearchService } from '../search/search-service.js';
+
+const mockDisabledSearch = {
+  isAvailable: vi.fn(() => false),
+  executeSearch: vi.fn(),
+} as unknown as SearchService;
 
 const mockModel = { _provider: 'anthropic', _modelId: 'claude-sonnet-4-6' };
 
@@ -46,6 +52,19 @@ const testHistory = [
 
 const makeTurnResult = (args: Record<string, unknown> = { content: '発言。' }) => ({
   toolCalls: [{ toolName: 'submit_turn', args }],
+  steps: [{ toolCalls: [{ toolName: 'submit_turn', args }] }],
+  text: '',
+  toolResults: [],
+  finishReason: 'tool-calls',
+  usage: { promptTokens: 0, completionTokens: 0 },
+});
+
+const makeTurnResultWithSearch = (args: Record<string, unknown> = { content: '発言。' }, query = '少子化 統計') => ({
+  toolCalls: [{ toolName: 'submit_turn', args }],
+  steps: [
+    { toolCalls: [{ toolName: 'web_search', args: { query } }] },
+    { toolCalls: [{ toolName: 'submit_turn', args }] },
+  ],
   text: '',
   toolResults: [],
   finishReason: 'tool-calls',
@@ -81,7 +100,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockGetPersonaModel.mockReturnValue(mockModel);
   mockGenerateText.mockResolvedValue(makeTurnResult());
-  service = new PersonaAgentService();
+  service = new PersonaAgentService(mockDisabledSearch);
 });
 
 // ---- buildSpeechStyleGuide (unchanged pure function tests) ----
@@ -204,8 +223,8 @@ describe('task 1.2: スタイルガイドのシステムプロンプトとツー
 // ---- PersonaAgentService DI ----
 
 describe('PersonaAgentService DI', () => {
-  it('コンストラクタ引数なしで正常にインスタンス化できる', () => {
-    expect(() => new PersonaAgentService()).not.toThrow();
+  it('SearchService を注入してインスタンス化できる', () => {
+    expect(() => new PersonaAgentService(mockDisabledSearch)).not.toThrow();
   });
 });
 
@@ -378,14 +397,14 @@ describe('PersonaAgentService', () => {
       expect(msg).toContain('費用負担が大きくなることが非常に心配です');
     });
 
-    it('mode: opinion のとき submit_turn ツールで意見発言を生成する', async () => {
+    it('mode: opinion のとき speechMode が opinion で toolChoice が required になる', async () => {
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ mode: 'opinion' }));
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value.speechMode).toBe('opinion');
       const call = mockGenerateText.mock.calls[0][0];
-      expect(call.toolChoice).toEqual({ type: 'tool', toolName: 'submit_turn' });
+      expect(call.toolChoice).toBe('required');
     });
 
     it('pendingTrigger が【持ち越しの言いたいこと】として user メッセージに含まれる', async () => {
@@ -539,6 +558,73 @@ describe('PersonaAgentService', () => {
       expect(result.ok).toBe(false);
       if (result.ok) return;
       expect(result.error.code).toBe('AI_API_ERROR');
+    });
+  });
+
+  describe('generateTurn — システムプロンプト検索ガイダンス（Task 3）', () => {
+    it('「個人経験のみ」制限がシステムプロンプトに含まれない', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
+      const system: string = mockGenerateText.mock.calls[0][0].system;
+      expect(system).not.toContain('自分が直接経験したこと');
+      expect(system).not.toContain('職場で見聞きしたことに限る');
+    });
+
+    it('情報収集ガイダンスセクションがシステムプロンプトに含まれる', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
+      const system: string = mockGenerateText.mock.calls[0][0].system;
+      expect(system).toContain('情報収集について');
+    });
+
+    it('factInstruction に検索ツール参照が含まれ旧制限が含まれない', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ mode: 'fact' }));
+      const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
+      expect(msg).not.toContain('事前取材レコードの範囲にとどめ');
+      expect(msg).toContain('検索ツールで確認した情報');
+    });
+  });
+
+  describe('generateTurn — 検索統合（Task 4.1/4.2）', () => {
+    it('SearchService が利用不可の場合 web_search ツールが含まれない', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
+      const tools = mockGenerateText.mock.calls[0][0].tools as Record<string, unknown>;
+      expect(tools).not.toHaveProperty('web_search');
+    });
+
+    it('SearchService が利用可能な場合 web_search ツールが含まれる', async () => {
+      const searchSvc = {
+        isAvailable: vi.fn(() => true),
+        executeSearch: vi.fn().mockResolvedValue({ ok: true, content: '結果' }),
+      } as unknown as SearchService;
+      const serviceWithSearch = new PersonaAgentService(searchSvc);
+      await serviceWithSearch.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
+      const tools = mockGenerateText.mock.calls[0][0].tools as Record<string, unknown>;
+      expect(tools).toHaveProperty('web_search');
+    });
+
+    it('toolChoice が required になる', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
+      expect(mockGenerateText.mock.calls[0][0].toolChoice).toBe('required');
+    });
+
+    it('maxSteps が 4 になる', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
+      expect(mockGenerateText.mock.calls[0][0].maxSteps).toBe(4);
+    });
+
+    it('steps に web_search がある場合 searchUsed: true と searchQueries が返る', async () => {
+      mockGenerateText.mockResolvedValue(makeTurnResultWithSearch({ content: '発言。' }, '少子化 統計'));
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.searchUsed).toBe(true);
+      expect(result.value.searchQueries).toContain('少子化 統計');
+    });
+
+    it('steps に web_search がない場合 searchUsed が undefined', async () => {
+      const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.value.searchUsed).toBeUndefined();
     });
   });
 });
