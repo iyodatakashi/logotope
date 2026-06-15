@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser';
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import BeliefEvolution from '$lib/features/admin/debate/BeliefEvolution.svelte';
+import BeliefEvolution from '$lib/features/topics/detail/BeliefEvolution.svelte';
 import type { PersonaSummaryForViewer } from '$lib/models/persona/persona.types.js';
 import type { PublishedTurn } from '$lib/models/session/session.types.js';
 

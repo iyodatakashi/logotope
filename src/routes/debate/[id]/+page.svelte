@@ -4,7 +4,7 @@
 	import { topicsStore } from '$lib/stores/topics.svelte.js';
 	import { createPersonasStore } from '$lib/stores/personas.svelte.js';
 	import { createSessionStore } from '$lib/stores/session.svelte.js';
-	import DebateViewer from '$lib/features/admin/debate/DebateViewer.svelte';
+	import DebateViewer from '$lib/features/topics/detail/DebateViewer.svelte';
 	import PostDebateComments from '$lib/sharedComponents/PostDebateComments.svelte';
 	import type { PersonaSummaryForViewer } from '$lib/models/persona/persona.types.js';
 	import type {
@@ -63,7 +63,6 @@
 					speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
 					content: t.content,
 					beliefChangesTriggered,
-					chapterIndex: t.chapterIndex
 				};
 			});
 

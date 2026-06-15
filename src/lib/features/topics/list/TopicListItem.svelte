@@ -1,14 +1,14 @@
 <script lang="ts">
-	import type { PublishedDebateSummary } from '$lib/models/topic/topic.types.js';
+	import type { Topic } from '$lib/models/topic/topic.types.js';
 
 	interface Props {
-		debate: PublishedDebateSummary;
+		topic: Topic;
 	}
 
-	let { debate }: Props = $props();
+	let { topic }: Props = $props();
 
-	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString('ja-JP', {
+	function formatDate(date: Date): string {
+		return date.toLocaleDateString('ja-JP', {
 			year: 'numeric',
 			month: 'long',
 			day: 'numeric'
@@ -16,11 +16,13 @@
 	}
 </script>
 
-<a href="/debate/{debate.id}" class="card">
-	<h2 class="title">{debate.topicTitle}</h2>
+<a href="/debate/{topic.id}" class="card">
+	<h2 class="title">{topic.title}</h2>
 	<div class="meta">
-		<span class="persona-count">{debate.personaCount}名参加</span>
-		<span class="published-at">{formatDate(debate.publishedAt)}</span>
+		<span class="persona-count">{topic.personaCount ?? 0}名参加</span>
+		{#if topic.publishedAt}
+			<span class="published-at">{formatDate(topic.publishedAt)}</span>
+		{/if}
 	</div>
 </a>
 

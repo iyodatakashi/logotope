@@ -1,8 +1,12 @@
 <script lang="ts">
-	import type { PublishedDebateDetail, PublishedTurn, ChapterDoc } from '$lib/models/session/session.types.js';
+	import type {
+		PublishedDebateDetail,
+		PublishedTurn,
+		ChapterDoc
+	} from '$lib/models/session/session.types.js';
 	import TurnDisplay from './TurnDisplay.svelte';
 	import PersonaFilter from './PersonaFilter.svelte';
-	import BeliefEvolution from '$lib/features/admin/debate/BeliefEvolution.svelte';
+	import BeliefEvolution from '$lib/features/topics/detail/BeliefEvolution.svelte';
 
 	interface Props {
 		debate: PublishedDebateDetail;
@@ -23,21 +27,31 @@
 
 	type DisplayItem =
 		| { type: 'turn'; key: string; turn: PublishedTurn }
-		| { type: 'chapter'; key: string; chapter: ChapterDoc };
+		| { type: 'chapter'; key: string; chapter: ChapterDoc; chapterIdx: number };
 
 	const displayItems = $derived.by((): DisplayItem[] => {
-		if (!debate.chapters) {
+		const chapters = debate.chapters;
+		if (!chapters?.length) {
 			return filteredTurns.map((t) => ({ type: 'turn' as const, key: t.id, turn: t }));
 		}
 		const items: DisplayItem[] = [];
-		let lastChapterIndex: number | undefined = undefined;
+		let lastChapterIdx = -1;
+		let chapterIdx = 0;
 		for (const turn of filteredTurns) {
-			if (turn.chapterIndex !== undefined && turn.chapterIndex !== lastChapterIndex) {
-				const chapter = debate.chapters!.find((c) => c.index === turn.chapterIndex);
-				if (chapter) {
-					items.push({ type: 'chapter', key: `ch-${chapter.index}`, chapter });
-					lastChapterIndex = turn.chapterIndex;
-				}
+			while (
+				chapterIdx + 1 < chapters.length &&
+				(chapters[chapterIdx + 1].startTurnIndex ?? Infinity) <= turn.turnIndex
+			) {
+				chapterIdx++;
+			}
+			if (chapterIdx !== lastChapterIdx) {
+				items.push({
+					type: 'chapter',
+					key: `ch-${chapterIdx}`,
+					chapter: chapters[chapterIdx],
+					chapterIdx
+				});
+				lastChapterIdx = chapterIdx;
 			}
 			items.push({ type: 'turn', key: turn.id, turn });
 		}
@@ -60,7 +74,7 @@
 		{#each displayItems as item (item.key)}
 			{#if item.type === 'chapter'}
 				<div class="chapter-header">
-					<h3>第{item.chapter.index + 1}章「{item.chapter.title}」</h3>
+					<h3>第{item.chapterIdx + 1}章「{item.chapter.title}」</h3>
 					<p class="focus-question">{item.chapter.focusQuestion}</p>
 				</div>
 			{:else}

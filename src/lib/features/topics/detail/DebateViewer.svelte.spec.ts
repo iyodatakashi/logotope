@@ -56,8 +56,8 @@ const debate: PublishedDebateDetail = {
 const debateWithChapters: PublishedDebateDetail = {
 	...debate,
 	chapters: [
-		{ index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？' },
-		{ index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？' }
+		{ title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 0 },
+		{ title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 2 }
 	],
 	turns: [
 		{
@@ -76,8 +76,7 @@ const debateWithChapters: PublishedDebateDetail = {
 			speakerName: '田中太郎',
 			speakerRole: '中小企業経営者',
 			content: '反対です。',
-			beliefChangesTriggered: [],
-			chapterIndex: 0
+			beliefChangesTriggered: []
 		},
 		{
 			id: 'turn-2',
@@ -86,8 +85,7 @@ const debateWithChapters: PublishedDebateDetail = {
 			speakerName: '鈴木花子',
 			speakerRole: '消費者代表',
 			content: '賛成です。',
-			beliefChangesTriggered: [],
-			chapterIndex: 1
+			beliefChangesTriggered: []
 		}
 	]
 };
@@ -118,7 +116,9 @@ describe('章グループ表示', () => {
 	it('chapters が存在する場合、章番号・タイトルの見出しを表示する', async () => {
 		render(DebateViewer, { debate: debateWithChapters });
 		await expect.element(page.getByRole('heading', { name: '第1章「導入」' })).toBeInTheDocument();
-		await expect.element(page.getByRole('heading', { name: '第2章「核心的対立」' })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('heading', { name: '第2章「核心的対立」' }))
+			.toBeInTheDocument();
 	});
 
 	it('chapters が存在する場合、フォーカス問いを表示する', async () => {

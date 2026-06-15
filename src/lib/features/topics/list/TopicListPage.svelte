@@ -2,14 +2,15 @@
 	import { onMount } from 'svelte';
 	import TopicListItem from '$lib/features/topics/list/TopicListItem.svelte';
 	import { topicsStore } from '$lib/stores/topics.svelte.js';
+	import type { Topic } from '$lib/models/topic/topic.types.js';
 
-	const topics = $derived(
+	const topics = $derived<Topic[]>(
 		topicsStore.topics
 			.filter((topic) => topic.publishedAt != null)
 			.sort(
 				(a, b) =>
-					(b.publishedAt ?? b.updatedAt).getTime() -
-					(a.publishedAt ?? a.updatedAt).getTime()
+					(b.publishedAt?.seconds ?? b.updatedAt.seconds) -
+					(a.publishedAt?.seconds ?? a.updatedAt.seconds)
 			)
 	);
 	const loaded = $derived(topicsStore.isLoaded);

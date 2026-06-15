@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser';
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import PersonaFilter from '$lib/features/admin/debate/PersonaFilter.svelte';
+import PersonaFilter from '$lib/features/topics/detail/PersonaFilter.svelte';
 import type { PersonaSummaryForViewer } from '$lib/models/persona/persona.types.js';
 
 const personas: PersonaSummaryForViewer[] = [

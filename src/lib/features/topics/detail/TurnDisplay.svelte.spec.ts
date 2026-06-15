@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser';
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import TurnDisplay from '$lib/features/admin/debate/TurnDisplay.svelte';
+import TurnDisplay from '$lib/features/topics/detail/TurnDisplay.svelte';
 
 const personaTurn = {
 	id: 'turn-1',
