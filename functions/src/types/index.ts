@@ -40,6 +40,8 @@ export interface AgentTurnResult {
   speechMode?: 'opinion' | 'fact';
   beliefChange: BeliefChangeEvent | null;
   addressedToPersonaId?: string;
+  searchUsed?: boolean;
+  searchQueries?: string[];
 }
 
 export interface InterviewResult {

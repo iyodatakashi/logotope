@@ -15,6 +15,11 @@ export const PERSONA_MODELS = {
   gpt: 'gpt-5.5',
 } as const satisfies Record<import('../types/index.js').LLMType, string>;
 
+export const SEARCH_CONFIG = {
+	MAX_RESULTS: 5,
+	TIMEOUT_MS: 5000,
+} as const;
+
 export const MAX_TOKENS = {
   STAKEHOLDER: 4096,
   PERSONA: 8192,

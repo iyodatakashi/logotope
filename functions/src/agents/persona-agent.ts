@@ -1,6 +1,7 @@
 import { generateText, jsonSchema } from 'ai';
 import { getPersonaModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../config/ai.js';
+import { SearchService } from '../search/search-service.js';
 import { formatHistory } from '../utils/conversation.js';
 import type { DebateTurn } from '../db/repository.js';
 import type {
@@ -121,7 +122,6 @@ ${styleGuide}
 - **直前の発言に反応するときは、冒頭で相手の名前を呼ばない**（「○○さんのおっしゃる通り」「○○さんが言ったように」は不要）。ただし、直前ではなく少し前の発言や別の人の話を取り上げるときは、「さっき○○さんが言っていた〜だけど」のように、誰のどの話への反応かを冒頭で示すこと。
 - 自分の信念・立場に基づいて反論・疑問を呈することを恐れない。相手の意見に同意しない場合は、はっきりそう言う。同意一辺倒は不自然。
 - **信念ドキュメントは内面の一貫性を保つための参照資料であり、発言で直接述べるものではない**。立場・価値観は、相手の発言の具体的な内容への反応として自然に滲み出すこと。「私の立場は〜」「私は〜と考えており」のような宣言的な表明は避ける。
-- **発言の根拠は自分が直接経験したこと・職場で見聞きしたことに限る**。立場を守るために遠い政策事例・海外制度・統計数値を持ち出すのは不自然。自分の生活や仕事の実感として話すこと。
 - **相手が知らない前提で情報を扱う**。専門的な事例・固有名詞を出す際は「〜って知ってますか？」「〜という話があって」など、相手の理解を確認しながら導入すること。いきなり知っていて当然のように使わない。
 - **会話は共通理解を積み上げるもの**。最初から高い専門知識ベースを前提にせず、相手の反応を見ながら話を展開すること。
 - **知らないこと・わからないことは、知ったかぶりせず素直に「わからない」「詳しくは知らない」と言う**。自分の知識や経験を超える専門的・制度的な話題で、もっともらしく語るのは不自然。わからないなりの素朴な疑問や生活実感を返せばよく、無理に意見を作る必要はない。
@@ -141,7 +141,13 @@ ${interviewRecord}
 
 ## 現在の信念ドキュメント
 （内面の一貫性を保つための参照資料。発言で直接引用・言及しないこと）
-${currentBelief}`;
+${currentBelief}
+
+## 情報収集について
+数値・統計・最新動向など正確性が求められる情報を発言の根拠として示す場合は、推測や記憶だけに頼らず検索ツールを積極的に使用すること。
+検索クエリは自分の立場・職業・関心に沿った視点で構築すること。
+検索ツールは必要なときのみ使用し、1〜2回以内にとどめること。
+自分の体験・実感はそのまま語ってよい。`;
 }
 
 // 発言意欲スコア（2〜5）に応じた発言の長さ。score 不明時（指名・キュー）は中くらい。
@@ -160,9 +166,19 @@ function speechLengthGuide(score?: number): string {
 	}
 }
 
-function buildFullTurnTools(styleGuide: string, lengthGuide: string) {
+type AnyTool = {
+	description: string;
+	parameters: ReturnType<typeof jsonSchema>;
+	execute?: (args: { [key: string]: unknown }) => Promise<string>;
+};
+
+function buildFullTurnTools(
+	styleGuide: string,
+	lengthGuide: string,
+	searchService: SearchService
+): Record<string, AnyTool> {
 	const styleSummary = styleGuide.split('\n')[0];
-	return {
+	const tools: Record<string, AnyTool> = {
 		submit_turn: {
 			description: 'ペルソナとして1ターン分の発言を提出する',
 			parameters: jsonSchema({
@@ -197,6 +213,23 @@ function buildFullTurnTools(styleGuide: string, lengthGuide: string) {
 			})
 		}
 	};
+
+	if (searchService.isAvailable()) {
+		tools['web_search'] = {
+			description: '数値・統計・最新情報など正確性が必要な情報を検索する。1〜2回以内で使用すること。',
+			parameters: jsonSchema({
+				type: 'object' as const,
+				properties: { query: { type: 'string' as const, description: '検索クエリ（日本語可）' } },
+				required: ['query'],
+			}),
+			execute: async (args: { [key: string]: unknown }) => {
+				const result = await searchService.executeSearch(args['query'] as string);
+				return result.ok ? result.content! : '検索結果を取得できませんでした。';
+			},
+		};
+	}
+
+	return tools;
 }
 
 const ASSESS_ENGAGEMENT_TOOLS = {
@@ -278,6 +311,12 @@ export interface TurnGenerationContext {
 }
 
 export class PersonaAgentService {
+	private readonly searchService: SearchService;
+
+	constructor(searchService?: SearchService) {
+		this.searchService = searchService ?? new SearchService();
+	}
+
 	async generateTurn(
 		persona: PersonaAttributes,
 		currentBelief: string,
@@ -307,9 +346,9 @@ export class PersonaAgentService {
 				: '';
 
 			const lengthGuide = speechLengthGuide(context.score);
-			const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
+			const fullTools = buildFullTurnTools(styleGuide, lengthGuide, this.searchService);
 			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
-			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。出典・数字は事前取材レコードの範囲にとどめ、不確かなことは断言しない。直接質問する場合のみ addressedToPersonaId を指定。`;
+			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。直接質問する場合のみ addressedToPersonaId を指定。`;
 			const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${lastSpeakerNote}${pendingNote}${intentNote}${nominationNote}\n\n${isFact ? factInstruction : opinionInstruction}`;
 			const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 				generateText({
@@ -317,15 +356,19 @@ export class PersonaAgentService {
 					maxTokens: MAX_TOKENS.PERSONA_TURN,
 					system,
 					tools: fullTools,
-					toolChoice: { type: 'tool', toolName: 'submit_turn' } as const,
+					toolChoice: 'required' as const,
+					maxSteps: 4,
 					messages: [{ role: 'user', content: userContent }],
 					providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } }
 				});
 			let fullResult;
 			try {
 				fullResult = await callFull(getPersonaModel(llmType));
-				if (!fullResult.toolCalls[0] && llmType !== 'claude') {
-					console.error(`[llm] no tool call: ${llmType}, falling back to claude`);
+				const hasSubmitTurn = fullResult.steps
+					.flatMap((s) => s.toolCalls)
+					.some((c) => c.toolName === 'submit_turn');
+				if (!hasSubmitTurn && llmType !== 'claude') {
+					console.error(`[llm] no submit_turn: ${llmType}, falling back to claude`);
 					fullResult = await callFull(getPersonaModel('claude'));
 				}
 			} catch (err) {
@@ -333,13 +376,17 @@ export class PersonaAgentService {
 				fullResult = await callFull(getPersonaModel('claude'));
 			}
 
-			const toolCall = fullResult.toolCalls[0];
+			const allToolCalls = fullResult.steps.flatMap((s) => s.toolCalls);
+			const toolCall = allToolCalls.find((c) => c.toolName === 'submit_turn');
 			if (!toolCall) {
 				return {
 					ok: false,
 					error: { code: 'AI_API_ERROR', message: 'No tool call in response', retryable: true }
 				};
 			}
+
+			const searchCalls = allToolCalls.filter((c) => c.toolName === 'web_search');
+			const searchQueries = searchCalls.map((c) => (c.args as { query: string }).query);
 
 			const {
 				content,
@@ -367,7 +414,11 @@ export class PersonaAgentService {
 					content,
 					speechMode: isFact ? 'fact' : 'opinion',
 					beliefChange,
-					addressedToPersonaId
+					addressedToPersonaId,
+					...(searchQueries.length > 0 && {
+						searchUsed: true,
+						searchQueries,
+					}),
 				}
 			};
 		} catch (err) {

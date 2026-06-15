@@ -464,6 +464,8 @@ export class DebateOrchestratorService {
       engagementScore: decision.score,
       fromQueue: fromQueue || undefined,
       addressedPersonaId,
+      searchUsed: turnResult.value.searchUsed,
+      searchQueries: turnResult.value.searchQueries,
     });
     state.history.push({
       id: savedTurn.id, sessionId, turnIndex,

@@ -99,6 +99,8 @@ export interface DebateTurn {
   fromQueue?: boolean;
   addressedPersonaId?: string;
   engagements?: EngagementEntry[];
+  searchUsed?: boolean;
+  searchQueries?: string[];
 }
 
 export interface PersonaInterview {
@@ -145,6 +147,8 @@ export interface CreateDebateTurnParams {
   engagementScore?: number;
   fromQueue?: boolean;
   addressedPersonaId?: string;
+  searchUsed?: boolean;
+  searchQueries?: string[];
 }
 
 export interface CreatePostDebateCommentParams {
@@ -364,6 +368,8 @@ export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<
   if (params.engagementScore !== undefined) turn.engagementScore = params.engagementScore;
   if (params.fromQueue) turn.fromQueue = true;
   if (params.addressedPersonaId !== undefined) turn.addressedPersonaId = params.addressedPersonaId;
+  if (params.searchUsed) turn.searchUsed = true;
+  if (params.searchQueries?.length) turn.searchQueries = params.searchQueries;
 
   await db().doc(`topics/${params.sessionId}/sessions/0`).update({
     turns: FieldValue.arrayUnion(turn),
