@@ -30,6 +30,7 @@ export interface OrchestratorOptions {
   turnsPerChapter: number;
   maxTurns: number;
   interventionCooldown: number; // 論点ずれ介入(A)専用（B はクールダウン不問）
+  singleChapterMode?: boolean; // 動作確認用: 第1章のみで討論を完了させる
 }
 
 export const DEFAULT_OPTIONS: OrchestratorOptions = {
@@ -74,9 +75,7 @@ export class DebateOrchestratorService {
     if (!chaptersResult.ok) throw new Error(pipelineErrorMessage(chaptersResult.error));
     const { chapters, generalIssues, personaIssues } = chaptersResult.value;
     await Promise.all([
-      repo.saveChapters(topicId, chapters.map(c => ({
-        index: c.index, title: c.title, focusQuestion: c.focusQuestion,
-      }))),
+      repo.saveChapters(topicId, chapters.map(c => ({ title: c.title, focusQuestion: c.focusQuestion }))),
       repo.saveChapterIssues(topicId, generalIssues, personaIssues),
     ]);
   }
@@ -109,25 +108,22 @@ export class DebateOrchestratorService {
       currentBeliefs,
     });
 
-    const chapters: DebateChapter[] = (session.chapters ?? []).map(c => {
-      const chapterTurns = state.history.filter(t => t.chapterIndex === c.index);
-      const startTurnIdx = chapterTurns.length > 0
-        ? Math.min(...chapterTurns.map(t => t.turnIndex))
-        : state.currentTurnIndex;
-      return { index: c.index, title: c.title, focusQuestion: c.focusQuestion, startTurnIndex: startTurnIdx };
-    });
+    const chapters: DebateChapter[] = (session.chapters ?? []).map(c => ({
+      title: c.title,
+      focusQuestion: c.focusQuestion,
+      startTurnIndex: (c as { startTurnIndex?: number }).startTurnIndex ?? 0,
+    }));
 
     // 第1章の開始: オープニング生成（章立ては generateChaptersOnly で事前に保存済み）
-    if (chapterIndex === 0 && state.currentTurnIndex === 0) {
+    if (chapterIndex === 0 && state.history.length === 0) {
       const openingResult = await this.facilitator.generateOpening(topicTitle, personas, chapters[0]);
       if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
       const firstPersonaId = validPersonaId(openingResult.value.firstPersonaId, personas);
-      await this.saveFacilitatorTurn(sessionId, state, openingResult.value.content ?? '', 0, firstPersonaId);
+      await this.saveFacilitatorTurn(sessionId, state, openingResult.value.content ?? '', firstPersonaId);
       state.pendingAddress = firstPersonaId ? { personaId: firstPersonaId, byFacilitator: true } : undefined;
     }
 
     if (!chapters[chapterIndex]) throw new Error(`Chapter not found: ${chapterIndex}`);
-    chapters[chapterIndex] = { ...chapters[chapterIndex], startTurnIndex: Math.min(chapters[chapterIndex].startTurnIndex, state.currentTurnIndex) };
     await repo.updateCurrentChapterIndex(topicId, chapterIndex);
 
     const outcome = await this.runChapterLoop(
@@ -140,12 +136,12 @@ export class DebateOrchestratorService {
       sessionId, topicId, personas, interviewRecords, chapters[chapterIndex], chapterIndex, state
     );
 
-    const isLastChapter = chapterIndex >= chapters.length - 1;
+    const isLastChapter = this.options.singleChapterMode || chapterIndex >= chapters.length - 1;
     if (isLastChapter) {
       await this.finalizeDebate(sessionId, topicId, personas, state, chapterIndex);
       return false;
     }
-    await this.generateChapterTransition(sessionId, chapters, chapterIndex, state, personas);
+    await this.generateChapterTransition(sessionId, topicId, chapters, chapterIndex, state, personas);
     return true;
   }
 
@@ -185,13 +181,9 @@ export class DebateOrchestratorService {
     interviewRecords: Map<string, string>,
     state: DebateState
   ): Promise<SpeakerAssessment[]> {
-    const lastTurnIndex = state.history.length > 0
-      ? state.history[state.history.length - 1].turnIndex
-      : 0;
-
     // キュー失効（トリガーから INTENT_EXPIRY_TURNS 超過）を毎ターン適用し write-through
     for (const [personaId, items] of state.pendingIntents.entries()) {
-      const alive = items.filter(item => state.currentTurnIndex - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS);
+      const alive = items.filter(item => state.history.length - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS);
       if (alive.length === items.length) continue;
       if (alive.length === 0) {
         state.pendingIntents.delete(personaId);
@@ -226,7 +218,7 @@ export class DebateOrchestratorService {
     // 評価結果を毎ターン保存する（管理画面での可視化用）
     await repo.saveEngagements({
       sessionId,
-      turnIndex: lastTurnIndex,
+      turnIndex: Math.max(0, state.history.length - 1),
       assessments: assessments.map(a => ({
         personaId: a.personaId,
         score: a.score,
@@ -254,11 +246,9 @@ export class DebateOrchestratorService {
     const { turnsPerChapter, maxTurns } = this.options;
     const personaIds = personas.map(p => p.id);
     const cap = chapterTurnCap(turnsPerChapter);
-    let chapterTurnCount = state.history.filter(
-      t => t.speakerType === 'persona' && t.chapterIndex === chapterIndex
-    ).length;
+    const chapterTurnCount = () => state.history.filter(t => t.turnIndex >= chapter.startTurnIndex).length;
 
-    while (chapterTurnCount < cap && state.currentTurnIndex < maxTurns) {
+    while (chapterTurnCount() < cap && state.history.length < maxTurns) {
       // 各ターン境界でトピックのゲートを確認する（上流再生成でフェーズが戻った場合も停止）
       if (!(await repo.isDebateActive(topicId))) return 'cancelled';
 
@@ -273,14 +263,12 @@ export class DebateOrchestratorService {
 
       // 2. 毎ターン全員（直前話者除く）の発言意欲を評価・保存・キュー失効を実行する（BC3）
       const assessments = await this.evaluateEngagement(sessionId, personas, interviewRecords, state);
-      const lastTurnIndex = state.history.length > 0
-        ? state.history[state.history.length - 1].turnIndex
-        : 0;
 
       // 3. 論点ずれ介入(A)専用のクールダウン判定
-      const personaTurnsSinceFacilitator = state.history.filter(
-        t => t.speakerType === 'persona' && t.turnIndex > state.lastFacilitatorTurnIndex
-      ).length;
+      const lastFacilitatorIdx = state.history.reduce((max, t, i) => t.speakerType === 'facilitator' ? i : max, -1);
+      const personaTurnsSinceFacilitator = state.history
+        .slice(lastFacilitatorIdx + 1)
+        .filter(t => t.speakerType === 'persona').length;
       const driftCooldownPassed = shouldEvaluateIntervention({
         personaTurnsSinceFacilitator,
         cooldownTurns: this.options.interventionCooldown,
@@ -308,13 +296,14 @@ export class DebateOrchestratorService {
       }
 
       // 5. 介入ターンで討論全体の上限に達した場合は打ち切る
-      if (state.currentTurnIndex >= maxTurns) break;
+      if (state.history.length >= maxTurns) break;
 
       // 6. キュー追加（高意欲・非選択）を発生の都度 write-through
+      const triggerTurnIndex = Math.max(0, state.history.length - 1);
       for (const assessment of assessments) {
         if (!isHighEngagement(assessment) || assessment.personaId === decision.personaId) continue;
         const existing = state.pendingIntents.get(assessment.personaId) ?? [];
-        const updated = [...existing, { triggerTurnIndex: lastTurnIndex, intentSummary: assessment.intentSummary ?? '' }];
+        const updated = [...existing, { triggerTurnIndex, intentSummary: assessment.intentSummary ?? '' }];
         state.pendingIntents.set(assessment.personaId, updated);
         await repo.setPendingIntents(sessionId, assessment.personaId, updated);
       }
@@ -337,14 +326,13 @@ export class DebateOrchestratorService {
 
       // 9. 発言生成・保存・状態更新
       const saved = await this.generatePersonaTurn(
-        sessionId, topicId, personas, interviewRecords, chapter, chapterIndex, state, decision
+        sessionId, topicId, personas, interviewRecords, chapter, state, decision
       );
       if (!saved) return 'cancelled';
-      chapterTurnCount++;
 
       // 10. 章終了判定（早期終了）
       if (shouldEndChapterEarly({
-        chapterTurnCount,
+        chapterTurnCount: chapterTurnCount(),
         targetTurns: turnsPerChapter,
         engagementSignals: state.engagementSignals,
       })) {
@@ -371,7 +359,7 @@ export class DebateOrchestratorService {
     if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
     if (!result.value.shouldIntervene) return undefined;
     const targetId = validPersonaId(result.value.targetPersonaId, personas);
-    await this.saveFacilitatorTurn(sessionId, state, result.value.content ?? '', chapterIndex, targetId);
+    await this.saveFacilitatorTurn(sessionId, state, result.value.content ?? '', targetId);
     return targetId ? { personaId: targetId, source: 'nomination' } : undefined;
   }
 
@@ -389,7 +377,7 @@ export class DebateOrchestratorService {
     if (!result.value.shouldIntervene) return undefined;
     const targetId = validPersonaId(result.value.targetPersonaId, personas);
     if (!targetId) return undefined;
-    await this.saveFacilitatorTurn(sessionId, state, result.value.content ?? '', chapterIndex, targetId);
+    await this.saveFacilitatorTurn(sessionId, state, result.value.content ?? '', targetId);
     return { personaId: targetId, source: 'nomination' };
   }
 
@@ -429,7 +417,6 @@ export class DebateOrchestratorService {
     personas: PersonaAttributes[],
     interviewRecords: Map<string, string>,
     chapter: DebateChapter,
-    chapterIndex: number,
     state: DebateState,
     decision: SpeakerDecision
   ): Promise<boolean> {
@@ -468,21 +455,22 @@ export class DebateOrchestratorService {
       ? validPersonaId(rawAddressed, personas)
       : undefined;
 
+    const turnIndex = state.history.length;
     const savedTurn = await repo.createDebateTurn({
-      sessionId, turnIndex: state.currentTurnIndex, speakerType: 'persona',
+      sessionId, turnIndex, speakerType: 'persona',
       personaId: persona.id, speakerName: persona.name, speakerRole: persona.specificRole,
       content: turnResult.value.content ?? '',
-      chapterIndex, speechMode: turnResult.value.speechMode,
+      speechMode: turnResult.value.speechMode,
       engagementScore: decision.score,
       fromQueue: fromQueue || undefined,
       addressedPersonaId,
     });
     state.history.push({
-      id: savedTurn.id, sessionId, turnIndex: state.currentTurnIndex,
+      id: savedTurn.id, sessionId, turnIndex,
       speakerType: 'persona', personaId: persona.id,
       speakerName: persona.name, speakerRole: persona.specificRole,
       content: turnResult.value.content, createdAt: new Date().toISOString(),
-      chapterIndex, fromQueue: fromQueue || undefined,
+      fromQueue: fromQueue || undefined,
       addressedPersonaId,
     });
 
@@ -527,7 +515,6 @@ export class DebateOrchestratorService {
       ? { personaId: addressedPersonaId, byFacilitator: false }
       : undefined;
 
-    state.currentTurnIndex++;
     return true;
   }
 
@@ -562,38 +549,37 @@ export class DebateOrchestratorService {
     };
 
     await this.generatePersonaTurn(
-      sessionId, topicId, personas, interviewRecords, chapter, chapterIndex, state, enrichedDecision
+      sessionId, topicId, personas, interviewRecords, chapter, state, enrichedDecision
     );
     // 章は終了するため、応答ターン由来の直接質問は引き継がない
     state.pendingAddress = undefined;
   }
 
-  /** ファシリテーター発言を chapterIndex・指名先 ID 付きで保存し、A 介入クールダウンの起点（lastFacilitatorTurnIndex）を更新する */
+  /** ファシリテーター発言を保存し、state.history に追加する */
   private async saveFacilitatorTurn(
     sessionId: string,
     state: DebateState,
     content: string,
-    chapterIndex: number,
     addressedPersonaId?: string
   ): Promise<void> {
+    const turnIndex = state.history.length;
     const turn = await repo.createDebateTurn({
-      sessionId, turnIndex: state.currentTurnIndex, speakerType: 'facilitator',
+      sessionId, turnIndex, speakerType: 'facilitator',
       speakerName: 'ファシリテーター', speakerRole: '',
-      content, chapterIndex, addressedPersonaId,
+      content, addressedPersonaId,
     });
     state.history.push({
-      id: turn.id, sessionId, turnIndex: state.currentTurnIndex,
+      id: turn.id, sessionId, turnIndex,
       speakerType: 'facilitator', speakerName: 'ファシリテーター', speakerRole: '',
-      content, createdAt: new Date().toISOString(), chapterIndex, addressedPersonaId,
+      content, createdAt: new Date().toISOString(), addressedPersonaId,
     });
-    state.lastFacilitatorTurnIndex = state.currentTurnIndex;
     state.consecutiveDirectExchanges = 0;
-    state.currentTurnIndex++;
   }
 
   /** 章遷移: 現章まとめ＋次章導入の2ターンを生成し、導入で最初の発言者を指名する */
   private async generateChapterTransition(
     sessionId: string,
+    topicId: string,
     chapters: DebateChapter[],
     currentChapterIndex: number,
     state: DebateState,
@@ -605,16 +591,18 @@ export class DebateOrchestratorService {
 
     const summaryResult = await this.facilitator.generateChapterSummary(recentHistory, chapter);
     if (summaryResult.ok) {
-      await this.saveFacilitatorTurn(sessionId, state, summaryResult.value, currentChapterIndex);
+      await this.saveFacilitatorTurn(sessionId, state, summaryResult.value);
     }
 
-    // 公開ページ DebateViewer は導入ターンの chapterIndex を章見出し挿入に使用する
+    // 次章の開始 turnIndex を intro ターン保存前に記録し Firestore に永続化する（DebateViewer が章見出し挿入に使用）
+    const nextChapterStart = state.history.length;
     const introResult = await this.facilitator.generateChapterIntroduction(nextChapter, personas);
     if (introResult.ok) {
       const firstPersonaId = validPersonaId(introResult.value.firstPersonaId, personas);
-      await this.saveFacilitatorTurn(sessionId, state, introResult.value.content, nextChapter.index, firstPersonaId);
+      await this.saveFacilitatorTurn(sessionId, state, introResult.value.content, firstPersonaId);
       state.pendingAddress = firstPersonaId ? { personaId: firstPersonaId, byFacilitator: true } : undefined;
     }
+    await repo.setChapterStartTurnIndex(topicId, currentChapterIndex + 1, nextChapterStart);
   }
 
   /** 討論終端: クロージング → 事後コメント → セッション完了 */
@@ -630,7 +618,7 @@ export class DebateOrchestratorService {
     );
     const closingResult = await this.facilitator.generateClosing(state.history, finalBeliefs);
     if (!closingResult.ok) throw new Error(pipelineErrorMessage(closingResult.error));
-    await this.saveFacilitatorTurn(sessionId, state, closingResult.value ?? '', chapterIndex);
+    await this.saveFacilitatorTurn(sessionId, state, closingResult.value ?? '');
 
     for (let i = 0; i < personas.length; i++) {
       const persona = personas[i];
@@ -645,9 +633,7 @@ export class DebateOrchestratorService {
       }
     }
 
-    // セッションには討論コンテンツ（totalTurns/completedAt）のみ書き、
-    // 進行状態は「実行中のときのみ generated」で確定する（停止を上書きしない）
-    await repo.completeDebateSession(sessionId, state.currentTurnIndex);
+    await repo.completeDebateSession(sessionId, state.history.length);
     await repo.finalizeTopicIfRunning(topicId);
   }
 }

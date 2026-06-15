@@ -326,8 +326,7 @@ export class FacilitatorAgentService {
       }
       const { chapters } = chaptersBlock.input as { chapters: Array<{ title: string; focusQuestion: string }> };
 
-      const debateChapters: DebateChapter[] = chapters.map((c, i) => ({
-        index: i,
+      const debateChapters: DebateChapter[] = chapters.map((c) => ({
         title: c.title,
         focusQuestion: c.focusQuestion,
         startTurnIndex: 0,

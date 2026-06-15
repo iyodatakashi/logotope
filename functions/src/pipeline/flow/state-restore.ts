@@ -11,8 +11,6 @@ export interface DebateState {
   lastSpeakerId?: string;
   pendingIntents: Map<string, PendingIntent[]>;
   consecutiveDirectExchanges: number;
-  lastFacilitatorTurnIndex: number;
-  currentTurnIndex: number;
   engagementSignals: Array<0 | 1>;
 }
 
@@ -28,8 +26,6 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
   const { personas, persistedPendingIntents, currentBeliefs } = input;
   const turns = [...input.turns].sort((a, b) => a.turnIndex - b.turnIndex);
 
-  const currentTurnIndex = turns.length > 0 ? turns[turns.length - 1].turnIndex + 1 : 0;
-
   const speakCount = new Map<string, number>(personas.map(p => [p.id, 0]));
   for (const t of turns) {
     if (t.personaId && t.speakerType === 'persona') {
@@ -39,15 +35,11 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
 
   const silenceMap = new Map<string, number>();
   for (const p of personas) {
-    const lastSpokeIdx = turns
-      .filter(t => t.personaId === p.id && t.speakerType === 'persona')
-      .reduce((max, t) => Math.max(max, t.turnIndex), -1);
-    silenceMap.set(p.id, Math.max(0, currentTurnIndex - lastSpokeIdx - 1));
+    const lastSpokeIdx = turns.reduce(
+      (max, t, i) => (t.personaId === p.id && t.speakerType === 'persona') ? i : max, -1
+    );
+    silenceMap.set(p.id, Math.max(0, turns.length - lastSpokeIdx - 1));
   }
-
-  const lastFacilitatorTurnIndex = turns
-    .filter(t => t.speakerType === 'facilitator')
-    .reduce((max, t) => Math.max(max, t.turnIndex), 0);
 
   let lastSpeakerId: string | undefined;
   for (let i = turns.length - 1; i >= 0; i--) {
@@ -60,7 +52,7 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
   const pendingIntents = new Map<string, PendingIntent[]>();
   for (const [personaId, items] of persistedPendingIntents.entries()) {
     const alive = items.filter(
-      item => currentTurnIndex - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS
+      item => turns.length - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS
     );
     if (alive.length > 0) {
       pendingIntents.set(personaId, alive.map(item => ({ ...item })));
@@ -87,8 +79,6 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
     lastSpeakerId,
     pendingIntents,
     consecutiveDirectExchanges: 0,
-    lastFacilitatorTurnIndex,
-    currentTurnIndex,
     engagementSignals: [],
   };
 };

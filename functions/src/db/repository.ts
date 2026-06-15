@@ -94,7 +94,6 @@ export interface DebateTurn {
   speakerRole?: string;
   content: string;
   createdAt: string;
-  chapterIndex?: number;
   speechMode?: 'opinion' | 'fact';
   engagementScore?: number;
   fromQueue?: boolean;
@@ -142,7 +141,6 @@ export interface CreateDebateTurnParams {
   speakerName?: string;
   speakerRole?: string;
   content: string;
-  chapterIndex?: number;
   speechMode?: 'opinion' | 'fact';
   engagementScore?: number;
   fromQueue?: boolean;
@@ -302,11 +300,13 @@ export const discardChapterProgress = async (
   const snap = await sessionRef.get();
   if (!snap.exists) return;
   const data = snap.data() as {
-    turns?: Array<{ id: string; turnIndex: number; chapterIndex?: number }>;
+    turns?: Array<{ id: string; turnIndex: number }>;
+    chapters?: Array<{ startTurnIndex?: number | null }>;
   };
   const turns = data.turns ?? [];
-  const removed = turns.filter((t) => (t.chapterIndex ?? 0) >= chapterIndex);
-  const kept = turns.filter((t) => (t.chapterIndex ?? 0) < chapterIndex);
+  const chapterStartTurnIndex = data.chapters?.[chapterIndex]?.startTurnIndex ?? 0;
+  const removed = turns.filter((t) => t.turnIndex >= chapterStartTurnIndex);
+  const kept = turns.filter((t) => t.turnIndex < chapterStartTurnIndex);
   const removedTurnIds = new Set(removed.map((t) => t.id));
   const removedTurnIndexes = removed.map((t) => t.turnIndex);
 
@@ -364,7 +364,6 @@ export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<
   if (params.personaId !== undefined) turn.personaId = params.personaId;
   if (params.speakerName !== undefined) turn.speakerName = params.speakerName;
   if (params.speakerRole !== undefined) turn.speakerRole = params.speakerRole;
-  if (params.chapterIndex !== undefined) turn.chapterIndex = params.chapterIndex;
   if (params.speechMode !== undefined) turn.speechMode = params.speechMode;
   if (params.engagementScore !== undefined) turn.engagementScore = params.engagementScore;
   if (params.fromQueue) turn.fromQueue = true;
@@ -378,10 +377,10 @@ export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<
 
 export const saveChapters = async (
   topicId: string,
-  chapters: ReadonlyArray<{ index: number; title: string; focusQuestion: string }>
+  chapters: ReadonlyArray<{ title: string; focusQuestion: string }>
 ): Promise<void> => {
   await db().doc(`topics/${topicId}/sessions/0`).update({
-    chapters: [...chapters],
+    chapters: chapters.map((c, i) => ({ ...c, startTurnIndex: i === 0 ? 0 : null })),
     currentChapterIndex: 0,
   });
 };
@@ -401,6 +400,16 @@ export const updateCurrentChapterIndex = async (
   index: number
 ): Promise<void> => {
   await db().doc(`topics/${topicId}/sessions/0`).update({ currentChapterIndex: index });
+};
+
+export const setChapterStartTurnIndex = async (
+  topicId: string,
+  chapterIndex: number,
+  startTurnIndex: number
+): Promise<void> => {
+  await db().doc(`topics/${topicId}/sessions/0`).update({
+    [`chapters.${chapterIndex}.startTurnIndex`]: startTurnIndex,
+  });
 };
 
 export const createPostDebateComment = async (params: CreatePostDebateCommentParams): Promise<{ id: string }> => {
@@ -513,7 +522,7 @@ export const getDebateSessionById = async (id: string): Promise<DebateSession | 
 export const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[]> => {
   const snap = await db().doc(`topics/${sessionId}/sessions/0`).get();
   if (!snap.exists) return [];
-  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp; chapterIndex?: number; fromQueue?: boolean; addressedPersonaId?: string }> };
+  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp; fromQueue?: boolean; addressedPersonaId?: string }> };
   return (data.turns ?? []).map((t) => ({
     id: t.id,
     sessionId,
@@ -524,7 +533,6 @@ export const getDebateTurnsBySessionId = async (sessionId: string): Promise<Deba
     speakerRole: t.speakerRole,
     content: t.content,
     createdAt: t.createdAt?.toDate().toISOString() ?? '',
-    chapterIndex: t.chapterIndex,
     fromQueue: t.fromQueue,
     addressedPersonaId: t.addressedPersonaId,
   }));

@@ -96,7 +96,6 @@ export interface SpeakerDecision {
 }
 
 export interface DebateChapter {
-  index: number;
   title: string;
   focusQuestion: string;
   startTurnIndex: number;
