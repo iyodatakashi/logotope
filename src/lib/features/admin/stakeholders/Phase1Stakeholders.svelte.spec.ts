@@ -12,16 +12,14 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				title: 'テストテーマ',
 				phase: 1,
 				phaseStatus: 'generated',
-				stakeholders: {
-					items: [
-						{
-							role: '外科医師',
-							minorityLevel: 'low',
-							reason: '専門的見地',
-							engagementLevel: 'medium'
-						}
-					]
-				}
+				stakeholders: [
+					{
+						role: '外科医師',
+						minorityLevel: 'low',
+						reason: '専門的見地',
+						engagementLevel: 'medium'
+					}
+				]
 			};
 		}
 	}

@@ -6,10 +6,7 @@ export type TopicBase = {
 	title: string;
 	phase: Phase;
 	phaseStatus: PhaseStatus;
-	stakeholders?: {
-		items: StakeholderDoc[];
-		approved: boolean;
-	};
+	stakeholders?: StakeholderDoc[];
 	personaCount?: number;
 };
 

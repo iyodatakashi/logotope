@@ -50,7 +50,6 @@ describe('createTopicStates', () => {
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
 				expect.objectContaining({
-					'stakeholders.approved': true,
 					phase: 2,
 					phaseStatus: 'not_started'
 				})
@@ -162,7 +161,7 @@ describe('createTopicStates', () => {
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
 				expect.objectContaining({
-					stakeholders: { items: [], approved: false, createdAt: 'NOW' }
+					stakeholders: []
 				})
 			);
 		});

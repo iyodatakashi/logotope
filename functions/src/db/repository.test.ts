@@ -138,12 +138,12 @@ describe('discardChapterProgress', () => {
 // ---- createStakeholderMap ----
 
 describe('createStakeholderMap', () => {
-  it('parses JSON content, sets stakeholders on topic, returns {id: topicId}', async () => {
-    const content = JSON.stringify({ items: [{ role: 'A' }], approved: false });
+  it('parses JSON content, sets stakeholders array on topic, returns {id: topicId}', async () => {
+    const content = JSON.stringify({ items: [{ role: 'A' }] });
     const result = await repo.createStakeholderMap('topic-1', content);
     expect(mockDb.doc).toHaveBeenCalledWith('topics/topic-1');
     expect(mockDocRef.update).toHaveBeenCalledWith(
-      expect.objectContaining({ stakeholders: expect.objectContaining({ approved: false }) })
+      expect.objectContaining({ stakeholders: [{ role: 'A' }] })
     );
     expect(result.id).toBe('topic-1');
   });

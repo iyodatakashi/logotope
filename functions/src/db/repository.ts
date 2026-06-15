@@ -197,13 +197,9 @@ export const finalizeTopicIfRunning = async (topicId: string): Promise<boolean> 
 };
 
 export const createStakeholderMap = async (topicId: string, content: string): Promise<{ id: string }> => {
-  const parsed = JSON.parse(content) as { items: unknown[]; approved?: boolean };
+  const parsed = JSON.parse(content) as { items: unknown[] };
   await db().doc(`topics/${topicId}`).update({
-    stakeholders: {
-      items: parsed.items,
-      approved: parsed.approved ?? false,
-      createdAt: Timestamp.now(),
-    },
+    stakeholders: parsed.items,
     updatedAt: Timestamp.now(),
   });
   return { id: topicId };
@@ -466,21 +462,17 @@ export interface StakeholderMap {
   id: string;
   topicId: string;
   content: string;
-  approved: boolean;
-  createdAt: string;
 }
 
 export const getStakeholderMapByTopicId = async (topicId: string): Promise<StakeholderMap | null> => {
   const snap = await db().doc(`topics/${topicId}`).get();
   if (!snap.exists) return null;
-  const data = snap.data() as { stakeholders?: { items: unknown[]; approved: boolean; createdAt: Timestamp } };
+  const data = snap.data() as { stakeholders?: unknown[] };
   if (!data.stakeholders) return null;
   return {
     id: topicId,
     topicId,
-    content: JSON.stringify(data.stakeholders.items),
-    approved: data.stakeholders.approved,
-    createdAt: data.stakeholders.createdAt?.toDate().toISOString() ?? '',
+    content: JSON.stringify(data.stakeholders),
   };
 };
 

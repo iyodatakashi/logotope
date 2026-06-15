@@ -12,7 +12,7 @@
 			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
 			: 'not_started';
 	});
-	const stakeholders = $derived(currentTopicStore.topic?.stakeholders?.items ?? []);
+	const stakeholders = $derived(currentTopicStore.topic?.stakeholders ?? []);
 
 	const generate = () => currentTopicStore.topic?.generateStakeholders();
 

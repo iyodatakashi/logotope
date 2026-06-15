@@ -21,10 +21,7 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 	let title: string = $state(topicDoc.title);
 	let phase: Phase = $state(topicDoc.phase);
 	let phaseStatus: PhaseStatus = $state(topicDoc.phaseStatus);
-	let stakeholders: {
-		items: StakeholderDoc[];
-		approved: boolean;
-	} = $state(topicDoc.stakeholders ?? { items: [], approved: false });
+	let stakeholders: StakeholderDoc[] = $state(topicDoc.stakeholders ?? []);
 	let personaCount: number = $state(topicDoc.personaCount ?? 0);
 	let createdAt: Date = topicDoc.createdAt.toDate();
 	let updatedAt: Date = topicDoc.updatedAt.toDate();
@@ -32,7 +29,6 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 
 	const approveStakeholders = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', id), {
-			'stakeholders.approved': true,
 			phase: 2,
 			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
@@ -86,7 +82,7 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 	// ステークホルダー（トピックの stakeholders フィールド）を空に戻す。
 	const resetStakeholders = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', id), {
-			stakeholders: { items: [], approved: false, createdAt: Timestamp.now() },
+			stakeholders: [],
 			updatedAt: Timestamp.now()
 		});
 	};
@@ -138,7 +134,7 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 			const { data } = await generateStakeholdersCallable({ title });
 
 			await updateDoc(doc(db, 'topics', id), {
-				stakeholders: { items: data.stakeholders, approved: false, createdAt: Timestamp.now() },
+				stakeholders: data.stakeholders,
 				phase: 1,
 				phaseStatus: 'generated',
 				updatedAt: Timestamp.now()
@@ -152,7 +148,7 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 	const generatePersonas = async (): Promise<void> => {
 		await setPhaseStatus(2, 'running');
 		try {
-			const stakeholderItems = stakeholders?.items ?? [];
+			const stakeholderItems = stakeholders ?? [];
 			const generatePersonasCallable = httpsCallable<
 				{ title: string; stakeholders: StakeholderDoc[] },
 				{ personas: PersonaData[] }
