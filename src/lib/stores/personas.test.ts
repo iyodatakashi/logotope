@@ -29,7 +29,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { updateDoc } from 'firebase/firestore';
-import { createPersonasStore } from './personas.svelte.js';
+import { createPersonasStore } from './personas.svelte';
 
 const TOPIC_PATH = { path: 'topics/t1' };
 

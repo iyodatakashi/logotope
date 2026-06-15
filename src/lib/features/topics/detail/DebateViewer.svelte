@@ -3,7 +3,7 @@
 		PublishedDebateDetail,
 		PublishedTurn,
 		ChapterDoc
-	} from '$lib/models/session/session.types.js';
+	} from '$lib/models/session/session.types';
 	import TurnDisplay from './TurnDisplay.svelte';
 	import PersonaFilter from './PersonaFilter.svelte';
 	import BeliefEvolution from '$lib/features/topics/detail/BeliefEvolution.svelte';

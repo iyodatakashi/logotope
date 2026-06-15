@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { phasePath } from '$lib/models/phase/phase.js';
-	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { topicsStore } from '$lib/stores/topics.svelte.js';
+	import { phasePath } from '$lib/models/phase/phase';
+	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import { topicsStore } from '$lib/stores/topics.svelte';
 
 	const topicId = page.params.topicId as string;
 

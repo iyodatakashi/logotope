@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildEngagementsMap } from './engagements.svelte.js';
-import type { EngagementHistoryEntry } from '$lib/models/engagement/engagement.types.js';
+import { buildEngagementsMap } from './engagements.svelte';
+import type { EngagementHistoryEntry } from '$lib/models/engagement/engagement.types';
 
 type EngagementDocInput = { personaId: string; history: Record<string, EngagementHistoryEntry> };
 

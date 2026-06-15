@@ -2,8 +2,8 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { Button, Input } from '@14ch/svelte-ui';
-	import { authStore } from '$lib/stores/auth.svelte.js';
-	import { sanitizeAdminRedirect } from '$lib/utils/redirect.js';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import { sanitizeAdminRedirect } from '$lib/utils/redirect';
 
 	let email = $state('');
 	let password = $state('');

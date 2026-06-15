@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
 	import { goto } from '$app/navigation';
-	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase.js';
+	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
 	const PHASE = 3;
@@ -82,7 +82,8 @@
 	regenerateLabel="再取材する"
 	regenerateConfirm={{
 		title: '取材をやり直しますか？',
-		description: '現在の取材記録と、以降のフェーズで生成済みのデータ（章立て・討論）が削除されます。',
+		description:
+			'現在の取材記録と、以降のフェーズで生成済みのデータ（章立て・討論）が削除されます。',
 		submitLabel: '再取材する'
 	}}
 	onGenerate={generate}

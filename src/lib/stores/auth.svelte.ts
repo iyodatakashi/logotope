@@ -1,6 +1,6 @@
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { auth } from '$lib/firebase.js';
+import { auth } from '$lib/firebase';
 
 let user = $state<User | null>(null);
 let loading = $state(true);

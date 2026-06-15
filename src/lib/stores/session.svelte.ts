@@ -1,6 +1,6 @@
 import { onSnapshot, doc } from 'firebase/firestore';
-import { db } from '$lib/firebase.js';
-import type { SessionDoc } from '$lib/models/session/session.types.js';
+import { db } from '$lib/firebase';
+import type { SessionDoc } from '$lib/models/session/session.types';
 
 export const createSessionStore = (topicId: string) => {
 	let session = $state<SessionDoc | null>(null);

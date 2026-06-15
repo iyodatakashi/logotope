@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import TopicListItem from '$lib/features/topics/list/TopicListItem.svelte';
-	import { topicsStore } from '$lib/stores/topics.svelte.js';
+	import { topicsStore } from '$lib/stores/topics.svelte';
 
 	const topics = $derived(
 		topicsStore.topics

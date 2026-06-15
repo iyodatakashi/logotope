@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeAdminRedirect } from './redirect.js';
+import { sanitizeAdminRedirect } from './redirect';
 
 describe('sanitizeAdminRedirect', () => {
 	it('/admin 配下の相対パスはそのまま返す', () => {

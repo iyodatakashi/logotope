@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
-import type { PersonaSummaryForViewer, BeliefChangeTrigger } from '../persona/persona.types.js';
+import type { PersonaSummaryForViewer, BeliefChangeTrigger } from '../persona/persona.types';
 
 export type SpeakerType = 'facilitator' | 'persona';
 

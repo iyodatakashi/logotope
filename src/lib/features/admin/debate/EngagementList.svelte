@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { EngagementHistoryEntryWithPersona } from '$lib/stores/engagements.svelte.js';
+	import type { EngagementHistoryEntryWithPersona } from '$lib/stores/engagements.svelte';
 
 	interface Props {
 		engagements: ReadonlyArray<EngagementHistoryEntryWithPersona>;

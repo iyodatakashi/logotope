@@ -18,7 +18,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { setDoc } from 'firebase/firestore';
-import { topicsStore } from './topics.svelte.js';
+import { topicsStore } from './topics.svelte';
 
 describe('topicsStore.addTopic (task 3.3)', () => {
 	beforeEach(() => {

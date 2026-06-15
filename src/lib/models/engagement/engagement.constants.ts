@@ -1,4 +1,4 @@
-import type { EngagementLevel } from '$lib/models/topic/topic.types.js';
+import type { EngagementLevel } from '$lib/models/topic/topic.types';
 
 type EngagementStyle = {
 	label: string;

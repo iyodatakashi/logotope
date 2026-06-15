@@ -2,7 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import PostDebateComments from '$lib/sharedComponents/PostDebateComments.svelte';
-import type { PublishedComment } from '$lib/models/session/session.types.js';
+import type { PublishedComment } from '$lib/models/session/session.types';
 
 const comments: PublishedComment[] = [
 	{

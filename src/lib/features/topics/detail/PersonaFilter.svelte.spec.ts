@@ -2,7 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import PersonaFilter from '$lib/features/topics/detail/PersonaFilter.svelte';
-import type { PersonaSummaryForViewer } from '$lib/models/persona/persona.types.js';
+import type { PersonaSummaryForViewer } from '$lib/models/persona/persona.types';
 
 const personas: PersonaSummaryForViewer[] = [
 	{ id: 'p-1', name: '田中太郎', role: '中小企業経営者', beliefHistory: [] },

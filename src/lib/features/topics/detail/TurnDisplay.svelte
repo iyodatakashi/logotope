@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PublishedTurn } from '$lib/models/session/session.types.js';
+	import type { PublishedTurn } from '$lib/models/session/session.types';
 
 	interface Props {
 		turn: PublishedTurn;

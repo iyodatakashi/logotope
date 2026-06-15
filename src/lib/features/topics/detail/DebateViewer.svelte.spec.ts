@@ -2,7 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import DebateViewer from './DebateViewer.svelte';
-import type { PublishedDebateDetail } from '$lib/models/session/session.types.js';
+import type { PublishedDebateDetail } from '$lib/models/session/session.types';
 
 const debate: PublishedDebateDetail = {
 	id: 'session-1',

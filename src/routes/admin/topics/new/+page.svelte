@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { topicsStore } from '$lib/stores/topics.svelte.js';
+	import { topicsStore } from '$lib/stores/topics.svelte';
 	import TopicForm from '$lib/features/admin/new-topic/TopicForm.svelte';
 
 	let submitting = $state(false);

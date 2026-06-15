@@ -1,8 +1,8 @@
 import { page } from '$app/state';
-import { topicsStore } from '$lib/stores/topics.svelte.js';
-import { createSessionStore } from '$lib/stores/session.svelte.js';
-import { createPersonasStore } from '$lib/stores/personas.svelte.js';
-import { createEngagementsStore } from '$lib/stores/engagements.svelte.js';
+import { topicsStore } from '$lib/stores/topics.svelte';
+import { createSessionStore } from '$lib/stores/session.svelte';
+import { createPersonasStore } from '$lib/stores/personas.svelte';
+import { createEngagementsStore } from '$lib/stores/engagements.svelte';
 
 const create = () => {
 	let sessionStore = $state(createSessionStore(''));

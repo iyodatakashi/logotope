@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { phaseLogicalState } from '$lib/models/phase/phase.js';
+	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import { phaseLogicalState } from '$lib/models/phase/phase';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import EngagementList from './EngagementList.svelte';
 
@@ -48,8 +48,7 @@
 					fromQueue: t.fromQueue,
 					personaId: t.personaId,
 					addressedPersonaName: addressedPersona?.name ?? null,
-					engagements:
-						currentTopicStore.engagementsStore.engagementsMap.get(t.turnIndex) ?? [],
+					engagements: currentTopicStore.engagementsStore.engagementsMap.get(t.turnIndex) ?? [],
 					beliefChangesTriggered: currentTopicStore.personasStore.personas.flatMap((p) =>
 						(p.beliefs ?? [])
 							.filter((b) => b.triggeredByTurnId === t.id)

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { currentTopicStore } from '$lib/stores/currentTopic.svelte.js';
-	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase.js';
+	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
 	const PHASE = 4;

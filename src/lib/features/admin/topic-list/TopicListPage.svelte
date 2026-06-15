@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { Button } from '@14ch/svelte-ui';
-	import { authStore } from '$lib/stores/auth.svelte.js';
-	import { topicsStore } from '$lib/stores/topics.svelte.js';
-	import { phaseDisplayLabel } from '$lib/models/phase/phase.js';
-	import type { Phase, PhaseStatus } from '$lib/models/phase/phase.js';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import { topicsStore } from '$lib/stores/topics.svelte';
+	import { phaseDisplayLabel } from '$lib/models/phase/phase';
+	import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
 
 	const getBadge = (topic: {
 		phase: Phase;

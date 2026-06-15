@@ -3,8 +3,8 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import type { Snippet } from 'svelte';
-	import { authStore } from '$lib/stores/auth.svelte.js';
-	import { topicsStore } from '$lib/stores/topics.svelte.js';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import { topicsStore } from '$lib/stores/topics.svelte';
 
 	let { children }: { children: Snippet } = $props();
 
