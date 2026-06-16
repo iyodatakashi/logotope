@@ -90,9 +90,9 @@ describe('restartDebate - 章単位再開', () => {
     vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
       id: 't1', topicId: 't1', createdAt: '', currentChapterIndex: 2,
       chapters: [
-        { chapterId: 'ch-0', title: '章0', focusQuestion: '?' },
-        { chapterId: 'ch-1', title: '章1', focusQuestion: '?' },
-        { chapterId: 'ch-2', title: '章2', focusQuestion: '?' },
+        { id: 'ch-0', title: '章0', focusQuestion: '?' },
+        { id: 'ch-1', title: '章1', focusQuestion: '?' },
+        { id: 'ch-2', title: '章2', focusQuestion: '?' },
       ],
     });
 
@@ -107,7 +107,7 @@ describe('restartDebate - 章単位再開', () => {
     vi.mocked(repo.getTopicById).mockResolvedValue(topicStub);
     vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
       id: 't1', topicId: 't1', createdAt: '',
-      chapters: [{ chapterId: 'ch-0', title: '章0', focusQuestion: '?' }],
+      chapters: [{ id: 'ch-0', title: '章0', focusQuestion: '?' }],
     });
 
     await (restartDebate as unknown as CallHandler)({ data: { topicId: 't1' } });

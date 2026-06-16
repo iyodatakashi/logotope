@@ -16,7 +16,7 @@ vi.mock('../llm/models.js', () => ({
 
 import { PersonaAgentService, buildSpeechStyleGuide } from './persona-agent.js';
 import type { TurnGenerationContext } from '../types/persona-agent.types.js';
-import type { PersonaAttributes, DebateChapter } from '../types/index.js';
+import type { PersonaAttributes, Chapter } from '../types/index.js';
 import type { SearchService } from '../search/search-service.js';
 
 const mockDisabledSearch = {
@@ -42,7 +42,7 @@ const testInterviewRecord =
 const testCurrentBelief =
   '# 現在の信念\n\n## 立場と根拠\n本政策は医療安全強化に必要。\n\n## 核心的主張\n患者の命を守ることが最優先事項。';
 
-const testChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 0 };
+const testChapter: Chapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 0 };
 
 const testHistory = [
   { id: 't1', sessionId: 's1', turnIndex: 0, speakerType: 'facilitator', speakerName: 'ファシリテーター', speakerRole: '', content: '本日はAI医療診断の導入について討論します。', createdAt: '2025-01-01' },
@@ -383,7 +383,7 @@ describe('PersonaAgentService', () => {
 
   describe('generateTurn - task 3.1: TurnGenerationContext 統合', () => {
     it('context.chapter の章タイトルとフォーカス問いが user メッセージに含まれる', async () => {
-      const chapter: DebateChapter = { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 5 };
+      const chapter: Chapter = { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 5 };
       await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ chapter }));
 
       const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
@@ -437,7 +437,7 @@ describe('PersonaAgentService', () => {
       mockGetPersonaModel.mockReturnValue(mockModel);
       mockGenerateText.mockResolvedValue(makeTurnResult());
 
-      const chapter: DebateChapter = { index: 2, title: '影響', focusQuestion: 'どんな影響があるか？', startTurnIndex: 10 };
+      const chapter: Chapter = { index: 2, title: '影響', focusQuestion: 'どんな影響があるか？', startTurnIndex: 10 };
       await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ chapter }));
       const systemWith: string = mockGenerateText.mock.calls[0][0].system;
 

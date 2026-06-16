@@ -3,7 +3,7 @@ import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
 import { formatHistory, formatPersonas } from '../utils/conversation.js';
 import type { DebateTurn } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
-import type { FacilitatorReply, DebateChapter } from '../types/debate.types.js';
+import type { FacilitatorReply, Chapter } from '../types/debate.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 
 function currentDateString(): string {
@@ -89,7 +89,7 @@ export class FacilitatorAgentService {
 	async generateOpening(
 		topicTitle: string,
 		personas: Persona[],
-		firstChapter?: DebateChapter
+		firstChapter?: Chapter
 	): Promise<Result<FacilitatorReply, PipelineError>> {
 		try {
 			const chapterContext = firstChapter
@@ -130,7 +130,7 @@ export class FacilitatorAgentService {
 	private async runInterventionCheck(
 		history: DebateTurn[],
 		personas: Persona[],
-		currentChapter: DebateChapter | undefined,
+		currentChapter: Chapter | undefined,
 		criteriaSection: string
 	): Promise<Result<FacilitatorReply, PipelineError>> {
 		try {
@@ -175,7 +175,7 @@ export class FacilitatorAgentService {
 		history: DebateTurn[],
 		personas: Persona[],
 		speakCount: Map<string, number> = new Map(),
-		currentChapter?: DebateChapter
+		currentChapter?: Chapter
 	): Promise<Result<FacilitatorReply, PipelineError>> {
 		const speakCountInfo = personas
 			.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
@@ -189,7 +189,7 @@ export class FacilitatorAgentService {
 		history: DebateTurn[],
 		personas: Persona[],
 		speakCount: Map<string, number> = new Map(),
-		currentChapter?: DebateChapter
+		currentChapter?: Chapter
 	): Promise<Result<FacilitatorReply, PipelineError>> {
 		const speakCountInfo = personas
 			.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)

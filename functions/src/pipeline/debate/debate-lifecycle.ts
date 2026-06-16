@@ -16,14 +16,14 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 	if (!snap.exists) return;
 	const data = snap.data() as {
 		turns?: Array<{ id: string; turnIndex: number; chapterId?: string }>;
-		chapters?: Array<{ chapterId: string }>;
+		chapters?: Array<{ id: string }>;
 	};
 	const turns = data.turns ?? [];
 	const chapters = data.chapters ?? [];
 
-	const targetIdx = chapters.findIndex((c) => c.chapterId === chapterId);
+	const targetIdx = chapters.findIndex((c) => c.id === chapterId);
 	const discardChapterIds = new Set(
-		chapters.slice(targetIdx >= 0 ? targetIdx : 0).map((c) => c.chapterId)
+		chapters.slice(targetIdx >= 0 ? targetIdx : 0).map((c) => c.id)
 	);
 	const removed = turns.filter((t) => t.chapterId && discardChapterIds.has(t.chapterId));
 	const kept = turns.filter((t) => !t.chapterId || !discardChapterIds.has(t.chapterId));

@@ -7,7 +7,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 import Anthropic from '@anthropic-ai/sdk';
 import { ChapterGeneratorService } from './chapter-generator.js';
 import type { Persona } from '../../types/repository.types.js';
-import type { DebateChapter } from '../../types/index.js';
+import type { Chapter } from '../../types/index.js';
 
 const mockCreate = vi.fn();
 
@@ -111,7 +111,7 @@ describe('ChapterGeneratorService', () => {
   });
 
   describe('generateChapterSummary', () => {
-    const currentChapter: DebateChapter = { title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 1 };
+    const currentChapter: Chapter = { title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 1 };
 
     it('現章のまとめ発言テキストを返す', async () => {
       mockCreate.mockResolvedValue({
@@ -138,7 +138,7 @@ describe('ChapterGeneratorService', () => {
   });
 
   describe('generateChapterIntroduction', () => {
-    const nextChapter: DebateChapter = { title: '対立', focusQuestion: '最も意見が分かれる点は？', startTurnIndex: 8 };
+    const nextChapter: Chapter = { title: '対立', focusQuestion: '最も意見が分かれる点は？', startTurnIndex: 8 };
 
     it('次章の導入発言テキストとtargetPersonaIdを返す', async () => {
       mockCreate.mockResolvedValue({

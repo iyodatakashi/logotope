@@ -1,10 +1,11 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import type { DebateTopic, DebateSession } from '../types/debate.types.js';
+import type { Topic } from '../types/topic.types.js';
+import type { DebateSession } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
 
 const db = () => getFirestore();
 
-export const getTopicById = async (id: string): Promise<DebateTopic | null> => {
+export const getTopicById = async (id: string): Promise<Topic | null> => {
   const snap = await db().doc(`topics/${id}`).get();
   if (!snap.exists) return null;
   const data = snap.data() as { title: string; createdAt: Timestamp; updatedAt: Timestamp };
@@ -32,7 +33,7 @@ export const getDebateSessionByTopicId = async (topicId: string): Promise<Debate
     createdAt: Timestamp;
     completedAt?: Timestamp;
     publishedAt?: Timestamp;
-    chapters?: Array<{ chapterId: string; title: string; focusQuestion: string }>;
+    chapters?: Array<{ id: string; title: string; focusQuestion: string }>;
     currentChapterIndex?: number;
   };
   return {

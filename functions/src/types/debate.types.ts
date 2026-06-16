@@ -1,4 +1,6 @@
 import type { Persona } from './persona.types.js';
+import type { Chapter } from './chapter.types.js';
+export type { Chapter };
 
 export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
 export type SpeakerSource = 'nomination' | 'direct_address' | 'queue' | 'score';
@@ -7,6 +9,17 @@ export type BeliefChangeEvent = {
 	type: BeliefChangeType;
 	summary: string;
 	updatedBelief: string;
+};
+
+export type DebateSession = {
+	id: string;
+	topicId: string;
+	totalTurns?: number | null;
+	createdAt: string;
+	completedAt?: string | null;
+	publishedAt?: string | null;
+	chapters?: Chapter[];
+	currentChapterIndex?: number;
 };
 
 export type FacilitatorReply = {
@@ -39,12 +52,6 @@ export type SpeakerDecision = {
 export type PendingIntent = {
 	triggerTurnIndex: number;
 	intentSummary: string;
-};
-
-export type DebateChapter = {
-	chapterId: string;
-	title: string;
-	focusQuestion: string;
 };
 
 export type DirectAddressInput = {
@@ -95,7 +102,7 @@ export type RestoreInput = {
 
 export type TurnGenerationContext = {
 	chapterHistory: ReadonlyArray<DebateTurn>;
-	chapter: DebateChapter;
+	chapter: Chapter;
 	mode?: 'opinion' | 'fact';
 	score?: number;
 	intentSummary?: string;
@@ -108,13 +115,6 @@ export type OrchestratorOptions = {
 	maxTurns: number;
 	interventionCooldown: number;
 	singleChapterMode?: boolean;
-};
-
-export type DebateTopic = {
-	id: string;
-	title: string;
-	createdAt: string;
-	updatedAt: string;
 };
 
 export type DebateTurn = {
@@ -134,17 +134,6 @@ export type DebateTurn = {
 	targetPersonaId?: string;
 	searchUsed?: boolean;
 	searchQueries?: string[];
-};
-
-export type DebateSession = {
-	id: string;
-	topicId: string;
-	totalTurns?: number | null;
-	createdAt: string;
-	completedAt?: string | null;
-	publishedAt?: string | null;
-	chapters?: Array<{ chapterId: string; title: string; focusQuestion: string }>;
-	currentChapterIndex?: number;
 };
 
 export type PostDebateCommentResult = {

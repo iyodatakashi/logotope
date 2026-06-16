@@ -6,7 +6,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 import Anthropic from '@anthropic-ai/sdk';
 import { FacilitatorAgentService } from './facilitator-agent.js';
-import type { PersonaAttributes, ConversationTurn, DebateChapter } from '../types/index.js';
+import type { PersonaAttributes, ConversationTurn, Chapter } from '../types/index.js';
 
 const mockCreate = vi.fn();
 
@@ -321,7 +321,7 @@ describe('FacilitatorAgentService', () => {
       mockCreate.mockResolvedValue({
         content: [{ type: 'tool_use', name: 'submit_opening', input: { content: '開会します。', targetPersonaId: 'p1' } }],
       });
-      const firstChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 1 };
+      const firstChapter: Chapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 1 };
 
       await service.generateOpening('AI規制', testPersonas, firstChapter);
 
@@ -346,7 +346,7 @@ describe('FacilitatorAgentService', () => {
       mockCreate.mockResolvedValue({
         content: [{ type: 'tool_use', name: 'evaluate_intervention', input: {} }],
       });
-      const currentChapter: DebateChapter = { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 5 };
+      const currentChapter: Chapter = { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 5 };
 
       await service.evaluateStallIntervention(testHistory, testPersonas, new Map(), currentChapter);
 

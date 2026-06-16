@@ -5,7 +5,8 @@ import { AI_MODELS, MAX_TOKENS } from '../../constants/ai.constants.js';
 import { formatHistory, formatPersonas } from '../../utils/conversation.js';
 import { buildNeutralitySystemPrompt } from '../../agents/facilitator-agent.js';
 import { getTopicById, getPersonasByTopicId } from '../../db/repository.js';
-import type { DebateTurn, DebateChapter, FacilitatorReply } from '../../types/debate.types.js';
+import type { DebateTurn, FacilitatorReply } from '../../types/debate.types.js';
+import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
 
@@ -95,7 +96,7 @@ export class ChapterGeneratorService {
 		personas: Persona[]
 	): Promise<
 		Result<
-			{ chapters: DebateChapter[]; generalIssues: string[]; personaIssues: string[] },
+			{ chapters: Chapter[]; generalIssues: string[]; personaIssues: string[] },
 			PipelineError
 		>
 	> {
@@ -183,8 +184,8 @@ export class ChapterGeneratorService {
 				chapters: Array<{ title: string; focusQuestion: string }>;
 			};
 
-			const debateChapters: DebateChapter[] = chapters.map((c) => ({
-				chapterId: nanoid(),
+			const debateChapters: Chapter[] = chapters.map((c) => ({
+				id: nanoid(),
 				title: c.title,
 				focusQuestion: c.focusQuestion,
 			}));
@@ -198,7 +199,7 @@ export class ChapterGeneratorService {
 
 	async generateChapterSummary(
 		recentHistory: DebateTurn[],
-		currentChapter: DebateChapter
+		currentChapter: Chapter
 	): Promise<Result<string, PipelineError>> {
 		try {
 			const response = await this.client.messages.create({
@@ -237,7 +238,7 @@ export class ChapterGeneratorService {
 	}
 
 	async generateChapterIntroduction(
-		nextChapter: DebateChapter,
+		nextChapter: Chapter,
 		personas: Persona[]
 	): Promise<Result<FacilitatorReply, PipelineError>> {
 		try {
@@ -296,7 +297,7 @@ export class ChapterGeneratorService {
 
 		const { chapters, generalIssues, personaIssues } = result.value;
 		await db().doc(`topics/${topicId}/sessions/0`).update({
-			chapters: chapters.map(({ chapterId, title, focusQuestion }) => ({ chapterId, title, focusQuestion })),
+			chapters: chapters.map(({ id, title, focusQuestion }) => ({ id, title, focusQuestion })),
 			currentChapterIndex: 0,
 			chapterIssues: { general: generalIssues, persona: personaIssues },
 		});

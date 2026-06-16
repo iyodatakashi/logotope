@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { DebateChapter } from '../../types/index.js';
+import type { Chapter } from '../../types/index.js';
 
 vi.mock('../../db/repository.js', () => ({
   getTopicById: vi.fn(),
@@ -47,9 +47,9 @@ const p3Profile = {
   approved: true, sortOrder: 2,
 };
 
-const twoChapters: DebateChapter[] = [
-  { chapterId: 'ch-0', title: '導入', focusQuestion: 'この問題の核心は何か？' },
-  { chapterId: 'ch-1', title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？' },
+const twoChapters: Chapter[] = [
+  { id: 'ch-0', title: '導入', focusQuestion: 'この問題の核心は何か？' },
+  { id: 'ch-1', title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？' },
 ];
 
 function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}) {

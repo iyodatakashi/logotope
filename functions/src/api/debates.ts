@@ -36,7 +36,7 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 
   const session = await getDebateSessionByTopicId(topicId);
   const chapterIndex = session?.currentChapterIndex ?? 0;
-  const chapterId = session?.chapters?.[chapterIndex]?.chapterId;
+  const chapterId = session?.chapters?.[chapterIndex]?.id;
   if (!chapterId) throw new HttpsError('not-found', 'Chapter not found');
 
   await restartChapter(topicId, chapterId);
