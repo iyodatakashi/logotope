@@ -8,3 +8,9 @@ export type Stakeholder = {
   minorityLevel: MinorityLevel;
   engagementLevel?: EngagementLevel;
 };
+
+export type StakeholderMap = {
+  id: string;
+  topicId: string;
+  content: string;
+};

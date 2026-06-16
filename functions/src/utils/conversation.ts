@@ -1,4 +1,5 @@
-import type { DebateTurn, PersonaProfile } from '../types/repository.types.js';
+import type { DebateTurn } from '../types/debate.types.js';
+import type { PersonaProfile } from '../types/persona.types.js';
 
 export function formatPersonas(personas: PersonaProfile[]): string {
   return personas

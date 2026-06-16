@@ -3,10 +3,11 @@ import { getPersonaModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../constants/ai.constants.js';
 import { SearchService } from '../search/search-service.js';
 import { formatHistory } from '../utils/conversation.js';
-import type { DebateTurn, PersonaProfile } from '../types/repository.types.js';
+import type { DebateTurn } from '../types/debate.types.js';
+import type { PersonaProfile } from '../types/persona.types.js';
 import type { AgentTurnResult, BeliefChangeEvent, BeliefChangeType, PostDebateCommentResult, EngagementAssessment } from '../types/debate.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
-import type { TurnGenerationContext } from '../types/persona-agent.types.js';
+import type { TurnGenerationContext } from '../types/debate.types.js';
 
 type ExperienceLevel = 'young' | 'mid' | 'veteran';
 type AuthorityLevel = 'general' | 'mid' | 'high';

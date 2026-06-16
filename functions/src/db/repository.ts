@@ -1,5 +1,6 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
-import type { DebateTopic, PersonaProfile, DebateSession } from '../types/repository.types.js';
+import type { DebateTopic, DebateSession } from '../types/debate.types.js';
+import type { PersonaProfile } from '../types/persona.types.js';
 
 const db = () => getFirestore();
 

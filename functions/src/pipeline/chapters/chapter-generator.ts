@@ -5,7 +5,8 @@ import { AI_MODELS, MAX_TOKENS } from '../../constants/ai.constants.js';
 import { formatHistory, formatPersonas } from '../../utils/conversation.js';
 import { buildNeutralitySystemPrompt } from '../../agents/facilitator-agent.js';
 import { getTopicById, getPersonasByTopicId } from '../../db/repository.js';
-import type { DebateTurn, PersonaProfile } from '../../types/repository.types.js';
+import type { DebateTurn } from '../../types/debate.types.js';
+import type { PersonaProfile } from '../../types/persona.types.js';
 import type { DebateChapter } from '../../types/debate.types.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
 
