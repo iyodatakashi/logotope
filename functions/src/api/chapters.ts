@@ -1,8 +1,10 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import * as repo from '../db/repository.js';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getTopicById, getPersonasByTopicId } from '../db/repository.js';
 import { requireAuth } from '../utils/auth.js';
 import { ChapterGeneratorService } from '../pipeline/chapter-generator.js';
 
+const db = () => getFirestore();
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
 
 export const generateChapters = onCall(
@@ -11,25 +13,29 @@ export const generateChapters = onCall(
     requireAuth(request);
     const { topicId } = request.data as { topicId: string };
 
-    const topic = await repo.getTopicById(topicId);
+    const topic = await getTopicById(topicId);
     if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
-    const personas = (await repo.getPersonasByTopicId(topicId)).filter((p) => p.approved);
+    const personas = (await getPersonasByTopicId(topicId)).filter((p) => p.approved);
 
-    await repo.createDebateSession(topicId);
+    const sessionRef = db().doc(`topics/${topicId}/sessions/0`);
+    const snap = await sessionRef.get();
+    if (!snap.exists) {
+      await sessionRef.set({ createdAt: Timestamp.now(), turns: [], postDebateComments: [] });
+    }
 
     const result = await new ChapterGeneratorService().generateChapters(topic.title, personas);
     if (!result.ok) {
       const e = result.error;
-      const msg = 'message' in e ? e.message : `${e.code}`;
-      throw new HttpsError('internal', msg);
+      throw new HttpsError('internal', 'message' in e ? e.message : e.code);
     }
 
     const { chapters, generalIssues, personaIssues } = result.value;
-    await Promise.all([
-      repo.saveChapters(topicId, chapters),
-      repo.saveChapterIssues(topicId, generalIssues, personaIssues),
-    ]);
+    await db().doc(`topics/${topicId}/sessions/0`).update({
+      chapters: chapters.map(({ chapterId, title, focusQuestion }) => ({ chapterId, title, focusQuestion })),
+      currentChapterIndex: 0,
+      chapterIssues: { general: generalIssues, persona: personaIssues },
+    });
 
     return { topicId };
   }

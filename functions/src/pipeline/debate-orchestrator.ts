@@ -1,4 +1,6 @@
-import * as repo from '../db/repository.js';
+import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { nanoid } from 'nanoid';
+import { getTopicById, getPersonasByTopicId, getDebateSessionByTopicId } from '../db/repository.js';
 import { FacilitatorAgentService } from '../agents/facilitator-agent.js';
 import { PersonaAgentService } from '../agents/persona-agent.js';
 import { ChapterGeneratorService } from './chapter-generator.js';
@@ -20,12 +22,217 @@ import { INTENT_EXPIRY_TURNS } from '../constants/flow.constants.js';
 import type {
 	PipelineError,
 	DebateChapter,
-	SpeakerDecision
+	SpeakerDecision,
+	PendingIntent
 } from '../types/index.js';
 import type { SpeakerAssessment, DebateState } from '../types/flow.types.js';
-import type { PersonaProfile } from '../types/repository.types.js';
+import type { PersonaProfile, DebateTurn } from '../types/repository.types.js';
 import { DEFAULT_OPTIONS } from '../constants/debate-orchestrator.constants.js';
 import type { OrchestratorOptions } from '../types/debate-orchestrator.types.js';
+
+// ---- Firestore helpers ----
+
+const db = () => getFirestore();
+
+const personaDocRef = (topicId: string, personaId: string) =>
+	db().doc(`topics/${topicId}/personas/${personaId}`);
+
+const isDebateActive = async (topicId: string): Promise<boolean> => {
+	const snap = await db().doc(`topics/${topicId}`).get();
+	if (!snap.exists) return false;
+	const data = snap.data() as { phase?: number; phaseStatus?: string };
+	return data.phase === 5 && data.phaseStatus === 'running';
+};
+
+const finalizeTopicIfRunning = async (topicId: string): Promise<boolean> => {
+	const ref = db().doc(`topics/${topicId}`);
+	return db().runTransaction(async (tx) => {
+		const snap = await tx.get(ref);
+		if (!snap.exists) return false;
+		const data = snap.data() as { phaseStatus?: string };
+		if (data.phaseStatus !== 'running') return false;
+		tx.update(ref, { phaseStatus: 'generated', updatedAt: Timestamp.now() });
+		return true;
+	});
+};
+
+const createDebateTurn = async (params: {
+	sessionId: string;
+	turnIndex: number;
+	speakerType: string;
+	personaId?: string;
+	speakerName?: string;
+	speakerRole?: string;
+	content: string;
+	chapterId?: string;
+	speechMode?: 'opinion' | 'fact';
+	engagementScore?: number;
+	fromQueue?: boolean;
+	addressedPersonaId?: string;
+	searchUsed?: boolean;
+	searchQueries?: string[];
+}): Promise<{ id: string }> => {
+	const id = nanoid();
+	const turn: Record<string, unknown> = {
+		id,
+		turnIndex: params.turnIndex,
+		speakerType: params.speakerType,
+		content: params.content,
+		createdAt: Timestamp.now(),
+	};
+	if (params.personaId !== undefined) turn.personaId = params.personaId;
+	if (params.speakerName !== undefined) turn.speakerName = params.speakerName;
+	if (params.speakerRole !== undefined) turn.speakerRole = params.speakerRole;
+	if (params.speechMode !== undefined) turn.speechMode = params.speechMode;
+	if (params.engagementScore !== undefined) turn.engagementScore = params.engagementScore;
+	if (params.fromQueue) turn.fromQueue = true;
+	if (params.chapterId !== undefined) turn.chapterId = params.chapterId;
+	if (params.addressedPersonaId !== undefined) turn.addressedPersonaId = params.addressedPersonaId;
+	if (params.searchUsed) turn.searchUsed = true;
+	if (params.searchQueries?.length) turn.searchQueries = params.searchQueries;
+	await db().doc(`topics/${params.sessionId}/sessions/0`).update({
+		turns: FieldValue.arrayUnion(turn),
+	});
+	return { id };
+};
+
+const createPersonaBelief = async (params: {
+	topicId: string;
+	personaId: string;
+	version: number;
+	content: string;
+	changeType?: string;
+	changeSummary?: string;
+	triggeredByTurnId?: string;
+}): Promise<{ id: string }> => {
+	const id = nanoid();
+	const belief: Record<string, unknown> = {
+		id,
+		version: params.version,
+		content: params.content,
+		createdAt: Timestamp.now(),
+	};
+	if (params.changeType !== undefined) belief.changeType = params.changeType;
+	if (params.changeSummary !== undefined) belief.changeSummary = params.changeSummary;
+	if (params.triggeredByTurnId !== undefined) belief.triggeredByTurnId = params.triggeredByTurnId;
+	await personaDocRef(params.topicId, params.personaId).update({
+		beliefs: FieldValue.arrayUnion(belief),
+	});
+	return { id };
+};
+
+const createPostDebateComment = async (params: {
+	sessionId: string;
+	personaId: string;
+	content: string;
+	sortOrder: number;
+}): Promise<{ id: string }> => {
+	const id = nanoid();
+	await db().doc(`topics/${params.sessionId}/sessions/0`).update({
+		postDebateComments: FieldValue.arrayUnion({
+			id,
+			personaId: params.personaId,
+			content: params.content,
+			sortOrder: params.sortOrder,
+		}),
+	});
+	return { id };
+};
+
+const completeDebateSession = async (id: string, totalTurns: number): Promise<void> => {
+	await db().doc(`topics/${id}/sessions/0`).update({ totalTurns, completedAt: Timestamp.now() });
+};
+
+const updateCurrentChapterIndex = async (topicId: string, index: number): Promise<void> => {
+	await db().doc(`topics/${topicId}/sessions/0`).update({ currentChapterIndex: index });
+};
+
+const saveEngagements = async (params: {
+	sessionId: string;
+	turnIndex: number;
+	assessments: Array<{ personaId: string; score: number; mode: 'opinion' | 'fact' | 'none'; intentSummary?: string }>;
+}): Promise<void> => {
+	for (const assessment of params.assessments) {
+		const ref = db().doc(`topics/${params.sessionId}/sessions/0/engagements/${assessment.personaId}`);
+		const entry: Record<string, unknown> = { score: assessment.score, mode: assessment.mode };
+		if (assessment.intentSummary !== undefined) entry.intentSummary = assessment.intentSummary;
+		await ref.set(
+			{ history: { [String(params.turnIndex)]: entry } },
+			{ mergeFields: [`history.${params.turnIndex}`] }
+		);
+	}
+};
+
+const setPendingIntents = async (
+	sessionId: string,
+	personaId: string,
+	items: ReadonlyArray<PendingIntent>
+): Promise<void> => {
+	await db().doc(`topics/${sessionId}/sessions/0/engagements/${personaId}`).set(
+		{ pendingIntents: [...items] },
+		{ merge: true }
+	);
+};
+
+const loadPendingIntents = async (sessionId: string): Promise<Map<string, PendingIntent[]>> => {
+	const snap = await db().collection(`topics/${sessionId}/sessions/0/engagements`).get();
+	const result = new Map<string, PendingIntent[]>();
+	for (const docSnap of snap.docs) {
+		const data = docSnap.data() as { pendingIntents?: PendingIntent[] };
+		result.set(docSnap.id, data.pendingIntents ?? []);
+	}
+	return result;
+};
+
+const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[]> => {
+	const snap = await db().doc(`topics/${sessionId}/sessions/0`).get();
+	if (!snap.exists) return [];
+	const data = snap.data() as {
+		turns?: Array<{
+			id: string; turnIndex: number; speakerType: string; personaId?: string;
+			speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp;
+			chapterId?: string; fromQueue?: boolean; addressedPersonaId?: string;
+		}>;
+	};
+	return (data.turns ?? []).map((t) => ({
+		id: t.id,
+		sessionId,
+		turnIndex: t.turnIndex,
+		speakerType: t.speakerType,
+		personaId: t.personaId ?? null,
+		speakerName: t.speakerName,
+		speakerRole: t.speakerRole,
+		content: t.content,
+		createdAt: t.createdAt?.toDate().toISOString() ?? '',
+		chapterId: t.chapterId,
+		fromQueue: t.fromQueue,
+		addressedPersonaId: t.addressedPersonaId,
+	}));
+};
+
+const getPersonaBeliefsByPersonaId = async (
+	topicId: string,
+	personaId: string
+): Promise<Array<{ id: string; version: number; content: string }>> => {
+	const snap = await personaDocRef(topicId, personaId).get();
+	if (!snap.exists) return [];
+	const data = snap.data() as {
+		beliefs?: Array<{ id: string; version: number; content: string; triggeredByTurnId?: string }>;
+	};
+	return data.beliefs ?? [];
+};
+
+const getPersonaInterviewByPersonaId = async (
+	topicId: string,
+	personaId: string
+): Promise<{ interviewRecord: string } | null> => {
+	const snap = await personaDocRef(topicId, personaId).get();
+	if (!snap.exists) return null;
+	const data = snap.data() as { interview?: { interviewRecord: string } };
+	return data.interview ?? null;
+};
+
+// ---- Orchestrator ----
 
 const pipelineErrorMessage = (e: PipelineError): string => {
 	if ('message' in e) return e.message;
@@ -41,7 +248,6 @@ const validPersonaId = (
 	return personaId && personas.some((p) => p.id === personaId) ? personaId : undefined;
 };
 
-
 export class DebateOrchestratorService {
 	constructor(
 		private facilitator: FacilitatorAgentService = new FacilitatorAgentService(),
@@ -55,9 +261,9 @@ export class DebateOrchestratorService {
 		const sessionId = topicId;
 
 		// 停止ゲート: トピックが討論かつ実行中でなければ何も生成・上書きしない
-		if (!(await repo.isDebateActive(topicId))) return false;
+		if (!(await isDebateActive(topicId))) return false;
 
-		const session = await repo.getDebateSessionByTopicId(topicId);
+		const session = await getDebateSessionByTopicId(topicId);
 		if (!session) throw new Error('Session not found');
 		if (!session.chapters?.length) throw new Error('Chapters not found');
 
@@ -69,8 +275,8 @@ export class DebateOrchestratorService {
 		const { personas, interviewRecords, currentBeliefs, topicTitle } =
 			await this.loadSessionContext(topicId);
 
-		const existingTurns = await repo.getDebateTurnsBySessionId(topicId);
-		const persistedPendingIntents = await repo.loadPendingIntents(sessionId);
+		const existingTurns = await getDebateTurnsBySessionId(topicId);
+		const persistedPendingIntents = await loadPendingIntents(sessionId);
 		const state = restoreDebateState({
 			turns: existingTurns,
 			personas,
@@ -84,7 +290,7 @@ export class DebateOrchestratorService {
 			focusQuestion: c.focusQuestion,
 		}));
 
-		// 第1章の開始: オープニング生成（章立ては generateChaptersOnly で事前に保存済み）
+		// 第1章の開始: オープニング生成（章立ては generateChapters で事前に保存済み）
 		if (chapterIndex === 0 && state.history.length === 0) {
 			const openingResult = await this.facilitator.generateOpening(
 				topicTitle,
@@ -106,7 +312,7 @@ export class DebateOrchestratorService {
 		}
 
 		if (!chapters[chapterIndex]) throw new Error(`Chapter not found: ${chapterIndex}`);
-		await repo.updateCurrentChapterIndex(topicId, chapterIndex);
+		await updateCurrentChapterIndex(topicId, chapterIndex);
 
 		const outcome = await this.runChapterLoop(
 			sessionId,
@@ -144,20 +350,20 @@ export class DebateOrchestratorService {
 	}
 
 	private async loadSessionContext(topicId: string) {
-		const topic = await repo.getTopicById(topicId);
+		const topic = await getTopicById(topicId);
 		if (!topic) throw new Error(`Topic not found: ${topicId}`);
 
-		const personas = (await repo.getPersonasByTopicId(topicId)).filter((p) => p.approved);
+		const personas = (await getPersonasByTopicId(topicId)).filter((p) => p.approved);
 
 		const currentBeliefs = new Map<string, { content: string; version: number }>();
 		const interviewRecords = new Map<string, string>();
 
 		for (const p of personas) {
-			const beliefs = await repo.getPersonaBeliefsByPersonaId(topicId, p.id);
+			const beliefs = await getPersonaBeliefsByPersonaId(topicId, p.id);
 			const latest = beliefs.reduce((best, b) => (b.version > best.version ? b : best), beliefs[0]);
 			currentBeliefs.set(p.id, { content: latest?.content ?? '', version: latest?.version ?? 0 });
 
-			const interview = await repo.getPersonaInterviewByPersonaId(topicId, p.id);
+			const interview = await getPersonaInterviewByPersonaId(topicId, p.id);
 			interviewRecords.set(p.id, interview?.interviewRecord ?? '');
 		}
 
@@ -186,7 +392,7 @@ export class DebateOrchestratorService {
 			} else {
 				state.pendingIntents.set(personaId, alive);
 			}
-			await repo.setPendingIntents(sessionId, personaId, alive);
+			await setPendingIntents(sessionId, personaId, alive);
 		}
 
 		// 直前話者を除く全員の発言意欲を評価する。評価失敗は最低意欲（score 1）として継続する
@@ -212,7 +418,7 @@ export class DebateOrchestratorService {
 		state.engagementSignals.push(toEngagementSignal(assessments));
 
 		// 評価結果を毎ターン保存する（管理画面での可視化用）
-		await repo.saveEngagements({
+		await saveEngagements({
 			sessionId,
 			turnIndex: Math.max(0, state.history.length - 1),
 			assessments: assessments.map((a) => ({
@@ -246,7 +452,7 @@ export class DebateOrchestratorService {
 
 		while (chapterTurnCount() < cap && state.history.length < maxTurns) {
 			// 各ターン境界でトピックのゲートを確認する（上流再生成でフェーズが戻った場合も停止）
-			if (!(await repo.isDebateActive(topicId))) return 'cancelled';
+			if (!(await isDebateActive(topicId))) return 'cancelled';
 
 			// 1. 繰り越し指名・直接質問を確認する（BC2: 指名は介入より優先）
 			const pendingAddress = state.pendingAddress;
@@ -339,7 +545,7 @@ export class DebateOrchestratorService {
 					{ triggerTurnIndex, intentSummary: assessment.intentSummary ?? '' }
 				];
 				state.pendingIntents.set(assessment.personaId, updated);
-				await repo.setPendingIntents(sessionId, assessment.personaId, updated);
+				await setPendingIntents(sessionId, assessment.personaId, updated);
 			}
 
 			// 7. 連続直接質問カウントを一元更新する（direct_address:+1、その他:0）
@@ -505,7 +711,7 @@ export class DebateOrchestratorService {
 		if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
 		// 生成中に討論が停止された場合は、生成済みのセリフを保存せず状態も更新しない
-		if (!(await repo.isDebateActive(topicId))) return false;
+		if (!(await isDebateActive(topicId))) return false;
 
 		// 直接質問先は ID 検証のうえターンに永続化する（自分自身への指定は無視）
 		const rawAddressed = turnResult.value.addressedToPersonaId;
@@ -513,7 +719,7 @@ export class DebateOrchestratorService {
 			rawAddressed !== persona.id ? validPersonaId(rawAddressed, personas) : undefined;
 
 		const turnIndex = state.history.length;
-		const savedTurn = await repo.createDebateTurn({
+		const savedTurn = await createDebateTurn({
 			sessionId,
 			turnIndex,
 			speakerType: 'persona',
@@ -558,14 +764,14 @@ export class DebateOrchestratorService {
 			} else {
 				state.pendingIntents.set(persona.id, remaining);
 			}
-			await repo.setPendingIntents(sessionId, persona.id, remaining);
+			await setPendingIntents(sessionId, persona.id, remaining);
 		}
 
 		// 信念変化の保存と以後のターンへの反映
 		if (turnResult.value.beliefChange) {
 			const beliefChange = turnResult.value.beliefChange;
 			const newVersion = belief.version + 1;
-			await repo.createPersonaBelief({
+			await createPersonaBelief({
 				topicId,
 				personaId: persona.id,
 				version: newVersion,
@@ -645,7 +851,7 @@ export class DebateOrchestratorService {
 		chapterId?: string
 	): Promise<void> {
 		const turnIndex = state.history.length;
-		const turn = await repo.createDebateTurn({
+		const turn = await createDebateTurn({
 			sessionId,
 			turnIndex,
 			speakerType: 'facilitator',
@@ -732,7 +938,7 @@ export class DebateOrchestratorService {
 				state.history
 			);
 			if (commentResult.ok) {
-				await repo.createPostDebateComment({
+				await createPostDebateComment({
 					sessionId,
 					personaId: persona.id,
 					content: commentResult.value.content,
@@ -741,7 +947,7 @@ export class DebateOrchestratorService {
 			}
 		}
 
-		await repo.completeDebateSession(sessionId, state.history.length);
-		await repo.finalizeTopicIfRunning(topicId);
+		await completeDebateSession(sessionId, state.history.length);
+		await finalizeTopicIfRunning(topicId);
 	}
 }
