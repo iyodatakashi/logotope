@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { nanoid } from 'nanoid';
 import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
 import { formatHistory, formatPersonas } from '../utils/conversation.js';
 import { buildNeutralitySystemPrompt } from '../agents/facilitator-agent.js';
@@ -178,9 +179,9 @@ export class ChapterGeneratorService {
 			};
 
 			const debateChapters: DebateChapter[] = chapters.map((c) => ({
+				chapterId: nanoid(),
 				title: c.title,
 				focusQuestion: c.focusQuestion,
-				startTurnIndex: 0
 			}));
 
 			return { ok: true, value: { chapters: debateChapters, generalIssues, personaIssues } };
