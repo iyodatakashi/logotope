@@ -1,6 +1,7 @@
 import * as repo from '../db/repository.js';
 import { FacilitatorAgentService } from '../agents/facilitator-agent.js';
 import { PersonaAgentService } from '../agents/persona-agent.js';
+import { ChapterGeneratorService } from './chapter-generator.js';
 import {
 	resolveDirectAddress,
 	decideNextSpeaker,
@@ -45,13 +46,14 @@ export class DebateOrchestratorService {
 	constructor(
 		private facilitator: FacilitatorAgentService = new FacilitatorAgentService(),
 		private personaAgent: PersonaAgentService = new PersonaAgentService(),
+		private chapterGenerator: ChapterGeneratorService = new ChapterGeneratorService(),
 		private options: OrchestratorOptions = DEFAULT_OPTIONS
 	) {}
 
 	/** 章立てのみを生成して保存する（討論を開始しない） */
 	async generateChaptersOnly(topicId: string): Promise<void> {
 		const { personas, topicTitle } = await this.loadSessionContext(topicId);
-		const chaptersResult = await this.facilitator.generateChapters(topicTitle, personas);
+		const chaptersResult = await this.chapterGenerator.generateChapters(topicTitle, personas);
 		if (!chaptersResult.ok) throw new Error(pipelineErrorMessage(chaptersResult.error));
 		const { chapters, generalIssues, personaIssues } = chaptersResult.value;
 		await Promise.all([
@@ -92,9 +94,9 @@ export class DebateOrchestratorService {
 		});
 
 		const chapters: DebateChapter[] = (session.chapters ?? []).map((c) => ({
+			chapterId: c.chapterId,
 			title: c.title,
 			focusQuestion: c.focusQuestion,
-			startTurnIndex: (c as { startTurnIndex?: number }).startTurnIndex ?? 0
 		}));
 
 		// 第1章の開始: オープニング生成（章立ては generateChaptersOnly で事前に保存済み）
@@ -110,7 +112,8 @@ export class DebateOrchestratorService {
 				sessionId,
 				state,
 				openingResult.value.content ?? '',
-				firstPersonaId
+				firstPersonaId,
+				chapters[0].chapterId
 			);
 			state.pendingAddress = firstPersonaId
 				? { personaId: firstPersonaId, byFacilitator: true }
@@ -147,7 +150,6 @@ export class DebateOrchestratorService {
 		}
 		await this.generateChapterTransition(
 			sessionId,
-			topicId,
 			chapters,
 			chapterIndex,
 			state,
@@ -255,7 +257,7 @@ export class DebateOrchestratorService {
 		const personaIds = personas.map((p) => p.id);
 		const cap = chapterTurnCap(turnsPerChapter);
 		const chapterTurnCount = () =>
-			state.history.filter((t) => t.turnIndex >= chapter.startTurnIndex).length;
+			state.history.filter((t) => t.chapterId === chapter.chapterId).length;
 
 		while (chapterTurnCount() < cap && state.history.length < maxTurns) {
 			// 各ターン境界でトピックのゲートを確認する（上流再生成でフェーズが戻った場合も停止）
@@ -409,7 +411,7 @@ export class DebateOrchestratorService {
 		assessments: SpeakerAssessment[]
 	): Promise<SpeakerDecision | undefined> {
 		if (hasHighEngagement(assessments)) return undefined;
-		const chapterHistory = state.history.filter((t) => t.turnIndex >= chapter.startTurnIndex);
+		const chapterHistory = state.history.filter((t) => t.chapterId === chapter.chapterId);
 		const result = await this.facilitator.evaluateStallIntervention(
 			chapterHistory,
 			personas,
@@ -419,7 +421,7 @@ export class DebateOrchestratorService {
 		if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 		if (!result.value.shouldIntervene) return undefined;
 		const targetId = validPersonaId(result.value.targetPersonaId, personas);
-		await this.saveFacilitatorTurn(sessionId, state, result.value.content ?? '', targetId);
+		await this.saveFacilitatorTurn(sessionId, state, result.value.content ?? '', targetId, chapter.chapterId);
 		return targetId ? { personaId: targetId, source: 'nomination' } : undefined;
 	}
 
@@ -430,7 +432,7 @@ export class DebateOrchestratorService {
 		chapter: DebateChapter,
 		state: DebateState
 	): Promise<SpeakerDecision | undefined> {
-		const chapterHistory = state.history.filter((t) => t.turnIndex >= chapter.startTurnIndex);
+		const chapterHistory = state.history.filter((t) => t.chapterId === chapter.chapterId);
 		const result = await this.facilitator.evaluateTopicDrift(
 			chapterHistory,
 			personas,
@@ -441,7 +443,7 @@ export class DebateOrchestratorService {
 		if (!result.value.shouldIntervene) return undefined;
 		const targetId = validPersonaId(result.value.targetPersonaId, personas);
 		if (!targetId) return undefined;
-		await this.saveFacilitatorTurn(sessionId, state, result.value.content ?? '', targetId);
+		await this.saveFacilitatorTurn(sessionId, state, result.value.content ?? '', targetId, chapter.chapterId);
 		return { personaId: targetId, source: 'nomination' };
 	}
 
@@ -489,7 +491,7 @@ export class DebateOrchestratorService {
 		const interviewRecord = interviewRecords.get(persona.id) ?? '';
 		const fromQueue = decision.source === 'queue';
 
-		const chapterHistory = state.history.filter((t) => t.turnIndex >= chapter.startTurnIndex);
+		const chapterHistory = state.history.filter((t) => t.chapterId === chapter.chapterId);
 		const pendingEntries = state.pendingIntents.get(persona.id);
 		let pendingTrigger: { speakerName: string; content: string } | undefined;
 		if (pendingEntries && pendingEntries.length > 0) {
@@ -534,6 +536,7 @@ export class DebateOrchestratorService {
 			speakerName: persona.name,
 			speakerRole: persona.specificRole,
 			content: turnResult.value.content ?? '',
+			chapterId: chapter.chapterId,
 			speechMode: turnResult.value.speechMode,
 			engagementScore: decision.score,
 			fromQueue: fromQueue || undefined,
@@ -551,6 +554,7 @@ export class DebateOrchestratorService {
 			speakerRole: persona.specificRole,
 			content: turnResult.value.content,
 			createdAt: new Date().toISOString(),
+			chapterId: chapter.chapterId,
 			fromQueue: fromQueue || undefined,
 			addressedPersonaId
 		});
@@ -652,7 +656,8 @@ export class DebateOrchestratorService {
 		sessionId: string,
 		state: DebateState,
 		content: string,
-		addressedPersonaId?: string
+		addressedPersonaId?: string,
+		chapterId?: string
 	): Promise<void> {
 		const turnIndex = state.history.length;
 		const turn = await repo.createDebateTurn({
@@ -662,6 +667,7 @@ export class DebateOrchestratorService {
 			speakerName: 'ファシリテーター',
 			speakerRole: '',
 			content,
+			chapterId,
 			addressedPersonaId
 		});
 		state.history.push({
@@ -673,6 +679,7 @@ export class DebateOrchestratorService {
 			speakerRole: '',
 			content,
 			createdAt: new Date().toISOString(),
+			chapterId,
 			addressedPersonaId
 		});
 		state.consecutiveDirectExchanges = 0;
@@ -681,7 +688,6 @@ export class DebateOrchestratorService {
 	/** 章遷移: 現章まとめ＋次章導入の2ターンを生成し、導入で最初の発言者を指名する */
 	private async generateChapterTransition(
 		sessionId: string,
-		topicId: string,
 		chapters: DebateChapter[],
 		currentChapterIndex: number,
 		state: DebateState,
@@ -691,31 +697,31 @@ export class DebateOrchestratorService {
 		const nextChapter = chapters[currentChapterIndex + 1];
 		const recentHistory = state.history.slice(-10);
 
-		const summaryResult = await this.facilitator.generateChapterSummary(recentHistory, chapter);
+		const summaryResult = await this.chapterGenerator.generateChapterSummary(recentHistory, chapter);
 		if (summaryResult.ok) {
 			await this.saveFacilitatorTurn(
 				sessionId,
 				state,
-				summaryResult.value
+				summaryResult.value,
+				undefined,
+				chapter.chapterId
 			);
 		}
 
-		// 次章の開始 turnIndex を intro ターン保存前に記録し Firestore に永続化する（DebateViewer が章見出し挿入に使用）
-		const nextChapterStart = state.history.length;
-		const introResult = await this.facilitator.generateChapterIntroduction(nextChapter, personas);
+		const introResult = await this.chapterGenerator.generateChapterIntroduction(nextChapter, personas);
 		if (introResult.ok) {
 			const firstPersonaId = validPersonaId(introResult.value.firstPersonaId, personas);
 			await this.saveFacilitatorTurn(
 				sessionId,
 				state,
 				introResult.value.content,
-				firstPersonaId
+				firstPersonaId,
+				nextChapter.chapterId
 			);
 			state.pendingAddress = firstPersonaId
 				? { personaId: firstPersonaId, byFacilitator: true }
 				: undefined;
 		}
-		await repo.setChapterStartTurnIndex(topicId, currentChapterIndex + 1, nextChapterStart);
 	}
 
 	/** 討論終端: クロージング → 事後コメント → セッション完了 */

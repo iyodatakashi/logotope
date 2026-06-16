@@ -41,7 +41,7 @@ export interface DebateSession {
   createdAt: string;
   completedAt?: string | null;
   publishedAt?: string | null;
-  chapters?: Array<{ title: string; focusQuestion: string }>;
+  chapters?: Array<{ chapterId: string; title: string; focusQuestion: string }>;
   currentChapterIndex?: number;
 }
 
@@ -88,6 +88,7 @@ export interface DebateTurn {
   speakerRole?: string;
   content: string;
   createdAt: string;
+  chapterId?: string;
   speechMode?: 'opinion' | 'fact';
   engagementScore?: number;
   fromQueue?: boolean;
@@ -137,6 +138,7 @@ export interface CreateDebateTurnParams {
   speakerName?: string;
   speakerRole?: string;
   content: string;
+  chapterId?: string;
   speechMode?: 'opinion' | 'fact';
   engagementScore?: number;
   fromQueue?: boolean;

@@ -85,10 +85,9 @@ export interface SpeakerDecision {
 }
 
 export interface DebateChapter {
+  chapterId: string;
   title: string;
   focusQuestion: string;
-  startTurnIndex: number;
-  endTurnIndex?: number;
 }
 
 export type PipelineError =

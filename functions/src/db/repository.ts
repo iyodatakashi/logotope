@@ -156,26 +156,32 @@ export const createDebateSession = async (topicId: string): Promise<{ id: string
 // その派生変化（信念バージョン・エンゲージメント履歴）を巻き戻して進行中へ戻す
 export const discardChapterProgress = async (
   topicId: string,
-  chapterIndex: number
+  chapterId: string
 ): Promise<void> => {
   const sessionRef = db().doc(`topics/${topicId}/sessions/0`);
   const snap = await sessionRef.get();
   if (!snap.exists) return;
   const data = snap.data() as {
-    turns?: Array<{ id: string; turnIndex: number }>;
-    chapters?: Array<{ startTurnIndex?: number | null }>;
+    turns?: Array<{ id: string; turnIndex: number; chapterId?: string }>;
+    chapters?: Array<{ chapterId: string }>;
   };
   const turns = data.turns ?? [];
-  const chapterStartTurnIndex = data.chapters?.[chapterIndex]?.startTurnIndex ?? 0;
-  const removed = turns.filter((t) => t.turnIndex >= chapterStartTurnIndex);
-  const kept = turns.filter((t) => t.turnIndex < chapterStartTurnIndex);
+  const chapters = data.chapters ?? [];
+
+  // 対象章以降の章IDセットを作成
+  const targetIdx = chapters.findIndex((c) => c.chapterId === chapterId);
+  const discardChapterIds = new Set(
+    chapters.slice(targetIdx >= 0 ? targetIdx : 0).map((c) => c.chapterId)
+  );
+  const removed = turns.filter((t) => t.chapterId && discardChapterIds.has(t.chapterId));
+  const kept = turns.filter((t) => !t.chapterId || !discardChapterIds.has(t.chapterId));
   const removedTurnIds = new Set(removed.map((t) => t.id));
   const removedTurnIndexes = removed.map((t) => t.turnIndex);
 
   // セッションのターンを完了済み章のみに巻き戻す（進行状態はトピックが保持）
   await sessionRef.update({
     turns: kept,
-    currentChapterIndex: chapterIndex,
+    currentChapterIndex: targetIdx >= 0 ? targetIdx : 0,
     postDebateComments: [],
     totalTurns: FieldValue.delete(),
     completedAt: FieldValue.delete(),
@@ -229,6 +235,7 @@ export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<
   if (params.speechMode !== undefined) turn.speechMode = params.speechMode;
   if (params.engagementScore !== undefined) turn.engagementScore = params.engagementScore;
   if (params.fromQueue) turn.fromQueue = true;
+  if (params.chapterId !== undefined) turn.chapterId = params.chapterId;
   if (params.addressedPersonaId !== undefined) turn.addressedPersonaId = params.addressedPersonaId;
   if (params.searchUsed) turn.searchUsed = true;
   if (params.searchQueries?.length) turn.searchQueries = params.searchQueries;
@@ -244,7 +251,7 @@ export const saveChapters = async (
   chapters: ReadonlyArray<{ title: string; focusQuestion: string }>
 ): Promise<void> => {
   await db().doc(`topics/${topicId}/sessions/0`).update({
-    chapters: chapters.map((c, i) => ({ ...c, startTurnIndex: i === 0 ? 0 : null })),
+    chapters: chapters.map((c) => ({ chapterId: nanoid(), ...c })),
     currentChapterIndex: 0,
   });
 };
@@ -264,16 +271,6 @@ export const updateCurrentChapterIndex = async (
   index: number
 ): Promise<void> => {
   await db().doc(`topics/${topicId}/sessions/0`).update({ currentChapterIndex: index });
-};
-
-export const setChapterStartTurnIndex = async (
-  topicId: string,
-  chapterIndex: number,
-  startTurnIndex: number
-): Promise<void> => {
-  await db().doc(`topics/${topicId}/sessions/0`).update({
-    [`chapters.${chapterIndex}.startTurnIndex`]: startTurnIndex,
-  });
 };
 
 export const createPostDebateComment = async (params: CreatePostDebateCommentParams): Promise<{ id: string }> => {
@@ -354,7 +351,7 @@ export const getDebateSessionByTopicId = async (topicId: string): Promise<Debate
     createdAt: Timestamp;
     completedAt?: Timestamp;
     publishedAt?: Timestamp;
-    chapters?: Array<{ title: string; focusQuestion: string }>;
+    chapters?: Array<{ chapterId: string; title: string; focusQuestion: string }>;
     currentChapterIndex?: number;
   };
   return {
@@ -376,7 +373,7 @@ export const getDebateSessionById = async (id: string): Promise<DebateSession | 
 export const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[]> => {
   const snap = await db().doc(`topics/${sessionId}/sessions/0`).get();
   if (!snap.exists) return [];
-  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp; fromQueue?: boolean; addressedPersonaId?: string }> };
+  const data = snap.data() as { turns?: Array<{ id: string; turnIndex: number; speakerType: string; personaId?: string; speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp; chapterId?: string; fromQueue?: boolean; addressedPersonaId?: string }> };
   return (data.turns ?? []).map((t) => ({
     id: t.id,
     sessionId,
@@ -387,6 +384,7 @@ export const getDebateTurnsBySessionId = async (sessionId: string): Promise<Deba
     speakerRole: t.speakerRole,
     content: t.content,
     createdAt: t.createdAt?.toDate().toISOString() ?? '',
+    chapterId: t.chapterId,
     fromQueue: t.fromQueue,
     addressedPersonaId: t.addressedPersonaId,
   }));

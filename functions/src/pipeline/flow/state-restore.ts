@@ -7,6 +7,8 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
 	const { personas, persistedPendingIntents, currentBeliefs } = input;
 	const turns = [...input.turns].sort((a, b) => a.turnIndex - b.turnIndex);
 
+	const currentTurnIndex = turns.length > 0 ? turns[turns.length - 1].turnIndex + 1 : 0;
+
 	const speakCount = new Map<string, number>(personas.map((p) => [p.id, 0]));
 	for (const t of turns) {
 		if (t.personaId && t.speakerType === 'persona') {
@@ -24,17 +26,21 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
 	}
 
 	let lastSpeakerId: string | undefined;
+	let lastFacilitatorTurnIndex = 0;
 	for (let i = turns.length - 1; i >= 0; i--) {
-		if (turns[i].speakerType === 'persona' && turns[i].personaId) {
+		if (turns[i].speakerType === 'persona' && turns[i].personaId && !lastSpeakerId) {
 			lastSpeakerId = turns[i].personaId ?? undefined;
-			break;
 		}
+		if (turns[i].speakerType === 'facilitator' && lastFacilitatorTurnIndex === 0) {
+			lastFacilitatorTurnIndex = turns[i].turnIndex;
+		}
+		if (lastSpeakerId !== undefined && lastFacilitatorTurnIndex !== 0) break;
 	}
 
 	const pendingIntents = new Map<string, PendingIntent[]>();
 	for (const [personaId, items] of persistedPendingIntents.entries()) {
 		const alive = items.filter(
-			(item) => turns.length - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS
+			(item) => currentTurnIndex - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS
 		);
 		if (alive.length > 0) {
 			pendingIntents.set(
@@ -64,6 +70,8 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
 		lastSpeakerId,
 		pendingIntents,
 		consecutiveDirectExchanges: 0,
-		engagementSignals: []
+		engagementSignals: [],
+		currentTurnIndex,
+		lastFacilitatorTurnIndex,
 	};
 };

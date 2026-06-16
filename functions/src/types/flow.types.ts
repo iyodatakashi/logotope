@@ -43,6 +43,8 @@ export interface DebateState {
 	pendingIntents: Map<string, PendingIntent[]>;
 	consecutiveDirectExchanges: number;
 	engagementSignals: Array<0 | 1>;
+	currentTurnIndex: number;
+	lastFacilitatorTurnIndex: number;
 }
 
 export interface RestoreInput {

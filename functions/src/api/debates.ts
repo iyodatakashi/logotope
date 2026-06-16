@@ -52,8 +52,10 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 
   const session = await repo.getDebateSessionByTopicId(topicId);
   const chapterIndex = session?.currentChapterIndex ?? 0;
+  const chapterId = session?.chapters?.[chapterIndex]?.chapterId;
+  if (!chapterId) throw new HttpsError('not-found', 'Chapter not found');
 
-  await repo.discardChapterProgress(topicId, chapterIndex);
+  await repo.discardChapterProgress(topicId, chapterId);
   await repo.updateTopicPhase(topicId, 5, 'running');
   await enqueueChapterTask(topicId, chapterIndex);
 
