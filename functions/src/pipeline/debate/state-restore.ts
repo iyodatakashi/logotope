@@ -1,4 +1,4 @@
-import type { PendingIntent } from '../../types/index.js';
+import type { PendingIntent } from '../../types/debate.types.js';
 import type { DebateState, RestoreInput } from '../../types/flow.types.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 

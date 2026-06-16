@@ -1,7 +1,7 @@
-import type { DebateChapter } from './index.js';
+import type { DebateChapter } from './debate.types.js';
 import type { DebateTurn } from './repository.types.js';
 
-export interface TurnGenerationContext {
+export type TurnGenerationContext = {
 	chapterHistory: ReadonlyArray<DebateTurn>;
 	chapter: DebateChapter;
 	mode?: 'opinion' | 'fact';
@@ -9,4 +9,4 @@ export interface TurnGenerationContext {
 	intentSummary?: string;
 	pendingTrigger?: { speakerName: string; content: string };
 	nominatedByFacilitator: boolean;
-}
+};

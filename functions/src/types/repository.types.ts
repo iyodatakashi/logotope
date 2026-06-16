@@ -1,13 +1,13 @@
-import type { LLMType } from './index.js';
+import type { LLMType } from './common.types.js';
 
-export interface DebateTopic {
+export type DebateTopic = {
   id: string;
   title: string;
   createdAt: string;
   updatedAt: string;
-}
+};
 
-export interface PersonaProfile {
+export type PersonaProfile = {
   id: string;
   topicId: string;
   stakeholderRole: string;
@@ -21,9 +21,9 @@ export interface PersonaProfile {
   llmType?: LLMType;
   approved: boolean;
   sortOrder: number;
-}
+};
 
-export interface PersonaBelief {
+export type PersonaBelief = {
   id: string;
   personaId: string;
   version: number;
@@ -32,9 +32,9 @@ export interface PersonaBelief {
   changeSummary?: string | null;
   triggeredByTurnId?: string | null;
   createdAt: string;
-}
+};
 
-export interface DebateSession {
+export type DebateSession = {
   id: string;
   topicId: string;
   totalTurns?: number | null;
@@ -43,31 +43,31 @@ export interface DebateSession {
   publishedAt?: string | null;
   chapters?: Array<{ chapterId: string; title: string; focusQuestion: string }>;
   currentChapterIndex?: number;
-}
+};
 
-export interface EngagementEntry {
+export type EngagementEntry = {
   personaId: string;
   score: number;
   mode: 'opinion' | 'fact' | 'none';
-}
+};
 
-export interface EngagementHistoryEntry {
+export type EngagementHistoryEntry = {
   score: number;
   mode: 'opinion' | 'fact' | 'none';
   intentSummary?: string;
-}
+};
 
-export interface PendingIntentEntry {
+export type PendingIntentEntry = {
   triggerTurnIndex: number;
   intentSummary: string;
-}
+};
 
-export interface EngagementDoc {
+export type EngagementDoc = {
   history: Record<string, EngagementHistoryEntry>;
   pendingIntents: PendingIntentEntry[];
-}
+};
 
-export interface SaveEngagementsParams {
+export type SaveEngagementsParams = {
   sessionId: string;
   turnIndex: number;
   assessments: Array<{
@@ -76,9 +76,9 @@ export interface SaveEngagementsParams {
     mode: 'opinion' | 'fact' | 'none';
     intentSummary?: string;
   }>;
-}
+};
 
-export interface DebateTurn {
+export type DebateTurn = {
   id: string;
   sessionId: string;
   turnIndex: number;
@@ -96,18 +96,18 @@ export interface DebateTurn {
   engagements?: EngagementEntry[];
   searchUsed?: boolean;
   searchQueries?: string[];
-}
+};
 
-export interface PersonaInterview {
+export type PersonaInterview = {
   id: string;
   personaId: string;
   interviewRecord: string;
   status: string;
   errorMessage?: string | null;
   completedAt?: string | null;
-}
+};
 
-export interface CreatePersonaProfileParams {
+export type CreatePersonaProfileParams = {
   topicId: string;
   stakeholderRole: string;
   name: string;
@@ -118,9 +118,9 @@ export interface CreatePersonaProfileParams {
   interests: string;
   llmType: LLMType;
   sortOrder: number;
-}
+};
 
-export interface CreatePersonaBeliefParams {
+export type CreatePersonaBeliefParams = {
   topicId: string;
   personaId: string;
   version: number;
@@ -128,9 +128,9 @@ export interface CreatePersonaBeliefParams {
   changeType?: string;
   changeSummary?: string;
   triggeredByTurnId?: string;
-}
+};
 
-export interface CreateDebateTurnParams {
+export type CreateDebateTurnParams = {
   sessionId: string;
   turnIndex: number;
   speakerType: string;
@@ -145,17 +145,17 @@ export interface CreateDebateTurnParams {
   addressedPersonaId?: string;
   searchUsed?: boolean;
   searchQueries?: string[];
-}
+};
 
-export interface CreatePostDebateCommentParams {
+export type CreatePostDebateCommentParams = {
   sessionId: string;
   personaId: string;
   content: string;
   sortOrder: number;
-}
+};
 
-export interface StakeholderMap {
+export type StakeholderMap = {
   id: string;
   topicId: string;
   content: string;
-}
+};

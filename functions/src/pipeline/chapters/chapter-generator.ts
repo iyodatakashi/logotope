@@ -6,7 +6,8 @@ import { formatHistory, formatPersonas } from '../../utils/conversation.js';
 import { buildNeutralitySystemPrompt } from '../../agents/facilitator-agent.js';
 import { getTopicById, getPersonasByTopicId } from '../../db/repository.js';
 import type { DebateTurn, PersonaProfile } from '../../types/repository.types.js';
-import type { DebateChapter, Result, PipelineError } from '../../types/index.js';
+import type { DebateChapter } from '../../types/debate.types.js';
+import type { Result, PipelineError } from '../../types/common.types.js';
 
 const db = () => getFirestore();
 

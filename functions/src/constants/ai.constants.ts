@@ -13,7 +13,7 @@ export const PERSONA_MODELS = {
   claude: 'claude-sonnet-4-6',
   gemini: 'gemini-2.5-pro',
   gpt: 'gpt-5.5',
-} as const satisfies Record<import('../types/index.js').LLMType, string>;
+} as const satisfies Record<import('../types/common.types.js').LLMType, string>;
 
 export const SEARCH_CONFIG = {
 	MAX_RESULTS: 5,

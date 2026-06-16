@@ -1,4 +1,4 @@
-import type { SpeakerDecision } from '../../types/index.js';
+import type { SpeakerDecision } from '../../types/debate.types.js';
 import type { DirectAddressInput, SpeakerAssessment, SpeakerSelectionInput } from '../../types/flow.types.js';
 import { HIGH_ENGAGEMENT_SCORE, MAX_CONSECUTIVE_DIRECT } from '../../constants/flow.constants.js';
 

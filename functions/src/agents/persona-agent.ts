@@ -4,15 +4,8 @@ import { MAX_TOKENS } from '../constants/ai.constants.js';
 import { SearchService } from '../search/search-service.js';
 import { formatHistory } from '../utils/conversation.js';
 import type { DebateTurn, PersonaProfile } from '../types/repository.types.js';
-import type {
-	AgentTurnResult,
-	BeliefChangeEvent,
-	BeliefChangeType,
-	PostDebateCommentResult,
-	EngagementAssessment,
-	Result,
-	PipelineError
-} from '../types/index.js';
+import type { AgentTurnResult, BeliefChangeEvent, BeliefChangeType, PostDebateCommentResult, EngagementAssessment } from '../types/debate.types.js';
+import type { Result, PipelineError } from '../types/common.types.js';
 import type { TurnGenerationContext } from '../types/persona-agent.types.js';
 
 type ExperienceLevel = 'young' | 'mid' | 'veteran';

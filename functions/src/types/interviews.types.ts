@@ -1,4 +1,4 @@
-export interface PersonaInput {
+export type PersonaInput = {
 	name: string;
 	age: number;
 	occupation: string;
@@ -6,4 +6,4 @@ export interface PersonaInput {
 	specificRole?: string;
 	background: string;
 	interests: string;
-}
+};

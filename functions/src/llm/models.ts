@@ -2,7 +2,7 @@ import type { LanguageModel } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
-import type { LLMType } from '../types/index.js';
+import type { LLMType } from '../types/common.types.js';
 import { PERSONA_MODELS, PIPELINE_MODELS } from '../constants/ai.constants.js';
 
 export const getPersonaModel = (llmType: LLMType): LanguageModel => {

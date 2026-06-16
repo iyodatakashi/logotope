@@ -1,5 +1,5 @@
-export interface SearchResult {
+export type SearchResult = {
 	ok: boolean;
 	content?: string;
 	error?: string;
-}
+};

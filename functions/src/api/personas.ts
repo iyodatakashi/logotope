@@ -1,7 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { requireAuth } from '../utils/auth.js';
-import { PersonaGeneratorService } from '../pipeline/personas/persona-generator.js';
-import type { Stakeholder } from '../types/index.js';
+import { generatePersonas as runPersonaGeneration } from '../pipeline/personas/persona-generator.js';
+import type { Stakeholder } from '../types/stakeholder.types.js';
 
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
 
@@ -14,7 +14,7 @@ export const generatePersonas = onCall(
 		if (!stakeholders?.length) throw new HttpsError('invalid-argument', 'stakeholders is required');
 
 		try {
-			return await new PersonaGeneratorService().generatePersonas(title, stakeholders);
+			return await runPersonaGeneration(title, stakeholders);
 		} catch (err) {
 			throw new HttpsError('internal', err instanceof Error ? err.message : String(err));
 		}

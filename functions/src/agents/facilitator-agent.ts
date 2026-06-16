@@ -3,13 +3,8 @@ import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
 import { formatHistory, formatPersonas } from '../utils/conversation.js';
 import type { DebateTurn } from '../types/repository.types.js';
 import type { PersonaProfile } from '../types/repository.types.js';
-import type {
-	FacilitatorOpeningResult,
-	FacilitatorIntervention,
-	DebateChapter,
-	Result,
-	PipelineError
-} from '../types/index.js';
+import type { FacilitatorOpeningResult, FacilitatorIntervention, DebateChapter } from '../types/debate.types.js';
+import type { Result, PipelineError } from '../types/common.types.js';
 
 function currentDateString(): string {
 	const d = new Date();

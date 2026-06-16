@@ -1,7 +1,7 @@
 import { generateText, jsonSchema } from 'ai';
 import { getPipelineModel } from '../../llm/models.js';
 import { MAX_TOKENS } from '../../constants/ai.constants.js';
-import type { Stakeholder } from '../../types/index.js';
+import type { Stakeholder } from '../../types/stakeholder.types.js';
 
 const STAKEHOLDER_TOOLS = {
 	submit_stakeholders: {
@@ -49,23 +49,21 @@ const STAKEHOLDER_TOOLS = {
 	}
 } as const;
 
-export class StakeholderGeneratorService {
-	async generateStakeholders(title: string): Promise<{ stakeholders: Stakeholder[] }> {
-		const result = await generateText({
-			model: getPipelineModel('stakeholderAnalyzer'),
-			maxTokens: MAX_TOKENS.STAKEHOLDER,
-			tools: STAKEHOLDER_TOOLS,
-			toolChoice: { type: 'tool', toolName: 'submit_stakeholders' } as const,
-			messages: [
-				{
-					role: 'user',
-					content: `以下のテーマについて、直接・間接の全利害関係者を網羅的に分析してください。\n\nテーマ: ${title}\n\nマイノリティや少数意見の立場も忘れずに含めてください。\n\nまた、世の中は専門家や強い当事者ばかりではありません。専門・意識レベル（engagementLevel）には必ず幅を持たせ、専門知識は乏しいが生活者目線でテーマに向き合う一般層も含めてください。ただし各レベルの人数は固定せず、そのテーマで実際に当事者がどう分布しているかに応じて自然な構成にすること（レベルごとに均等な人数にしたり、機械的に何件ずつと割り当てたりしない）。low はあくまで議論に参加する立場であり、テーマに無関心な傍観者ではありません。専門家・当事者層（high）だけに偏らせないこと。`
-				}
-			]
-		});
+export const generateStakeholders = async (title: string): Promise<{ stakeholders: Stakeholder[] }> => {
+	const result = await generateText({
+		model: getPipelineModel('stakeholderAnalyzer'),
+		maxTokens: MAX_TOKENS.STAKEHOLDER,
+		tools: STAKEHOLDER_TOOLS,
+		toolChoice: { type: 'tool', toolName: 'submit_stakeholders' } as const,
+		messages: [
+			{
+				role: 'user',
+				content: `以下のテーマについて、直接・間接の全利害関係者を網羅的に分析してください。\n\nテーマ: ${title}\n\nマイノリティや少数意見の立場も忘れずに含めてください。\n\nまた、世の中は専門家や強い当事者ばかりではありません。専門・意識レベル（engagementLevel）には必ず幅を持たせ、専門知識は乏しいが生活者目線でテーマに向き合う一般層も含めてください。ただし各レベルの人数は固定せず、そのテーマで実際に当事者がどう分布しているかに応じて自然な構成にすること（レベルごとに均等な人数にしたり、機械的に何件ずつと割り当てたりしない）。low はあくまで議論に参加する立場であり、テーマに無関心な傍観者ではありません。専門家・当事者層（high）だけに偏らせないこと。`
+			}
+		]
+	});
 
-		const toolCall = result.toolCalls[0];
-		if (!toolCall) throw new Error('No tool call in response');
-		return { stakeholders: (toolCall.args as { stakeholders: Stakeholder[] }).stakeholders };
-	}
-}
+	const toolCall = result.toolCalls[0];
+	if (!toolCall) throw new Error('No tool call in response');
+	return { stakeholders: (toolCall.args as { stakeholders: Stakeholder[] }).stakeholders };
+};
