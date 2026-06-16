@@ -1,10 +1,14 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { nanoid } from 'nanoid';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
 import { formatHistory, formatPersonas } from '../utils/conversation.js';
 import { buildNeutralitySystemPrompt } from '../agents/facilitator-agent.js';
+import { getTopicById, getPersonasByTopicId } from '../db/repository.js';
 import type { DebateTurn, PersonaProfile } from '../types/repository.types.js';
 import type { DebateChapter, Result, PipelineError } from '../types/index.js';
+
+const db = () => getFirestore();
 
 const SUBMIT_ISSUES_TOOL: Anthropic.Tool = {
 	name: 'submit_issues',
@@ -272,5 +276,31 @@ export class ChapterGeneratorService {
 			const message = err instanceof Error ? err.message : String(err);
 			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 		}
+	}
+
+	/** セッション作成 → 章生成 → 保存を一貫して実行する */
+	async planChapters(topicId: string): Promise<void> {
+		const topic = await getTopicById(topicId);
+		if (!topic) throw new Error(`Topic not found: ${topicId}`);
+
+		const personas = (await getPersonasByTopicId(topicId)).filter((p) => p.approved);
+
+		const sessionRef = db().doc(`topics/${topicId}/sessions/0`);
+		if (!(await sessionRef.get()).exists) {
+			await sessionRef.set({ createdAt: Timestamp.now(), turns: [], postDebateComments: [] });
+		}
+
+		const result = await this.generateChapters(topic.title, personas);
+		if (!result.ok) {
+			const e = result.error;
+			throw new Error('message' in e ? e.message : e.code);
+		}
+
+		const { chapters, generalIssues, personaIssues } = result.value;
+		await db().doc(`topics/${topicId}/sessions/0`).update({
+			chapters: chapters.map(({ chapterId, title, focusQuestion }) => ({ chapterId, title, focusQuestion })),
+			currentChapterIndex: 0,
+			chapterIssues: { general: generalIssues, persona: personaIssues },
+		});
 	}
 }

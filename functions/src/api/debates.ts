@@ -1,13 +1,12 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { getFunctions } from 'firebase-admin/functions';
-import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getTopicById, getDebateSessionByTopicId } from '../db/repository.js';
 import { DebateOrchestratorService } from '../pipeline/debate-orchestrator.js';
+import { activateDebate, markDebateStopped, restartChapter } from '../pipeline/debate-lifecycle.js';
 import { DEFAULT_OPTIONS } from '../constants/debate-orchestrator.constants.js';
 import { requireAuth } from '../utils/auth.js';
 
-const db = () => getFirestore();
 const REGION = 'asia-northeast1';
 
 async function enqueueChapterTask(topicId: string, chapterIndex: number, singleChapterMode?: boolean): Promise<void> {
@@ -22,13 +21,12 @@ export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   const topic = await getTopicById(topicId);
   if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
-  await db().doc(`topics/${topicId}`).update({ phase: 5, phaseStatus: 'running', updatedAt: Timestamp.now() });
+  await activateDebate(topicId);
   await enqueueChapterTask(topicId, 0, singleChapterMode);
 
   return { topicId };
 });
 
-// 章単位再開: 停止時に進行中だった章の途中ターンを破棄し、当該章を頭から再実行する
 export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   requireAuth(request);
   const { topicId } = request.data as { topicId: string };
@@ -41,8 +39,7 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   const chapterId = session?.chapters?.[chapterIndex]?.chapterId;
   if (!chapterId) throw new HttpsError('not-found', 'Chapter not found');
 
-  await discardChapterProgress(topicId, chapterId);
-  await db().doc(`topics/${topicId}`).update({ phase: 5, phaseStatus: 'running', updatedAt: Timestamp.now() });
+  await restartChapter(topicId, chapterId);
   await enqueueChapterTask(topicId, chapterIndex);
 
   return { topicId };
@@ -67,63 +64,10 @@ export const runChapter = onTaskDispatched(
         await enqueueChapterTask(topicId, chapterIndex + 1, singleChapterMode);
       }
     } catch (err) {
-      // 最終リトライでも失敗した場合のみトピックを停止状態にする
       if ((req.retryCount ?? 0) >= MAX_ATTEMPTS - 1) {
-        await db().doc(`topics/${topicId}`).update({ phaseStatus: 'stopped', updatedAt: Timestamp.now() });
+        await markDebateStopped(topicId);
       }
       throw err;
     }
   }
 );
-
-async function discardChapterProgress(topicId: string, chapterId: string): Promise<void> {
-  const sessionRef = db().doc(`topics/${topicId}/sessions/0`);
-  const snap = await sessionRef.get();
-  if (!snap.exists) return;
-  const data = snap.data() as {
-    turns?: Array<{ id: string; turnIndex: number; chapterId?: string }>;
-    chapters?: Array<{ chapterId: string }>;
-  };
-  const turns = data.turns ?? [];
-  const chapters = data.chapters ?? [];
-
-  const targetIdx = chapters.findIndex((c) => c.chapterId === chapterId);
-  const discardChapterIds = new Set(
-    chapters.slice(targetIdx >= 0 ? targetIdx : 0).map((c) => c.chapterId)
-  );
-  const removed = turns.filter((t) => t.chapterId && discardChapterIds.has(t.chapterId));
-  const kept = turns.filter((t) => !t.chapterId || !discardChapterIds.has(t.chapterId));
-  const removedTurnIds = new Set(removed.map((t) => t.id));
-  const removedTurnIndexes = removed.map((t) => t.turnIndex);
-
-  await sessionRef.update({
-    turns: kept,
-    currentChapterIndex: targetIdx >= 0 ? targetIdx : 0,
-    postDebateComments: [],
-    totalTurns: FieldValue.delete(),
-    completedAt: FieldValue.delete(),
-  });
-
-  const personasSnap = await db().collection(`topics/${topicId}/personas`).get();
-  for (const personaSnap of personasSnap.docs) {
-    const pdata = personaSnap.data() as { beliefs?: Array<{ triggeredByTurnId?: string | null }> };
-    const beliefs = pdata.beliefs ?? [];
-    const filtered = beliefs.filter(
-      (b) => !(b.triggeredByTurnId && removedTurnIds.has(b.triggeredByTurnId))
-    );
-    if (filtered.length !== beliefs.length) {
-      await personaSnap.ref.update({ beliefs: filtered });
-    }
-  }
-
-  if (removedTurnIndexes.length > 0) {
-    const engSnap = await db().collection(`topics/${topicId}/sessions/0/engagements`).get();
-    const updates: Record<string, unknown> = {};
-    for (const ti of removedTurnIndexes) {
-      updates[`history.${ti}`] = FieldValue.delete();
-    }
-    for (const engDoc of engSnap.docs) {
-      await engDoc.ref.update(updates);
-    }
-  }
-}
