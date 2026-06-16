@@ -5,7 +5,7 @@ import { isSearchAvailable, executeSearch } from '../search/search-service.js';
 import { formatHistory } from '../utils/conversation.js';
 import type { DebateTurn } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
-import type { AgentTurnResult, BeliefChangeEvent, BeliefChangeType, PostDebateCommentResult, EngagementAssessment } from '../types/debate.types.js';
+import type { PersonaReply, BeliefChangeEvent, BeliefChangeType, PostDebateCommentResult, Engagement } from '../types/debate.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 import type { TurnGenerationContext } from '../types/debate.types.js';
 
@@ -298,7 +298,7 @@ export async function generateTurn(
 		currentBelief: string,
 		interviewRecord: string,
 		context: TurnGenerationContext
-	): Promise<Result<AgentTurnResult, PipelineError>> {
+	): Promise<Result<PersonaReply, PipelineError>> {
 		try {
 			const { chapter, pendingTrigger, intentSummary, nominatedByFacilitator } = context;
 			const recentHistory = context.chapterHistory.slice(-20);
@@ -408,7 +408,7 @@ export async function assessEngagement(
 	currentBelief: string,
 	interviewRecord: string,
 	history: DebateTurn[]
-): Promise<Result<EngagementAssessment, PipelineError>> {
+): Promise<Result<Engagement, PipelineError>> {
 		try {
 			const recentHistory = history.slice(-8);
 			const ownTurns = history.filter((t) => t.personaId === persona.id).slice(-5);
@@ -433,7 +433,7 @@ export async function assessEngagement(
 
 			const toolCall = result.toolCalls[0];
 			if (!toolCall) {
-				return { ok: true, value: { score: 1, mode: 'none' } };
+				return { ok: true, value: { personaId: persona.id, score: 1, mode: 'none' } };
 			}
 
 			const { score, mode, intentSummary } = toolCall.args as {
@@ -446,7 +446,7 @@ export async function assessEngagement(
 			const resolvedIntentSummary = resolvedMode === 'none' ? undefined : intentSummary;
 			return {
 				ok: true,
-				value: { score: clampedScore, mode: resolvedMode, intentSummary: resolvedIntentSummary }
+				value: { personaId: persona.id, score: clampedScore, mode: resolvedMode, intentSummary: resolvedIntentSummary }
 			};
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);

@@ -1,5 +1,5 @@
 import type { SpeakerDecision } from '../../types/debate.types.js';
-import type { DirectAddressInput, SpeakerAssessment, SpeakerSelectionInput } from '../../types/debate.types.js';
+import type { DirectAddressInput, Engagement, SpeakerSelectionInput } from '../../types/debate.types.js';
 import { HIGH_ENGAGEMENT_SCORE, MAX_CONSECUTIVE_DIRECT } from '../../constants/flow.constants.js';
 
 /** 単一ペルソナが高意欲か（>= HIGH_ENGAGEMENT_SCORE）。キュー追加・キュー選択ゲートと共有 */
@@ -38,7 +38,7 @@ export const decideNextSpeaker = (input: SpeakerSelectionInput): SpeakerDecision
 	const { pendingIntents, silenceMap, lastSpeakerId, personaIds } = input;
 	const assessments = input.assessments.filter((a) => personaIds.includes(a.personaId));
 
-	const byScoreThenSilence = (a: SpeakerAssessment, b: SpeakerAssessment) =>
+	const byScoreThenSilence = (a: Engagement, b: Engagement) =>
 		b.score !== a.score
 			? b.score - a.score
 			: (silenceMap.get(b.personaId) ?? 0) - (silenceMap.get(a.personaId) ?? 0);

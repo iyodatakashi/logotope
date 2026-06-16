@@ -21,7 +21,7 @@ import { restoreDebateState } from './state-restore.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 import type { DebateChapter, SpeakerDecision, PendingIntent } from '../../types/debate.types.js';
 import type { PipelineError } from '../../types/common.types.js';
-import type { SpeakerAssessment, DebateState } from '../../types/debate.types.js';
+import type { Engagement, DebateState } from '../../types/debate.types.js';
 import type { DebateTurn } from '../../types/debate.types.js';
 import type { Persona, Belief } from '../../types/persona.types.js';
 import { DEFAULT_OPTIONS } from '../../constants/debate-orchestrator.constants.js';
@@ -374,7 +374,7 @@ export class DebateOrchestratorService {
 		personas: Persona[],
 		interviewRecords: Map<string, string>,
 		state: DebateState
-	): Promise<SpeakerAssessment[]> {
+	): Promise<Engagement[]> {
 		// キュー失効（トリガーから INTENT_EXPIRY_TURNS 超過）を毎ターン適用し write-through
 		for (const [personaId, items] of state.pendingIntents.entries()) {
 			const alive = items.filter(
@@ -392,19 +392,14 @@ export class DebateOrchestratorService {
 		// 直前話者を除く全員の発言意欲を評価する。評価失敗は最低意欲（score 1）として継続する
 		const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
 		const assessments = await Promise.all(
-			assessTargets.map(async (p): Promise<SpeakerAssessment> => {
+			assessTargets.map(async (p): Promise<Engagement> => {
 				const result = await assessEngagement(
 					p,
 					state.currentBeliefs.get(p.id)?.content ?? '',
 					interviewRecords.get(p.id) ?? '',
 					state.history
 				);
-				return {
-					personaId: p.id,
-					score: result.ok ? result.value.score : 1,
-					mode: result.ok ? result.value.mode : 'none',
-					intentSummary: result.ok ? result.value.intentSummary : undefined
-				};
+				return result.ok ? result.value : { personaId: p.id, score: 1, mode: 'none' };
 			})
 		);
 
@@ -554,12 +549,6 @@ export class DebateOrchestratorService {
 				state,
 				assessments
 			);
-			decision = {
-				...decision,
-				mode: speech.mode,
-				score: speech.score,
-				intentSummary: decision.intentSummary ?? speech.intentSummary
-			};
 
 			// 9. 発言生成・保存・状態更新
 			const saved = await this.generatePersonaTurn(
@@ -569,7 +558,8 @@ export class DebateOrchestratorService {
 				interviewRecords,
 				chapter,
 				state,
-				decision
+				decision,
+				speech
 			);
 			if (!saved) return 'cancelled';
 
@@ -593,7 +583,7 @@ export class DebateOrchestratorService {
 		personas: Persona[],
 		chapter: DebateChapter,
 		state: DebateState,
-		assessments: SpeakerAssessment[]
+		assessments: Engagement[]
 	): Promise<SpeakerDecision | undefined> {
 		if (hasHighEngagement(assessments)) return undefined;
 		const chapterHistory = state.history.filter((t) => t.chapterId === chapter.chapterId);
@@ -638,7 +628,7 @@ export class DebateOrchestratorService {
 		personas: Persona[],
 		interviewRecords: Map<string, string>,
 		state: DebateState,
-		assessments?: ReadonlyArray<SpeakerAssessment>
+		assessments?: ReadonlyArray<Engagement>
 	): Promise<{ mode?: 'opinion' | 'fact'; score?: number; intentSummary?: string }> {
 		const existing = assessments?.find((a) => a.personaId === speakerId);
 		if (existing) {
@@ -669,7 +659,8 @@ export class DebateOrchestratorService {
 		interviewRecords: Map<string, string>,
 		chapter: DebateChapter,
 		state: DebateState,
-		decision: SpeakerDecision
+		decision: SpeakerDecision,
+		speech: { mode?: 'opinion' | 'fact'; score?: number; intentSummary?: string }
 	): Promise<boolean> {
 		const persona = personas.find((p) => p.id === decision.personaId)!;
 		const belief = state.currentBeliefs.get(persona.id) ?? { content: '', version: 0 };
@@ -695,9 +686,9 @@ export class DebateOrchestratorService {
 			{
 				chapterHistory,
 				chapter,
-				mode: decision.mode,
-				score: decision.score,
-				intentSummary: decision.intentSummary,
+				mode: speech.mode,
+				score: speech.score,
+				intentSummary: decision.intentSummary ?? speech.intentSummary,
 				pendingTrigger,
 				nominatedByFacilitator: decision.source === 'nomination'
 			}
@@ -723,7 +714,7 @@ export class DebateOrchestratorService {
 			content: turnResult.value.content ?? '',
 			chapterId: chapter.chapterId,
 			speechMode: turnResult.value.speechMode,
-			engagementScore: decision.score,
+			engagementScore: speech.score,
 			fromQueue: fromQueue || undefined,
 			targetPersonaId,
 			searchUsed: turnResult.value.searchUsed,
@@ -816,13 +807,6 @@ export class DebateOrchestratorService {
 			state,
 			assessments
 		);
-		const enrichedDecision = {
-			...decision,
-			mode: speech.mode,
-			score: speech.score,
-			intentSummary: decision.intentSummary ?? speech.intentSummary
-		};
-
 		await this.generatePersonaTurn(
 			sessionId,
 			topicId,
@@ -830,7 +814,8 @@ export class DebateOrchestratorService {
 			interviewRecords,
 			chapter,
 			state,
-			enrichedDecision
+			decision,
+			speech
 		);
 		// 章は終了するため、応答ターン由来の直接質問は引き継がない
 		state.pendingAddress = undefined;
