@@ -5,7 +5,7 @@ import {
 	ACTIVE_SIGNAL_STRONG_SCORE
 } from '../../constants/flow.constants.js';
 import { isHighEngagement } from './speaker-selection.js';
-import type { ChapterEndInput } from '../../types/flow.types.js';
+import type { ChapterEndInput } from '../../types/debate.types.js';
 
 /** 評価結果から活性シグナルを算出する。評価スキップターン（評価なし）は常に 1 とする */
 export const toEngagementSignal = (

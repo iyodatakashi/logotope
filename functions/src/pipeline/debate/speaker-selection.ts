@@ -1,5 +1,5 @@
 import type { SpeakerDecision } from '../../types/debate.types.js';
-import type { DirectAddressInput, SpeakerAssessment, SpeakerSelectionInput } from '../../types/flow.types.js';
+import type { DirectAddressInput, SpeakerAssessment, SpeakerSelectionInput } from '../../types/debate.types.js';
 import { HIGH_ENGAGEMENT_SCORE, MAX_CONSECUTIVE_DIRECT } from '../../constants/flow.constants.js';
 
 /** 単一ペルソナが高意欲か（>= HIGH_ENGAGEMENT_SCORE）。キュー追加・キュー選択ゲートと共有 */

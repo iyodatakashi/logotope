@@ -21,10 +21,10 @@ import { restoreDebateState } from './state-restore.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 import type { DebateChapter, SpeakerDecision, PendingIntent } from '../../types/debate.types.js';
 import type { PipelineError } from '../../types/common.types.js';
-import type { SpeakerAssessment, DebateState } from '../../types/flow.types.js';
+import type { SpeakerAssessment, DebateState } from '../../types/debate.types.js';
 import type { PersonaProfile, DebateTurn } from '../../types/repository.types.js';
 import { DEFAULT_OPTIONS } from '../../constants/debate-orchestrator.constants.js';
-import type { OrchestratorOptions } from '../../types/debate-orchestrator.types.js';
+import type { OrchestratorOptions } from '../../types/debate.types.js';
 
 // ---- Firestore helpers ----
 

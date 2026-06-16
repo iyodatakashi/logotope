@@ -1,4 +1,4 @@
-import type { OrchestratorOptions } from '../types/debate-orchestrator.types';
+import type { OrchestratorOptions } from '../types/debate.types.js';
 import {
 	TURNS_PER_CHAPTER,
 	MAX_TURNS,

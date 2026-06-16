@@ -1,5 +1,5 @@
 import type { PendingIntent } from '../../types/debate.types.js';
-import type { DebateState, RestoreInput } from '../../types/flow.types.js';
+import type { DebateState, RestoreInput } from '../../types/debate.types.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 
 /** 保存済みターン・永続化キューから DebateState を一意に復元する（同一入力 → 同一出力） */
