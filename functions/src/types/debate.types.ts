@@ -13,7 +13,7 @@ export type AgentTurnResult = {
   content: string;
   speechMode?: 'opinion' | 'fact';
   beliefChange: BeliefChangeEvent | null;
-  addressedToPersonaId?: string;
+  targetPersonaId?: string;
   searchUsed?: boolean;
   searchQueries?: string[];
 };
@@ -23,13 +23,7 @@ export type PostDebateCommentResult = {
   content: string;
 };
 
-export type FacilitatorOpeningResult = {
-  content: string;
-  firstPersonaId: string;
-};
-
-export type FacilitatorIntervention = {
-  shouldIntervene: boolean;
+export type FacilitatorReply = {
   content?: string;
   targetPersonaId?: string;
 };
@@ -151,7 +145,7 @@ export type DebateTurn = {
   speechMode?: 'opinion' | 'fact';
   engagementScore?: number;
   fromQueue?: boolean;
-  addressedPersonaId?: string;
+  targetPersonaId?: string;
   searchUsed?: boolean;
   searchQueries?: string[];
 };

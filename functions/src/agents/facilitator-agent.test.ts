@@ -35,7 +35,7 @@ describe('FacilitatorAgentService DI', () => {
     const injectedClient = { messages: { create: mockCreate } } as unknown as Anthropic;
     const service = new FacilitatorAgentService(injectedClient);
     mockCreate.mockResolvedValue({
-      content: [{ type: 'tool_use', name: 'submit_opening', input: { content: '開会します。', firstPersonaId: 'p1' } }],
+      content: [{ type: 'tool_use', name: 'submit_opening', input: { content: '開会します。', targetPersonaId: 'p1' } }],
     });
 
     const result = await service.generateOpening('AI規制', testPersonas);
@@ -52,12 +52,12 @@ describe('FacilitatorAgentService', () => {
   });
 
   describe('generateOpening', () => {
-    it('returns ok with content and firstPersonaId', async () => {
+    it('returns ok with content and targetPersonaId', async () => {
       mockCreate.mockResolvedValue({
         content: [{
           type: 'tool_use',
           name: 'submit_opening',
-          input: { content: '本日はAI規制について多角的に討論します。', firstPersonaId: 'p1' },
+          input: { content: '本日はAI規制について多角的に討論します。', targetPersonaId: 'p1' },
         }],
       });
 
@@ -66,15 +66,15 @@ describe('FacilitatorAgentService', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value.content).toBeTruthy();
-      expect(result.value.firstPersonaId).toBe('p1');
+      expect(result.value.targetPersonaId).toBe('p1');
     });
 
-    it('firstPersonaId is one of the provided persona ids', async () => {
+    it('targetPersonaId is one of the provided persona ids', async () => {
       mockCreate.mockResolvedValue({
         content: [{
           type: 'tool_use',
           name: 'submit_opening',
-          input: { content: '開会します。', firstPersonaId: 'p2' },
+          input: { content: '開会します。', targetPersonaId: 'p2' },
         }],
       });
 
@@ -83,7 +83,7 @@ describe('FacilitatorAgentService', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       const personaIds = testPersonas.map(p => p.id);
-      expect(personaIds).toContain(result.value.firstPersonaId);
+      expect(personaIds).toContain(result.value.targetPersonaId);
     });
 
     it('system prompt contains neutrality constraint', async () => {
@@ -91,7 +91,7 @@ describe('FacilitatorAgentService', () => {
         content: [{
           type: 'tool_use',
           name: 'submit_opening',
-          input: { content: '開会します。', firstPersonaId: 'p1' },
+          input: { content: '開会します。', targetPersonaId: 'p1' },
         }],
       });
 
@@ -106,7 +106,7 @@ describe('FacilitatorAgentService', () => {
         content: [{
           type: 'tool_use',
           name: 'submit_opening',
-          input: { content: '開会します。', firstPersonaId: 'p1' },
+          input: { content: '開会します。', targetPersonaId: 'p1' },
         }],
       });
 
@@ -145,12 +145,12 @@ describe('FacilitatorAgentService', () => {
   });
 
   describe('evaluateIntervention', () => {
-    it('when shouldIntervene=false, content is undefined', async () => {
+    it('介入なしの場合 content と targetPersonaId は undefined', async () => {
       mockCreate.mockResolvedValue({
         content: [{
           type: 'tool_use',
           name: 'evaluate_intervention',
-          input: { shouldIntervene: false },
+          input: {},
         }],
       });
 
@@ -158,17 +158,16 @@ describe('FacilitatorAgentService', () => {
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.shouldIntervene).toBe(false);
       expect(result.value.content).toBeUndefined();
       expect(result.value.targetPersonaId).toBeUndefined();
     });
 
-    it('when shouldIntervene=true, returns content and targetPersonaId', async () => {
+    it('介入ありの場合 content と targetPersonaId を返す', async () => {
       mockCreate.mockResolvedValue({
         content: [{
           type: 'tool_use',
           name: 'evaluate_intervention',
-          input: { shouldIntervene: true, content: '山田さん、研究者の観点からいかがですか？', targetPersonaId: 'p3' },
+          input: { content: '山田さん、研究者の観点からいかがですか？', targetPersonaId: 'p3' },
         }],
       });
 
@@ -176,7 +175,6 @@ describe('FacilitatorAgentService', () => {
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.shouldIntervene).toBe(true);
       expect(result.value.content).toBeTruthy();
       expect(result.value.targetPersonaId).toBe('p3');
     });
@@ -195,7 +193,7 @@ describe('FacilitatorAgentService', () => {
   describe('evaluateTopicDrift（論点ずれ判定）', () => {
     it('プロンプトは論点逸脱のみを判定し、出尽くしには言及しない', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: {} }],
       });
 
       await service.evaluateTopicDrift(testHistory, testPersonas);
@@ -210,7 +208,7 @@ describe('FacilitatorAgentService', () => {
         content: [{
           type: 'tool_use',
           name: 'evaluate_intervention',
-          input: { shouldIntervene: true, content: '山田さん、本題に戻すと？', targetPersonaId: 'p3' },
+          input: { content: '山田さん、本題に戻すと？', targetPersonaId: 'p3' },
         }],
       });
 
@@ -218,7 +216,7 @@ describe('FacilitatorAgentService', () => {
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.shouldIntervene).toBe(true);
+      expect(result.value.content).toBeTruthy();
       expect(result.value.targetPersonaId).toBe('p3');
     });
   });
@@ -226,7 +224,7 @@ describe('FacilitatorAgentService', () => {
   describe('evaluateIntervention - task 2.2: speakCount 拡張', () => {
     it('speakCount 指定時、プロンプトに各ペルソナの累計発言数が含まれる', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: {} }],
       });
 
       const speakCount = new Map([['p1', 5], ['p2', 2], ['p3', 0]]);
@@ -239,7 +237,7 @@ describe('FacilitatorAgentService', () => {
 
     it('speakCount 指定時、発言数の少ない人をinviteで優先する指示が含まれる', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: {} }],
       });
 
       const speakCount = new Map([['p1', 3], ['p2', 1]]);
@@ -249,9 +247,9 @@ describe('FacilitatorAgentService', () => {
       expect(msg).toMatch(/発言数.*優先|優先.*invite/);
     });
 
-    it('shouldIntervene=false 時、speakCount があっても戻り値に影響しない', async () => {
+    it('介入なし時、speakCount があっても戻り値に影響しない', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: {} }],
       });
 
       const speakCount = new Map([['p1', 10], ['p2', 0]]);
@@ -259,7 +257,6 @@ describe('FacilitatorAgentService', () => {
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.shouldIntervene).toBe(false);
       expect(result.value.content).toBeUndefined();
     });
   });
@@ -267,7 +264,7 @@ describe('FacilitatorAgentService', () => {
   describe('evaluateIntervention - 介入は常に論点提示＋指名に一本化', () => {
     it('ツールスキーマに type 分岐がなく targetPersonaId を持つ', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: {} }],
       });
 
       await service.evaluateStallIntervention(testHistory, testPersonas);
@@ -280,7 +277,7 @@ describe('FacilitatorAgentService', () => {
 
     it('ツールスキーマで targetPersonaId が content より先に定義される（指名先を決めてから発言を書く生成順）', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: {} }],
       });
 
       await service.evaluateStallIntervention(testHistory, testPersonas);
@@ -295,7 +292,7 @@ describe('FacilitatorAgentService', () => {
 
     it('プロンプトに「先にIDを決めてから content を書く」手順が含まれる', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: {} }],
       });
 
       await service.evaluateStallIntervention(testHistory, testPersonas);
@@ -307,7 +304,7 @@ describe('FacilitatorAgentService', () => {
 
     it('プロンプトに close への言及がなく、章終了の判断を求めない', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: {} }],
       });
 
       await service.evaluateStallIntervention(testHistory, testPersonas);
@@ -322,7 +319,7 @@ describe('FacilitatorAgentService', () => {
   describe('generateOpening - task 3.3: firstChapter コンテキスト', () => {
     it('firstChapter を指定するとプロンプトに章タイトルとフォーカス問いが含まれる', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'submit_opening', input: { content: '開会します。', firstPersonaId: 'p1' } }],
+        content: [{ type: 'tool_use', name: 'submit_opening', input: { content: '開会します。', targetPersonaId: 'p1' } }],
       });
       const firstChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 1 };
 
@@ -335,7 +332,7 @@ describe('FacilitatorAgentService', () => {
 
     it('firstChapter なしでも動作する（後方互換性）', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'submit_opening', input: { content: '開会します。', firstPersonaId: 'p1' } }],
+        content: [{ type: 'tool_use', name: 'submit_opening', input: { content: '開会します。', targetPersonaId: 'p1' } }],
       });
 
       const result = await service.generateOpening('AI規制', testPersonas);
@@ -347,7 +344,7 @@ describe('FacilitatorAgentService', () => {
   describe('evaluateIntervention - task 3.3: currentChapter コンテキスト', () => {
     it('currentChapter を指定するとプロンプトに章フォーカスが含まれる', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: {} }],
       });
       const currentChapter: DebateChapter = { index: 1, title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 5 };
 
@@ -360,7 +357,7 @@ describe('FacilitatorAgentService', () => {
 
     it('currentChapter なしでも動作する（後方互換性）', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: { shouldIntervene: false } }],
+        content: [{ type: 'tool_use', name: 'evaluate_intervention', input: {} }],
       });
 
       const result = await service.evaluateStallIntervention(testHistory, testPersonas);

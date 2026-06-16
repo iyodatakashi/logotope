@@ -50,13 +50,13 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
 		}
 	}
 
-	// 直近指名の復元: 最後のターンに永続化された addressedPersonaId から復元する
+	// 直近指名の復元: 最後のターンに永続化された targetPersonaId から復元する
 	// （ファシリテーターの指名 / ペルソナの直接質問。不正 ID は無視する）
 	let pendingAddress: DebateState['pendingAddress'];
 	const lastTurn = turns[turns.length - 1];
-	if (lastTurn?.addressedPersonaId && personas.some((p) => p.id === lastTurn.addressedPersonaId)) {
+	if (lastTurn?.targetPersonaId && personas.some((p) => p.id === lastTurn.targetPersonaId)) {
 		pendingAddress = {
-			personaId: lastTurn.addressedPersonaId,
+			personaId: lastTurn.targetPersonaId,
 			byFacilitator: lastTurn.speakerType === 'facilitator'
 		};
 	}

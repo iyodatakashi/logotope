@@ -140,9 +140,9 @@ describe('ChapterGeneratorService', () => {
   describe('generateChapterIntroduction', () => {
     const nextChapter: DebateChapter = { title: '対立', focusQuestion: '最も意見が分かれる点は？', startTurnIndex: 8 };
 
-    it('次章の導入発言テキストとfirstPersonaIdを返す', async () => {
+    it('次章の導入発言テキストとtargetPersonaIdを返す', async () => {
       mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'submit_chapter_intro', input: { content: '次のテーマへ移ります。', firstPersonaId: 'p1' } }],
+        content: [{ type: 'tool_use', name: 'submit_chapter_intro', input: { content: '次のテーマへ移ります。', targetPersonaId: 'p1' } }],
       });
 
       const result = await service.generateChapterIntroduction(nextChapter, testPersonas);
@@ -150,7 +150,7 @@ describe('ChapterGeneratorService', () => {
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value.content).toBeTruthy();
-      expect(result.value.firstPersonaId).toBe('p1');
+      expect(result.value.targetPersonaId).toBe('p1');
     });
   });
 });

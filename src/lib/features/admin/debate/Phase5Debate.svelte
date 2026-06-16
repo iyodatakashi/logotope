@@ -34,7 +34,7 @@
 			.sort((a, b) => a.turnIndex - b.turnIndex)
 			.map((t) => {
 				const persona = t.personaId ? personaMap.get(t.personaId) : null;
-				const addressedPersona = t.addressedPersonaId ? personaMap.get(t.addressedPersonaId) : null;
+				const addressedPersona = t.targetPersonaId ? personaMap.get(t.targetPersonaId) : null;
 				return {
 					id: t.id,
 					turnIndex: t.turnIndex,

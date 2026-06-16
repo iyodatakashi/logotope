@@ -65,7 +65,7 @@ const createDebateTurn = async (params: {
 	speechMode?: 'opinion' | 'fact';
 	engagementScore?: number;
 	fromQueue?: boolean;
-	addressedPersonaId?: string;
+	targetPersonaId?: string;
 	searchUsed?: boolean;
 	searchQueries?: string[];
 }): Promise<{ id: string }> => {
@@ -84,7 +84,7 @@ const createDebateTurn = async (params: {
 	if (params.engagementScore !== undefined) turn.engagementScore = params.engagementScore;
 	if (params.fromQueue) turn.fromQueue = true;
 	if (params.chapterId !== undefined) turn.chapterId = params.chapterId;
-	if (params.addressedPersonaId !== undefined) turn.addressedPersonaId = params.addressedPersonaId;
+	if (params.targetPersonaId !== undefined) turn.targetPersonaId = params.targetPersonaId;
 	if (params.searchUsed) turn.searchUsed = true;
 	if (params.searchQueries?.length) turn.searchQueries = params.searchQueries;
 	await db().doc(`topics/${params.sessionId}/sessions/0`).update({
@@ -188,7 +188,7 @@ const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[
 		turns?: Array<{
 			id: string; turnIndex: number; speakerType: string; personaId?: string;
 			speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp;
-			chapterId?: string; fromQueue?: boolean; addressedPersonaId?: string;
+			chapterId?: string; fromQueue?: boolean; targetPersonaId?: string;
 		}>;
 	};
 	return (data.turns ?? []).map((t) => ({
@@ -203,7 +203,7 @@ const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[
 		createdAt: t.createdAt?.toDate().toISOString() ?? '',
 		chapterId: t.chapterId,
 		fromQueue: t.fromQueue,
-		addressedPersonaId: t.addressedPersonaId,
+		targetPersonaId: t.targetPersonaId,
 	}));
 };
 
@@ -292,16 +292,16 @@ export class DebateOrchestratorService {
 				chapters[0]
 			);
 			if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
-			const firstPersonaId = validPersonaId(openingResult.value.firstPersonaId, personas);
+			const targetPersonaId = validPersonaId(openingResult.value.targetPersonaId, personas);
 			await this.saveFacilitatorTurn(
 				sessionId,
 				state,
 				openingResult.value.content ?? '',
-				firstPersonaId,
+				targetPersonaId,
 				chapters[0].chapterId
 			);
-			state.pendingAddress = firstPersonaId
-				? { personaId: firstPersonaId, byFacilitator: true }
+			state.pendingAddress = targetPersonaId
+				? { personaId: targetPersonaId, byFacilitator: true }
 				: undefined;
 		}
 
@@ -604,9 +604,9 @@ export class DebateOrchestratorService {
 			chapter
 		);
 		if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
-		if (!result.value.shouldIntervene) return undefined;
+		if (!result.value.content) return undefined;
 		const targetId = validPersonaId(result.value.targetPersonaId, personas);
-		await this.saveFacilitatorTurn(sessionId, state, result.value.content ?? '', targetId, chapter.chapterId);
+		await this.saveFacilitatorTurn(sessionId, state, result.value.content, targetId, chapter.chapterId);
 		return targetId ? { personaId: targetId, source: 'nomination' } : undefined;
 	}
 
@@ -625,10 +625,10 @@ export class DebateOrchestratorService {
 			chapter
 		);
 		if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
-		if (!result.value.shouldIntervene) return undefined;
+		if (!result.value.content) return undefined;
 		const targetId = validPersonaId(result.value.targetPersonaId, personas);
 		if (!targetId) return undefined;
-		await this.saveFacilitatorTurn(sessionId, state, result.value.content ?? '', targetId, chapter.chapterId);
+		await this.saveFacilitatorTurn(sessionId, state, result.value.content, targetId, chapter.chapterId);
 		return { personaId: targetId, source: 'nomination' };
 	}
 
@@ -708,8 +708,8 @@ export class DebateOrchestratorService {
 		if (!(await isDebateActive(topicId))) return false;
 
 		// 直接質問先は ID 検証のうえターンに永続化する（自分自身への指定は無視）
-		const rawAddressed = turnResult.value.addressedToPersonaId;
-		const addressedPersonaId =
+		const rawAddressed = turnResult.value.targetPersonaId;
+		const targetPersonaId =
 			rawAddressed !== persona.id ? validPersonaId(rawAddressed, personas) : undefined;
 
 		const turnIndex = state.history.length;
@@ -725,7 +725,7 @@ export class DebateOrchestratorService {
 			speechMode: turnResult.value.speechMode,
 			engagementScore: decision.score,
 			fromQueue: fromQueue || undefined,
-			addressedPersonaId,
+			targetPersonaId,
 			searchUsed: turnResult.value.searchUsed,
 			searchQueries: turnResult.value.searchQueries
 		});
@@ -741,7 +741,7 @@ export class DebateOrchestratorService {
 			createdAt: new Date().toISOString(),
 			chapterId: chapter.chapterId,
 			fromQueue: fromQueue || undefined,
-			addressedPersonaId
+			targetPersonaId
 		});
 
 		for (const p of personas) {
@@ -781,8 +781,8 @@ export class DebateOrchestratorService {
 		}
 
 		// 直接質問の引き継ぎ
-		state.pendingAddress = addressedPersonaId
-			? { personaId: addressedPersonaId, byFacilitator: false }
+		state.pendingAddress = targetPersonaId
+			? { personaId: targetPersonaId, byFacilitator: false }
 			: undefined;
 
 		return true;
@@ -841,7 +841,7 @@ export class DebateOrchestratorService {
 		sessionId: string,
 		state: DebateState,
 		content: string,
-		addressedPersonaId?: string,
+		targetPersonaId?: string,
 		chapterId?: string
 	): Promise<void> {
 		const turnIndex = state.history.length;
@@ -853,7 +853,7 @@ export class DebateOrchestratorService {
 			speakerRole: '',
 			content,
 			chapterId,
-			addressedPersonaId
+			targetPersonaId
 		});
 		state.history.push({
 			id: turn.id,
@@ -865,7 +865,7 @@ export class DebateOrchestratorService {
 			content,
 			createdAt: new Date().toISOString(),
 			chapterId,
-			addressedPersonaId
+			targetPersonaId
 		});
 		state.consecutiveDirectExchanges = 0;
 	}
@@ -895,16 +895,16 @@ export class DebateOrchestratorService {
 
 		const introResult = await this.chapterGenerator.generateChapterIntroduction(nextChapter, personas);
 		if (introResult.ok) {
-			const firstPersonaId = validPersonaId(introResult.value.firstPersonaId, personas);
+			const targetPersonaId = validPersonaId(introResult.value.targetPersonaId, personas);
 			await this.saveFacilitatorTurn(
 				sessionId,
 				state,
-				introResult.value.content,
-				firstPersonaId,
+				introResult.value.content ?? '',
+				targetPersonaId,
 				nextChapter.chapterId
 			);
-			state.pendingAddress = firstPersonaId
-				? { personaId: firstPersonaId, byFacilitator: true }
+			state.pendingAddress = targetPersonaId
+				? { personaId: targetPersonaId, byFacilitator: true }
 				: undefined;
 		}
 	}

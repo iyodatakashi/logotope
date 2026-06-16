@@ -196,7 +196,7 @@ function buildFullTurnTools(
 						description:
 							'変化後の信念ドキュメント（Markdown形式。beliefChangeTypeを指定した場合のみ記入）'
 					},
-					addressedToPersonaId: {
+					targetPersonaId: {
 						type: 'string' as const,
 						description: '返答を求める特定のペルソナのID。直接質問する場合のみ指定する。'
 					}
@@ -323,8 +323,8 @@ export async function generateTurn(
 
 			const lengthGuide = speechLengthGuide(context.score);
 			const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
-			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
-			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。直接質問する場合のみ addressedToPersonaId を指定。`;
+			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ targetPersonaId を指定。`;
+			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。直接質問する場合のみ targetPersonaId を指定。`;
 			const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${lastSpeakerNote}${pendingNote}${intentNote}${nominationNote}\n\n${isFact ? factInstruction : opinionInstruction}`;
 			const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 				generateText({
@@ -369,13 +369,13 @@ export async function generateTurn(
 				beliefChangeType,
 				beliefChangeSummary,
 				beliefChangeUpdatedBelief,
-				addressedToPersonaId
+				targetPersonaId
 			} = toolCall.args as {
 				content: string;
 				beliefChangeType?: BeliefChangeType;
 				beliefChangeSummary?: string;
 				beliefChangeUpdatedBelief?: string;
-				addressedToPersonaId?: string;
+				targetPersonaId?: string;
 			};
 			const beliefChange: BeliefChangeEvent | null = beliefChangeType
 				? {
@@ -390,7 +390,7 @@ export async function generateTurn(
 					content,
 					speechMode: isFact ? 'fact' : 'opinion',
 					beliefChange,
-					addressedToPersonaId,
+					targetPersonaId,
 					...(searchQueries.length > 0 && {
 						searchUsed: true,
 						searchQueries

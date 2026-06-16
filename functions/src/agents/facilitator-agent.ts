@@ -3,7 +3,7 @@ import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
 import { formatHistory, formatPersonas } from '../utils/conversation.js';
 import type { DebateTurn } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
-import type { FacilitatorOpeningResult, FacilitatorIntervention, DebateChapter } from '../types/debate.types.js';
+import type { FacilitatorReply, DebateChapter } from '../types/debate.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 
 function currentDateString(): string {
@@ -21,14 +21,14 @@ export function buildNeutralitySystemPrompt(): string {
 	);
 }
 
-// 先に指名先（firstPersonaId）を確定させてから content を書かせる（呼びかけと ID の不一致防止）
+// 先に指名先（targetPersonaId）を確定させてから content を書かせる（呼びかけと ID の不一致防止）
 const OPENING_TOOL: Anthropic.Tool = {
 	name: 'submit_opening',
 	description: '最初に発言させるペルソナを決めてから、討論の冒頭発言を提出する',
 	input_schema: {
 		type: 'object' as const,
 		properties: {
-			firstPersonaId: {
+			targetPersonaId: {
 				type: 'string',
 				description:
 					'最初に発言させるペルソナのID（参加者リストのIDをそのまま指定）。先にここで指名先を確定させてから content を書くこと'
@@ -36,10 +36,10 @@ const OPENING_TOOL: Anthropic.Tool = {
 			content: {
 				type: 'string',
 				description:
-					'ファシリテーターの冒頭発言テキスト。firstPersonaId の参加者に名前で呼びかけて問いを向ける'
+					'ファシリテーターの冒頭発言テキスト。targetPersonaId の参加者に名前で呼びかけて問いを向ける'
 			}
 		},
-		required: ['firstPersonaId', 'content']
+		required: ['targetPersonaId', 'content']
 	}
 };
 
@@ -47,23 +47,23 @@ const OPENING_TOOL: Anthropic.Tool = {
 // content を書かせることで、文中の呼びかけと指名 ID の不一致・ID 漏れを防ぐ
 const INTERVENTION_TOOL: Anthropic.Tool = {
 	name: 'evaluate_intervention',
-	description: 'ファシリテーターとして可視介入が必要か判断し、必要な場合のみ介入発言を生成する',
+	description:
+		'ファシリテーターとして可視介入が必要か判断する。介入する場合のみ targetPersonaId と content を返す。介入しない場合は両方省略する',
 	input_schema: {
 		type: 'object' as const,
 		properties: {
-			shouldIntervene: { type: 'boolean', description: '介入が必要かどうか' },
 			targetPersonaId: {
 				type: 'string',
 				description:
-					'次の論点を振る参加者のID。参加者リストに記載されたIDをそのまま指定する（名前ではなくID）。介入する場合は必須。先にここで指名先を確定させてから content を書くこと'
+					'次の論点を振る参加者のID。参加者リストに記載されたIDをそのまま指定する（名前ではなくID）。介入する場合のみ指定。先にここで指名先を確定させてから content を書くこと'
 			},
 			content: {
 				type: 'string',
 				description:
-					'ファシリテーターの介入発言テキスト。targetPersonaIdを指定した場合は、その参加者に「○○さん、〜についてはどうですか？」のように必ず名前で呼びかける。shouldIntervene=trueの場合のみ指定'
+					'ファシリテーターの介入発言テキスト。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように必ず名前で呼びかける。介入する場合のみ指定'
 			}
 		},
-		required: ['shouldIntervene']
+		required: []
 	}
 };
 
@@ -90,7 +90,7 @@ export class FacilitatorAgentService {
 		topicTitle: string,
 		personas: Persona[],
 		firstChapter?: DebateChapter
-	): Promise<Result<FacilitatorOpeningResult, PipelineError>> {
+	): Promise<Result<FacilitatorReply, PipelineError>> {
 		try {
 			const chapterContext = firstChapter
 				? `\n\n第1章「${firstChapter.title}」のフォーカス: ${firstChapter.focusQuestion}`
@@ -104,7 +104,7 @@ export class FacilitatorAgentService {
 				messages: [
 					{
 						role: 'user',
-						content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${chapterContext}\n\n冒頭発言（2〜3文）の構成：\n1. 第1章のフォーカス問いの趣旨に沿って、「このテーマに詳しくない人でも感覚的に答えられる」オープンな問いかけをする。固有名詞（特定の映像作品・企業名・人名・統計）や専門用語を使わないこと。誰もが「自分の立場から答えられそう」と感じる入口となる問いにする。\n2. 最初の発言者にその問いを向ける\n\n「議論を始めましょう」などの抽象的な言葉は禁止。専門知識なしでも答えられる具体的な問いで始める。firstPersonaIdには必ず上記リストのIDを使用してください。`
+						content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${chapterContext}\n\n冒頭発言（2〜3文）の構成：\n1. 第1章のフォーカス問いの趣旨に沿って、「このテーマに詳しくない人でも感覚的に答えられる」オープンな問いかけをする。固有名詞（特定の映像作品・企業名・人名・統計）や専門用語を使わないこと。誰もが「自分の立場から答えられそう」と感じる入口となる問いにする。\n2. 最初の発言者にその問いを向ける\n\n「議論を始めましょう」などの抽象的な言葉は禁止。専門知識なしでも答えられる具体的な問いで始める。targetPersonaIdには必ず上記リストのIDを使用してください。`
 					}
 				]
 			});
@@ -119,8 +119,8 @@ export class FacilitatorAgentService {
 				};
 			}
 
-			const { content, firstPersonaId } = toolBlock.input as FacilitatorOpeningResult;
-			return { ok: true, value: { content, firstPersonaId } };
+			const { content, targetPersonaId } = toolBlock.input as FacilitatorReply;
+			return { ok: true, value: { content, targetPersonaId } };
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
@@ -132,7 +132,7 @@ export class FacilitatorAgentService {
 		personas: Persona[],
 		currentChapter: DebateChapter | undefined,
 		criteriaSection: string
-	): Promise<Result<FacilitatorIntervention, PipelineError>> {
+	): Promise<Result<FacilitatorReply, PipelineError>> {
 		try {
 			const chapterContext = currentChapter
 				? `\n\n【この章のミッション】「${currentChapter.title}」\nフォーカス問い: ${currentChapter.focusQuestion}\n司会の役割: この章の間、会話が常にこのフォーカス問いに関連するよう誘導する。`
@@ -162,19 +162,8 @@ export class FacilitatorAgentService {
 				};
 			}
 
-			const raw = toolBlock.input as {
-				shouldIntervene: boolean;
-				content?: string;
-				targetPersonaId?: string;
-			};
-
-			const intervention: FacilitatorIntervention = { shouldIntervene: raw.shouldIntervene };
-			if (raw.shouldIntervene) {
-				intervention.content = raw.content;
-				intervention.targetPersonaId = raw.targetPersonaId;
-			}
-
-			return { ok: true, value: intervention };
+			const { content, targetPersonaId } = toolBlock.input as FacilitatorReply;
+			return { ok: true, value: { content, targetPersonaId } };
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
@@ -187,11 +176,11 @@ export class FacilitatorAgentService {
 		personas: Persona[],
 		speakCount: Map<string, number> = new Map(),
 		currentChapter?: DebateChapter
-	): Promise<Result<FacilitatorIntervention, PipelineError>> {
+	): Promise<Result<FacilitatorReply, PipelineError>> {
 		const speakCountInfo = personas
 			.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
 			.join(', ');
-		const criteria = `\n\n累計発言数: ${speakCountInfo}\n\n会話がこの章のフォーカス問いから明確に逸脱している（別の話題に流れている）場合のみ介入してください。逸脱していなければ shouldIntervene=false を返してください。\n\n介入する場合は、フォーカス問いに引き戻す論点を決め、ふさわしい参加者を1人選んで targetPersonaId に設定してください。content は、まず話が逸れていることに触れて「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。`;
+		const criteria = `\n\n累計発言数: ${speakCountInfo}\n\n会話がこの章のフォーカス問いから明確に逸脱している（別の話題に流れている）場合のみ介入してください。逸脱していなければ content と targetPersonaId は省略してください。\n\n介入する場合は、フォーカス問いに引き戻す論点を決め、ふさわしい参加者を1人選んで targetPersonaId に設定してください。content は、まず話が逸れていることに触れて「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。`;
 		return this.runInterventionCheck(history, personas, currentChapter, criteria);
 	}
 
@@ -201,11 +190,11 @@ export class FacilitatorAgentService {
 		personas: Persona[],
 		speakCount: Map<string, number> = new Map(),
 		currentChapter?: DebateChapter
-	): Promise<Result<FacilitatorIntervention, PipelineError>> {
+	): Promise<Result<FacilitatorReply, PipelineError>> {
 		const speakCountInfo = personas
 			.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
 			.join(', ');
-		const criteria = `\n\n累計発言数: ${speakCountInfo}\n\nこの章の今の論点は議論が出尽くし、落ち着いています。まだ十分に議論されていない新しい論点に切り替えて、特定の参加者に振ってください。章をいつ終えるかはあなたの判断対象外です。\n\n手順：\n(1) この章のフォーカス問いに沿って、まだ十分に議論されていない新しい論点を決める。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。基準: 関連性が高い人。同程度なら発言数の少ない人を優先。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。\n\n適切な切り替え先が無ければ shouldIntervene=false を返してください。`;
+		const criteria = `\n\n累計発言数: ${speakCountInfo}\n\nこの章の今の論点は議論が出尽くし、落ち着いています。まだ十分に議論されていない新しい論点に切り替えて、特定の参加者に振ってください。章をいつ終えるかはあなたの判断対象外です。\n\n手順：\n(1) この章のフォーカス問いに沿って、まだ十分に議論されていない新しい論点を決める。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。基準: 関連性が高い人。同程度なら発言数の少ない人を優先。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。\n\n適切な切り替え先が無ければ content と targetPersonaId は省略してください。`;
 		return this.runInterventionCheck(history, personas, currentChapter, criteria);
 	}
 

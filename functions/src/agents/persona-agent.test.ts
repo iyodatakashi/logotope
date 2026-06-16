@@ -277,29 +277,29 @@ describe('PersonaAgentService', () => {
     });
   });
 
-  describe('generateTurn — addressedToPersonaId', () => {
-    it('addressedToPersonaId あり: 特定ペルソナへの返答が返る', async () => {
+  describe('generateTurn — targetPersonaId', () => {
+    it('targetPersonaId あり: 特定ペルソナへの返答が返る', async () => {
       mockGenerateText.mockResolvedValue(makeTurnResult({
         content: '鈴木さん、その費用の具体的な数字はどこから来ているのでしょうか？',
-        addressedToPersonaId: 'p2',
+        targetPersonaId: 'p2',
       }));
 
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.addressedToPersonaId).toBe('p2');
+      expect(result.value.targetPersonaId).toBe('p2');
       expect(result.value.beliefChange).toBeNull();
     });
 
-    it('addressedToPersonaId なし: undefined が返る', async () => {
+    it('targetPersonaId なし: undefined が返る', async () => {
       mockGenerateText.mockResolvedValue(makeTurnResult({ content: 'データに基づいて判断することが重要です。' }));
 
       const result = await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
 
       expect(result.ok).toBe(true);
       if (!result.ok) return;
-      expect(result.value.addressedToPersonaId).toBeUndefined();
+      expect(result.value.targetPersonaId).toBeUndefined();
     });
   });
 

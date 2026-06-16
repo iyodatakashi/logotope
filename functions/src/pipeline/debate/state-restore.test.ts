@@ -133,10 +133,10 @@ describe('restoreDebateState', () => {
     expect(second).toEqual(first);
   });
 
-  it('直近指名の復元: 最後のファシリテーターターンの addressedPersonaId から指名を復元する', () => {
+  it('直近指名の復元: 最後のファシリテーターターンの targetPersonaId から指名を復元する', () => {
     const turns = [
       ...baseTurns,
-      { ...turn(5, 'facilitator'), addressedPersonaId: 'p2' },
+      { ...turn(5, 'facilitator'), targetPersonaId: 'p2' },
     ];
     const state = restoreDebateState({
       turns,
@@ -148,10 +148,10 @@ describe('restoreDebateState', () => {
     expect(state.pendingAddress).toEqual({ personaId: 'p2', byFacilitator: true });
   });
 
-  it('直近指名の復元: 最後のペルソナターンの addressedPersonaId は直接質問（byFacilitator: false）として復元する', () => {
+  it('直近指名の復元: 最後のペルソナターンの targetPersonaId は直接質問（byFacilitator: false）として復元する', () => {
     const turns = [
       ...baseTurns,
-      { ...turn(5, 'persona', 'p2'), addressedPersonaId: 'p1' },
+      { ...turn(5, 'persona', 'p2'), targetPersonaId: 'p1' },
     ];
     const state = restoreDebateState({
       turns,
@@ -163,7 +163,7 @@ describe('restoreDebateState', () => {
     expect(state.pendingAddress).toEqual({ personaId: 'p1', byFacilitator: false });
   });
 
-  it('最後のターンに addressedPersonaId がない場合 pendingAddress は復元されない', () => {
+  it('最後のターンに targetPersonaId がない場合 pendingAddress は復元されない', () => {
     const turns = [
       ...baseTurns,
       { ...turn(5, 'facilitator'), content: '次の章では、鈴木花子さんから伺います。' },
@@ -179,10 +179,10 @@ describe('restoreDebateState', () => {
     expect(state.pendingAddress).toBeUndefined();
   });
 
-  it('addressedPersonaId が参加ペルソナに存在しない場合 pendingAddress は復元されない', () => {
+  it('targetPersonaId が参加ペルソナに存在しない場合 pendingAddress は復元されない', () => {
     const turns = [
       ...baseTurns,
-      { ...turn(5, 'facilitator'), addressedPersonaId: 'unknown' },
+      { ...turn(5, 'facilitator'), targetPersonaId: 'unknown' },
     ];
     const state = restoreDebateState({
       turns,

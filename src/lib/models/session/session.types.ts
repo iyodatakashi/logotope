@@ -21,7 +21,7 @@ export type TurnDoc = {
 	speechMode?: 'opinion' | 'fact';
 	engagementScore?: number;
 	fromQueue?: boolean;
-	addressedPersonaId?: string;
+	targetPersonaId?: string;
 };
 
 export type PostDebateCommentDoc = {

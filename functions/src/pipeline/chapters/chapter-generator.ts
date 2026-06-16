@@ -5,9 +5,8 @@ import { AI_MODELS, MAX_TOKENS } from '../../constants/ai.constants.js';
 import { formatHistory, formatPersonas } from '../../utils/conversation.js';
 import { buildNeutralitySystemPrompt } from '../../agents/facilitator-agent.js';
 import { getTopicById, getPersonasByTopicId } from '../../db/repository.js';
-import type { DebateTurn } from '../../types/debate.types.js';
+import type { DebateTurn, DebateChapter, FacilitatorReply } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
-import type { DebateChapter } from '../../types/debate.types.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
 
 const db = () => getFirestore();
@@ -63,24 +62,24 @@ const GENERATE_CHAPTER_TRANSITION_TOOL: Anthropic.Tool = {
 	}
 };
 
-// 先に指名先（firstPersonaId）を確定させてから content を書かせる（呼びかけと ID の不一致防止）
+// 先に指名先（targetPersonaId）を確定させてから content を書かせる（呼びかけと ID の不一致防止）
 const CHAPTER_INTRO_TOOL: Anthropic.Tool = {
 	name: 'submit_chapter_intro',
 	description: '次の章で最初に発言させるペルソナを決めてから、章の導入発言を提出する',
 	input_schema: {
 		type: 'object' as const,
 		properties: {
-			firstPersonaId: {
+			targetPersonaId: {
 				type: 'string',
 				description:
 					'最初に発言させるペルソナのID（参加者リストのIDをそのまま指定）。先にここで指名先を確定させてから content を書くこと'
 			},
 			content: {
 				type: 'string',
-				description: '章の導入発言テキスト。firstPersonaId の参加者に名前で呼びかけて問いを向ける'
+				description: '章の導入発言テキスト。targetPersonaId の参加者に名前で呼びかけて問いを向ける'
 			}
 		},
-		required: ['firstPersonaId', 'content']
+		required: ['targetPersonaId', 'content']
 	}
 };
 
@@ -240,7 +239,7 @@ export class ChapterGeneratorService {
 	async generateChapterIntroduction(
 		nextChapter: DebateChapter,
 		personas: Persona[]
-	): Promise<Result<{ content: string; firstPersonaId: string }, PipelineError>> {
+	): Promise<Result<FacilitatorReply, PipelineError>> {
 		try {
 			const response = await this.client.messages.create({
 				model: AI_MODELS.SONNET,
@@ -251,7 +250,7 @@ export class ChapterGeneratorService {
 				messages: [
 					{
 						role: 'user',
-						content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、このフォーカス問いについて参加者に問いかける形で始めてください。最初に発言させるペルソナIDも指定してください。\n\nフォーカス: ${nextChapter.focusQuestion}\n\n参加者:\n${formatPersonas(personas)}\n\nfirstPersonaIdには必ず上記リストのIDを使用してください。`
+						content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、このフォーカス問いについて参加者に問いかける形で始めてください。最初に発言させるペルソナIDも指定してください。\n\nフォーカス: ${nextChapter.focusQuestion}\n\n参加者:\n${formatPersonas(personas)}\n\ntargetPersonaIdには必ず上記リストのIDを使用してください。`
 					}
 				]
 			});
@@ -269,11 +268,8 @@ export class ChapterGeneratorService {
 					}
 				};
 			}
-			const { content, firstPersonaId } = toolBlock.input as {
-				content: string;
-				firstPersonaId: string;
-			};
-			return { ok: true, value: { content, firstPersonaId } };
+			const { content, targetPersonaId } = toolBlock.input as FacilitatorReply;
+			return { ok: true, value: { content, targetPersonaId } };
 		} catch (err) {
 			const message = err instanceof Error ? err.message : String(err);
 			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
