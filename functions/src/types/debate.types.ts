@@ -1,4 +1,4 @@
-import type { PersonaProfile } from './persona.types.js';
+import type { Persona } from './persona.types.js';
 
 export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
 export type SpeakerType = 'facilitator' | 'persona';
@@ -108,7 +108,7 @@ export type DebateState = {
 
 export type RestoreInput = {
   turns: ReadonlyArray<DebateTurn>;
-  personas: ReadonlyArray<PersonaProfile>;
+  personas: ReadonlyArray<Persona>;
   persistedPendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>;
   currentBeliefs: Map<string, { content: string; version: number }>;
 };

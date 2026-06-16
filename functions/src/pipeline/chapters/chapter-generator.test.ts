@@ -6,12 +6,12 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 import Anthropic from '@anthropic-ai/sdk';
 import { ChapterGeneratorService } from './chapter-generator.js';
-import type { PersonaProfile } from '../../types/repository.types.js';
+import type { Persona } from '../../types/repository.types.js';
 import type { DebateChapter } from '../../types/index.js';
 
 const mockCreate = vi.fn();
 
-const testPersonas: PersonaProfile[] = [
+const testPersonas: Persona[] = [
   { id: 'p1', topicId: 't1', stakeholderRole: '医師', specificRole: '外科医', name: '田中太郎', age: 45, occupation: '外科医', background: '30年の経験', interests: '医療安全', approved: true, sortOrder: 0 },
   { id: 'p2', topicId: 't1', stakeholderRole: '患者', specificRole: '患者', name: '鈴木花子', age: 35, occupation: '会社員', background: '慢性疾患あり', interests: '医療費負担', approved: true, sortOrder: 1 },
   { id: 'p3', topicId: 't1', stakeholderRole: '研究者', specificRole: '医療政策研究者', name: '山田次郎', age: 50, occupation: '大学教授', background: '医療政策専門', interests: '政策立案', approved: true, sortOrder: 2 },

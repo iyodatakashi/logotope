@@ -36,7 +36,7 @@ import type { ChapterGeneratorService } from '../chapters/chapter-generator.js';
 
 // ---- helpers ----
 
-const testPersonaProfiles = [
+const testPersonas = [
   { id: 'p1', topicId: 't1', stakeholderRole: '医師', name: '田中太郎', age: 45, occupation: '外科医', background: '30年経験', interests: '医療安全', approved: true, sortOrder: 0 },
   { id: 'p2', topicId: 't1', stakeholderRole: '患者', name: '鈴木花子', age: 35, occupation: '会社員', background: '患者歴10年', interests: '費用負担', approved: true, sortOrder: 1 },
 ];
@@ -87,7 +87,7 @@ function makeMockPersonaAgent(overrides: Partial<Record<string, ReturnType<typeo
 
 function setupRepoDefaults() {
   vi.mocked(repo.getTopicById).mockResolvedValue({ id: 't1', title: 'AI医療診断の導入', createdAt: '', updatedAt: '' });
-  vi.mocked(repo.getPersonasByTopicId).mockResolvedValue(testPersonaProfiles);
+  vi.mocked(repo.getPersonasByTopicId).mockResolvedValue(testPersonas);
   vi.mocked(repo.getPersonaBeliefsByPersonaId).mockImplementation(async (personaId) => [
     { id: `belief-${personaId}`, personaId, version: 0, content: '# 初期信念\n賛成。', createdAt: '' },
   ]);
@@ -359,7 +359,7 @@ describe('DebateOrchestratorService', () => {
     });
 
     it('score 5 で選ばれなかったペルソナのキュー追加が setPendingIntents で永続化される', async () => {
-      vi.mocked(repo.getPersonasByTopicId).mockResolvedValue([...testPersonaProfiles, p3Profile]);
+      vi.mocked(repo.getPersonasByTopicId).mockResolvedValue([...testPersonas, p3Profile]);
       const mockPersonaAgent = makeMockPersonaAgent({
         assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => {
           if (persona.id === 'p2') return { ok: true, value: { score: 5, mode: 'opinion', intentSummary: '先に言いたい' } };
@@ -631,7 +631,7 @@ describe('DebateOrchestratorService', () => {
       expect(hasNext).toBe(false);
       expect(mockFacilitator.generateClosing).toHaveBeenCalledOnce();
       expect(vi.mocked(repo.createDebateTurn).mock.calls.some(c => c[0].content === 'お疲れ様でした。')).toBe(true);
-      expect(mockPersonaAgent.generatePostDebateComment).toHaveBeenCalledTimes(testPersonaProfiles.length);
+      expect(mockPersonaAgent.generatePostDebateComment).toHaveBeenCalledTimes(testPersonas.length);
       expect(vi.mocked(repo.completeDebateSession)).toHaveBeenCalledWith('t1', expect.any(Number));
       // 討論完了は「実行中のときのみ generated」で確定する（停止を上書きしない）
       expect(vi.mocked(repo.finalizeTopicIfRunning)).toHaveBeenCalledWith('t1');
@@ -640,7 +640,7 @@ describe('DebateOrchestratorService', () => {
 
   describe('task 5.2: 論点ずれをまたいだ意図キューの保持', () => {
     it('A 介入を挟んでも意図キューが保持され、A 通過後のターンでキュー発言者が選ばれる', async () => {
-      vi.mocked(repo.getPersonasByTopicId).mockResolvedValue([...testPersonaProfiles, p3Profile]);
+      vi.mocked(repo.getPersonasByTopicId).mockResolvedValue([...testPersonas, p3Profile]);
       vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([
         { id: 't0', sessionId: 't1', turnIndex: 0, speakerType: 'facilitator', content: '討論を始めます。', createdAt: '' },
       ]);

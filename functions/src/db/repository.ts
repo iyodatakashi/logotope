@@ -1,6 +1,6 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import type { DebateTopic, DebateSession } from '../types/debate.types.js';
-import type { PersonaProfile } from '../types/persona.types.js';
+import type { Persona } from '../types/persona.types.js';
 
 const db = () => getFirestore();
 
@@ -16,10 +16,10 @@ export const getTopicById = async (id: string): Promise<DebateTopic | null> => {
   };
 };
 
-export const getPersonasByTopicId = async (topicId: string): Promise<PersonaProfile[]> => {
+export const getPersonasByTopicId = async (topicId: string): Promise<Persona[]> => {
   const snap = await db().collection(`topics/${topicId}/personas`).orderBy('sortOrder', 'asc').get();
   return snap.docs.map((docSnap) => {
-    const data = docSnap.data() as Omit<PersonaProfile, 'specificRole'> & { specificRole?: string };
+    const data = docSnap.data() as Omit<Persona, 'specificRole'> & { specificRole?: string };
     return { ...data, id: docSnap.id, specificRole: data.specificRole ?? data.stakeholderRole };
   });
 };

@@ -6,7 +6,7 @@ import { formatHistory, formatPersonas } from '../../utils/conversation.js';
 import { buildNeutralitySystemPrompt } from '../../agents/facilitator-agent.js';
 import { getTopicById, getPersonasByTopicId } from '../../db/repository.js';
 import type { DebateTurn } from '../../types/debate.types.js';
-import type { PersonaProfile } from '../../types/persona.types.js';
+import type { Persona } from '../../types/persona.types.js';
 import type { DebateChapter } from '../../types/debate.types.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
 
@@ -93,7 +93,7 @@ export class ChapterGeneratorService {
 
 	async generateChapters(
 		topicTitle: string,
-		personas: PersonaProfile[]
+		personas: Persona[]
 	): Promise<
 		Result<
 			{ chapters: DebateChapter[]; generalIssues: string[]; personaIssues: string[] },
@@ -239,7 +239,7 @@ export class ChapterGeneratorService {
 
 	async generateChapterIntroduction(
 		nextChapter: DebateChapter,
-		personas: PersonaProfile[]
+		personas: Persona[]
 	): Promise<Result<{ content: string; firstPersonaId: string }, PipelineError>> {
 		try {
 			const response = await this.client.messages.create({

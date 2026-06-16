@@ -1,4 +1,5 @@
 import { generateText, jsonSchema } from 'ai';
+import { nanoid } from 'nanoid';
 import { getPipelineModel } from '../../llm/models.js';
 import { MAX_TOKENS } from '../../constants/ai.constants.js';
 import type { Stakeholder } from '../../types/stakeholder.types.js';
@@ -87,7 +88,8 @@ const buildPersonaTools = (count: number) =>
 
 export const generatePersonas = async (
 	title: string,
-	stakeholders: Stakeholder[]
+	stakeholders: Stakeholder[],
+	topicId: string
 ): Promise<{ personas: Persona[] }> => {
 	const engagementLabel = (level?: string) =>
 		level === 'high' ? '専門・意識:高' : level === 'low' ? '専門・意識:低' : '専門・意識:中';
@@ -110,5 +112,9 @@ export const generatePersonas = async (
 
 	const toolCall = result.toolCalls[0];
 	if (!toolCall) throw new Error('No tool call in response');
-	return { personas: (toolCall.args as { personas: Persona[] }).personas };
+	type LLMPersona = Omit<Persona, 'id' | 'topicId' | 'approved' | 'sortOrder'>;
+	const personas: Persona[] = (toolCall.args as { personas: LLMPersona[] }).personas.map(
+		(p, i) => ({ ...p, id: nanoid(), topicId, approved: false, sortOrder: i })
+	);
+	return { personas };
 };

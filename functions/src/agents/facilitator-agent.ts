@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
 import { formatHistory, formatPersonas } from '../utils/conversation.js';
 import type { DebateTurn } from '../types/debate.types.js';
-import type { PersonaProfile } from '../types/persona.types.js';
+import type { Persona } from '../types/persona.types.js';
 import type { FacilitatorOpeningResult, FacilitatorIntervention, DebateChapter } from '../types/debate.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 
@@ -88,7 +88,7 @@ export class FacilitatorAgentService {
 
 	async generateOpening(
 		topicTitle: string,
-		personas: PersonaProfile[],
+		personas: Persona[],
 		firstChapter?: DebateChapter
 	): Promise<Result<FacilitatorOpeningResult, PipelineError>> {
 		try {
@@ -129,7 +129,7 @@ export class FacilitatorAgentService {
 
 	private async runInterventionCheck(
 		history: DebateTurn[],
-		personas: PersonaProfile[],
+		personas: Persona[],
 		currentChapter: DebateChapter | undefined,
 		criteriaSection: string
 	): Promise<Result<FacilitatorIntervention, PipelineError>> {
@@ -184,7 +184,7 @@ export class FacilitatorAgentService {
 	/** A（論点ずれ）: 会話がフォーカス問いから逸脱しているときだけ介入し、論点を引き戻す。指名済みターンでも上書きしうる */
 	async evaluateTopicDrift(
 		history: DebateTurn[],
-		personas: PersonaProfile[],
+		personas: Persona[],
 		speakCount: Map<string, number> = new Map(),
 		currentChapter?: DebateChapter
 	): Promise<Result<FacilitatorIntervention, PipelineError>> {
@@ -198,7 +198,7 @@ export class FacilitatorAgentService {
 	/** B（出尽くし）: 今の論点で議論が落ち着いたとき、まだ議論されていない新しい論点に切り替えて次の話者を振る */
 	async evaluateStallIntervention(
 		history: DebateTurn[],
-		personas: PersonaProfile[],
+		personas: Persona[],
 		speakCount: Map<string, number> = new Map(),
 		currentChapter?: DebateChapter
 	): Promise<Result<FacilitatorIntervention, PipelineError>> {

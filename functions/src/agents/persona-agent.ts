@@ -4,7 +4,7 @@ import { MAX_TOKENS } from '../constants/ai.constants.js';
 import { SearchService } from '../search/search-service.js';
 import { formatHistory } from '../utils/conversation.js';
 import type { DebateTurn } from '../types/debate.types.js';
-import type { PersonaProfile } from '../types/persona.types.js';
+import type { Persona } from '../types/persona.types.js';
 import type { AgentTurnResult, BeliefChangeEvent, BeliefChangeType, PostDebateCommentResult, EngagementAssessment } from '../types/debate.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 import type { TurnGenerationContext } from '../types/debate.types.js';
@@ -48,7 +48,7 @@ function currentDateString(): string {
 	return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-export function buildSpeechStyleGuide(persona: PersonaProfile & { gender?: string }): string {
+export function buildSpeechStyleGuide(persona: Persona & { gender?: string }): string {
 	const expLevel = estimateExperienceLevel(persona.age, persona.occupation);
 	const authLevel = estimateAuthorityLevel(persona.specificRole || persona.stakeholderRole);
 	const lines: string[] = [];
@@ -98,7 +98,7 @@ export function buildSpeechStyleGuide(persona: PersonaProfile & { gender?: strin
 }
 
 function buildPersonaSystemPrompt(
-	persona: PersonaProfile & { gender?: string },
+	persona: Persona & { gender?: string },
 	interviewRecord: string,
 	currentBelief: string
 ): string {
@@ -302,7 +302,7 @@ export class PersonaAgentService {
 	}
 
 	async generateTurn(
-		persona: PersonaProfile,
+		persona: Persona,
 		currentBelief: string,
 		interviewRecord: string,
 		context: TurnGenerationContext
@@ -412,7 +412,7 @@ export class PersonaAgentService {
 	}
 
 	async assessEngagement(
-		persona: PersonaProfile,
+		persona: Persona,
 		currentBelief: string,
 		interviewRecord: string,
 		history: DebateTurn[]
@@ -463,7 +463,7 @@ export class PersonaAgentService {
 	}
 
 	async generatePostDebateComment(
-		persona: PersonaProfile,
+		persona: Persona,
 		finalBelief: string,
 		history: DebateTurn[]
 	): Promise<Result<PostDebateCommentResult, PipelineError>> {

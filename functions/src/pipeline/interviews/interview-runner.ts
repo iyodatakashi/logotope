@@ -2,13 +2,13 @@ import { generateText, jsonSchema } from 'ai';
 import { tavily } from '@tavily/core';
 import { getPipelineModel } from '../../llm/models.js';
 import { MAX_TOKENS } from '../../constants/ai.constants.js';
-import type { PersonaInput } from '../../types/interviews.types.js';
+import type { Persona } from '../../types/persona.types.js';
 
-export interface InterviewOutput {
+export type InterviewOutput = {
 	researchSummary: string;
 	interviewRecord: string;
 	initialBelief: string;
-}
+};
 
 const buildTools = () => {
 	const tavilyClient = tavily();
@@ -72,7 +72,7 @@ const buildTools = () => {
 };
 
 export class InterviewRunnerService {
-	async runInterview(topicTitle: string, persona: PersonaInput): Promise<InterviewOutput> {
+	async runInterview(topicTitle: string, persona: Persona): Promise<InterviewOutput> {
 		const result = await generateText({
 			model: getPipelineModel('personaInterview'),
 			maxTokens: MAX_TOKENS.INTERVIEW,
@@ -98,7 +98,7 @@ export class InterviewRunnerService {
 氏名: ${persona.name}
 年齢: ${persona.age}歳
 職業: ${persona.occupation}
-立場: ${persona.specificRole || persona.stakeholderRole}
+立場: ${persona.specificRole}
 背景: ${persona.background}
 関心事: ${persona.interests}`
 				}

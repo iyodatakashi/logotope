@@ -23,7 +23,7 @@ import type { DebateChapter, SpeakerDecision, PendingIntent } from '../../types/
 import type { PipelineError } from '../../types/common.types.js';
 import type { SpeakerAssessment, DebateState } from '../../types/debate.types.js';
 import type { DebateTurn } from '../../types/debate.types.js';
-import type { PersonaProfile } from '../../types/persona.types.js';
+import type { Persona, Belief } from '../../types/persona.types.js';
 import { DEFAULT_OPTIONS } from '../../constants/debate-orchestrator.constants.js';
 import type { OrchestratorOptions } from '../../types/debate.types.js';
 
@@ -210,12 +210,10 @@ const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[
 const getPersonaBeliefsByPersonaId = async (
 	topicId: string,
 	personaId: string
-): Promise<Array<{ id: string; version: number; content: string }>> => {
+): Promise<Belief[]> => {
 	const snap = await personaDocRef(topicId, personaId).get();
 	if (!snap.exists) return [];
-	const data = snap.data() as {
-		beliefs?: Array<{ id: string; version: number; content: string; triggeredByTurnId?: string }>;
-	};
+	const data = snap.data() as { beliefs?: Belief[] };
 	return data.beliefs ?? [];
 };
 
@@ -240,7 +238,7 @@ const pipelineErrorMessage = (e: PipelineError): string => {
 /** ID が参加ペルソナに存在する場合のみ返す（LLM 由来の不正 ID を無視する） */
 const validPersonaId = (
 	personaId: string | undefined,
-	personas: ReadonlyArray<PersonaProfile>
+	personas: ReadonlyArray<Persona>
 ): string | undefined => {
 	return personaId && personas.some((p) => p.id === personaId) ? personaId : undefined;
 };
@@ -374,7 +372,7 @@ export class DebateOrchestratorService {
 	 */
 	private async evaluateEngagement(
 		sessionId: string,
-		personas: PersonaProfile[],
+		personas: Persona[],
 		interviewRecords: Map<string, string>,
 		state: DebateState
 	): Promise<SpeakerAssessment[]> {
@@ -436,7 +434,7 @@ export class DebateOrchestratorService {
 	private async runChapterLoop(
 		sessionId: string,
 		topicId: string,
-		personas: PersonaProfile[],
+		personas: Persona[],
 		interviewRecords: Map<string, string>,
 		chapter: DebateChapter,
 		state: DebateState
@@ -593,7 +591,7 @@ export class DebateOrchestratorService {
 	/** B（出尽くし）介入: 高意欲者がいない場合のみ発火し、クールダウンを参照しない（BC1）。介入する場合は指名 decision を返す */
 	private async tryStallIntervention(
 		sessionId: string,
-		personas: PersonaProfile[],
+		personas: Persona[],
 		chapter: DebateChapter,
 		state: DebateState,
 		assessments: SpeakerAssessment[]
@@ -616,7 +614,7 @@ export class DebateOrchestratorService {
 	/** A（論点ずれ）: 逸脱していれば介入を保存して指名 decision を返す。クールダウン通過後かつ指名なし時のみ評価する */
 	private async tryTopicDriftIntervention(
 		sessionId: string,
-		personas: PersonaProfile[],
+		personas: Persona[],
 		chapter: DebateChapter,
 		state: DebateState
 	): Promise<SpeakerDecision | undefined> {
@@ -638,7 +636,7 @@ export class DebateOrchestratorService {
 	/** 選ばれた話者の発言パラメータ（mode/score・意図）を決める。evaluateEngagement の結果を優先し、評価対象外（直前話者など）のときのみ単独評価へフォールバックする */
 	private async resolveSpeechParams(
 		speakerId: string,
-		personas: PersonaProfile[],
+		personas: Persona[],
 		interviewRecords: Map<string, string>,
 		state: DebateState,
 		assessments?: ReadonlyArray<SpeakerAssessment>
@@ -668,7 +666,7 @@ export class DebateOrchestratorService {
 	private async generatePersonaTurn(
 		sessionId: string,
 		topicId: string,
-		personas: PersonaProfile[],
+		personas: Persona[],
 		interviewRecords: Map<string, string>,
 		chapter: DebateChapter,
 		state: DebateState,
@@ -795,7 +793,7 @@ export class DebateOrchestratorService {
 	private async generateUnansweredReply(
 		sessionId: string,
 		topicId: string,
-		personas: PersonaProfile[],
+		personas: Persona[],
 		interviewRecords: Map<string, string>,
 		chapter: DebateChapter,
 		state: DebateState
@@ -879,7 +877,7 @@ export class DebateOrchestratorService {
 		chapters: DebateChapter[],
 		currentChapterIndex: number,
 		state: DebateState,
-		personas: PersonaProfile[]
+		personas: Persona[]
 	): Promise<void> {
 		const chapter = chapters[currentChapterIndex];
 		const nextChapter = chapters[currentChapterIndex + 1];
@@ -916,7 +914,7 @@ export class DebateOrchestratorService {
 	private async finalizeDebate(
 		sessionId: string,
 		topicId: string,
-		personas: PersonaProfile[],
+		personas: Persona[],
 		state: DebateState
 	): Promise<void> {
 		const finalBeliefs = new Map(

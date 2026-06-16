@@ -9,12 +9,13 @@ export const generatePersonas = onCall(
 	{ timeoutSeconds: 300, secrets: SECRETS },
 	async (request) => {
 		requireAuth(request);
-		const { title, stakeholders } = request.data as { title: string; stakeholders: Stakeholder[] };
+		const { topicId, title, stakeholders } = request.data as { topicId: string; title: string; stakeholders: Stakeholder[] };
+		if (!topicId?.trim()) throw new HttpsError('invalid-argument', 'topicId is required');
 		if (!title?.trim()) throw new HttpsError('invalid-argument', 'title is required');
 		if (!stakeholders?.length) throw new HttpsError('invalid-argument', 'stakeholders is required');
 
 		try {
-			return await runPersonaGeneration(title, stakeholders);
+			return await runPersonaGeneration(title, stakeholders, topicId);
 		} catch (err) {
 			throw new HttpsError('internal', err instanceof Error ? err.message : String(err));
 		}

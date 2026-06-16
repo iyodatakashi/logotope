@@ -1,7 +1,7 @@
 import type { DebateTurn } from '../types/debate.types.js';
-import type { PersonaProfile } from '../types/persona.types.js';
+import type { Persona } from '../types/persona.types.js';
 
-export function formatPersonas(personas: PersonaProfile[]): string {
+export function formatPersonas(personas: Persona[]): string {
   return personas
     .map((p) => `- ID: ${p.id}, 名前: ${p.name}, 立場: ${p.specificRole || p.stakeholderRole}`)
     .join('\n');
