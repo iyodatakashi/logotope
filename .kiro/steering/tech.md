@@ -79,6 +79,14 @@ Firebase App Hosting 上の SvelteKit（SSR）＋ Firebase Functions v2（AI パ
 # Functions build: npm --prefix functions run build
 ```
 
+## Code Organization
+
+### 関数の並び順（トップダウン原則）
+- ファイル内の関数は **呼び出し元が先、呼び出し先が後** の順に並べる
+- エントリポイント（公開メソッド・クラス）を先頭に置き、その配下の処理を順に展開する
+- Firestoreヘルパー・インフラ層の関数はファイル末尾にまとめる（配管はメインロジックの後ろ）
+- 純粋ユーティリティ（引数のみに依存する小関数）はクラスの直前に置いてよい
+
 ## Key Technical Decisions
 
 - **SSRホスティング**: SvelteKit は `adapter-auto` で Firebase App Hosting にデプロイ。公開ページは `+page.server.ts` でSSR配信しSEOを確保する。管理画面はクライアントサイドSPAとして動作する
