@@ -300,7 +300,7 @@ export async function generateTurn(
 		context: TurnGenerationContext
 	): Promise<Result<PersonaReply, PipelineError>> {
 		try {
-			const { chapter, pendingTrigger, intentSummary, nominatedByFacilitator } = context;
+			const { chapter, pendingTrigger, intentSummary, targetedBy } = context;
 			const recentHistory = context.chapterHistory.slice(-20);
 			const styleGuide = buildSpeechStyleGuide(persona);
 			const chapterContext = `\n\n【この章のフォーカス】「${chapter.title}」: ${chapter.focusQuestion}`;
@@ -308,7 +308,7 @@ export async function generateTurn(
 				? `\n\n【持ち越しの言いたいこと】少し前に${pendingTrigger.speakerName}が「${pendingTrigger.content.slice(0, 80)}」と言ったのを聞いて、あなたはこれに何か言いたいと思っていました。会話の流れに沿って、適切であればこの話題に触れてください。`
 				: '';
 			const intentNote = intentSummary ? `\n\n【今回伝えたいこと】${intentSummary}` : '';
-			const nominationNote = nominatedByFacilitator
+			const facilitatorTargetNote = targetedBy === 'facilitator'
 				? '\n\n【指名】ファシリテーターが直接あなたに話を向けました。この問いかけに対して、自分の立場・生活・仕事の経験から具体的に答えてください。'
 				: '';
 
@@ -325,7 +325,7 @@ export async function generateTurn(
 			const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
 			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ targetPersonaId を指定。`;
 			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。直接質問する場合のみ targetPersonaId を指定。`;
-			const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${lastSpeakerNote}${pendingNote}${intentNote}${nominationNote}\n\n${isFact ? factInstruction : opinionInstruction}`;
+			const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${lastSpeakerNote}${pendingNote}${intentNote}${facilitatorTargetNote}\n\n${isFact ? factInstruction : opinionInstruction}`;
 			const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 				generateText({
 					model,

@@ -28,3 +28,5 @@ export type Belief = {
 	changeSummary?: string | null;
 	triggeredByTurnId?: string | null;
 };
+
+export type BeliefCache = { content: string; version: number };

@@ -1,11 +1,15 @@
-import type { PendingIntent } from '../../types/debate.types.js';
-import type { DebateState, RestoreInput } from '../../types/debate.types.js';
+import type { DebateTurn, PendingIntent, DebateState, BeliefCache } from '../../types/debate.types.js';
+import type { Persona } from '../../types/persona.types.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 
 /** 保存済みターン・永続化キューから DebateState を一意に復元する（同一入力 → 同一出力） */
-export const restoreDebateState = (input: RestoreInput): DebateState => {
-	const { personas, persistedPendingIntents, currentBeliefs } = input;
-	const turns = [...input.turns].sort((a, b) => a.turnIndex - b.turnIndex);
+export const restoreDebateState = (
+	inputTurns: ReadonlyArray<DebateTurn>,
+	personas: ReadonlyArray<Persona>,
+	persistedPendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>,
+	currentBeliefs: Map<string, BeliefCache>
+): DebateState => {
+	const turns = [...inputTurns].sort((a, b) => a.turnIndex - b.turnIndex);
 
 	const currentTurnIndex = turns.length > 0 ? turns[turns.length - 1].turnIndex + 1 : 0;
 
@@ -52,12 +56,12 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
 
 	// 直近指名の復元: 最後のターンに永続化された targetPersonaId から復元する
 	// （ファシリテーターの指名 / ペルソナの直接質問。不正 ID は無視する）
-	let pendingTarget: DebateState['pendingTarget'];
+	let targetPersona: DebateState['targetPersona'];
 	const lastTurn = turns[turns.length - 1];
 	if (lastTurn?.targetPersonaId && personas.some((p) => p.id === lastTurn.targetPersonaId)) {
-		pendingTarget = {
+		targetPersona = {
 			personaId: lastTurn.targetPersonaId,
-			byFacilitator: lastTurn.speakerType === 'facilitator'
+			targetedBy: lastTurn.speakerType === 'facilitator' ? 'facilitator' : 'persona'
 		};
 	}
 
@@ -66,11 +70,10 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
 		currentBeliefs: new Map(currentBeliefs),
 		silenceMap,
 		speakCount,
-		pendingTarget,
+		targetPersona,
 		lastSpeakerId,
 		pendingIntents,
-		consecutiveDirectExchanges: 0,
-		engagementSignals: [],
+		pairConversationTurns: 0,
 		currentTurnIndex,
 		lastFacilitatorTurnIndex,
 	};

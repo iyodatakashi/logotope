@@ -23,6 +23,8 @@ const beliefs = () => new Map([
   ['p2', { content: '信念2', version: 1 }],
 ]);
 
+const noIntents = new Map<string, PendingIntent[]>();
+
 const baseTurns: DebateTurn[] = [
   turn(0, 'facilitator'),
   turn(1, 'persona', 'p1'),
@@ -33,12 +35,7 @@ const baseTurns: DebateTurn[] = [
 
 describe('restoreDebateState', () => {
   it('保存済みターンから発言数・沈黙数・最終ファシリテーターターン・直前話者・次ターン番号を復元する', () => {
-    const state = restoreDebateState({
-      turns: baseTurns,
-      personas,
-      persistedPendingIntents: new Map(),
-      currentBeliefs: beliefs(),
-    });
+    const state = restoreDebateState(baseTurns, personas, noIntents, beliefs());
 
     expect(state.currentTurnIndex).toBe(5);
     expect(state.speakCount.get('p1')).toBe(2);
@@ -51,25 +48,18 @@ describe('restoreDebateState', () => {
   });
 
   it('ターンが空の場合は初期状態を返す', () => {
-    const state = restoreDebateState({
-      turns: [],
-      personas,
-      persistedPendingIntents: new Map(),
-      currentBeliefs: beliefs(),
-    });
+    const state = restoreDebateState([], personas, noIntents, beliefs());
 
     expect(state.currentTurnIndex).toBe(0);
     expect(state.speakCount.get('p1')).toBe(0);
     expect(state.silenceMap.get('p1')).toBe(0);
     expect(state.lastFacilitatorTurnIndex).toBe(0);
     expect(state.lastSpeakerId).toBeUndefined();
-    expect(state.pendingTarget).toBeUndefined();
-    expect(state.consecutiveDirectExchanges).toBe(0);
-    expect(state.engagementSignals).toEqual([]);
+    expect(state.targetPersona).toBeUndefined();
+    expect(state.pairConversationTurns).toBe(0);
   });
 
   it('永続化済みキューを取り込み、8ターン超過のエントリを失効させる', () => {
-    // 最終ターン 11 → currentTurnIndex 12
     const turns = [turn(0, 'facilitator'), turn(11, 'persona', 'p1')];
     const persistedPendingIntents = new Map<string, PendingIntent[]>([
       ['p2', [
@@ -78,12 +68,7 @@ describe('restoreDebateState', () => {
       ]],
     ]);
 
-    const state = restoreDebateState({
-      turns,
-      personas,
-      persistedPendingIntents,
-      currentBeliefs: beliefs(),
-    });
+    const state = restoreDebateState(turns, personas, persistedPendingIntents, beliefs());
 
     expect(state.pendingIntents.get('p2')).toEqual([
       { triggerTurnIndex: 4, intentSummary: '残る意図' },
@@ -91,117 +76,67 @@ describe('restoreDebateState', () => {
   });
 
   it('全エントリが失効したペルソナはキューから取り除かれる', () => {
-    const turns = [turn(20, 'persona', 'p1')]; // currentTurnIndex 21
+    const turns = [turn(20, 'persona', 'p1')];
     const persistedPendingIntents = new Map<string, PendingIntent[]>([
       ['p2', [{ triggerTurnIndex: 1, intentSummary: '古い意図' }]],
     ]);
 
-    const state = restoreDebateState({
-      turns,
-      personas,
-      persistedPendingIntents,
-      currentBeliefs: beliefs(),
-    });
+    const state = restoreDebateState(turns, personas, persistedPendingIntents, beliefs());
 
     expect(state.pendingIntents.has('p2')).toBe(false);
   });
 
   it('currentBeliefs が状態に引き継がれる', () => {
-    const state = restoreDebateState({
-      turns: baseTurns,
-      personas,
-      persistedPendingIntents: new Map(),
-      currentBeliefs: beliefs(),
-    });
+    const state = restoreDebateState(baseTurns, personas, noIntents, beliefs());
 
     expect(state.currentBeliefs.get('p2')).toEqual({ content: '信念2', version: 1 });
   });
 
   it('決定性: 同一入力から常に同一の状態を生成する', () => {
-    const input = () => ({
-      turns: baseTurns,
-      personas,
-      persistedPendingIntents: new Map<string, PendingIntent[]>([
-        ['p2', [{ triggerTurnIndex: 2, intentSummary: '意図' }]],
-      ]),
-      currentBeliefs: beliefs(),
-    });
+    const intents = new Map<string, PendingIntent[]>([
+      ['p2', [{ triggerTurnIndex: 2, intentSummary: '意図' }]],
+    ]);
 
-    const first = restoreDebateState(input());
-    const second = restoreDebateState(input());
+    const first = restoreDebateState(baseTurns, personas, intents, beliefs());
+    const second = restoreDebateState(baseTurns, personas, intents, beliefs());
 
     expect(second).toEqual(first);
   });
 
   it('直近指名の復元: 最後のファシリテーターターンの targetPersonaId から指名を復元する', () => {
-    const turns = [
-      ...baseTurns,
-      { ...turn(5, 'facilitator'), targetPersonaId: 'p2' },
-    ];
-    const state = restoreDebateState({
-      turns,
-      personas,
-      persistedPendingIntents: new Map(),
-      currentBeliefs: beliefs(),
-    });
+    const turns = [...baseTurns, { ...turn(5, 'facilitator'), targetPersonaId: 'p2' }];
+    const state = restoreDebateState(turns, personas, noIntents, beliefs());
 
-    expect(state.pendingTarget).toEqual({ personaId: 'p2', byFacilitator: true });
+    expect(state.targetPersona).toEqual({ personaId: 'p2', targetedBy: 'facilitator' });
   });
 
-  it('直近指名の復元: 最後のペルソナターンの targetPersonaId は直接質問（byFacilitator: false）として復元する', () => {
-    const turns = [
-      ...baseTurns,
-      { ...turn(5, 'persona', 'p2'), targetPersonaId: 'p1' },
-    ];
-    const state = restoreDebateState({
-      turns,
-      personas,
-      persistedPendingIntents: new Map(),
-      currentBeliefs: beliefs(),
-    });
+  it('直近指名の復元: 最後のペルソナターンの targetPersonaId はペルソナ指名として復元する', () => {
+    const turns = [...baseTurns, { ...turn(5, 'persona', 'p2'), targetPersonaId: 'p1' }];
+    const state = restoreDebateState(turns, personas, noIntents, beliefs());
 
-    expect(state.pendingTarget).toEqual({ personaId: 'p1', byFacilitator: false });
+    expect(state.targetPersona).toEqual({ personaId: 'p1', targetedBy: 'persona' });
   });
 
-  it('最後のターンに targetPersonaId がない場合 pendingTarget は復元されない', () => {
+  it('最後のターンに targetPersonaId がない場合 targetPersona は復元されない', () => {
     const turns = [
       ...baseTurns,
       { ...turn(5, 'facilitator'), content: '次の章では、鈴木花子さんから伺います。' },
     ];
-    const state = restoreDebateState({
-      turns,
-      personas,
-      persistedPendingIntents: new Map(),
-      currentBeliefs: beliefs(),
-    });
+    const state = restoreDebateState(turns, personas, noIntents, beliefs());
 
-    // 本文にペルソナ名があっても名前マッチは行わない（ID のみで判定）
-    expect(state.pendingTarget).toBeUndefined();
+    expect(state.targetPersona).toBeUndefined();
   });
 
-  it('targetPersonaId が参加ペルソナに存在しない場合 pendingTarget は復元されない', () => {
-    const turns = [
-      ...baseTurns,
-      { ...turn(5, 'facilitator'), targetPersonaId: 'unknown' },
-    ];
-    const state = restoreDebateState({
-      turns,
-      personas,
-      persistedPendingIntents: new Map(),
-      currentBeliefs: beliefs(),
-    });
+  it('targetPersonaId が参加ペルソナに存在しない場合 targetPersona は復元されない', () => {
+    const turns = [...baseTurns, { ...turn(5, 'facilitator'), targetPersonaId: 'unknown' }];
+    const state = restoreDebateState(turns, personas, noIntents, beliefs());
 
-    expect(state.pendingTarget).toBeUndefined();
+    expect(state.targetPersona).toBeUndefined();
   });
 
   it('入力のターン順序が不定でも turnIndex 順に復元する', () => {
     const shuffled = [baseTurns[3], baseTurns[0], baseTurns[4], baseTurns[2], baseTurns[1]];
-    const state = restoreDebateState({
-      turns: shuffled,
-      personas,
-      persistedPendingIntents: new Map(),
-      currentBeliefs: beliefs(),
-    });
+    const state = restoreDebateState(shuffled, personas, noIntents, beliefs());
 
     expect(state.currentTurnIndex).toBe(5);
     expect(state.lastSpeakerId).toBe('p1');

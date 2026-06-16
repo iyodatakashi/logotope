@@ -13,7 +13,7 @@ export const HIGH_ENGAGEMENT_SCORE = 4;
 export const ACTIVE_SIGNAL_STRONG_SCORE = 5;
 
 /** ペルソナ間の連続直接質問の上限 */
-export const MAX_CONSECUTIVE_DIRECT = 3;
+export const MAX_PAIR_CONVERSATION_TURNS = 3;
 
 /** 論点ずれ介入(A)のクールダウン既定ターン数 */
 export const DEFAULT_INTERVENTION_COOLDOWN = 2;

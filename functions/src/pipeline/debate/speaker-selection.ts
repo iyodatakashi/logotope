@@ -1,5 +1,5 @@
-import type { SpeakerDecision, Engagement, PendingIntent } from '../../types/debate.types.js';
-import { HIGH_ENGAGEMENT_SCORE, MAX_CONSECUTIVE_DIRECT } from '../../constants/flow.constants.js';
+import type { SpeakerSelection, Engagement, PendingIntent } from '../../types/debate.types.js';
+import { HIGH_ENGAGEMENT_SCORE, MAX_PAIR_CONVERSATION_TURNS } from '../../constants/flow.constants.js';
 
 /** 単一ペルソナが高意欲か（>= HIGH_ENGAGEMENT_SCORE）。キュー追加・キュー選択ゲートと共有 */
 export const isHighEngagement = (assessment: { score: number }): boolean =>
@@ -10,19 +10,19 @@ export const hasHighEngagement = (assessments: ReadonlyArray<{ score: number }>)
 	assessments.some(isHighEngagement);
 
 /** ターン冒頭: 前ターン由来の指名・直接質問で次話者が確定するか判定する */
-export const resolveDirectTarget = (
-	pendingTarget: { personaId: string; byFacilitator: boolean } | undefined,
-	consecutiveDirectExchanges: number,
+export const resolvePairConversation = (
+	targetPersona: { personaId: string; targetedBy: 'facilitator' | 'persona' } | undefined,
+	pairConversationTurns: number,
 	personaIds: ReadonlyArray<string>
-): SpeakerDecision | null => {
-	if (!pendingTarget) return null;
-	if (!personaIds.includes(pendingTarget.personaId)) return null;
+): SpeakerSelection | null => {
+	if (!targetPersona) return null;
+	if (!personaIds.includes(targetPersona.personaId)) return null;
 
-	if (pendingTarget.byFacilitator) {
-		return { personaId: pendingTarget.personaId, source: 'nomination' };
+	if (targetPersona.targetedBy === 'facilitator') {
+		return { personaId: targetPersona.personaId, reason: 'targeted_by_facilitator' };
 	}
-	if (consecutiveDirectExchanges >= MAX_CONSECUTIVE_DIRECT) return null;
-	return { personaId: pendingTarget.personaId, source: 'direct_target' };
+	if (pairConversationTurns >= MAX_PAIR_CONVERSATION_TURNS) return null;
+	return { personaId: targetPersona.personaId, reason: 'targeted_by_persona' };
 };
 
 /** 選ばれた話者の発言は本人の意欲評価に従う（mode と score→長さ）。選ばれた以上は必ず発言するため none・低スコアは最小発言（score 2 / opinion）に切り上げる */
@@ -42,7 +42,7 @@ export const decideNextSpeaker = (
 	silenceMap: ReadonlyMap<string, number>,
 	personaIds: ReadonlyArray<string>,
 	lastSpeakerId?: string
-): SpeakerDecision => {
+): SpeakerSelection => {
 	const filteredAssessments = assessments.filter((a) => personaIds.includes(a.personaId));
 
 	const byScoreThenSilence = (a: Engagement, b: Engagement) =>
@@ -69,7 +69,7 @@ export const decideNextSpeaker = (
 			);
 			return {
 				personaId: oldestPersonaId,
-				source: 'queue',
+				reason: 'queue',
 				intentSummary: items[0]?.intentSummary
 			};
 		}
@@ -79,7 +79,7 @@ export const decideNextSpeaker = (
 	const sorted = [...filteredAssessments].sort(byScoreThenSilence);
 	if (sorted.length === 0) {
 		const fallbackId = personaIds.find((id) => id !== lastSpeakerId) ?? personaIds[0];
-		return { personaId: fallbackId, source: 'score' };
+		return { personaId: fallbackId, reason: 'score' };
 	}
 	const maxScore = sorted[0].score;
 	const isLastSpeakerUniqueTop =
@@ -88,5 +88,5 @@ export const decideNextSpeaker = (
 	const selected = isLastSpeakerUniqueTop
 		? sorted[0]
 		: (sorted.find((a) => a.personaId !== lastSpeakerId) ?? sorted[0]);
-	return { personaId: selected.personaId, source: 'score' };
+	return { personaId: selected.personaId, reason: 'score' };
 };

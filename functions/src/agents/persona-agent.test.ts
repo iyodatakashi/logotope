@@ -90,7 +90,7 @@ const makePostDebateResult = (content: string) => ({
 const ctx = (overrides: Partial<TurnGenerationContext> = {}): TurnGenerationContext => ({
   chapterHistory: testHistory,
   chapter: testChapter,
-  nominatedByFacilitator: false,
+  targetedBy: undefined,
   ...overrides,
 });
 
@@ -418,13 +418,13 @@ describe('PersonaAgentService', () => {
       expect(msg).toContain('費用負担が心配です');
     });
 
-    it('nominatedByFacilitator: true のとき【指名】が user メッセージに含まれる', async () => {
-      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ nominatedByFacilitator: true }));
+    it('targetedBy: 'facilitator' のとき【指名】が user メッセージに含まれる', async () => {
+      await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx({ targetedBy: 'facilitator' }));
       const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
       expect(msg).toContain('【指名】');
     });
 
-    it('nominatedByFacilitator: false のとき【指名】が含まれない', async () => {
+    it('targetedBy: undefined のとき【指名】が含まれない', async () => {
       await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
       const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
       expect(msg).not.toContain('【指名】');

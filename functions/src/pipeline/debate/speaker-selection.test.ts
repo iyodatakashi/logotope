@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  resolveDirectTarget,
+  resolvePairConversation,
   decideNextSpeaker,
   speechFromAssessment,
   isHighEngagement,
@@ -11,29 +11,29 @@ import type { PendingIntent } from '../../types/debate.types.js';
 
 const personaIds = ['p1', 'p2', 'p3'];
 
-describe('resolveDirectTarget', () => {
-  it('ファシリテーター指名は連続直接交換の上限に関わらず確定する（mode 指定なし）', () => {
-    expect(resolveDirectTarget({ personaId: 'p2', byFacilitator: true }, 3, personaIds))
-      .toEqual({ personaId: 'p2', source: 'nomination' });
+describe('resolvePairConversation', () => {
+  it('ファシリテーター指名は連続ペア対話の上限に関わらず確定する', () => {
+    expect(resolvePairConversation({ personaId: 'p2', targetedBy: 'facilitator' }, 3, personaIds))
+      .toEqual({ personaId: 'p2', reason: 'targeted_by_facilitator' });
   });
 
-  it('ペルソナ間の直接質問は上限未満なら確定する', () => {
-    expect(resolveDirectTarget({ personaId: 'p3', byFacilitator: false }, 2, personaIds))
-      .toEqual({ personaId: 'p3', source: 'direct_target' });
+  it('ペルソナ間の指名は上限未満なら確定する', () => {
+    expect(resolvePairConversation({ personaId: 'p3', targetedBy: 'persona' }, 2, personaIds))
+      .toEqual({ personaId: 'p3', reason: 'targeted_by_persona' });
   });
 
-  it('ペルソナ間の直接質問が3回連続したら中断する（null）', () => {
-    expect(resolveDirectTarget({ personaId: 'p3', byFacilitator: false }, 3, personaIds))
+  it('ペルソナ間の指名が3回連続したら中断する（null）', () => {
+    expect(resolvePairConversation({ personaId: 'p3', targetedBy: 'persona' }, 3, personaIds))
       .toBeNull();
   });
 
   it('指名先IDが参加ペルソナに存在しない場合は無視する（null）', () => {
-    expect(resolveDirectTarget({ personaId: 'unknown', byFacilitator: true }, 0, personaIds))
+    expect(resolvePairConversation({ personaId: 'unknown', targetedBy: 'facilitator' }, 0, personaIds))
       .toBeNull();
   });
 
   it('指名・直接質問がない場合は null を返す', () => {
-    expect(resolveDirectTarget(undefined, 0, personaIds)).toBeNull();
+    expect(resolvePairConversation(undefined, 0, personaIds)).toBeNull();
   });
 });
 
@@ -93,7 +93,7 @@ describe('decideNextSpeaker', () => {
       ]);
       const decision = call({ pendingIntents });
       expect(decision.personaId).toBe('p3'); // triggerTurnIndex 2 が最古
-      expect(decision.source).toBe('queue');
+      expect(decision.reason).toBe('queue');
       expect(decision.intentSummary).toBe('p3の意図');
     });
 
@@ -109,7 +109,7 @@ describe('decideNextSpeaker', () => {
         pendingIntents,
       });
       expect(decision.personaId).toBe('p2');
-      expect(decision.source).toBe('score');
+      expect(decision.reason).toBe('score');
     });
 
     it('直前話者のキューは選択対象外', () => {
@@ -119,7 +119,7 @@ describe('decideNextSpeaker', () => {
       ]);
       const decision = call({ pendingIntents });
       expect(decision.personaId).toBe('p2');
-      expect(decision.source).toBe('queue');
+      expect(decision.reason).toBe('queue');
     });
   });
 
@@ -131,7 +131,7 @@ describe('decideNextSpeaker', () => {
           { personaId: 'p3', score: 2, mode: 'opinion' },
         ],
       });
-      expect(decision).toEqual({ personaId: 'p2', source: 'score' });
+      expect(decision).toEqual({ personaId: 'p2', reason: 'score' });
     });
 
     it('同点時は沈黙ターン数の長い方を優先する', () => {
@@ -150,7 +150,7 @@ describe('decideNextSpeaker', () => {
         assessments: [{ personaId: 'p2', score: 1, mode: 'none' }],
       });
       expect(decision.personaId).toBe('p2');
-      expect(decision.source).toBe('score');
+      expect(decision.reason).toBe('score');
     });
 
     it('直前話者は連続して選択しない（他に候補がいる場合）', () => {

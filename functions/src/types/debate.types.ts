@@ -1,14 +1,19 @@
-import type { Persona } from './persona.types.js';
 import type { Chapter } from './chapter.types.js';
-export type { Chapter };
+import type { BeliefCache } from './persona.types.js';
+export type { Chapter, BeliefCache };
 
 export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
-export type SpeakerSource = 'nomination' | 'direct_target' | 'queue' | 'score';
-
 export type BeliefChangeEvent = {
 	type: BeliefChangeType;
 	summary: string;
 	updatedBelief: string;
+};
+
+export type OrchestratorOptions = {
+	turnsPerChapter: number;
+	maxTurns: number;
+	interventionCooldown: number;
+	singleChapterMode?: boolean;
 };
 
 export type DebateSession = {
@@ -20,6 +25,19 @@ export type DebateSession = {
 	publishedAt?: string | null;
 	chapters?: Chapter[];
 	currentChapterIndex?: number;
+};
+
+export type DebateState = {
+	history: DebateTurn[];
+	currentBeliefs: Map<string, BeliefCache>;
+	silenceMap: Map<string, number>;
+	speakCount: Map<string, number>;
+	targetPersona?: { personaId: string; targetedBy: 'facilitator' | 'persona' };
+	lastSpeakerId?: string;
+	pendingIntents: Map<string, PendingIntent[]>;
+	pairConversationTurns: number;
+	currentTurnIndex: number;
+	lastFacilitatorTurnIndex: number;
 };
 
 export type FacilitatorReply = {
@@ -43,36 +61,15 @@ export type Engagement = {
 	intentSummary?: string;
 };
 
-export type SpeakerDecision = {
+export type SpeakerSelection = {
 	personaId: string;
-	source: SpeakerSource;
+	reason: 'targeted_by_facilitator' | 'targeted_by_persona' | 'queue' | 'score';
 	intentSummary?: string;
 };
 
 export type PendingIntent = {
 	triggerTurnIndex: number;
 	intentSummary: string;
-};
-
-export type DebateState = {
-	history: DebateTurn[];
-	currentBeliefs: Map<string, { content: string; version: number }>;
-	silenceMap: Map<string, number>;
-	speakCount: Map<string, number>;
-	pendingTarget?: { personaId: string; byFacilitator: boolean };
-	lastSpeakerId?: string;
-	pendingIntents: Map<string, PendingIntent[]>;
-	consecutiveDirectExchanges: number;
-	engagementSignals: Array<0 | 1>;
-	currentTurnIndex: number;
-	lastFacilitatorTurnIndex: number;
-};
-
-export type RestoreInput = {
-	turns: ReadonlyArray<DebateTurn>;
-	personas: ReadonlyArray<Persona>;
-	persistedPendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>;
-	currentBeliefs: Map<string, { content: string; version: number }>;
 };
 
 export type TurnGenerationContext = {
@@ -82,14 +79,7 @@ export type TurnGenerationContext = {
 	score?: number;
 	intentSummary?: string;
 	pendingTrigger?: { speakerName: string; content: string };
-	nominatedByFacilitator: boolean;
-};
-
-export type OrchestratorOptions = {
-	turnsPerChapter: number;
-	maxTurns: number;
-	interventionCooldown: number;
-	singleChapterMode?: boolean;
+	targetedBy?: 'facilitator' | 'persona';
 };
 
 export type DebateTurn = {

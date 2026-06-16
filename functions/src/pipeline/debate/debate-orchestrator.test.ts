@@ -265,7 +265,7 @@ describe('DebateOrchestratorService', () => {
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       expect(generateTurnCalls.length).toBeGreaterThanOrEqual(1);
       expect((generateTurnCalls[0][0] as { id: string }).id).toBe('p2');
-      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true });
+      expect(generateTurnCalls[0][3]).toMatchObject({ targetedBy: 'facilitator' });
     });
   });
 
@@ -311,7 +311,7 @@ describe('DebateOrchestratorService', () => {
 
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       expect((generateTurnCalls[0][0] as { id: string }).id).toBe('p2');
-      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true });
+      expect(generateTurnCalls[0][3]).toMatchObject({ targetedBy: 'facilitator' });
     });
 
     it('targetPersonaId あり: 指名されたペルソナが次の発言者になる', async () => {
@@ -423,7 +423,7 @@ describe('DebateOrchestratorService', () => {
       expect(interventionTurns[0][0].targetPersonaId).toBe('p2');
 
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
-      const nominated = generateTurnCalls.find(c => (c[3] as { nominatedByFacilitator: boolean }).nominatedByFacilitator && (c[0] as { id: string }).id === 'p2');
+      const nominated = generateTurnCalls.find(c => (c[3] as { targetedBy?: string }).targetedBy === 'facilitator' && (c[0] as { id: string }).id === 'p2');
       expect(nominated).toBeDefined();
     });
 
@@ -442,7 +442,7 @@ describe('DebateOrchestratorService', () => {
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       const nominatedAfterIntervention = generateTurnCalls
         .slice(1) // 先頭はオープニング指名
-        .filter(c => (c[3] as { nominatedByFacilitator: boolean }).nominatedByFacilitator);
+        .filter(c => (c[3] as { targetedBy?: string }).targetedBy === 'facilitator');
       expect(nominatedAfterIntervention).toHaveLength(0);
     });
 
@@ -611,7 +611,7 @@ describe('DebateOrchestratorService', () => {
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       expect(generateTurnCalls.length).toBeGreaterThanOrEqual(1);
       expect((generateTurnCalls[0][0] as { id: string }).id).toBe('p1');
-      expect(generateTurnCalls[0][3]).toMatchObject({ nominatedByFacilitator: true });
+      expect(generateTurnCalls[0][3]).toMatchObject({ targetedBy: 'facilitator' });
     });
   });
 
