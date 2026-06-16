@@ -9,6 +9,12 @@ import type { PersonaReply, BeliefChangeEvent, BeliefChangeType, PostDebateComme
 import type { Result, PipelineError } from '../types/common.types.js';
 import type { TurnGenerationContext } from '../types/debate.types.js';
 
+const latestBeliefContent = (persona: Persona): string => {
+	const beliefs = persona.beliefs ?? [];
+	if (beliefs.length === 0) return '';
+	return beliefs.reduce((best, b) => b.version > best.version ? b : best).content;
+};
+
 type ExperienceLevel = 'young' | 'mid' | 'veteran';
 type AuthorityLevel = 'general' | 'mid' | 'high';
 
@@ -295,25 +301,25 @@ const POST_DEBATE_COMMENT_TOOLS = {
 
 export async function generateTurn(
 		persona: Persona,
-		currentBelief: string,
-		interviewRecord: string,
-		context: TurnGenerationContext
+		context: TurnGenerationContext,
+		engagement: Engagement
 	): Promise<Result<PersonaReply, PipelineError>> {
 		try {
-			const { chapter, pendingTrigger, intentSummary, targetedBy } = context;
+			const { chapter, pendingTrigger, targetedBy } = context;
 			const recentHistory = context.chapterHistory.slice(-20);
+			const currentBelief = latestBeliefContent(persona);
 			const styleGuide = buildSpeechStyleGuide(persona);
 			const chapterContext = `\n\n【この章のフォーカス】「${chapter.title}」: ${chapter.focusQuestion}`;
 			const pendingNote = pendingTrigger
 				? `\n\n【持ち越しの言いたいこと】少し前に${pendingTrigger.speakerName}が「${pendingTrigger.content.slice(0, 80)}」と言ったのを聞いて、あなたはこれに何か言いたいと思っていました。会話の流れに沿って、適切であればこの話題に触れてください。`
 				: '';
-			const intentNote = intentSummary ? `\n\n【今回伝えたいこと】${intentSummary}` : '';
+			const intentNote = engagement.intentSummary ? `\n\n【今回伝えたいこと】${engagement.intentSummary}` : '';
 			const facilitatorTargetNote = targetedBy === 'facilitator'
 				? '\n\n【指名】ファシリテーターが直接あなたに話を向けました。この問いかけに対して、自分の立場・生活・仕事の経験から具体的に答えてください。'
 				: '';
 
-			const isFact = context.mode === 'fact';
-			const system = buildPersonaSystemPrompt(persona, interviewRecord, currentBelief);
+			const isFact = engagement.mode === 'fact';
+			const system = buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', currentBelief);
 			const llmType = persona.llmType ?? 'claude';
 
 			const lastSpeakerName = recentHistory[recentHistory.length - 1]?.speakerName;
@@ -321,7 +327,7 @@ export async function generateTurn(
 				? `\n\n直前の発言は${lastSpeakerName}によるものです。${lastSpeakerName}に反応する場合は冒頭で名前を呼ばず、それより前の別の人の発言を取り上げるときだけ「さっき○○さんが言っていた〜」と名前を添えること。`
 				: '';
 
-			const lengthGuide = speechLengthGuide(context.score);
+			const lengthGuide = speechLengthGuide(engagement.score);
 			const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
 			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ targetPersonaId を指定。`;
 			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。直接質問する場合のみ targetPersonaId を指定。`;
@@ -405,8 +411,6 @@ export async function generateTurn(
 
 export async function assessEngagement(
 	persona: Persona,
-	currentBelief: string,
-	interviewRecord: string,
 	history: DebateTurn[]
 ): Promise<Result<Engagement, PipelineError>> {
 		try {
@@ -419,7 +423,7 @@ export async function assessEngagement(
 			const result = await generateText({
 				model: getPersonaModel(persona.llmType ?? 'claude'),
 				maxTokens: MAX_TOKENS.PERSONA_ENGAGEMENT,
-				system: buildPersonaSystemPrompt(persona, interviewRecord, currentBelief),
+				system: buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', latestBeliefContent(persona)),
 				tools: ASSESS_ENGAGEMENT_TOOLS,
 				toolChoice: { type: 'tool', toolName: 'assess_engagement' },
 				providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },

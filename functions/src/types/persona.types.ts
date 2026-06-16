@@ -17,6 +17,7 @@ export type Persona = {
 	approved: boolean;
 	sortOrder: number;
 	beliefs?: Belief[];
+	interviewRecord?: string;
 };
 
 export type Belief = {
@@ -29,4 +30,3 @@ export type Belief = {
 	triggeredByTurnId?: string | null;
 };
 
-export type BeliefCache = { content: string; version: number };

@@ -1,4 +1,4 @@
-import type { DebateTurn, PendingIntent, DebateState, BeliefCache } from '../../types/debate.types.js';
+import type { DebateTurn, PendingIntent, DebateState } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 
@@ -6,8 +6,7 @@ import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 export const restoreDebateState = (
 	inputTurns: ReadonlyArray<DebateTurn>,
 	personas: ReadonlyArray<Persona>,
-	persistedPendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>,
-	currentBeliefs: Map<string, BeliefCache>
+	persistedPendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>
 ): DebateState => {
 	const turns = [...inputTurns].sort((a, b) => a.turnIndex - b.turnIndex);
 
@@ -67,7 +66,6 @@ export const restoreDebateState = (
 
 	return {
 		history: turns,
-		currentBeliefs: new Map(currentBeliefs),
 		silenceMap,
 		speakCount,
 		targetPersona,

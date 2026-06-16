@@ -1,6 +1,5 @@
 import type { Chapter } from './chapter.types.js';
-import type { BeliefCache } from './persona.types.js';
-export type { Chapter, BeliefCache };
+export type { Chapter };
 
 export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
 export type BeliefChangeEvent = {
@@ -29,7 +28,6 @@ export type DebateSession = {
 
 export type DebateState = {
 	history: DebateTurn[];
-	currentBeliefs: Map<string, BeliefCache>;
 	silenceMap: Map<string, number>;
 	speakCount: Map<string, number>;
 	targetPersona?: { personaId: string; targetedBy: 'facilitator' | 'persona' };
@@ -75,9 +73,6 @@ export type PendingIntent = {
 export type TurnGenerationContext = {
 	chapterHistory: ReadonlyArray<DebateTurn>;
 	chapter: Chapter;
-	mode?: 'opinion' | 'fact' | 'none';
-	score?: number;
-	intentSummary?: string;
 	pendingTrigger?: { speakerName: string; content: string };
 	targetedBy?: 'facilitator' | 'persona';
 };

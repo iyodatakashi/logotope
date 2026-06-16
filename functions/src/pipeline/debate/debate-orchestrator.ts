@@ -21,11 +21,17 @@ import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 import type { SpeakerSelection, PendingIntent } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { PipelineError } from '../../types/common.types.js';
-import type { Engagement, DebateState, BeliefCache } from '../../types/debate.types.js';
+import type { Engagement, DebateState } from '../../types/debate.types.js';
 import type { DebateTurn } from '../../types/debate.types.js';
-import type { Persona, Belief } from '../../types/persona.types.js';
+import type { Persona } from '../../types/persona.types.js';
 import { DEFAULT_OPTIONS } from '../../constants/debate-orchestrator.constants.js';
 import type { DebateOptions } from '../../types/debate.types.js';
+
+const latestBelief = (persona: Persona): { content: string; version: number } => {
+	const beliefs = persona.beliefs ?? [];
+	if (beliefs.length === 0) return { content: '', version: 0 };
+	return beliefs.reduce((best, b) => b.version > best.version ? b : best);
+};
 
 // ---- Firestore helpers ----
 
@@ -207,25 +213,6 @@ const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[
 	}));
 };
 
-const getPersonaBeliefsByPersonaId = async (
-	topicId: string,
-	personaId: string
-): Promise<Belief[]> => {
-	const snap = await personaDocRef(topicId, personaId).get();
-	if (!snap.exists) return [];
-	const data = snap.data() as { beliefs?: Belief[] };
-	return data.beliefs ?? [];
-};
-
-const getPersonaInterviewByPersonaId = async (
-	topicId: string,
-	personaId: string
-): Promise<{ interviewRecord: string } | null> => {
-	const snap = await personaDocRef(topicId, personaId).get();
-	if (!snap.exists) return null;
-	const data = snap.data() as { interview?: { interviewRecord: string } };
-	return data.interview ?? null;
-};
 
 // ---- Orchestrator ----
 
@@ -266,12 +253,12 @@ export class DebateOrchestratorService {
 			return chapterIndex < (session.chapters?.length ?? 0) - 1;
 		}
 
-		const { personas, interviewRecords, currentBeliefs, topicTitle } =
+		const { personas, topicTitle } =
 			await this.loadSessionContext(topicId);
 
 		const existingTurns = await getDebateTurnsBySessionId(topicId);
 		const persistedPendingIntents = await loadPendingIntents(sessionId);
-		const state = restoreDebateState(existingTurns, personas, persistedPendingIntents, currentBeliefs);
+		const state = restoreDebateState(existingTurns, personas, persistedPendingIntents);
 
 		const chapters: Chapter[] = (session.chapters ?? []).map((c) => ({
 			id: c.id,
@@ -307,7 +294,6 @@ export class DebateOrchestratorService {
 			sessionId,
 			topicId,
 			personas,
-			interviewRecords,
 			chapters[chapterIndex],
 			state
 		);
@@ -318,7 +304,6 @@ export class DebateOrchestratorService {
 			sessionId,
 			topicId,
 			personas,
-			interviewRecords,
 			chapters[chapterIndex],
 			state
 		);
@@ -344,19 +329,7 @@ export class DebateOrchestratorService {
 
 		const personas = (await getPersonasByTopicId(topicId)).filter((p) => p.approved);
 
-		const currentBeliefs = new Map<string, BeliefCache>();
-		const interviewRecords = new Map<string, string>();
-
-		for (const p of personas) {
-			const beliefs = await getPersonaBeliefsByPersonaId(topicId, p.id);
-			const latest = beliefs.reduce((best, b) => (b.version > best.version ? b : best), beliefs[0]);
-			currentBeliefs.set(p.id, { content: latest?.content ?? '', version: latest?.version ?? 0 });
-
-			const interview = await getPersonaInterviewByPersonaId(topicId, p.id);
-			interviewRecords.set(p.id, interview?.interviewRecord ?? '');
-		}
-
-		return { topicTitle: topic.title, personas, currentBeliefs, interviewRecords };
+		return { topicTitle: topic.title, personas };
 	}
 
 	/**
@@ -367,7 +340,6 @@ export class DebateOrchestratorService {
 	private async evaluateEngagement(
 		sessionId: string,
 		personas: Persona[],
-		interviewRecords: Map<string, string>,
 		state: DebateState
 	): Promise<Engagement[]> {
 		// キュー失効（トリガーから INTENT_EXPIRY_TURNS 超過）を毎ターン適用し write-through
@@ -388,12 +360,7 @@ export class DebateOrchestratorService {
 		const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
 		const assessments = await Promise.all(
 			assessTargets.map(async (p): Promise<Engagement> => {
-				const result = await assessEngagement(
-					p,
-					state.currentBeliefs.get(p.id)?.content ?? '',
-					interviewRecords.get(p.id) ?? '',
-					state.history
-				);
+				const result = await assessEngagement(p, state.history);
 				return result.ok ? result.value : { personaId: p.id, score: 1, mode: 'none' };
 			})
 		);
@@ -421,7 +388,6 @@ export class DebateOrchestratorService {
 		sessionId: string,
 		topicId: string,
 		personas: Persona[],
-		interviewRecords: Map<string, string>,
 		chapter: Chapter,
 		state: DebateState
 	): Promise<'cancelled' | 'ended'> {
@@ -449,7 +415,6 @@ export class DebateOrchestratorService {
 			const assessments = await this.evaluateEngagement(
 				sessionId,
 				personas,
-				interviewRecords,
 				state
 			);
 			engagementSignals.push(toEngagementSignal(assessments));
@@ -539,7 +504,6 @@ export class DebateOrchestratorService {
 			const speech = await this.resolveSpeechParams(
 				decision.personaId,
 				personas,
-				interviewRecords,
 				state,
 				assessments
 			);
@@ -549,7 +513,6 @@ export class DebateOrchestratorService {
 				sessionId,
 				topicId,
 				personas,
-				interviewRecords,
 				chapter,
 				state,
 				decision,
@@ -620,7 +583,6 @@ export class DebateOrchestratorService {
 	private async resolveSpeechParams(
 		speakerId: string,
 		personas: Persona[],
-		interviewRecords: Map<string, string>,
 		state: DebateState,
 		assessments?: ReadonlyArray<Engagement>
 	): Promise<Engagement> {
@@ -630,12 +592,7 @@ export class DebateOrchestratorService {
 		}
 		const persona = personas.find((p) => p.id === speakerId);
 		if (!persona) return { personaId: speakerId, mode: 'opinion', score: 2 };
-		const result = await assessEngagement(
-			persona,
-			state.currentBeliefs.get(speakerId)?.content ?? '',
-			interviewRecords.get(speakerId) ?? '',
-			state.history
-		);
+		const result = await assessEngagement(persona, state.history);
 		if (!result.ok) return { personaId: speakerId, mode: 'opinion', score: 2 };
 		return result.value;
 	}
@@ -645,15 +602,13 @@ export class DebateOrchestratorService {
 		sessionId: string,
 		topicId: string,
 		personas: Persona[],
-		interviewRecords: Map<string, string>,
 		chapter: Chapter,
 		state: DebateState,
 		decision: SpeakerSelection,
 		speech: Engagement
 	): Promise<boolean> {
 		const persona = personas.find((p) => p.id === decision.personaId)!;
-		const belief = state.currentBeliefs.get(persona.id) ?? { content: '', version: 0 };
-		const interviewRecord = interviewRecords.get(persona.id) ?? '';
+		const belief = latestBelief(persona);
 		const fromQueue = decision.reason === 'queue';
 
 		const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
@@ -670,17 +625,13 @@ export class DebateOrchestratorService {
 
 		const turnResult = await generateTurn(
 			persona,
-			belief.content,
-			interviewRecord,
 			{
 				chapterHistory,
 				chapter,
-				mode: speech.mode,
-				score: speech.score,
-				intentSummary: decision.intentSummary ?? speech.intentSummary,
 				pendingTrigger,
 				targetedBy: (decision.reason === 'targeted_by_facilitator' || decision.reason === 'targeted_by_persona') ? (decision.reason === 'targeted_by_facilitator' ? 'facilitator' : 'persona') : undefined
-			}
+			},
+			{ ...speech, intentSummary: decision.intentSummary ?? speech.intentSummary }
 		);
 		if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
@@ -773,7 +724,6 @@ export class DebateOrchestratorService {
 		sessionId: string,
 		topicId: string,
 		personas: Persona[],
-		interviewRecords: Map<string, string>,
 		chapter: Chapter,
 		state: DebateState
 	): Promise<void> {
@@ -788,11 +738,10 @@ export class DebateOrchestratorService {
 		);
 		if (!decision) return;
 
-		const assessments = await this.evaluateEngagement(sessionId, personas, interviewRecords, state);
+		const assessments = await this.evaluateEngagement(sessionId, personas, state);
 		const speech = await this.resolveSpeechParams(
 			decision.personaId,
 			personas,
-			interviewRecords,
 			state,
 			assessments
 		);
@@ -800,7 +749,6 @@ export class DebateOrchestratorService {
 			sessionId,
 			topicId,
 			personas,
-			interviewRecords,
 			chapter,
 			state,
 			decision,
