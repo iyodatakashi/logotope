@@ -15,7 +15,7 @@ vi.mock('../llm/models.js', () => ({
 }));
 
 import { PersonaAgentService, buildSpeechStyleGuide } from './persona-agent.js';
-import type { TurnGenerationContext } from './persona-agent.js';
+import type { TurnGenerationContext } from '../types/persona-agent.types.js';
 import type { PersonaAttributes, DebateChapter } from '../types/index.js';
 import type { SearchService } from '../search/search-service.js';
 

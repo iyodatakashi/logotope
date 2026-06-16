@@ -1,162 +1,24 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
-import type { LLMType, PhaseStatus } from '../types/index.js';
+import type { PhaseStatus } from '../types/index.js';
+import type {
+  DebateTopic,
+  PersonaProfile,
+  PersonaBelief,
+  DebateSession,
+  EngagementHistoryEntry,
+  PendingIntentEntry,
+  SaveEngagementsParams,
+  DebateTurn,
+  PersonaInterview,
+  CreatePersonaProfileParams,
+  CreatePersonaBeliefParams,
+  CreateDebateTurnParams,
+  CreatePostDebateCommentParams,
+  StakeholderMap
+} from '../types/repository.types.js';
 
 const db = () => getFirestore();
-
-// ---- Types ----
-
-export interface DebateTopic {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PersonaProfile {
-  id: string;
-  topicId: string;
-  stakeholderRole: string;
-  specificRole?: string;
-  name: string;
-  nationality?: string;
-  age: number;
-  occupation: string;
-  background: string;
-  interests: string;
-  llmType?: LLMType;
-  approved: boolean;
-  sortOrder: number;
-}
-
-export interface PersonaBelief {
-  id: string;
-  personaId: string;
-  version: number;
-  content: string;
-  changeType?: string | null;
-  changeSummary?: string | null;
-  triggeredByTurnId?: string | null;
-  createdAt: string;
-}
-
-export interface DebateSession {
-  id: string;
-  topicId: string;
-  totalTurns?: number | null;
-  createdAt: string;
-  completedAt?: string | null;
-  publishedAt?: string | null;
-  chapters?: Array<{ index: number; title: string; focusQuestion: string }>;
-  currentChapterIndex?: number;
-}
-
-export interface EngagementEntry {
-  personaId: string;
-  score: number;
-  mode: 'opinion' | 'fact' | 'none';
-}
-
-export interface EngagementHistoryEntry {
-  score: number;
-  mode: 'opinion' | 'fact' | 'none';
-  intentSummary?: string;
-}
-
-export interface PendingIntentEntry {
-  triggerTurnIndex: number;
-  intentSummary: string;
-}
-
-export interface EngagementDoc {
-  history: Record<string, EngagementHistoryEntry>;
-  pendingIntents: PendingIntentEntry[];
-}
-
-export interface SaveEngagementsParams {
-  sessionId: string;
-  turnIndex: number;
-  assessments: Array<{
-    personaId: string;
-    score: number;
-    mode: 'opinion' | 'fact' | 'none';
-    intentSummary?: string;
-  }>;
-}
-
-export interface DebateTurn {
-  id: string;
-  sessionId: string;
-  turnIndex: number;
-  speakerType: string;
-  personaId?: string | null;
-  speakerName?: string;
-  speakerRole?: string;
-  content: string;
-  createdAt: string;
-  speechMode?: 'opinion' | 'fact';
-  engagementScore?: number;
-  fromQueue?: boolean;
-  addressedPersonaId?: string;
-  engagements?: EngagementEntry[];
-  searchUsed?: boolean;
-  searchQueries?: string[];
-}
-
-export interface PersonaInterview {
-  id: string;
-  personaId: string;
-  interviewRecord: string;
-  status: string;
-  errorMessage?: string | null;
-  completedAt?: string | null;
-}
-
-export interface CreatePersonaProfileParams {
-  topicId: string;
-  stakeholderRole: string;
-  name: string;
-  nationality?: string;
-  age: number;
-  occupation: string;
-  background: string;
-  interests: string;
-  llmType: LLMType;
-  sortOrder: number;
-}
-
-export interface CreatePersonaBeliefParams {
-  topicId: string;
-  personaId: string;
-  version: number;
-  content: string;
-  changeType?: string;
-  changeSummary?: string;
-  triggeredByTurnId?: string;
-}
-
-export interface CreateDebateTurnParams {
-  sessionId: string;
-  turnIndex: number;
-  speakerType: string;
-  personaId?: string;
-  speakerName?: string;
-  speakerRole?: string;
-  content: string;
-  speechMode?: 'opinion' | 'fact';
-  engagementScore?: number;
-  fromQueue?: boolean;
-  addressedPersonaId?: string;
-  searchUsed?: boolean;
-  searchQueries?: string[];
-}
-
-export interface CreatePostDebateCommentParams {
-  sessionId: string;
-  personaId: string;
-  content: string;
-  sortOrder: number;
-}
 
 // ---- Internal helpers ----
 
@@ -463,12 +325,6 @@ export const loadPendingIntents = async (sessionId: string): Promise<Map<string,
   }
   return result;
 };
-
-export interface StakeholderMap {
-  id: string;
-  topicId: string;
-  content: string;
-}
 
 export const getStakeholderMapByTopicId = async (topicId: string): Promise<StakeholderMap | null> => {
   const snap = await db().doc(`topics/${topicId}`).get();

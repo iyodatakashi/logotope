@@ -1,11 +1,6 @@
 import { tavily } from '@tavily/core';
-import { SEARCH_CONFIG } from '../config/ai.js';
-
-export interface SearchResult {
-	ok: boolean;
-	content?: string;
-	error?: string;
-}
+import { SEARCH_CONFIG } from '../constants/ai.constants.js';
+import type { SearchResult } from '../types/search.types.js';
 
 export class SearchService {
 	private readonly apiKey: string | undefined;
@@ -23,12 +18,10 @@ export class SearchService {
 			const client = tavily({ apiKey: this.apiKey });
 			const response = await client.search(query, {
 				maxResults: SEARCH_CONFIG.MAX_RESULTS,
-				searchDepth: 'basic',
+				searchDepth: 'basic'
 			});
 
-			const content = response.results
-				.map((r) => `【${r.title}】\n${r.content}`)
-				.join('\n\n');
+			const content = response.results.map((r) => `【${r.title}】\n${r.content}`).join('\n\n');
 
 			console.log('[search] query succeeded:', query, `(${response.results.length} results)`);
 			return { ok: true, content: content || '（検索結果なし）' };

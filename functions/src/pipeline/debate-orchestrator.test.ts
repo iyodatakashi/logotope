@@ -29,7 +29,8 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import * as repo from '../db/repository.js';
-import { DebateOrchestratorService, DEFAULT_OPTIONS } from './debate-orchestrator.js';
+import { DebateOrchestratorService } from './debate-orchestrator.js';
+import { DEFAULT_OPTIONS } from '../constants/debate-orchestrator.constants.js';
 import type { FacilitatorAgentService } from '../agents/facilitator-agent.js';
 import type { PersonaAgentService } from '../agents/persona-agent.js';
 

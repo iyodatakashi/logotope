@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { restoreDebateState } from './state-restore.js';
-import type { DebateTurn } from '../../db/repository.js';
+import type { DebateTurn } from '../../types/repository.types.js';
 import type { PersonaAttributes, PendingIntent } from '../../types/index.js';
 
 const personas: PersonaAttributes[] = [

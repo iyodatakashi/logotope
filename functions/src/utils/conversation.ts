@@ -1,4 +1,4 @@
-import type { DebateTurn } from '../db/repository.js';
+import type { DebateTurn } from '../types/repository.types.js';
 
 export function formatHistory(history: DebateTurn[]): string {
   return history

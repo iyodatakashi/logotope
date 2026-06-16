@@ -2,7 +2,8 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { getFunctions } from 'firebase-admin/functions';
 import * as repo from '../db/repository.js';
-import { DebateOrchestratorService, DEFAULT_OPTIONS } from '../pipeline/debate-orchestrator.js';
+import { DebateOrchestratorService } from '../pipeline/debate-orchestrator.js';
+import { DEFAULT_OPTIONS } from '../constants/debate-orchestrator.constants.js';
 import { requireAuth } from '../utils/auth.js';
 
 const REGION = 'asia-northeast1';

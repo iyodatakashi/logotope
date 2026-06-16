@@ -17,7 +17,7 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
 import { getPersonaModel } from './models.js';
-import { PERSONA_MODELS } from '../config/ai.js';
+import { PERSONA_MODELS } from '../constants/ai.constants.js';
 
 const savedEnv: Record<string, string | undefined> = {};
 

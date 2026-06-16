@@ -6,8 +6,8 @@ import {
   isHighEngagement,
   hasHighEngagement,
 } from './speaker-selection.js';
-import { HIGH_ENGAGEMENT_SCORE } from './constants.js';
-import type { SpeakerSelectionInput } from './speaker-selection.js';
+import { HIGH_ENGAGEMENT_SCORE } from '../../constants/flow.constants.js';
+import type { SpeakerSelectionInput } from '../../types/flow.types.js';
 import type { PendingIntent } from '../../types/index.js';
 
 const personaIds = ['p1', 'p2', 'p3'];

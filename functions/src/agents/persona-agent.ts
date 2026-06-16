@@ -1,20 +1,20 @@
 import { generateText, jsonSchema } from 'ai';
 import { getPersonaModel } from '../llm/models.js';
-import { MAX_TOKENS } from '../config/ai.js';
+import { MAX_TOKENS } from '../constants/ai.constants.js';
 import { SearchService } from '../search/search-service.js';
 import { formatHistory } from '../utils/conversation.js';
-import type { DebateTurn } from '../db/repository.js';
+import type { DebateTurn } from '../types/repository.types.js';
 import type {
 	PersonaAttributes,
 	AgentTurnResult,
 	BeliefChangeEvent,
 	BeliefChangeType,
 	PostDebateCommentResult,
-	DebateChapter,
 	EngagementAssessment,
 	Result,
 	PipelineError
 } from '../types/index.js';
+import type { TurnGenerationContext } from '../types/persona-agent.types.js';
 
 type ExperienceLevel = 'young' | 'mid' | 'veteran';
 type AuthorityLevel = 'general' | 'mid' | 'high';
@@ -216,16 +216,17 @@ function buildFullTurnTools(
 
 	if (searchService.isAvailable()) {
 		tools['web_search'] = {
-			description: '数値・統計・最新情報など正確性が必要な情報を検索する。1〜2回以内で使用すること。',
+			description:
+				'数値・統計・最新情報など正確性が必要な情報を検索する。1〜2回以内で使用すること。',
 			parameters: jsonSchema({
 				type: 'object' as const,
 				properties: { query: { type: 'string' as const, description: '検索クエリ（日本語可）' } },
-				required: ['query'],
+				required: ['query']
 			}),
 			execute: async (args: { [key: string]: unknown }) => {
 				const result = await searchService.executeSearch(args['query'] as string);
 				return result.ok ? result.content! : '検索結果を取得できませんでした。';
-			},
+			}
 		};
 	}
 
@@ -299,16 +300,6 @@ const POST_DEBATE_COMMENT_TOOLS = {
 		})
 	}
 } as const;
-
-export interface TurnGenerationContext {
-	chapterHistory: ReadonlyArray<DebateTurn>;
-	chapter: DebateChapter;
-	mode?: 'opinion' | 'fact';
-	score?: number;
-	intentSummary?: string;
-	pendingTrigger?: { speakerName: string; content: string };
-	nominatedByFacilitator: boolean;
-}
 
 export class PersonaAgentService {
 	private readonly searchService: SearchService;
@@ -417,8 +408,8 @@ export class PersonaAgentService {
 					addressedToPersonaId,
 					...(searchQueries.length > 0 && {
 						searchUsed: true,
-						searchQueries,
-					}),
+						searchQueries
+					})
 				}
 			};
 		} catch (err) {
