@@ -1,4 +1,10 @@
-import type { DebateTurn } from '../types/repository.types.js';
+import type { DebateTurn, PersonaProfile } from '../types/repository.types.js';
+
+export function formatPersonas(personas: PersonaProfile[]): string {
+  return personas
+    .map((p) => `- ID: ${p.id}, 名前: ${p.name}, 立場: ${p.specificRole || p.stakeholderRole}`)
+    .join('\n');
+}
 
 export function formatHistory(history: DebateTurn[]): string {
   return history
