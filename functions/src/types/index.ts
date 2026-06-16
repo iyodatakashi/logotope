@@ -15,19 +15,6 @@ export interface Stakeholder {
   engagementLevel?: EngagementLevel;
 }
 
-export interface PersonaAttributes {
-  id: string;
-  stakeholderRole: string;
-  specificRole: string;
-  name: string;
-  nationality?: string;
-  age: number;
-  occupation: string;
-  background: string;
-  interests: string;
-  engagementLevel?: EngagementLevel;
-  llmType?: LLMType;
-}
 
 export interface BeliefChangeEvent {
   type: BeliefChangeType;

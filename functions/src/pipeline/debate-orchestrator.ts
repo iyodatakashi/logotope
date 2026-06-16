@@ -17,7 +17,6 @@ import { shouldEvaluateIntervention } from './flow/intervention-policy.js';
 import { restoreDebateState } from './flow/state-restore.js';
 import { INTENT_EXPIRY_TURNS } from '../constants/flow.constants.js';
 import type {
-	PersonaAttributes,
 	PipelineError,
 	DebateChapter,
 	SpeakerDecision
@@ -27,33 +26,20 @@ import type { PersonaProfile } from '../types/repository.types.js';
 import { DEFAULT_OPTIONS } from '../constants/debate-orchestrator.constants.js';
 import type { OrchestratorOptions } from '../types/debate-orchestrator.types.js';
 
-function pipelineErrorMessage(e: PipelineError): string {
+const pipelineErrorMessage = (e: PipelineError): string => {
 	if ('message' in e) return e.message;
 	if ('resource' in e) return `${e.code}: ${e.resource}`;
 	return `${e.code}: expected=${e.expected} current=${e.current}`;
-}
+};
 
 /** ID が参加ペルソナに存在する場合のみ返す（LLM 由来の不正 ID を無視する） */
-function validPersonaId(
+const validPersonaId = (
 	personaId: string | undefined,
-	personas: ReadonlyArray<PersonaAttributes>
-): string | undefined {
+	personas: ReadonlyArray<PersonaProfile>
+): string | undefined => {
 	return personaId && personas.some((p) => p.id === personaId) ? personaId : undefined;
-}
+};
 
-function toPersonaAttributes(p: PersonaProfile): PersonaAttributes {
-	return {
-		id: p.id,
-		stakeholderRole: p.stakeholderRole,
-		specificRole: p.specificRole ?? p.stakeholderRole,
-		name: p.name,
-		age: p.age,
-		occupation: p.occupation,
-		background: p.background,
-		interests: p.interests,
-		llmType: p.llmType ?? 'claude'
-	};
-}
 
 export class DebateOrchestratorService {
 	constructor(
@@ -140,7 +126,6 @@ export class DebateOrchestratorService {
 			personas,
 			interviewRecords,
 			chapters[chapterIndex],
-			chapterIndex,
 			state
 		);
 		if (outcome === 'cancelled') return false;
@@ -152,13 +137,12 @@ export class DebateOrchestratorService {
 			personas,
 			interviewRecords,
 			chapters[chapterIndex],
-			chapterIndex,
 			state
 		);
 
 		const isLastChapter = this.options.singleChapterMode || chapterIndex >= chapters.length - 1;
 		if (isLastChapter) {
-			await this.finalizeDebate(sessionId, topicId, personas, state, chapterIndex);
+			await this.finalizeDebate(sessionId, topicId, personas, state);
 			return false;
 		}
 		await this.generateChapterTransition(
@@ -176,8 +160,7 @@ export class DebateOrchestratorService {
 		const topic = await repo.getTopicById(topicId);
 		if (!topic) throw new Error(`Topic not found: ${topicId}`);
 
-		const profiles = (await repo.getPersonasByTopicId(topicId)).filter((p) => p.approved);
-		const personas = profiles.map(toPersonaAttributes);
+		const personas = (await repo.getPersonasByTopicId(topicId)).filter((p) => p.approved);
 
 		const currentBeliefs = new Map<string, { content: string; version: number }>();
 		const interviewRecords = new Map<string, string>();
@@ -201,7 +184,7 @@ export class DebateOrchestratorService {
 	 */
 	private async evaluateEngagement(
 		sessionId: string,
-		personas: PersonaAttributes[],
+		personas: PersonaProfile[],
 		interviewRecords: Map<string, string>,
 		state: DebateState
 	): Promise<SpeakerAssessment[]> {
@@ -263,10 +246,9 @@ export class DebateOrchestratorService {
 	private async runChapterLoop(
 		sessionId: string,
 		topicId: string,
-		personas: PersonaAttributes[],
+		personas: PersonaProfile[],
 		interviewRecords: Map<string, string>,
 		chapter: DebateChapter,
-		chapterIndex: number,
 		state: DebateState
 	): Promise<'cancelled' | 'ended'> {
 		const { turnsPerChapter, maxTurns } = this.options;
@@ -318,7 +300,6 @@ export class DebateOrchestratorService {
 					sessionId,
 					personas,
 					chapter,
-					chapterIndex,
 					state
 				);
 				if (driftDecision) {
@@ -329,7 +310,6 @@ export class DebateOrchestratorService {
 							sessionId,
 							personas,
 							chapter,
-							chapterIndex,
 							state,
 							assessments
 						)) ??
@@ -347,7 +327,6 @@ export class DebateOrchestratorService {
 						sessionId,
 						personas,
 						chapter,
-						chapterIndex,
 						state,
 						assessments
 					)) ??
@@ -424,9 +403,8 @@ export class DebateOrchestratorService {
 	/** B（出尽くし）介入: 高意欲者がいない場合のみ発火し、クールダウンを参照しない（BC1）。介入する場合は指名 decision を返す */
 	private async tryStallIntervention(
 		sessionId: string,
-		personas: PersonaAttributes[],
+		personas: PersonaProfile[],
 		chapter: DebateChapter,
-		chapterIndex: number,
 		state: DebateState,
 		assessments: SpeakerAssessment[]
 	): Promise<SpeakerDecision | undefined> {
@@ -448,9 +426,8 @@ export class DebateOrchestratorService {
 	/** A（論点ずれ）: 逸脱していれば介入を保存して指名 decision を返す。クールダウン通過後かつ指名なし時のみ評価する */
 	private async tryTopicDriftIntervention(
 		sessionId: string,
-		personas: PersonaAttributes[],
+		personas: PersonaProfile[],
 		chapter: DebateChapter,
-		chapterIndex: number,
 		state: DebateState
 	): Promise<SpeakerDecision | undefined> {
 		const chapterHistory = state.history.filter((t) => t.turnIndex >= chapter.startTurnIndex);
@@ -471,7 +448,7 @@ export class DebateOrchestratorService {
 	/** 選ばれた話者の発言パラメータ（mode/score・意図）を決める。evaluateEngagement の結果を優先し、評価対象外（直前話者など）のときのみ単独評価へフォールバックする */
 	private async resolveSpeechParams(
 		speakerId: string,
-		personas: PersonaAttributes[],
+		personas: PersonaProfile[],
 		interviewRecords: Map<string, string>,
 		state: DebateState,
 		assessments?: ReadonlyArray<SpeakerAssessment>
@@ -501,7 +478,7 @@ export class DebateOrchestratorService {
 	private async generatePersonaTurn(
 		sessionId: string,
 		topicId: string,
-		personas: PersonaAttributes[],
+		personas: PersonaProfile[],
 		interviewRecords: Map<string, string>,
 		chapter: DebateChapter,
 		state: DebateState,
@@ -626,10 +603,9 @@ export class DebateOrchestratorService {
 	private async generateUnansweredReply(
 		sessionId: string,
 		topicId: string,
-		personas: PersonaAttributes[],
+		personas: PersonaProfile[],
 		interviewRecords: Map<string, string>,
 		chapter: DebateChapter,
-		chapterIndex: number,
 		state: DebateState
 	): Promise<void> {
 		const pendingAddress = state.pendingAddress;
@@ -709,7 +685,7 @@ export class DebateOrchestratorService {
 		chapters: DebateChapter[],
 		currentChapterIndex: number,
 		state: DebateState,
-		personas: PersonaAttributes[]
+		personas: PersonaProfile[]
 	): Promise<void> {
 		const chapter = chapters[currentChapterIndex];
 		const nextChapter = chapters[currentChapterIndex + 1];
@@ -717,7 +693,11 @@ export class DebateOrchestratorService {
 
 		const summaryResult = await this.facilitator.generateChapterSummary(recentHistory, chapter);
 		if (summaryResult.ok) {
-			await this.saveFacilitatorTurn(sessionId, state, summaryResult.value);
+			await this.saveFacilitatorTurn(
+				sessionId,
+				state,
+				summaryResult.value
+			);
 		}
 
 		// 次章の開始 turnIndex を intro ターン保存前に記録し Firestore に永続化する（DebateViewer が章見出し挿入に使用）
@@ -725,7 +705,12 @@ export class DebateOrchestratorService {
 		const introResult = await this.facilitator.generateChapterIntroduction(nextChapter, personas);
 		if (introResult.ok) {
 			const firstPersonaId = validPersonaId(introResult.value.firstPersonaId, personas);
-			await this.saveFacilitatorTurn(sessionId, state, introResult.value.content, firstPersonaId);
+			await this.saveFacilitatorTurn(
+				sessionId,
+				state,
+				introResult.value.content,
+				firstPersonaId
+			);
 			state.pendingAddress = firstPersonaId
 				? { personaId: firstPersonaId, byFacilitator: true }
 				: undefined;
@@ -737,9 +722,8 @@ export class DebateOrchestratorService {
 	private async finalizeDebate(
 		sessionId: string,
 		topicId: string,
-		personas: PersonaAttributes[],
-		state: DebateState,
-		chapterIndex: number
+		personas: PersonaProfile[],
+		state: DebateState
 	): Promise<void> {
 		const finalBeliefs = new Map(
 			Array.from(state.currentBeliefs.entries()).map(([id, b]) => [id, b.content])

@@ -295,8 +295,6 @@ describe('FacilitatorAgentService', () => {
       if (!result.ok) return;
       expect(result.value.chapters).toHaveLength(2);
       expect(result.value.chapters[0].title).toBe('導入');
-      expect(result.value.chapters[0].index).toBe(0);
-      expect(result.value.chapters[1].index).toBe(1);
       expect(result.value.generalIssues).toEqual(['一般1', '一般2']);
       expect(result.value.personaIssues).toEqual(['固有1', '固有2', '固有3']);
       expect(mockCreate).toHaveBeenCalledTimes(3);

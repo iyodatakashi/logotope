@@ -1,5 +1,5 @@
-import type { PendingIntent, PersonaAttributes } from './index.js';
-import type { DebateTurn } from './repository.types.js';
+import type { PendingIntent } from './index.js';
+import type { DebateTurn, PersonaProfile } from './repository.types.js';
 
 export interface DirectAddressInput {
 	pendingAddress?: { personaId: string; byFacilitator: boolean };
@@ -47,7 +47,7 @@ export interface DebateState {
 
 export interface RestoreInput {
 	turns: ReadonlyArray<DebateTurn>;
-	personas: ReadonlyArray<PersonaAttributes>;
+	personas: ReadonlyArray<PersonaProfile>;
 	persistedPendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>;
 	currentBeliefs: Map<string, { content: string; version: number }>;
 }

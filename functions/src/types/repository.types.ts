@@ -11,7 +11,7 @@ export interface PersonaProfile {
   id: string;
   topicId: string;
   stakeholderRole: string;
-  specificRole?: string;
+  specificRole: string;
   name: string;
   nationality?: string;
   age: number;
@@ -41,7 +41,7 @@ export interface DebateSession {
   createdAt: string;
   completedAt?: string | null;
   publishedAt?: string | null;
-  chapters?: Array<{ index: number; title: string; focusQuestion: string }>;
+  chapters?: Array<{ title: string; focusQuestion: string }>;
   currentChapterIndex?: number;
 }
 

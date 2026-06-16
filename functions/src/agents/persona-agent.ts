@@ -3,9 +3,8 @@ import { getPersonaModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../constants/ai.constants.js';
 import { SearchService } from '../search/search-service.js';
 import { formatHistory } from '../utils/conversation.js';
-import type { DebateTurn } from '../types/repository.types.js';
+import type { DebateTurn, PersonaProfile } from '../types/repository.types.js';
 import type {
-	PersonaAttributes,
 	AgentTurnResult,
 	BeliefChangeEvent,
 	BeliefChangeType,
@@ -55,7 +54,7 @@ function currentDateString(): string {
 	return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
 
-export function buildSpeechStyleGuide(persona: PersonaAttributes & { gender?: string }): string {
+export function buildSpeechStyleGuide(persona: PersonaProfile & { gender?: string }): string {
 	const expLevel = estimateExperienceLevel(persona.age, persona.occupation);
 	const authLevel = estimateAuthorityLevel(persona.specificRole || persona.stakeholderRole);
 	const lines: string[] = [];
@@ -105,7 +104,7 @@ export function buildSpeechStyleGuide(persona: PersonaAttributes & { gender?: st
 }
 
 function buildPersonaSystemPrompt(
-	persona: PersonaAttributes & { gender?: string },
+	persona: PersonaProfile & { gender?: string },
 	interviewRecord: string,
 	currentBelief: string
 ): string {
@@ -309,7 +308,7 @@ export class PersonaAgentService {
 	}
 
 	async generateTurn(
-		persona: PersonaAttributes,
+		persona: PersonaProfile,
 		currentBelief: string,
 		interviewRecord: string,
 		context: TurnGenerationContext
@@ -419,7 +418,7 @@ export class PersonaAgentService {
 	}
 
 	async assessEngagement(
-		persona: PersonaAttributes,
+		persona: PersonaProfile,
 		currentBelief: string,
 		interviewRecord: string,
 		history: DebateTurn[]
@@ -470,7 +469,7 @@ export class PersonaAgentService {
 	}
 
 	async generatePostDebateComment(
-		persona: PersonaAttributes,
+		persona: PersonaProfile,
 		finalBelief: string,
 		history: DebateTurn[]
 	): Promise<Result<PostDebateCommentResult, PipelineError>> {

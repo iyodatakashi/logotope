@@ -2,8 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
 import { formatHistory } from '../utils/conversation.js';
 import type { DebateTurn } from '../types/repository.types.js';
+import type { PersonaProfile } from '../types/repository.types.js';
 import type {
-	PersonaAttributes,
 	FacilitatorOpeningResult,
 	FacilitatorIntervention,
 	DebateChapter,
@@ -156,7 +156,7 @@ const CLOSING_TOOL: Anthropic.Tool = {
 	}
 };
 
-function formatPersonas(personas: PersonaAttributes[]): string {
+function formatPersonas(personas: PersonaProfile[]): string {
 	return personas
 		.map((p) => `- ID: ${p.id}, 名前: ${p.name}, 立場: ${p.specificRole || p.stakeholderRole}`)
 		.join('\n');
@@ -171,7 +171,7 @@ export class FacilitatorAgentService {
 
 	async generateOpening(
 		topicTitle: string,
-		personas: PersonaAttributes[],
+		personas: PersonaProfile[],
 		firstChapter?: DebateChapter
 	): Promise<Result<FacilitatorOpeningResult, PipelineError>> {
 		try {
@@ -212,7 +212,7 @@ export class FacilitatorAgentService {
 
 	private async runInterventionCheck(
 		history: DebateTurn[],
-		personas: PersonaAttributes[],
+		personas: PersonaProfile[],
 		currentChapter: DebateChapter | undefined,
 		criteriaSection: string
 	): Promise<Result<FacilitatorIntervention, PipelineError>> {
@@ -267,7 +267,7 @@ export class FacilitatorAgentService {
 	/** A（論点ずれ）: 会話がフォーカス問いから逸脱しているときだけ介入し、論点を引き戻す。指名済みターンでも上書きしうる */
 	async evaluateTopicDrift(
 		history: DebateTurn[],
-		personas: PersonaAttributes[],
+		personas: PersonaProfile[],
 		speakCount: Map<string, number> = new Map(),
 		currentChapter?: DebateChapter
 	): Promise<Result<FacilitatorIntervention, PipelineError>> {
@@ -281,7 +281,7 @@ export class FacilitatorAgentService {
 	/** B（出尽くし）: 今の論点で議論が落ち着いたとき、まだ議論されていない新しい論点に切り替えて次の話者を振る */
 	async evaluateStallIntervention(
 		history: DebateTurn[],
-		personas: PersonaAttributes[],
+		personas: PersonaProfile[],
 		speakCount: Map<string, number> = new Map(),
 		currentChapter?: DebateChapter
 	): Promise<Result<FacilitatorIntervention, PipelineError>> {
@@ -294,7 +294,7 @@ export class FacilitatorAgentService {
 
 	async generateChapters(
 		topicTitle: string,
-		personas: PersonaAttributes[]
+		personas: PersonaProfile[]
 	): Promise<
 		Result<
 			{ chapters: DebateChapter[]; generalIssues: string[]; personaIssues: string[] },
@@ -440,7 +440,7 @@ export class FacilitatorAgentService {
 
 	async generateChapterIntroduction(
 		nextChapter: DebateChapter,
-		personas: PersonaAttributes[]
+		personas: PersonaProfile[]
 	): Promise<Result<{ content: string; firstPersonaId: string }, PipelineError>> {
 		try {
 			const response = await this.client.messages.create({

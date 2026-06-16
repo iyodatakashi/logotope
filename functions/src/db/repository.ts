@@ -341,8 +341,8 @@ export const getStakeholderMapByTopicId = async (topicId: string): Promise<Stake
 export const getPersonasByTopicId = async (topicId: string): Promise<PersonaProfile[]> => {
   const snap = await db().collection(`topics/${topicId}/personas`).orderBy('sortOrder', 'asc').get();
   return snap.docs.map((docSnap) => {
-    const data = docSnap.data() as PersonaProfile;
-    return { ...data, id: docSnap.id };
+    const data = docSnap.data() as Omit<PersonaProfile, 'specificRole'> & { specificRole?: string };
+    return { ...data, id: docSnap.id, specificRole: data.specificRole ?? data.stakeholderRole };
   });
 };
 
@@ -354,7 +354,7 @@ export const getDebateSessionByTopicId = async (topicId: string): Promise<Debate
     createdAt: Timestamp;
     completedAt?: Timestamp;
     publishedAt?: Timestamp;
-    chapters?: Array<{ index: number; title: string; focusQuestion: string }>;
+    chapters?: Array<{ title: string; focusQuestion: string }>;
     currentChapterIndex?: number;
   };
   return {
