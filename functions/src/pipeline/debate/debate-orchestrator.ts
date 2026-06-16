@@ -7,7 +7,6 @@ import { ChapterGeneratorService } from '../chapters/chapter-generator.js';
 import {
 	resolvePairConversation,
 	decideNextSpeaker,
-	speechFromAssessment,
 	isHighEngagement,
 	hasHighEngagement
 } from './speaker-selection.js';
@@ -624,26 +623,21 @@ export class DebateOrchestratorService {
 		interviewRecords: Map<string, string>,
 		state: DebateState,
 		assessments?: ReadonlyArray<Engagement>
-	): Promise<{ mode?: 'opinion' | 'fact'; score?: number; intentSummary?: string }> {
+	): Promise<Engagement> {
 		const existing = assessments?.find((a) => a.personaId === speakerId);
 		if (existing) {
-			return { ...speechFromAssessment(existing), intentSummary: existing.intentSummary };
+			return existing;
 		}
 		const persona = personas.find((p) => p.id === speakerId);
-		if (!persona) return {};
+		if (!persona) return { personaId: speakerId, mode: 'opinion', score: 2 };
 		const result = await assessEngagement(
 			persona,
 			state.currentBeliefs.get(speakerId)?.content ?? '',
 			interviewRecords.get(speakerId) ?? '',
 			state.history
 		);
-		const assessment = result.ok
-			? { mode: result.value.mode, score: result.value.score }
-			: { mode: 'opinion' as const, score: 2 };
-		return {
-			...speechFromAssessment(assessment),
-			intentSummary: result.ok ? result.value.intentSummary : undefined
-		};
+		if (!result.ok) return { personaId: speakerId, mode: 'opinion', score: 2 };
+		return result.value;
 	}
 
 	/** 決定に基づきペルソナ発言を生成・保存し、状態（沈黙・キュー・信念・次ターン指名）を更新する */
@@ -655,7 +649,7 @@ export class DebateOrchestratorService {
 		chapter: Chapter,
 		state: DebateState,
 		decision: SpeakerSelection,
-		speech: { mode?: 'opinion' | 'fact'; score?: number; intentSummary?: string }
+		speech: Engagement
 	): Promise<boolean> {
 		const persona = personas.find((p) => p.id === decision.personaId)!;
 		const belief = state.currentBeliefs.get(persona.id) ?? { content: '', version: 0 };

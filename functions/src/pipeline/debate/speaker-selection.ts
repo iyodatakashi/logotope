@@ -26,15 +26,6 @@ export const resolvePairConversation = (
 };
 
 /** 選ばれた話者の発言は本人の意欲評価に従う（mode と score→長さ）。選ばれた以上は必ず発言するため none・低スコアは最小発言（score 2 / opinion）に切り上げる */
-export const speechFromAssessment = (assessment?: {
-	mode: 'opinion' | 'fact' | 'none';
-	score: number;
-}): { mode?: 'opinion' | 'fact'; score?: number } => {
-	if (!assessment) return {};
-	if (assessment.mode === 'none') return { mode: 'opinion', score: 2 };
-	return { mode: assessment.mode, score: Math.max(2, assessment.score) };
-};
-
 /** 評価後: キュー > スコアの2段で次話者を決定する */
 export const decideNextSpeaker = (
 	assessments: ReadonlyArray<Engagement>,

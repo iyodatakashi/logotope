@@ -75,7 +75,7 @@ export type PendingIntent = {
 export type TurnGenerationContext = {
 	chapterHistory: ReadonlyArray<DebateTurn>;
 	chapter: Chapter;
-	mode?: 'opinion' | 'fact';
+	mode?: 'opinion' | 'fact' | 'none';
 	score?: number;
 	intentSummary?: string;
 	pendingTrigger?: { speakerName: string; content: string };

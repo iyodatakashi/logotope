@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   resolvePairConversation,
   decideNextSpeaker,
-  speechFromAssessment,
   isHighEngagement,
   hasHighEngagement,
 } from './speaker-selection.js';
@@ -199,20 +198,3 @@ describe('decideNextSpeaker', () => {
   });
 });
 
-describe('speechFromAssessment', () => {
-  it('評価が無ければ空（生成側の既定に委ねる）', () => {
-    expect(speechFromAssessment(undefined)).toEqual({});
-  });
-
-  it('opinion/fact はその mode と score をそのまま使う', () => {
-    expect(speechFromAssessment({ mode: 'fact', score: 3 })).toEqual({ mode: 'fact', score: 3 });
-  });
-
-  it('none・score1 は最小発言（opinion・score 2）に切り上げる', () => {
-    expect(speechFromAssessment({ mode: 'none', score: 1 })).toEqual({ mode: 'opinion', score: 2 });
-  });
-
-  it('score が 2 未満なら 2 に切り上げる', () => {
-    expect(speechFromAssessment({ mode: 'opinion', score: 1 })).toEqual({ mode: 'opinion', score: 2 });
-  });
-});
