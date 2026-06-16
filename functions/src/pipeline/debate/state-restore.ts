@@ -52,10 +52,10 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
 
 	// 直近指名の復元: 最後のターンに永続化された targetPersonaId から復元する
 	// （ファシリテーターの指名 / ペルソナの直接質問。不正 ID は無視する）
-	let pendingAddress: DebateState['pendingAddress'];
+	let pendingTarget: DebateState['pendingTarget'];
 	const lastTurn = turns[turns.length - 1];
 	if (lastTurn?.targetPersonaId && personas.some((p) => p.id === lastTurn.targetPersonaId)) {
-		pendingAddress = {
+		pendingTarget = {
 			personaId: lastTurn.targetPersonaId,
 			byFacilitator: lastTurn.speakerType === 'facilitator'
 		};
@@ -66,7 +66,7 @@ export const restoreDebateState = (input: RestoreInput): DebateState => {
 		currentBeliefs: new Map(currentBeliefs),
 		silenceMap,
 		speakCount,
-		pendingAddress,
+		pendingTarget,
 		lastSpeakerId,
 		pendingIntents,
 		consecutiveDirectExchanges: 0,

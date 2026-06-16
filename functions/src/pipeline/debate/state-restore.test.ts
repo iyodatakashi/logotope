@@ -63,7 +63,7 @@ describe('restoreDebateState', () => {
     expect(state.silenceMap.get('p1')).toBe(0);
     expect(state.lastFacilitatorTurnIndex).toBe(0);
     expect(state.lastSpeakerId).toBeUndefined();
-    expect(state.pendingAddress).toBeUndefined();
+    expect(state.pendingTarget).toBeUndefined();
     expect(state.consecutiveDirectExchanges).toBe(0);
     expect(state.engagementSignals).toEqual([]);
   });
@@ -145,7 +145,7 @@ describe('restoreDebateState', () => {
       currentBeliefs: beliefs(),
     });
 
-    expect(state.pendingAddress).toEqual({ personaId: 'p2', byFacilitator: true });
+    expect(state.pendingTarget).toEqual({ personaId: 'p2', byFacilitator: true });
   });
 
   it('直近指名の復元: 最後のペルソナターンの targetPersonaId は直接質問（byFacilitator: false）として復元する', () => {
@@ -160,10 +160,10 @@ describe('restoreDebateState', () => {
       currentBeliefs: beliefs(),
     });
 
-    expect(state.pendingAddress).toEqual({ personaId: 'p1', byFacilitator: false });
+    expect(state.pendingTarget).toEqual({ personaId: 'p1', byFacilitator: false });
   });
 
-  it('最後のターンに targetPersonaId がない場合 pendingAddress は復元されない', () => {
+  it('最後のターンに targetPersonaId がない場合 pendingTarget は復元されない', () => {
     const turns = [
       ...baseTurns,
       { ...turn(5, 'facilitator'), content: '次の章では、鈴木花子さんから伺います。' },
@@ -176,10 +176,10 @@ describe('restoreDebateState', () => {
     });
 
     // 本文にペルソナ名があっても名前マッチは行わない（ID のみで判定）
-    expect(state.pendingAddress).toBeUndefined();
+    expect(state.pendingTarget).toBeUndefined();
   });
 
-  it('targetPersonaId が参加ペルソナに存在しない場合 pendingAddress は復元されない', () => {
+  it('targetPersonaId が参加ペルソナに存在しない場合 pendingTarget は復元されない', () => {
     const turns = [
       ...baseTurns,
       { ...turn(5, 'facilitator'), targetPersonaId: 'unknown' },
@@ -191,7 +191,7 @@ describe('restoreDebateState', () => {
       currentBeliefs: beliefs(),
     });
 
-    expect(state.pendingAddress).toBeUndefined();
+    expect(state.pendingTarget).toBeUndefined();
   });
 
   it('入力のターン順序が不定でも turnIndex 順に復元する', () => {

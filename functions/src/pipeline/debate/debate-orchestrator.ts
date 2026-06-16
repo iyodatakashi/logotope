@@ -5,7 +5,7 @@ import { FacilitatorAgentService } from '../../agents/facilitator-agent.js';
 import { generateTurn, assessEngagement, generatePostDebateComment } from '../../agents/persona-agent.js';
 import { ChapterGeneratorService } from '../chapters/chapter-generator.js';
 import {
-	resolveDirectAddress,
+	resolveDirectTarget,
 	decideNextSpeaker,
 	speechFromAssessment,
 	isHighEngagement,
@@ -301,7 +301,7 @@ export class DebateOrchestratorService {
 				targetPersonaId,
 				chapters[0].id
 			);
-			state.pendingAddress = targetPersonaId
+			state.pendingTarget = targetPersonaId
 				? { personaId: targetPersonaId, byFacilitator: true }
 				: undefined;
 		}
@@ -445,13 +445,13 @@ export class DebateOrchestratorService {
 			if (!(await isDebateActive(topicId))) return 'cancelled';
 
 			// 1. 繰り越し指名・直接質問を確認する（BC2: 指名は介入より優先）
-			const pendingAddress = state.pendingAddress;
-			state.pendingAddress = undefined;
-			const directDecision = resolveDirectAddress({
-				pendingAddress,
-				consecutiveDirectExchanges: state.consecutiveDirectExchanges,
+			const pendingTarget = state.pendingTarget;
+			state.pendingTarget = undefined;
+			const directDecision = resolveDirectTarget(
+				pendingTarget,
+				state.consecutiveDirectExchanges,
 				personaIds
-			});
+			);
 
 			// 2. 毎ターン全員（直前話者除く）の発言意欲を評価・保存・キュー失効を実行する（BC3）
 			const assessments = await this.evaluateEngagement(
@@ -469,10 +469,10 @@ export class DebateOrchestratorService {
 			const personaTurnsSinceFacilitator = state.history
 				.slice(lastFacilitatorIdx + 1)
 				.filter((t) => t.speakerType === 'persona').length;
-			const driftCooldownPassed = shouldEvaluateIntervention({
+			const driftCooldownPassed = shouldEvaluateIntervention(
 				personaTurnsSinceFacilitator,
-				cooldownTurns: this.options.interventionCooldown
-			});
+				this.options.interventionCooldown
+			);
 
 			// 4. 話者決定: 指名・直接質問 > A > B > キュー > スコア（BC1: B はクールダウン不問 / BC2: 指名を先行評価）
 			let decision: SpeakerDecision;
@@ -496,13 +496,13 @@ export class DebateOrchestratorService {
 							state,
 							assessments
 						)) ??
-						decideNextSpeaker({
+						decideNextSpeaker(
 							assessments,
-							pendingIntents: state.pendingIntents,
-							silenceMap: state.silenceMap,
-							lastSpeakerId: state.lastSpeakerId,
-							personaIds
-						});
+							state.pendingIntents,
+							state.silenceMap,
+							personaIds,
+							state.lastSpeakerId
+						);
 				}
 			} else {
 				decision =
@@ -513,13 +513,13 @@ export class DebateOrchestratorService {
 						state,
 						assessments
 					)) ??
-					decideNextSpeaker({
+					decideNextSpeaker(
 						assessments,
-						pendingIntents: state.pendingIntents,
-						silenceMap: state.silenceMap,
-						lastSpeakerId: state.lastSpeakerId,
-						personaIds
-					});
+						state.pendingIntents,
+						state.silenceMap,
+						personaIds,
+						state.lastSpeakerId
+					);
 			}
 
 			// 5. 介入ターンで討論全体の上限に達した場合は打ち切る
@@ -538,9 +538,9 @@ export class DebateOrchestratorService {
 				await setPendingIntents(sessionId, assessment.personaId, updated);
 			}
 
-			// 7. 連続直接質問カウントを一元更新する（direct_address:+1、その他:0）
+			// 7. 連続直接質問カウントを一元更新する（direct_target:+1、その他:0）
 			state.consecutiveDirectExchanges =
-				decision.source === 'direct_address' ? state.consecutiveDirectExchanges + 1 : 0;
+				decision.source === 'direct_target' ? state.consecutiveDirectExchanges + 1 : 0;
 
 			// 8. 発言パラメータを確定する
 			const speech = await this.resolveSpeechParams(
@@ -566,11 +566,11 @@ export class DebateOrchestratorService {
 
 			// 10. 章終了判定（早期終了）
 			if (
-				shouldEndChapterEarly({
-					chapterTurnCount: chapterTurnCount(),
-					targetTurns: turnsPerChapter,
-					engagementSignals: state.engagementSignals
-				})
+				shouldEndChapterEarly(
+					chapterTurnCount(),
+					turnsPerChapter,
+					state.engagementSignals
+				)
 			) {
 				return 'ended';
 			}
@@ -700,9 +700,9 @@ export class DebateOrchestratorService {
 		if (!(await isDebateActive(topicId))) return false;
 
 		// 直接質問先は ID 検証のうえターンに永続化する（自分自身への指定は無視）
-		const rawAddressed = turnResult.value.targetPersonaId;
+		const rawTarget = turnResult.value.targetPersonaId;
 		const targetPersonaId =
-			rawAddressed !== persona.id ? validPersonaId(rawAddressed, personas) : undefined;
+			rawTarget !== persona.id ? validPersonaId(rawTarget, personas) : undefined;
 
 		const turnIndex = state.history.length;
 		const savedTurn = await createDebateTurn({
@@ -773,7 +773,7 @@ export class DebateOrchestratorService {
 		}
 
 		// 直接質問の引き継ぎ
-		state.pendingAddress = targetPersonaId
+		state.pendingTarget = targetPersonaId
 			? { personaId: targetPersonaId, byFacilitator: false }
 			: undefined;
 
@@ -789,15 +789,15 @@ export class DebateOrchestratorService {
 		chapter: Chapter,
 		state: DebateState
 	): Promise<void> {
-		const pendingAddress = state.pendingAddress;
-		state.pendingAddress = undefined;
-		if (!pendingAddress) return;
+		const pendingTarget = state.pendingTarget;
+		state.pendingTarget = undefined;
+		if (!pendingTarget) return;
 
-		const decision = resolveDirectAddress({
-			pendingAddress,
-			consecutiveDirectExchanges: 0,
-			personaIds: personas.map((p) => p.id)
-		});
+		const decision = resolveDirectTarget(
+			pendingTarget,
+			0,
+			personas.map((p) => p.id)
+		);
 		if (!decision) return;
 
 		const assessments = await this.evaluateEngagement(sessionId, personas, interviewRecords, state);
@@ -819,7 +819,7 @@ export class DebateOrchestratorService {
 			speech
 		);
 		// 章は終了するため、応答ターン由来の直接質問は引き継がない
-		state.pendingAddress = undefined;
+		state.pendingTarget = undefined;
 	}
 
 	/** ファシリテーター発言を保存し、state.history に追加する */
@@ -889,7 +889,7 @@ export class DebateOrchestratorService {
 				targetPersonaId,
 				nextChapter.id
 			);
-			state.pendingAddress = targetPersonaId
+			state.pendingTarget = targetPersonaId
 				? { personaId: targetPersonaId, byFacilitator: true }
 				: undefined;
 		}

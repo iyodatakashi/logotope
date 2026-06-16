@@ -3,7 +3,7 @@ import type { Chapter } from './chapter.types.js';
 export type { Chapter };
 
 export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
-export type SpeakerSource = 'nomination' | 'direct_address' | 'queue' | 'score';
+export type SpeakerSource = 'nomination' | 'direct_target' | 'queue' | 'score';
 
 export type BeliefChangeEvent = {
 	type: BeliefChangeType;
@@ -54,37 +54,12 @@ export type PendingIntent = {
 	intentSummary: string;
 };
 
-export type DirectAddressInput = {
-	pendingAddress?: { personaId: string; byFacilitator: boolean };
-	consecutiveDirectExchanges: number;
-	personaIds: ReadonlyArray<string>;
-};
-
-export type SpeakerSelectionInput = {
-	assessments: ReadonlyArray<Engagement>;
-	pendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>;
-	silenceMap: ReadonlyMap<string, number>;
-	lastSpeakerId?: string;
-	personaIds: ReadonlyArray<string>;
-};
-
-export type ChapterEndInput = {
-	chapterTurnCount: number;
-	targetTurns: number;
-	engagementSignals: ReadonlyArray<0 | 1>;
-};
-
-export type InterventionPolicyInput = {
-	personaTurnsSinceFacilitator: number;
-	cooldownTurns: number;
-};
-
 export type DebateState = {
 	history: DebateTurn[];
 	currentBeliefs: Map<string, { content: string; version: number }>;
 	silenceMap: Map<string, number>;
 	speakCount: Map<string, number>;
-	pendingAddress?: { personaId: string; byFacilitator: boolean };
+	pendingTarget?: { personaId: string; byFacilitator: boolean };
 	lastSpeakerId?: string;
 	pendingIntents: Map<string, PendingIntent[]>;
 	consecutiveDirectExchanges: number;
