@@ -1,8 +1,16 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
-import { getTopicById, getPersonasByTopicId, getDebateSessionByTopicId } from '../../db/repository.js';
+import {
+	getTopicById,
+	getPersonasByTopicId,
+	getDebateSessionByTopicId
+} from '../../db/repository.js';
 import { FacilitatorAgentService } from '../../agents/facilitator-agent.js';
-import { generateTurn, assessEngagement, generatePostDebateComment } from '../../agents/persona-agent.js';
+import {
+	generateTurn,
+	assessEngagement,
+	generatePostDebateComment
+} from '../../agents/persona-agent.js';
 import { ChapterGeneratorService } from '../chapters/chapter-generator.js';
 import {
 	resolvePairConversation,
@@ -10,11 +18,7 @@ import {
 	isHighEngagement,
 	hasHighEngagement
 } from './speaker-selection.js';
-import {
-	toEngagementSignal,
-	shouldEndChapterEarly,
-	chapterTurnCap
-} from './chapter-progress.js';
+import { toEngagementSignal, shouldEndChapterEarly, chapterTurnCap } from './chapter-progress.js';
 import { shouldEvaluateIntervention } from './intervention-policy.js';
 import { restoreDebateState } from './state-restore.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
@@ -27,10 +31,10 @@ import type { Persona } from '../../types/persona.types.js';
 import { DEFAULT_OPTIONS } from '../../constants/debate-orchestrator.constants.js';
 import type { DebateOptions } from '../../types/debate.types.js';
 
-const latestBelief = (persona: Persona): { content: string; version: number } => {
+const getLatestBelief = (persona: Persona): { content: string; version: number } => {
 	const beliefs = persona.beliefs ?? [];
 	if (beliefs.length === 0) return { content: '', version: 0 };
-	return beliefs.reduce((best, b) => b.version > best.version ? b : best);
+	return beliefs.reduce((best, b) => (b.version > best.version ? b : best));
 };
 
 // ---- Firestore helpers ----
@@ -81,7 +85,7 @@ const createDebateTurn = async (params: {
 		turnIndex: params.turnIndex,
 		speakerType: params.speakerType,
 		content: params.content,
-		createdAt: Timestamp.now(),
+		createdAt: Timestamp.now()
 	};
 	if (params.personaId !== undefined) turn.personaId = params.personaId;
 	if (params.speakerName !== undefined) turn.speakerName = params.speakerName;
@@ -93,9 +97,11 @@ const createDebateTurn = async (params: {
 	if (params.targetPersonaId !== undefined) turn.targetPersonaId = params.targetPersonaId;
 	if (params.searchUsed) turn.searchUsed = true;
 	if (params.searchQueries?.length) turn.searchQueries = params.searchQueries;
-	await db().doc(`topics/${params.sessionId}/sessions/0`).update({
-		turns: FieldValue.arrayUnion(turn),
-	});
+	await db()
+		.doc(`topics/${params.sessionId}/sessions/0`)
+		.update({
+			turns: FieldValue.arrayUnion(turn)
+		});
 	return { id };
 };
 
@@ -113,13 +119,13 @@ const createPersonaBelief = async (params: {
 		id,
 		version: params.version,
 		content: params.content,
-		createdAt: Timestamp.now(),
+		createdAt: Timestamp.now()
 	};
 	if (params.changeType !== undefined) belief.changeType = params.changeType;
 	if (params.changeSummary !== undefined) belief.changeSummary = params.changeSummary;
 	if (params.triggeredByTurnId !== undefined) belief.triggeredByTurnId = params.triggeredByTurnId;
 	await personaDocRef(params.topicId, params.personaId).update({
-		beliefs: FieldValue.arrayUnion(belief),
+		beliefs: FieldValue.arrayUnion(belief)
 	});
 	return { id };
 };
@@ -131,14 +137,16 @@ const createPostDebateComment = async (params: {
 	sortOrder: number;
 }): Promise<{ id: string }> => {
 	const id = nanoid();
-	await db().doc(`topics/${params.sessionId}/sessions/0`).update({
-		postDebateComments: FieldValue.arrayUnion({
-			id,
-			personaId: params.personaId,
-			content: params.content,
-			sortOrder: params.sortOrder,
-		}),
-	});
+	await db()
+		.doc(`topics/${params.sessionId}/sessions/0`)
+		.update({
+			postDebateComments: FieldValue.arrayUnion({
+				id,
+				personaId: params.personaId,
+				content: params.content,
+				sortOrder: params.sortOrder
+			})
+		});
 	return { id };
 };
 
@@ -153,10 +161,17 @@ const updateCurrentChapterIndex = async (topicId: string, index: number): Promis
 const saveEngagements = async (params: {
 	sessionId: string;
 	turnIndex: number;
-	assessments: Array<{ personaId: string; score: number; mode: 'opinion' | 'fact' | 'none'; intentSummary?: string }>;
+	assessments: Array<{
+		personaId: string;
+		score: number;
+		mode: 'opinion' | 'fact' | 'none';
+		intentSummary?: string;
+	}>;
 }): Promise<void> => {
 	for (const assessment of params.assessments) {
-		const ref = db().doc(`topics/${params.sessionId}/sessions/0/engagements/${assessment.personaId}`);
+		const ref = db().doc(
+			`topics/${params.sessionId}/sessions/0/engagements/${assessment.personaId}`
+		);
 		const entry: Record<string, unknown> = { score: assessment.score, mode: assessment.mode };
 		if (assessment.intentSummary !== undefined) entry.intentSummary = assessment.intentSummary;
 		await ref.set(
@@ -171,10 +186,9 @@ const setPendingIntents = async (
 	personaId: string,
 	items: ReadonlyArray<PendingIntent>
 ): Promise<void> => {
-	await db().doc(`topics/${sessionId}/sessions/0/engagements/${personaId}`).set(
-		{ pendingIntents: [...items] },
-		{ merge: true }
-	);
+	await db()
+		.doc(`topics/${sessionId}/sessions/0/engagements/${personaId}`)
+		.set({ pendingIntents: [...items] }, { merge: true });
 };
 
 const loadPendingIntents = async (sessionId: string): Promise<Map<string, PendingIntent[]>> => {
@@ -192,9 +206,17 @@ const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[
 	if (!snap.exists) return [];
 	const data = snap.data() as {
 		turns?: Array<{
-			id: string; turnIndex: number; speakerType: string; personaId?: string;
-			speakerName?: string; speakerRole?: string; content: string; createdAt: Timestamp;
-			chapterId?: string; fromQueue?: boolean; targetPersonaId?: string;
+			id: string;
+			turnIndex: number;
+			speakerType: string;
+			personaId?: string;
+			speakerName?: string;
+			speakerRole?: string;
+			content: string;
+			createdAt: Timestamp;
+			chapterId?: string;
+			fromQueue?: boolean;
+			targetPersonaId?: string;
 		}>;
 	};
 	return (data.turns ?? []).map((t) => ({
@@ -209,10 +231,9 @@ const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[
 		createdAt: t.createdAt?.toDate().toISOString() ?? '',
 		chapterId: t.chapterId,
 		fromQueue: t.fromQueue,
-		targetPersonaId: t.targetPersonaId,
+		targetPersonaId: t.targetPersonaId
 	}));
 };
-
 
 // ---- Orchestrator ----
 
@@ -253,8 +274,7 @@ export class DebateOrchestratorService {
 			return chapterIndex < (session.chapters?.length ?? 0) - 1;
 		}
 
-		const { personas, topicTitle } =
-			await this.loadSessionContext(topicId);
+		const { personas, topicTitle } = await this.loadSessionContext(topicId);
 
 		const existingTurns = await getDebateTurnsBySessionId(topicId);
 		const persistedPendingIntents = await loadPendingIntents(sessionId);
@@ -263,7 +283,7 @@ export class DebateOrchestratorService {
 		const chapters: Chapter[] = (session.chapters ?? []).map((c) => ({
 			id: c.id,
 			title: c.title,
-			focusQuestion: c.focusQuestion,
+			focusQuestion: c.focusQuestion
 		}));
 
 		// 第1章の開始: オープニング生成（章立ては generateChapters で事前に保存済み）
@@ -300,26 +320,14 @@ export class DebateOrchestratorService {
 		if (outcome === 'cancelled') return false;
 
 		// 章終了時に未応答の指名・直接質問が残っていれば応答ターンを1件生成する（+1ターン許容）
-		await this.generateUnansweredReply(
-			sessionId,
-			topicId,
-			personas,
-			chapters[chapterIndex],
-			state
-		);
+		await this.generateUnansweredReply(sessionId, topicId, personas, chapters[chapterIndex], state);
 
 		const isLastChapter = this.options.singleChapterMode || chapterIndex >= chapters.length - 1;
 		if (isLastChapter) {
 			await this.finalizeDebate(sessionId, topicId, personas, state);
 			return false;
 		}
-		await this.generateChapterTransition(
-			sessionId,
-			chapters,
-			chapterIndex,
-			state,
-			personas
-		);
+		await this.generateChapterTransition(sessionId, chapters, chapterIndex, state, personas);
 		return true;
 	}
 
@@ -395,8 +403,7 @@ export class DebateOrchestratorService {
 		const personaIds = personas.map((p) => p.id);
 		const cap = chapterTurnCap(turnsPerChapter);
 		const engagementSignals: Array<0 | 1> = [];
-		const chapterTurnCount = () =>
-			state.history.filter((t) => t.chapterId === chapter.id).length;
+		const chapterTurnCount = () => state.history.filter((t) => t.chapterId === chapter.id).length;
 
 		while (chapterTurnCount() < cap && state.history.length < maxTurns) {
 			// 各ターン境界でトピックのゲートを確認する（上流再生成でフェーズが戻った場合も停止）
@@ -412,11 +419,7 @@ export class DebateOrchestratorService {
 			);
 
 			// 2. 毎ターン全員（直前話者除く）の発言意欲を評価・保存・キュー失効を実行する（BC3）
-			const assessments = await this.evaluateEngagement(
-				sessionId,
-				personas,
-				state
-			);
+			const assessments = await this.evaluateEngagement(sessionId, personas, state);
 			engagementSignals.push(toEngagementSignal(assessments));
 
 			// 3. 論点ずれ介入(A)専用のクールダウン判定
@@ -447,13 +450,7 @@ export class DebateOrchestratorService {
 					decision = driftDecision;
 				} else {
 					decision =
-						(await this.tryStallIntervention(
-							sessionId,
-							personas,
-							chapter,
-							state,
-							assessments
-						)) ??
+						(await this.tryStallIntervention(sessionId, personas, chapter, state, assessments)) ??
 						decideNextSpeaker(
 							assessments,
 							state.pendingIntents,
@@ -464,13 +461,7 @@ export class DebateOrchestratorService {
 				}
 			} else {
 				decision =
-					(await this.tryStallIntervention(
-						sessionId,
-						personas,
-						chapter,
-						state,
-						assessments
-					)) ??
+					(await this.tryStallIntervention(sessionId, personas, chapter, state, assessments)) ??
 					decideNextSpeaker(
 						assessments,
 						state.pendingIntents,
@@ -521,13 +512,7 @@ export class DebateOrchestratorService {
 			if (!saved) return 'cancelled';
 
 			// 10. 章終了判定（早期終了）
-			if (
-				shouldEndChapterEarly(
-					chapterTurnCount(),
-					turnsPerChapter,
-					engagementSignals
-				)
-			) {
+			if (shouldEndChapterEarly(chapterTurnCount(), turnsPerChapter, engagementSignals)) {
 				return 'ended';
 			}
 		}
@@ -608,7 +593,7 @@ export class DebateOrchestratorService {
 		speech: Engagement
 	): Promise<boolean> {
 		const persona = personas.find((p) => p.id === decision.personaId)!;
-		const belief = latestBelief(persona);
+		const belief = getLatestBelief(persona);
 		const fromQueue = decision.reason === 'queue';
 
 		const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
@@ -629,7 +614,12 @@ export class DebateOrchestratorService {
 				chapterHistory,
 				chapter,
 				pendingTrigger,
-				targetedBy: (decision.reason === 'targeted_by_facilitator' || decision.reason === 'targeted_by_persona') ? (decision.reason === 'targeted_by_facilitator' ? 'facilitator' : 'persona') : undefined
+				targetedBy:
+					decision.reason === 'targeted_by_facilitator' || decision.reason === 'targeted_by_persona'
+						? decision.reason === 'targeted_by_facilitator'
+							? 'facilitator'
+							: 'persona'
+						: undefined
 			},
 			{ ...speech, intentSummary: decision.intentSummary ?? speech.intentSummary }
 		);
@@ -696,7 +686,7 @@ export class DebateOrchestratorService {
 		if (turnResult.value.beliefChange) {
 			const beliefChange = turnResult.value.beliefChange;
 			const newVersion = belief.version + 1;
-			await createPersonaBelief({
+			const savedBelief = await createPersonaBelief({
 				topicId,
 				personaId: persona.id,
 				version: newVersion,
@@ -705,10 +695,15 @@ export class DebateOrchestratorService {
 				changeSummary: beliefChange.summary,
 				triggeredByTurnId: savedTurn.id
 			});
-			state.currentBeliefs.set(persona.id, {
+			persona.beliefs = [...(persona.beliefs ?? []), {
+				id: savedBelief.id,
+				version: newVersion,
 				content: beliefChange.updatedBelief,
-				version: newVersion
-			});
+				changeType: beliefChange.type,
+				changeSummary: beliefChange.summary,
+				triggeredByTurnId: savedTurn.id,
+				createdAt: new Date().toISOString()
+			}];
 		}
 
 		// ペルソナ間の指名を引き継ぐ
@@ -739,21 +734,8 @@ export class DebateOrchestratorService {
 		if (!decision) return;
 
 		const assessments = await this.evaluateEngagement(sessionId, personas, state);
-		const speech = await this.resolveSpeechParams(
-			decision.personaId,
-			personas,
-			state,
-			assessments
-		);
-		await this.generatePersonaTurn(
-			sessionId,
-			topicId,
-			personas,
-			chapter,
-			state,
-			decision,
-			speech
-		);
+		const speech = await this.resolveSpeechParams(decision.personaId, personas, state, assessments);
+		await this.generatePersonaTurn(sessionId, topicId, personas, chapter, state, decision, speech);
 		// 章は終了するため、応答ターン由来の指名は引き継がない
 		state.targetPersona = undefined;
 	}
@@ -804,18 +786,18 @@ export class DebateOrchestratorService {
 		const nextChapter = chapters[currentChapterIndex + 1];
 		const recentHistory = state.history.slice(-10);
 
-		const summaryResult = await this.chapterGenerator.generateChapterSummary(recentHistory, chapter);
+		const summaryResult = await this.chapterGenerator.generateChapterSummary(
+			recentHistory,
+			chapter
+		);
 		if (summaryResult.ok) {
-			await this.saveFacilitatorTurn(
-				sessionId,
-				state,
-				summaryResult.value,
-				undefined,
-				chapter.id
-			);
+			await this.saveFacilitatorTurn(sessionId, state, summaryResult.value, undefined, chapter.id);
 		}
 
-		const introResult = await this.chapterGenerator.generateChapterIntroduction(nextChapter, personas);
+		const introResult = await this.chapterGenerator.generateChapterIntroduction(
+			nextChapter,
+			personas
+		);
 		if (introResult.ok) {
 			const targetPersonaId = validPersonaId(introResult.value.targetPersonaId, personas);
 			await this.saveFacilitatorTurn(
@@ -839,7 +821,7 @@ export class DebateOrchestratorService {
 		state: DebateState
 	): Promise<void> {
 		const finalBeliefs = new Map(
-			Array.from(state.currentBeliefs.entries()).map(([id, b]) => [id, b.content])
+			personas.map((p) => [p.id, getLatestBelief(p).content])
 		);
 		const closingResult = await this.facilitator.generateClosing(state.history, finalBeliefs);
 		if (!closingResult.ok) throw new Error(pipelineErrorMessage(closingResult.error));
@@ -847,12 +829,8 @@ export class DebateOrchestratorService {
 
 		for (let i = 0; i < personas.length; i++) {
 			const persona = personas[i];
-			const finalBelief = state.currentBeliefs.get(persona.id)?.content ?? '';
-			const commentResult = await generatePostDebateComment(
-				persona,
-				finalBelief,
-				state.history
-			);
+			const finalBelief = getLatestBelief(persona).content;
+			const commentResult = await generatePostDebateComment(persona, finalBelief, state.history);
 			if (commentResult.ok) {
 				await createPostDebateComment({
 					sessionId,
