@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { DebateChapter } from '../types/index.js';
+import type { DebateChapter } from '../../types/index.js';
 
-vi.mock('../db/repository.js', () => ({
+vi.mock('../../db/repository.js', () => ({
   getTopicById: vi.fn(),
   getPersonasByTopicId: vi.fn(),
   getPersonaBeliefsByPersonaId: vi.fn(),
@@ -27,12 +27,12 @@ vi.mock('firebase-admin/firestore', () => ({
   FieldValue: { serverTimestamp: vi.fn(() => 'SERVER_TIMESTAMP') },
 }));
 
-import * as repo from '../db/repository.js';
+import * as repo from '../../db/repository.js';
 import { DebateOrchestratorService } from './debate-orchestrator.js';
-import { DEFAULT_OPTIONS } from '../constants/debate-orchestrator.constants.js';
-import type { FacilitatorAgentService } from '../agents/facilitator-agent.js';
-import type { PersonaAgentService } from '../agents/persona-agent.js';
-import type { ChapterGeneratorService } from './chapter-generator.js';
+import { DEFAULT_OPTIONS } from '../../constants/debate-orchestrator.constants.js';
+import type { FacilitatorAgentService } from '../../agents/facilitator-agent.js';
+import type { PersonaAgentService } from '../../agents/persona-agent.js';
+import type { ChapterGeneratorService } from '../chapters/chapter-generator.js';
 
 // ---- helpers ----
 

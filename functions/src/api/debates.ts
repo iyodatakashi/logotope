@@ -2,8 +2,8 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { getFunctions } from 'firebase-admin/functions';
 import { getTopicById, getDebateSessionByTopicId } from '../db/repository.js';
-import { DebateOrchestratorService } from '../pipeline/debate-orchestrator.js';
-import { activateDebate, markDebateStopped, restartChapter } from '../pipeline/debate-lifecycle.js';
+import { DebateOrchestratorService } from '../pipeline/debate/debate-orchestrator.js';
+import { activateDebate, markDebateStopped, restartChapter } from '../pipeline/debate/debate-lifecycle.js';
 import { DEFAULT_OPTIONS } from '../constants/debate-orchestrator.constants.js';
 import { requireAuth } from '../utils/auth.js';
 

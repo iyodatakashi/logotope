@@ -1,34 +1,34 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
-import { getTopicById, getPersonasByTopicId, getDebateSessionByTopicId } from '../db/repository.js';
-import { FacilitatorAgentService } from '../agents/facilitator-agent.js';
-import { PersonaAgentService } from '../agents/persona-agent.js';
-import { ChapterGeneratorService } from './chapter-generator.js';
+import { getTopicById, getPersonasByTopicId, getDebateSessionByTopicId } from '../../db/repository.js';
+import { FacilitatorAgentService } from '../../agents/facilitator-agent.js';
+import { PersonaAgentService } from '../../agents/persona-agent.js';
+import { ChapterGeneratorService } from '../chapters/chapter-generator.js';
 import {
 	resolveDirectAddress,
 	decideNextSpeaker,
 	speechFromAssessment,
 	isHighEngagement,
 	hasHighEngagement
-} from './flow/speaker-selection.js';
+} from './speaker-selection.js';
 import {
 	toEngagementSignal,
 	shouldEndChapterEarly,
 	chapterTurnCap
-} from './flow/chapter-progress.js';
-import { shouldEvaluateIntervention } from './flow/intervention-policy.js';
-import { restoreDebateState } from './flow/state-restore.js';
-import { INTENT_EXPIRY_TURNS } from '../constants/flow.constants.js';
+} from './chapter-progress.js';
+import { shouldEvaluateIntervention } from './intervention-policy.js';
+import { restoreDebateState } from './state-restore.js';
+import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 import type {
 	PipelineError,
 	DebateChapter,
 	SpeakerDecision,
 	PendingIntent
-} from '../types/index.js';
-import type { SpeakerAssessment, DebateState } from '../types/flow.types.js';
-import type { PersonaProfile, DebateTurn } from '../types/repository.types.js';
-import { DEFAULT_OPTIONS } from '../constants/debate-orchestrator.constants.js';
-import type { OrchestratorOptions } from '../types/debate-orchestrator.types.js';
+} from '../../types/index.js';
+import type { SpeakerAssessment, DebateState } from '../../types/flow.types.js';
+import type { PersonaProfile, DebateTurn } from '../../types/repository.types.js';
+import { DEFAULT_OPTIONS } from '../../constants/debate-orchestrator.constants.js';
+import type { OrchestratorOptions } from '../../types/debate-orchestrator.types.js';
 
 // ---- Firestore helpers ----
 

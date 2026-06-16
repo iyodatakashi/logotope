@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { requireAuth } from '../utils/auth.js';
-import { ChapterGeneratorService } from '../pipeline/chapter-generator.js';
+import { ChapterGeneratorService } from '../pipeline/chapters/chapter-generator.js';
 
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
 

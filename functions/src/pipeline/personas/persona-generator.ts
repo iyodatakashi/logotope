@@ -1,7 +1,7 @@
 import { generateText, jsonSchema } from 'ai';
-import { getPipelineModel } from '../llm/models.js';
-import { MAX_TOKENS } from '../constants/ai.constants.js';
-import type { Stakeholder, EngagementLevel, LLMType } from '../types/index.js';
+import { getPipelineModel } from '../../llm/models.js';
+import { MAX_TOKENS } from '../../constants/ai.constants.js';
+import type { Stakeholder, EngagementLevel, LLMType } from '../../types/index.js';
 
 export interface GeneratedPersona {
 	stakeholderRole: string;

@@ -6,8 +6,8 @@ vi.mock('@anthropic-ai/sdk', () => ({
 
 import Anthropic from '@anthropic-ai/sdk';
 import { ChapterGeneratorService } from './chapter-generator.js';
-import type { PersonaProfile } from '../types/repository.types.js';
-import type { DebateChapter } from '../types/index.js';
+import type { PersonaProfile } from '../../types/repository.types.js';
+import type { DebateChapter } from '../../types/index.js';
 
 const mockCreate = vi.fn();
 

@@ -1,8 +1,8 @@
 import { generateText, jsonSchema } from 'ai';
 import { tavily } from '@tavily/core';
-import { getPipelineModel } from '../llm/models.js';
-import { MAX_TOKENS } from '../constants/ai.constants.js';
-import type { PersonaInput } from '../types/interviews.types.js';
+import { getPipelineModel } from '../../llm/models.js';
+import { MAX_TOKENS } from '../../constants/ai.constants.js';
+import type { PersonaInput } from '../../types/interviews.types.js';
 
 export interface InterviewOutput {
 	researchSummary: string;
