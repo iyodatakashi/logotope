@@ -13,22 +13,6 @@ async function enqueueChapterTask(topicId: string, chapterIndex: number, singleC
   await queue.enqueue({ topicId, chapterIndex, singleChapterMode }, { scheduleDelaySeconds: 0 });
 }
 
-export const generateChapters = onCall({ timeoutSeconds: 120 }, async (request) => {
-  requireAuth(request);
-  const { topicId } = request.data as { topicId: string };
-
-  const topic = await repo.getTopicById(topicId);
-  if (!topic) throw new HttpsError('not-found', 'Topic not found');
-
-  // 章立てはクライアント権威。Functions はセッション作成と章立て生成のみ行い、
-  // トピックの状態書き込みは行わない（client が解決後に (4, generated) を書く）。
-  await repo.createDebateSession(topicId);
-  const orchestrator = new DebateOrchestratorService();
-  await orchestrator.generateChaptersOnly(topicId);
-
-  return { topicId };
-});
-
 export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   requireAuth(request);
   const { topicId, singleChapterMode } = request.data as { topicId: string; singleChapterMode?: boolean };

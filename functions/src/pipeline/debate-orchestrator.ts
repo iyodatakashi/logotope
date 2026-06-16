@@ -50,21 +50,6 @@ export class DebateOrchestratorService {
 		private options: OrchestratorOptions = DEFAULT_OPTIONS
 	) {}
 
-	/** 章立てのみを生成して保存する（討論を開始しない） */
-	async generateChaptersOnly(topicId: string): Promise<void> {
-		const { personas, topicTitle } = await this.loadSessionContext(topicId);
-		const chaptersResult = await this.chapterGenerator.generateChapters(topicTitle, personas);
-		if (!chaptersResult.ok) throw new Error(pipelineErrorMessage(chaptersResult.error));
-		const { chapters, generalIssues, personaIssues } = chaptersResult.value;
-		await Promise.all([
-			repo.saveChapters(
-				topicId,
-				chapters.map((c) => ({ title: c.title, focusQuestion: c.focusQuestion }))
-			),
-			repo.saveChapterIssues(topicId, generalIssues, personaIssues)
-		]);
-	}
-
 	/** @returns 次章が存在する場合 true（呼び出し元が次章タスクを投入する） */
 	async executeChapterTask(topicId: string, chapterIndex: number): Promise<boolean> {
 		const sessionId = topicId;

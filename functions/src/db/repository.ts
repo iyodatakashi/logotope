@@ -17,6 +17,7 @@ import type {
   CreatePostDebateCommentParams,
   StakeholderMap
 } from '../types/repository.types.js';
+import type { DebateChapter } from '../types/index.js';
 
 const db = () => getFirestore();
 
@@ -248,10 +249,10 @@ export const createDebateTurn = async (params: CreateDebateTurnParams): Promise<
 
 export const saveChapters = async (
   topicId: string,
-  chapters: ReadonlyArray<{ title: string; focusQuestion: string }>
+  chapters: ReadonlyArray<DebateChapter>
 ): Promise<void> => {
   await db().doc(`topics/${topicId}/sessions/0`).update({
-    chapters: chapters.map((c) => ({ chapterId: nanoid(), ...c })),
+    chapters: chapters.map(({ chapterId, title, focusQuestion }) => ({ chapterId, title, focusQuestion })),
     currentChapterIndex: 0,
   });
 };
