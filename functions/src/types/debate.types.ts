@@ -9,7 +9,7 @@ export type BeliefChangeEvent = {
 	updatedBelief: string;
 };
 
-export type OrchestratorOptions = {
+export type DebateOptions = {
 	turnsPerChapter: number;
 	maxTurns: number;
 	interventionCooldown: number;

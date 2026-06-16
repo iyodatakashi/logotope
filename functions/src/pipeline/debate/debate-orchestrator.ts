@@ -26,7 +26,7 @@ import type { Engagement, DebateState, BeliefCache } from '../../types/debate.ty
 import type { DebateTurn } from '../../types/debate.types.js';
 import type { Persona, Belief } from '../../types/persona.types.js';
 import { DEFAULT_OPTIONS } from '../../constants/debate-orchestrator.constants.js';
-import type { OrchestratorOptions } from '../../types/debate.types.js';
+import type { DebateOptions } from '../../types/debate.types.js';
 
 // ---- Firestore helpers ----
 
@@ -248,7 +248,7 @@ export class DebateOrchestratorService {
 	constructor(
 		private facilitator: FacilitatorAgentService = new FacilitatorAgentService(),
 		private chapterGenerator: ChapterGeneratorService = new ChapterGeneratorService(),
-		private options: OrchestratorOptions = DEFAULT_OPTIONS
+		private options: DebateOptions = DEFAULT_OPTIONS
 	) {}
 
 	/** @returns 次章が存在する場合 true（呼び出し元が次章タスクを投入する） */
