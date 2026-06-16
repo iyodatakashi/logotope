@@ -1,7 +1,6 @@
 import type { Persona } from './persona.types.js';
 
 export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
-export type SpeakerType = 'facilitator' | 'persona';
 export type SpeakerSource = 'nomination' | 'direct_address' | 'queue' | 'score';
 
 export type BeliefChangeEvent = {
@@ -137,38 +136,6 @@ export type DebateTopic = {
   updatedAt: string;
 };
 
-export type EngagementEntry = {
-  personaId: string;
-  score: number;
-  mode: 'opinion' | 'fact' | 'none';
-};
-
-export type EngagementHistoryEntry = {
-  score: number;
-  mode: 'opinion' | 'fact' | 'none';
-  intentSummary?: string;
-};
-
-export type PendingIntentEntry = {
-  triggerTurnIndex: number;
-  intentSummary: string;
-};
-
-export type EngagementDoc = {
-  history: Record<string, EngagementHistoryEntry>;
-  pendingIntents: PendingIntentEntry[];
-};
-
-export type SaveEngagementsParams = {
-  sessionId: string;
-  turnIndex: number;
-  assessments: Array<{
-    personaId: string;
-    score: number;
-    mode: 'opinion' | 'fact' | 'none';
-    intentSummary?: string;
-  }>;
-};
 
 export type DebateTurn = {
   id: string;
@@ -185,7 +152,6 @@ export type DebateTurn = {
   engagementScore?: number;
   fromQueue?: boolean;
   addressedPersonaId?: string;
-  engagements?: EngagementEntry[];
   searchUsed?: boolean;
   searchQueries?: string[];
 };
@@ -201,26 +167,3 @@ export type DebateSession = {
   currentChapterIndex?: number;
 };
 
-export type CreateDebateTurnParams = {
-  sessionId: string;
-  turnIndex: number;
-  speakerType: string;
-  personaId?: string;
-  speakerName?: string;
-  speakerRole?: string;
-  content: string;
-  chapterId?: string;
-  speechMode?: 'opinion' | 'fact';
-  engagementScore?: number;
-  fromQueue?: boolean;
-  addressedPersonaId?: string;
-  searchUsed?: boolean;
-  searchQueries?: string[];
-};
-
-export type CreatePostDebateCommentParams = {
-  sessionId: string;
-  personaId: string;
-  content: string;
-  sortOrder: number;
-};
