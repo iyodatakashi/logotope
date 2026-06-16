@@ -89,11 +89,16 @@ describe('restartDebate - 章単位再開', () => {
     vi.mocked(repo.getTopicById).mockResolvedValue(topicStub);
     vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
       id: 't1', topicId: 't1', createdAt: '', currentChapterIndex: 2,
+      chapters: [
+        { chapterId: 'ch-0', title: '章0', focusQuestion: '?' },
+        { chapterId: 'ch-1', title: '章1', focusQuestion: '?' },
+        { chapterId: 'ch-2', title: '章2', focusQuestion: '?' },
+      ],
     });
 
     await (restartDebate as unknown as CallHandler)({ data: { topicId: 't1' } });
 
-    expect(vi.mocked(repo.discardChapterProgress)).toHaveBeenCalledWith('t1', 2);
+    expect(vi.mocked(repo.discardChapterProgress)).toHaveBeenCalledWith('t1', 'ch-2');
     expect(vi.mocked(repo.updateTopicPhase)).toHaveBeenCalledWith('t1', 5, 'running');
     expect(mockEnqueue).toHaveBeenCalledWith({ topicId: 't1', chapterIndex: 2 }, expect.anything());
   });
@@ -102,11 +107,12 @@ describe('restartDebate - 章単位再開', () => {
     vi.mocked(repo.getTopicById).mockResolvedValue(topicStub);
     vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
       id: 't1', topicId: 't1', createdAt: '',
+      chapters: [{ chapterId: 'ch-0', title: '章0', focusQuestion: '?' }],
     });
 
     await (restartDebate as unknown as CallHandler)({ data: { topicId: 't1' } });
 
-    expect(vi.mocked(repo.discardChapterProgress)).toHaveBeenCalledWith('t1', 0);
+    expect(vi.mocked(repo.discardChapterProgress)).toHaveBeenCalledWith('t1', 'ch-0');
     expect(mockEnqueue).toHaveBeenCalledWith({ topicId: 't1', chapterIndex: 0 }, expect.anything());
   });
 });

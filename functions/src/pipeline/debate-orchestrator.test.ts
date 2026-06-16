@@ -18,7 +18,6 @@ vi.mock('../db/repository.js', () => ({
   saveChapters: vi.fn(),
   saveChapterIssues: vi.fn(),
   updateCurrentChapterIndex: vi.fn(),
-  setChapterStartTurnIndex: vi.fn(),
   saveEngagements: vi.fn(),
   setPendingIntents: vi.fn(),
   loadPendingIntents: vi.fn(),
@@ -33,6 +32,7 @@ import { DebateOrchestratorService } from './debate-orchestrator.js';
 import { DEFAULT_OPTIONS } from '../constants/debate-orchestrator.constants.js';
 import type { FacilitatorAgentService } from '../agents/facilitator-agent.js';
 import type { PersonaAgentService } from '../agents/persona-agent.js';
+import type { ChapterGeneratorService } from './chapter-generator.js';
 
 // ---- helpers ----
 
@@ -48,8 +48,8 @@ const p3Profile = {
 };
 
 const twoChapters: DebateChapter[] = [
-  { title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 0 },
-  { title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 0 },
+  { chapterId: 'ch-0', title: '導入', focusQuestion: 'この問題の核心は何か？' },
+  { chapterId: 'ch-1', title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？' },
 ];
 
 function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}) {
@@ -58,11 +58,17 @@ function makeMockFacilitator(overrides: Partial<Record<string, ReturnType<typeof
     evaluateTopicDrift: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
     evaluateStallIntervention: vi.fn().mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
     generateClosing: vi.fn().mockResolvedValue({ ok: true, value: 'お疲れ様でした。' }),
+    ...overrides,
+  } as unknown as FacilitatorAgentService;
+}
+
+function makeMockChapterGenerator(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}) {
+  return {
     generateChapters: vi.fn().mockResolvedValue({ ok: true, value: { chapters: twoChapters, generalIssues: ['一般論点X'], personaIssues: ['ペルソナ論点Y'] } }),
     generateChapterSummary: vi.fn().mockResolvedValue({ ok: true, value: '章のまとめです。' }),
     generateChapterIntroduction: vi.fn().mockResolvedValue({ ok: true, value: { content: '次の章へ移ります。', firstPersonaId: 'p1' } }),
     ...overrides,
-  } as unknown as FacilitatorAgentService;
+  } as unknown as ChapterGeneratorService;
 }
 
 function makeMockPersonaAgent(overrides: Partial<Record<string, ReturnType<typeof vi.fn>>> = {}) {
@@ -100,13 +106,12 @@ function setupRepoDefaults() {
   // 章立ては generateChaptersOnly で事前保存済み（executeChapterTask はこれを前提とする）
   vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
     id: 't1', topicId: 't1', createdAt: '',
-    chapters: twoChapters.map(c => ({ title: c.title, focusQuestion: c.focusQuestion })),
+    chapters: twoChapters,
     currentChapterIndex: 0,
   });
   vi.mocked(repo.saveChapters).mockResolvedValue(undefined);
   vi.mocked(repo.saveChapterIssues).mockResolvedValue(undefined);
   vi.mocked(repo.updateCurrentChapterIndex).mockResolvedValue(undefined);
-  vi.mocked(repo.setChapterStartTurnIndex).mockResolvedValue(undefined);
   vi.mocked(repo.saveEngagements).mockResolvedValue(undefined);
   vi.mocked(repo.setPendingIntents).mockResolvedValue(undefined);
   vi.mocked(repo.loadPendingIntents).mockResolvedValue(new Map());
@@ -132,12 +137,12 @@ beforeEach(() => {
 describe('DebateOrchestratorService', () => {
   describe('generateChaptersOnly: 章立て事前生成', () => {
     it('章立てと切り口を生成して saveChapters・saveChapterIssues で保存する', async () => {
-      const mockFacilitator = makeMockFacilitator();
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
+      const mockChapterGenerator = makeMockChapterGenerator();
+      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), mockChapterGenerator, shortOptions);
 
       await service.generateChaptersOnly('t1');
 
-      expect(mockFacilitator.generateChapters).toHaveBeenCalledWith('AI医療診断の導入', expect.any(Array));
+      expect(mockChapterGenerator.generateChapters).toHaveBeenCalledWith('AI医療診断の導入', expect.any(Array));
       expect(vi.mocked(repo.saveChapters)).toHaveBeenCalledWith('t1', [
         { title: '導入', focusQuestion: 'この問題の核心は何か？' },
         { title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？' },
@@ -146,10 +151,10 @@ describe('DebateOrchestratorService', () => {
     });
 
     it('章立て生成に失敗した場合はフォールバックせず例外を送出する', async () => {
-      const mockFacilitator = makeMockFacilitator({
+      const mockChapterGenerator = makeMockChapterGenerator({
         generateChapters: vi.fn().mockResolvedValue({ ok: false, error: { code: 'AI_API_ERROR', message: 'chapter gen failed', retryable: true } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), mockChapterGenerator, shortOptions);
 
       await expect(service.generateChaptersOnly('t1')).rejects.toThrow('chapter gen failed');
       expect(vi.mocked(repo.saveChapters)).not.toHaveBeenCalled();
@@ -164,12 +169,13 @@ describe('DebateOrchestratorService', () => {
 
     it('第1章開始時: 事前保存された章立てを前提にオープニング生成・保存で開始する', async () => {
       const mockFacilitator = makeMockFacilitator();
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
+      const mockChapterGenerator = makeMockChapterGenerator();
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), mockChapterGenerator, shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
       // 章立て生成は generateChaptersOnly に分離済み。executeChapterTask 内では生成しない
-      expect(mockFacilitator.generateChapters).not.toHaveBeenCalled();
+      expect(mockChapterGenerator.generateChapters).not.toHaveBeenCalled();
       expect(mockFacilitator.generateOpening).toHaveBeenCalledWith(
         'AI医療診断の導入',
         expect.any(Array),
@@ -182,7 +188,7 @@ describe('DebateOrchestratorService', () => {
 
     it('chapterIndex > 0 で章情報が存在しない場合は例外を送出する', async () => {
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({ id: 't1', topicId: 't1', createdAt: '' });
-      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), makeMockChapterGenerator(), shortOptions);
 
       await expect(service.executeChapterTask('t1', 1)).rejects.toThrow();
     });
@@ -190,7 +196,7 @@ describe('DebateOrchestratorService', () => {
     it('永続化済みキューを復元し、全員低意欲時にキュー保持者が full モードで発言する', async () => {
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
         id: 't1', topicId: 't1', createdAt: '',
-        chapters: twoChapters.map(c => ({ title: c.title, focusQuestion: c.focusQuestion })),
+        chapters: twoChapters,
         currentChapterIndex: 0,
       });
       vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([
@@ -202,7 +208,7 @@ describe('DebateOrchestratorService', () => {
       const mockPersonaAgent = makeMockPersonaAgent({
         assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
       });
-      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -216,7 +222,7 @@ describe('DebateOrchestratorService', () => {
     it('トピックの停止ゲートが不成立なら何も生成せず false を返す', async () => {
       vi.mocked(repo.isDebateActive).mockResolvedValue(false);
       const mockFacilitator = makeMockFacilitator();
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockChapterGenerator(), shortOptions);
 
       const hasNext = await service.executeChapterTask('t1', 0);
 
@@ -228,10 +234,10 @@ describe('DebateOrchestratorService', () => {
     it('処理済みの章（currentChapterIndex > chapterIndex）はスキップし次章有無を返す', async () => {
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
         id: 't1', topicId: 't1', createdAt: '',
-        chapters: twoChapters.map(c => ({ title: c.title, focusQuestion: c.focusQuestion })),
+        chapters: twoChapters,
         currentChapterIndex: 1,
       });
-      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), makeMockChapterGenerator(), shortOptions);
 
       const hasNext = await service.executeChapterTask('t1', 0);
 
@@ -242,7 +248,7 @@ describe('DebateOrchestratorService', () => {
     it('章またぎの指名を復元する: 直前の章導入の addressedPersonaId のペルソナが章の最初の発言者になる', async () => {
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
         id: 't1', topicId: 't1', createdAt: '',
-        chapters: twoChapters.map(c => ({ title: c.title, focusQuestion: c.focusQuestion })),
+        chapters: twoChapters,
         currentChapterIndex: 1,
       });
       vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([
@@ -252,7 +258,7 @@ describe('DebateOrchestratorService', () => {
         { id: 't3t', sessionId: 't1', turnIndex: 3, speakerType: 'facilitator', content: '次の章を始めます。', createdAt: '', addressedPersonaId: 'p2' },
       ]);
       const mockPersonaAgent = makeMockPersonaAgent();
-      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 1);
 
@@ -268,7 +274,7 @@ describe('DebateOrchestratorService', () => {
       // shortOptions: cap=3。開会でp1指名→turn1(指名)→turn2→turn3 の 3 ペルソナターン
       // BC3 前: turn1 は directDecision 分岐で saveEngagements をスキップ（2回のみ）
       // BC3 後: 全ターンで evaluateEngagement を実行するため 3 回呼ばれる
-      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -283,7 +289,7 @@ describe('DebateOrchestratorService', () => {
           .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, content: '論点が逸れています。', targetPersonaId: 'p2' } })
           .mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -299,7 +305,7 @@ describe('DebateOrchestratorService', () => {
       const mockFacilitator = makeMockFacilitator({
         generateOpening: vi.fn().mockResolvedValue({ ok: true, value: { content: '開会。', firstPersonaId: 'p2' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -314,7 +320,7 @@ describe('DebateOrchestratorService', () => {
           .mockResolvedValueOnce({ ok: true, value: { content: 'p1の発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: 'p2' } })
           .mockResolvedValue({ ok: true, value: { content: '発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: undefined } }),
       });
-      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -325,7 +331,7 @@ describe('DebateOrchestratorService', () => {
 
     it('指名された本人を評価し、次話者未確定のターンでは直前話者を除いて意欲評価する', async () => {
       const mockPersonaAgent = makeMockPersonaAgent();
-      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -346,7 +352,7 @@ describe('DebateOrchestratorService', () => {
             : { ok: true, value: { score: 3, mode: 'opinion', intentSummary: undefined } }
         ),
       });
-      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await expect(service.executeChapterTask('t1', 0)).resolves.toBe(true);
       expect(personaTurnCalls().length).toBeGreaterThanOrEqual(2);
@@ -361,7 +367,7 @@ describe('DebateOrchestratorService', () => {
           return { ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } };
         }),
       });
-      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -376,7 +382,7 @@ describe('DebateOrchestratorService', () => {
     it('キュー発言後に消費が setPendingIntents で永続化される', async () => {
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
         id: 't1', topicId: 't1', createdAt: '',
-        chapters: twoChapters.map(c => ({ title: c.title, focusQuestion: c.focusQuestion })),
+        chapters: twoChapters,
         currentChapterIndex: 0,
       });
       vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([
@@ -388,7 +394,7 @@ describe('DebateOrchestratorService', () => {
       const mockPersonaAgent = makeMockPersonaAgent({
         assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
       });
-      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -406,7 +412,7 @@ describe('DebateOrchestratorService', () => {
           .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, content: '鈴木さんはいかがですか？', targetPersonaId: 'p2' } })
           .mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -428,7 +434,7 @@ describe('DebateOrchestratorService', () => {
           .mockResolvedValueOnce({ ok: true, value: { shouldIntervene: true, content: '鈴木花子さんはいかがですか？' } })
           .mockResolvedValue({ ok: true, value: { shouldIntervene: false } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -441,7 +447,7 @@ describe('DebateOrchestratorService', () => {
     });
 
     it('オープニング・章導入の指名先が addressedPersonaId としてターンに保存される', async () => {
-      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -457,7 +463,7 @@ describe('DebateOrchestratorService', () => {
           .mockResolvedValueOnce({ ok: true, value: { content: 'p1の発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: 'p2' } })
           .mockResolvedValue({ ok: true, value: { content: '発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: undefined } }),
       });
-      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -484,7 +490,7 @@ describe('DebateOrchestratorService', () => {
           })
           .mockResolvedValue({ ok: true, value: { content: '発言。', speechMode: 'opinion', beliefChange: null, addressedToPersonaId: undefined } }),
       });
-      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -502,6 +508,7 @@ describe('DebateOrchestratorService', () => {
       const service = new DebateOrchestratorService(
         makeMockFacilitator(),
         makeMockPersonaAgent(),
+        makeMockChapterGenerator(),
         { turnsPerChapter: 10, maxTurns: 3, interventionCooldown: 99 }
       );
 
@@ -515,16 +522,16 @@ describe('DebateOrchestratorService', () => {
   describe('task 4.3: 章終了・章遷移・討論終端', () => {
     it('75%消化かつ直近5シグナル非活性で章を早期終了する', async () => {
       // turnsPerChapter=8 → 75%=ceil(6)ターン・上限12ターン。ファシリテーターのオープニングが1ターン消費するため、ペルソナ発言は5ターンで総数6に達し早期終了
-      const mockFacilitator = makeMockFacilitator();
       const mockPersonaAgent = makeMockPersonaAgent({
         assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 1, mode: 'none', intentSummary: undefined } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, { turnsPerChapter: 8, maxTurns: 40, interventionCooldown: 99 });
+      const mockChapterGenerator = makeMockChapterGenerator();
+      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, mockChapterGenerator, { turnsPerChapter: 8, maxTurns: 40, interventionCooldown: 99 });
 
       await service.executeChapterTask('t1', 0);
 
       expect(personaTurnCalls()).toHaveLength(5);
-      expect(mockFacilitator.generateChapterSummary).toHaveBeenCalledOnce();
+      expect(mockChapterGenerator.generateChapterSummary).toHaveBeenCalledOnce();
     });
 
     it('章上限（150%）到達時に未応答の直接質問が残っていれば応答ターンを1件生成してから章を終える', async () => {
@@ -538,7 +545,7 @@ describe('DebateOrchestratorService', () => {
           },
         })),
       });
-      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -549,16 +556,17 @@ describe('DebateOrchestratorService', () => {
       expect(turns[2][0].personaId).toBe('p1');
     });
 
-    it('章遷移はまとめと次章導入の2ターンを生成し setChapterStartTurnIndex で次章の開始位置を保存する', async () => {
+    it('章遷移はまとめと次章導入の2ターンを生成し、次章の chapterId でターンを保存する', async () => {
       const mockFacilitator = makeMockFacilitator();
-      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, makeMockPersonaAgent(), makeMockChapterGenerator(), shortOptions);
 
       const hasNext = await service.executeChapterTask('t1', 0);
 
       expect(hasNext).toBe(true);
       expect(vi.mocked(repo.createDebateTurn).mock.calls.some(c => c[0].content === '章のまとめです。')).toBe(true);
-      expect(vi.mocked(repo.createDebateTurn).mock.calls.some(c => c[0].content === '次の章へ移ります。')).toBe(true);
-      expect(vi.mocked(repo.setChapterStartTurnIndex)).toHaveBeenCalledWith('t1', 1, expect.any(Number));
+      const introCall = vi.mocked(repo.createDebateTurn).mock.calls.find(c => c[0].content === '次の章へ移ります。');
+      expect(introCall).toBeDefined();
+      expect(introCall![0].chapterId).toBe('ch-1');
       expect(mockFacilitator.generateClosing).not.toHaveBeenCalled();
     });
 
@@ -573,7 +581,7 @@ describe('DebateOrchestratorService', () => {
         assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
       });
       // interventionCooldown=99 → 現行コードでは B が一切発火しない（interventionAllowed=false）
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, {
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockChapterGenerator(), {
         ...shortOptions, interventionCooldown: 99,
       });
 
@@ -595,7 +603,7 @@ describe('DebateOrchestratorService', () => {
         evaluateTopicDrift: vi.fn()
           .mockResolvedValue({ ok: true, value: { shouldIntervene: true, content: '論点が逸れています。', targetPersonaId: 'p2' } }),
       });
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       await service.executeChapterTask('t1', 0);
 
@@ -616,7 +624,7 @@ describe('DebateOrchestratorService', () => {
       });
       const mockFacilitator = makeMockFacilitator();
       const mockPersonaAgent = makeMockPersonaAgent();
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, shortOptions);
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
       const hasNext = await service.executeChapterTask('t1', 0);
 
@@ -648,7 +656,7 @@ describe('DebateOrchestratorService', () => {
         assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
       });
       // cap を広げてA介入後にp3のキュー選択が実行されるターンを確保する
-      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, { turnsPerChapter: 3, maxTurns: 40, interventionCooldown: 0 });
+      const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockChapterGenerator(), { turnsPerChapter: 3, maxTurns: 40, interventionCooldown: 0 });
 
       await service.executeChapterTask('t1', 0);
 
@@ -665,7 +673,7 @@ describe('DebateOrchestratorService', () => {
       vi.mocked(repo.isDebateActive)
         .mockResolvedValueOnce(true)
         .mockResolvedValue(false);
-      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), makeMockChapterGenerator(), shortOptions);
 
       const hasNext = await service.executeChapterTask('t1', 0);
 
@@ -678,7 +686,7 @@ describe('DebateOrchestratorService', () => {
         .mockResolvedValueOnce(true)  // executeChapterTask 初期ゲート
         .mockResolvedValueOnce(true)  // runChapterLoop ターン1境界
         .mockResolvedValueOnce(false); // generatePersonaTurn: 生成後の停止チェック
-      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), shortOptions);
+      const service = new DebateOrchestratorService(makeMockFacilitator(), makeMockPersonaAgent(), makeMockChapterGenerator(), shortOptions);
 
       const hasNext = await service.executeChapterTask('t1', 0);
 

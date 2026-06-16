@@ -264,80 +264,6 @@ describe('FacilitatorAgentService', () => {
     });
   });
 
-  describe('generateChapters - task 3.1', () => {
-    const chapterResult = {
-      chapters: [
-        { title: '導入', focusQuestion: 'この問題の核心は何か？' },
-        { title: '対立', focusQuestion: '最も意見が分かれる点は？' },
-      ],
-    };
-
-    // Step1 は一般切り口・ペルソナ固有切り口の2並列呼び出し、Step2 は章構造化の1呼び出し = 計3回
-    const mockChapterFlow = (general: string[], persona: string[]) => {
-      mockCreate
-        .mockResolvedValueOnce({
-          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: general } }],
-        })
-        .mockResolvedValueOnce({
-          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: persona } }],
-        })
-        .mockResolvedValueOnce({
-          content: [{ type: 'tool_use', name: 'submit_chapters', input: chapterResult }],
-        });
-    };
-
-    it('切り口2並列（Step1）+ 章構造化（Step2）の計3回のAI呼び出しを経て章立てと切り口を返す', async () => {
-      mockChapterFlow(['一般1', '一般2'], ['固有1', '固有2', '固有3']);
-
-      const result = await service.generateChapters('AI規制', testPersonas);
-
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value.chapters).toHaveLength(2);
-      expect(result.value.chapters[0].title).toBe('導入');
-      expect(result.value.generalIssues).toEqual(['一般1', '一般2']);
-      expect(result.value.personaIssues).toEqual(['固有1', '固有2', '固有3']);
-      expect(mockCreate).toHaveBeenCalledTimes(3);
-    });
-
-    it('Step 1（submit_issues）失敗時にPipelineErrorを返す', async () => {
-      mockCreate.mockRejectedValueOnce(new Error('API error'));
-
-      const result = await service.generateChapters('AI規制', testPersonas);
-
-      expect(result.ok).toBe(false);
-      if (result.ok) return;
-      expect(result.error.code).toBe('AI_API_ERROR');
-    });
-
-    it('Step 2（submit_chapters）失敗時にPipelineErrorを返す', async () => {
-      mockCreate
-        .mockResolvedValueOnce({
-          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: ['一般1'] } }],
-        })
-        .mockResolvedValueOnce({
-          content: [{ type: 'tool_use', name: 'submit_issues', input: { issues: ['固有1'] } }],
-        })
-        .mockRejectedValueOnce(new Error('Step 2 error'));
-
-      const result = await service.generateChapters('AI規制', testPersonas);
-
-      expect(result.ok).toBe(false);
-      if (result.ok) return;
-      expect(result.error.code).toBe('AI_API_ERROR');
-    });
-
-    it('Step 2 の user メッセージに Step 1 の一般・固有の両切り口が含まれる', async () => {
-      mockChapterFlow(['一般X'], ['固有Y']);
-
-      await service.generateChapters('AI規制', testPersonas);
-
-      const step2Msg: string = mockCreate.mock.calls[2][0].messages[0].content;
-      expect(step2Msg).toMatch(/一般X/);
-      expect(step2Msg).toMatch(/固有Y/);
-    });
-  });
-
   describe('evaluateIntervention - 介入は常に論点提示＋指名に一本化', () => {
     it('ツールスキーマに type 分岐がなく targetPersonaId を持つ', async () => {
       mockCreate.mockResolvedValue({
@@ -391,47 +317,6 @@ describe('FacilitatorAgentService', () => {
       expect(msg).not.toMatch(/章を終了|章の終了/);
     });
 
-  });
-
-  describe('generateChapterSummary / generateChapterIntroduction - task 3.2', () => {
-    const currentChapter: DebateChapter = { index: 0, title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 1 };
-    const nextChapter: DebateChapter = { index: 1, title: '対立', focusQuestion: '最も意見が分かれる点は？', startTurnIndex: 8 };
-
-    it('generateChapterSummary: 現章のまとめ発言テキストを返す', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'generate_chapter_transition', input: { content: '導入章のまとめです。' } }],
-      });
-
-      const result = await service.generateChapterSummary(testHistory, currentChapter);
-
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(typeof result.value).toBe('string');
-      expect(result.value.length).toBeGreaterThan(0);
-    });
-
-    it('generateChapterIntroduction: 次章の導入発言テキストとfirstPersonaIdを返す', async () => {
-      mockCreate.mockResolvedValue({
-        content: [{ type: 'tool_use', name: 'submit_chapter_intro', input: { content: '次のテーマへ移ります。', firstPersonaId: 'p1' } }],
-      });
-
-      const result = await service.generateChapterIntroduction(nextChapter, testPersonas);
-
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value.content).toBeTruthy();
-      expect(result.value.firstPersonaId).toBe('p1');
-    });
-
-    it('generateChapterSummary: AI エラー時に PipelineError を返す', async () => {
-      mockCreate.mockRejectedValue(new Error('API error'));
-
-      const result = await service.generateChapterSummary(testHistory, currentChapter);
-
-      expect(result.ok).toBe(false);
-      if (result.ok) return;
-      expect(result.error.code).toBe('AI_API_ERROR');
-    });
   });
 
   describe('generateOpening - task 3.3: firstChapter コンテキスト', () => {
