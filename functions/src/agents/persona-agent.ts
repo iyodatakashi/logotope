@@ -1,7 +1,7 @@
 import { generateText, jsonSchema } from 'ai';
 import { getPersonaModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../constants/ai.constants.js';
-import { SearchService } from '../search/search-service.js';
+import { isSearchAvailable, executeSearch } from '../search/search-service.js';
 import { formatHistory } from '../utils/conversation.js';
 import type { DebateTurn } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
@@ -167,8 +167,7 @@ type AnyTool = {
 
 function buildFullTurnTools(
 	styleGuide: string,
-	lengthGuide: string,
-	searchService: SearchService
+	lengthGuide: string
 ): Record<string, AnyTool> {
 	const styleSummary = styleGuide.split('\n')[0];
 	const tools: Record<string, AnyTool> = {
@@ -207,7 +206,7 @@ function buildFullTurnTools(
 		}
 	};
 
-	if (searchService.isAvailable()) {
+	if (isSearchAvailable()) {
 		tools['web_search'] = {
 			description:
 				'数値・統計・最新情報など正確性が必要な情報を検索する。1〜2回以内で使用すること。',
@@ -217,8 +216,8 @@ function buildFullTurnTools(
 				required: ['query']
 			}),
 			execute: async (args: { [key: string]: unknown }) => {
-				const result = await searchService.executeSearch(args['query'] as string);
-				return result.ok ? result.content! : '検索結果を取得できませんでした。';
+				const result = await executeSearch(args['query'] as string);
+				return result.ok ? result.value : '検索結果を取得できませんでした。';
 			}
 		};
 	}
@@ -294,14 +293,7 @@ const POST_DEBATE_COMMENT_TOOLS = {
 	}
 } as const;
 
-export class PersonaAgentService {
-	private readonly searchService: SearchService;
-
-	constructor(searchService?: SearchService) {
-		this.searchService = searchService ?? new SearchService();
-	}
-
-	async generateTurn(
+export async function generateTurn(
 		persona: Persona,
 		currentBelief: string,
 		interviewRecord: string,
@@ -330,7 +322,7 @@ export class PersonaAgentService {
 				: '';
 
 			const lengthGuide = speechLengthGuide(context.score);
-			const fullTools = buildFullTurnTools(styleGuide, lengthGuide, this.searchService);
+			const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
 			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ addressedToPersonaId を指定。`;
 			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。直接質問する場合のみ addressedToPersonaId を指定。`;
 			const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${lastSpeakerNote}${pendingNote}${intentNote}${nominationNote}\n\n${isFact ? factInstruction : opinionInstruction}`;
@@ -409,14 +401,14 @@ export class PersonaAgentService {
 			const message = err instanceof Error ? err.message : String(err);
 			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 		}
-	}
+}
 
-	async assessEngagement(
-		persona: Persona,
-		currentBelief: string,
-		interviewRecord: string,
-		history: DebateTurn[]
-	): Promise<Result<EngagementAssessment, PipelineError>> {
+export async function assessEngagement(
+	persona: Persona,
+	currentBelief: string,
+	interviewRecord: string,
+	history: DebateTurn[]
+): Promise<Result<EngagementAssessment, PipelineError>> {
 		try {
 			const recentHistory = history.slice(-8);
 			const ownTurns = history.filter((t) => t.personaId === persona.id).slice(-5);
@@ -460,13 +452,13 @@ export class PersonaAgentService {
 			const message = err instanceof Error ? err.message : String(err);
 			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 		}
-	}
+}
 
-	async generatePostDebateComment(
-		persona: Persona,
-		finalBelief: string,
-		history: DebateTurn[]
-	): Promise<Result<PostDebateCommentResult, PipelineError>> {
+export async function generatePostDebateComment(
+	persona: Persona,
+	finalBelief: string,
+	history: DebateTurn[]
+): Promise<Result<PostDebateCommentResult, PipelineError>> {
 		try {
 			const result = await generateText({
 				model: getPersonaModel(persona.llmType ?? 'claude'),
@@ -496,5 +488,4 @@ export class PersonaAgentService {
 			const message = err instanceof Error ? err.message : String(err);
 			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 		}
-	}
 }

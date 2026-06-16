@@ -2,7 +2,7 @@ import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { getTopicById, getPersonasByTopicId, getDebateSessionByTopicId } from '../../db/repository.js';
 import { FacilitatorAgentService } from '../../agents/facilitator-agent.js';
-import { PersonaAgentService } from '../../agents/persona-agent.js';
+import { generateTurn, assessEngagement, generatePostDebateComment } from '../../agents/persona-agent.js';
 import { ChapterGeneratorService } from '../chapters/chapter-generator.js';
 import {
 	resolveDirectAddress,
@@ -246,7 +246,6 @@ const validPersonaId = (
 export class DebateOrchestratorService {
 	constructor(
 		private facilitator: FacilitatorAgentService = new FacilitatorAgentService(),
-		private personaAgent: PersonaAgentService = new PersonaAgentService(),
 		private chapterGenerator: ChapterGeneratorService = new ChapterGeneratorService(),
 		private options: OrchestratorOptions = DEFAULT_OPTIONS
 	) {}
@@ -394,7 +393,7 @@ export class DebateOrchestratorService {
 		const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
 		const assessments = await Promise.all(
 			assessTargets.map(async (p): Promise<SpeakerAssessment> => {
-				const result = await this.personaAgent.assessEngagement(
+				const result = await assessEngagement(
 					p,
 					state.currentBeliefs.get(p.id)?.content ?? '',
 					interviewRecords.get(p.id) ?? '',
@@ -647,7 +646,7 @@ export class DebateOrchestratorService {
 		}
 		const persona = personas.find((p) => p.id === speakerId);
 		if (!persona) return {};
-		const result = await this.personaAgent.assessEngagement(
+		const result = await assessEngagement(
 			persona,
 			state.currentBeliefs.get(speakerId)?.content ?? '',
 			interviewRecords.get(speakerId) ?? '',
@@ -689,7 +688,7 @@ export class DebateOrchestratorService {
 				: undefined;
 		}
 
-		const turnResult = await this.personaAgent.generateTurn(
+		const turnResult = await generateTurn(
 			persona,
 			belief.content,
 			interviewRecord,
@@ -927,7 +926,7 @@ export class DebateOrchestratorService {
 		for (let i = 0; i < personas.length; i++) {
 			const persona = personas[i];
 			const finalBelief = state.currentBeliefs.get(persona.id)?.content ?? '';
-			const commentResult = await this.personaAgent.generatePostDebateComment(
+			const commentResult = await generatePostDebateComment(
 				persona,
 				finalBelief,
 				state.history

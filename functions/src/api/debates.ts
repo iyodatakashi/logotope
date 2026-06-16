@@ -58,7 +58,7 @@ export const runChapter = onTaskDispatched(
   async (req) => {
     const { topicId, chapterIndex, singleChapterMode } = req.data as { topicId: string; chapterIndex: number; singleChapterMode?: boolean };
     try {
-      const orchestrator = new DebateOrchestratorService(undefined, undefined, undefined, { ...DEFAULT_OPTIONS, singleChapterMode });
+      const orchestrator = new DebateOrchestratorService(undefined, undefined, { ...DEFAULT_OPTIONS, singleChapterMode });
       const hasNextChapter = await orchestrator.executeChapterTask(topicId, chapterIndex);
       if (hasNextChapter) {
         await enqueueChapterTask(topicId, chapterIndex + 1, singleChapterMode);
