@@ -7,7 +7,6 @@ import {
 	getDocs,
 	collection,
 	deleteField,
-	addDoc,
 	deleteDoc
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -150,17 +149,18 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 		try {
 			const stakeholderItems = stakeholders ?? [];
 			const generatePersonasCallable = httpsCallable<
-				{ title: string; stakeholders: StakeholderDoc[] },
-				{ personas: PersonaData[] }
+				{ topicId: string; title: string; stakeholders: StakeholderDoc[] },
+				{ personas: Array<PersonaData & { id: string }> }
 			>(functions, 'generatePersonas', { timeout: 310000 });
 			const { data } = await generatePersonasCallable({
+				topicId: id,
 				title: title,
 				stakeholders: stakeholderItems
 			});
 
 			await Promise.all(
-				data.personas.map((persona, index) =>
-					addDoc(collection(db, 'topics', id, 'personas'), {
+				data.personas.map(({ id: personaId, ...persona }, index) =>
+					setDoc(doc(db, 'topics', id, 'personas', personaId), {
 						sortOrder: index,
 						approved: false,
 						beliefs: [],
