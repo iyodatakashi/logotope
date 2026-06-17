@@ -71,29 +71,29 @@ describe('persistInterventionTurn', () => {
 
   it('targetPersonaId がある場合は targeted_by_facilitator の SpeakerSelection を返す', async () => {
     const state = makeState();
-    const result = await persistInterventionTurn('topic1', state, '介入メッセージ', 'p1', 'ch-0');
+    const result = await persistInterventionTurn({ topicId: 'topic1', state, content: '介入メッセージ', targetPersonaId: 'p1', chapterId: 'ch-0' });
     expect(result).toEqual({ personaId: 'p1', reason: 'targeted_by_facilitator' });
   });
 
   it('targetPersonaId がない場合は undefined を返す', async () => {
     const state = makeState();
-    const result = await persistInterventionTurn('topic1', state, '介入メッセージ', undefined, 'ch-0');
+    const result = await persistInterventionTurn({ topicId: 'topic1', state, content: '介入メッセージ', targetPersonaId: undefined, chapterId: 'ch-0' });
     expect(result).toBeUndefined();
   });
 
   it('targetPersonaId の有無にかかわらず state.history に1件追加される', async () => {
     const state = makeState();
 
-    await persistInterventionTurn('topic1', state, '介入A', 'p1', 'ch-0');
+    await persistInterventionTurn({ topicId: 'topic1', state, content: '介入A', targetPersonaId: 'p1', chapterId: 'ch-0' });
     expect(state.history).toHaveLength(1);
 
-    await persistInterventionTurn('topic1', state, '介入B', undefined, 'ch-0');
+    await persistInterventionTurn({ topicId: 'topic1', state, content: '介入B', targetPersonaId: undefined, chapterId: 'ch-0' });
     expect(state.history).toHaveLength(2);
   });
 
   it('追加されたターンの speakerType は facilitator である', async () => {
     const state = makeState();
-    await persistInterventionTurn('topic1', state, '介入メッセージ', 'p1', 'ch-0');
+    await persistInterventionTurn({ topicId: 'topic1', state, content: '介入メッセージ', targetPersonaId: 'p1', chapterId: 'ch-0' });
     expect(state.history[0].speakerType).toBe('facilitator');
   });
 });
