@@ -85,13 +85,7 @@ export const executeChapterTask = async (
 	if (!chapters[chapterIndex]) throw new Error(`Chapter not found: ${chapterIndex}`);
 	await updateCurrentChapterIndex(topicId, chapterIndex);
 
-	const outcome = await runChapterLoop(
-		topicId,
-		personas,
-		chapters[chapterIndex],
-		state,
-		options
-	);
+	const outcome = await runChapterLoop(topicId, personas, chapters[chapterIndex], state, options);
 	if (outcome === 'cancelled') return false;
 
 	// 章終了時に未応答の指名・直接質問が残っていれば応答ターンを1件生成する（+1ターン許容）
@@ -115,7 +109,7 @@ const getTopicContext = async (topicId: string) => {
 	return { topicTitle: topic.title, personas: allPersonas.filter((p) => p.approved) };
 };
 
-/** 直近のファシリテーターターン以降のペルソナターン数を返す（A介入クールダウン判定用） */
+/** 直近のファシリテーターターン以降のペルソナターン数を返す（論点ずれ介入クールダウン判定用） */
 export const countPersonaTurnsSinceFacilitator = (history: readonly DebateTurn[]): number => {
 	const lastFacilitatorIdx = history.reduce(
 		(max, t, i) => (t.speakerType === 'facilitator' ? i : max),
@@ -178,23 +172,36 @@ const runChapterLoop = async (
 		const assessments = await evaluateEngagement(topicId, personas, state);
 		engagementSignals.push(toEngagementSignal(assessments));
 
-		// A介入クールダウン: ファシリテーター以降のペルソナターン数が閾値を超えた場合のみ評価する
+		// 論点ずれ介入クールダウン: ファシリテーター以降のペルソナターン数が閾値を超えた場合のみ評価する
 		const driftCooldownPassed = shouldEvaluateIntervention(
 			countPersonaTurnsSinceFacilitator(state.history),
 			interventionCooldown
 		);
 
-		// 優先: 指名 > A介入（クールダウン後） > B介入 > キュー > スコア
+		// 優先: 指名 > 論点ずれ介入（クールダウン後） > 発言なし介入 > キュー > スコア
 		let decision: SpeakerSelection;
 		if (pairDecision) {
 			decision = pairDecision;
 		} else if (driftCooldownPassed) {
-			const driftDecision = await tryTopicDriftIntervention(topicId, personas, chapterHistory, chapter, state);
+			const driftDecision = await tryTopicDriftIntervention(
+				topicId,
+				personas,
+				chapterHistory,
+				chapter,
+				state
+			);
 			if (driftDecision) {
 				decision = driftDecision;
 			} else {
 				decision =
-					(await tryStallIntervention(topicId, personas, chapterHistory, chapter, state, assessments)) ??
+					(await tryStallIntervention(
+						topicId,
+						personas,
+						chapterHistory,
+						chapter,
+						state,
+						assessments
+					)) ??
 					decideNextSpeaker(
 						assessments,
 						state.pendingIntents,
@@ -205,7 +212,14 @@ const runChapterLoop = async (
 			}
 		} else {
 			decision =
-				(await tryStallIntervention(topicId, personas, chapterHistory, chapter, state, assessments)) ??
+				(await tryStallIntervention(
+					topicId,
+					personas,
+					chapterHistory,
+					chapter,
+					state,
+					assessments
+				)) ??
 				decideNextSpeaker(
 					assessments,
 					state.pendingIntents,
@@ -231,14 +245,7 @@ const runChapterLoop = async (
 
 		const speech = await resolveSpeechParams(decision.personaId, personas, state, assessments);
 
-		const saved = await generatePersonaTurn(
-			topicId,
-			personas,
-			chapter,
-			state,
-			decision,
-			speech
-		);
+		const saved = await generatePersonaTurn(topicId, personas, chapter, state, decision, speech);
 		if (!saved) return 'cancelled';
 
 		if (shouldEndChapterEarly(chapterTurnCount(), turnsPerChapter, engagementSignals)) {
@@ -327,7 +334,9 @@ export const persistInterventionTurn = async (
 	chapterId: string
 ): Promise<SpeakerSelection | undefined> => {
 	await saveFacilitatorTurn(topicId, state, content, targetPersonaId, chapterId);
-	return targetPersonaId ? { personaId: targetPersonaId, reason: 'targeted_by_facilitator' } : undefined;
+	return targetPersonaId
+		? { personaId: targetPersonaId, reason: 'targeted_by_facilitator' }
+		: undefined;
 };
 
 /** A（論点ずれ）: 逸脱していれば介入を保存して指名 decision を返す。クールダウン通過後かつ指名なし時のみ評価する */
@@ -338,7 +347,12 @@ const tryTopicDriftIntervention = async (
 	chapter: Chapter,
 	state: DebateState
 ): Promise<SpeakerSelection | undefined> => {
-	const result = await evaluateTopicDrift(chapterHistory as DebateTurn[], personas, state.speakCount, chapter);
+	const result = await evaluateTopicDrift(
+		chapterHistory as DebateTurn[],
+		personas,
+		state.speakCount,
+		chapter
+	);
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 	if (!result.value.content) return undefined;
 	const targetId = validPersonaId(result.value.targetPersonaId, personas);
@@ -729,7 +743,9 @@ const createPostDebateComment = async (params: {
 };
 
 const completeDebateSession = async (topicId: string, totalTurns: number): Promise<void> => {
-	await db().doc(`topics/${topicId}/sessions/0`).update({ totalTurns, completedAt: Timestamp.now() });
+	await db()
+		.doc(`topics/${topicId}/sessions/0`)
+		.update({ totalTurns, completedAt: Timestamp.now() });
 };
 
 const updateCurrentChapterIndex = async (topicId: string, index: number): Promise<void> => {
@@ -747,9 +763,7 @@ const saveEngagements = async (params: {
 	}>;
 }): Promise<void> => {
 	for (const assessment of params.assessments) {
-		const ref = db().doc(
-			`topics/${params.topicId}/sessions/0/engagements/${assessment.personaId}`
-		);
+		const ref = db().doc(`topics/${params.topicId}/sessions/0/engagements/${assessment.personaId}`);
 		const entry: Record<string, unknown> = { score: assessment.score, mode: assessment.mode };
 		if (assessment.intentSummary !== undefined) entry.intentSummary = assessment.intentSummary;
 		await ref.set(
