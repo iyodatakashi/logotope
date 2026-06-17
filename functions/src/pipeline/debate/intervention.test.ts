@@ -11,9 +11,10 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 import {
+  shouldEvaluateIntervention,
   countPersonaTurnsSinceFacilitator,
   persistInterventionTurn,
-} from './debate-orchestrator.js';
+} from './intervention.js';
 
 const makeTurn = (speakerType: 'persona' | 'facilitator', id: string, turnIndex = 0): DebateTurn => ({
   id,
@@ -29,11 +30,28 @@ const makeState = (turns: DebateTurn[] = []): DebateState => ({
   lastSpeakerId: undefined,
   silenceMap: new Map(),
   speakCount: new Map(),
-  pendingIntents: new Map(),
+  queuedIntents: new Map(),
   pairConversationTurns: 0,
-  targetPersona: undefined,
   currentTurnIndex: turns.length,
   lastFacilitatorTurnIndex: -1,
+});
+
+describe('shouldEvaluateIntervention', () => {
+  it('クールダウン経過で true（毎ターン評価が原則）', () => {
+    expect(shouldEvaluateIntervention(2, 2)).toBe(true);
+  });
+
+  it('クールダウン未満（ペルソナ発言1 < 2）はスキップ（false）', () => {
+    expect(shouldEvaluateIntervention(1, 2)).toBe(false);
+  });
+
+  it('クールダウン超過（3 >= 2）で true', () => {
+    expect(shouldEvaluateIntervention(3, 2)).toBe(true);
+  });
+
+  it('ファシリテーター発言直後（0ターン）は false', () => {
+    expect(shouldEvaluateIntervention(0, 2)).toBe(false);
+  });
 });
 
 describe('countPersonaTurnsSinceFacilitator', () => {
@@ -83,10 +101,8 @@ describe('persistInterventionTurn', () => {
 
   it('targetPersonaId の有無にかかわらず state.turns に1件追加される', async () => {
     const state = makeState();
-
     await persistInterventionTurn({ topicId: 'topic1', state, content: '介入A', targetPersonaId: 'p1', chapterId: 'ch-0' });
     expect(state.turns).toHaveLength(1);
-
     await persistInterventionTurn({ topicId: 'topic1', state, content: '介入B', targetPersonaId: undefined, chapterId: 'ch-0' });
     expect(state.turns).toHaveLength(2);
   });
@@ -104,7 +120,7 @@ describe('persistInterventionTurn', () => {
     expect(state.lastSpeakerId).toBeUndefined();
   });
 
-  it('pairConversationTurns は 0 にリセットされる（非退行確認）', async () => {
+  it('pairConversationTurns は 0 にリセットされる', async () => {
     const state = makeState();
     state.pairConversationTurns = 3;
     await persistInterventionTurn({ topicId: 'topic1', state, content: '介入', targetPersonaId: undefined, chapterId: 'ch-0' });
