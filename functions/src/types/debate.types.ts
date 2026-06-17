@@ -1,5 +1,4 @@
 import type { Chapter } from './chapter.types.js';
-export type { Chapter };
 
 export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
 export type BeliefChangeEvent = {
@@ -78,7 +77,6 @@ export type TurnGenerationContext = {
 
 export type DebateTurn = {
 	id: string;
-	sessionId: string;
 	turnIndex: number;
 	speakerType: string;
 	personaId?: string | null;

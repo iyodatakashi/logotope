@@ -9,8 +9,7 @@ import {
 	generateClosing
 } from '../../agents/facilitator-agent.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
-import type { DebateState, SpeakerSelection, QueuedIntent, BeliefChangeEvent, Engagement } from '../../types/debate.types.js';
-import type { DebateTurn } from '../../types/debate.types.js';
+import type { DebateState, SpeakerSelection, QueuedIntent, BeliefChangeEvent, Engagement, DebateTurn } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
@@ -158,7 +157,6 @@ export const generateFacilitatorTurn = async ({
 	});
 	state.turns.push({
 		id: turnId,
-		sessionId: topicId,
 		turnIndex,
 		speakerType: 'facilitator',
 		speakerName: 'ファシリテーター',
@@ -256,7 +254,6 @@ export const generatePersonaTurn = async ({
 	});
 	state.turns.push({
 		id: turnId,
-		sessionId: topicId,
 		turnIndex,
 		speakerType: 'persona',
 		personaId: persona.id,
@@ -369,7 +366,6 @@ export const getDebateTurnsByTopicId = async (topicId: string): Promise<DebateTu
 	};
 	return (data.turns ?? []).map((t) => ({
 		id: t.id,
-		sessionId: topicId,
 		turnIndex: t.turnIndex,
 		speakerType: t.speakerType,
 		personaId: t.personaId ?? null,

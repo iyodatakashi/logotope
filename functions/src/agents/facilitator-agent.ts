@@ -1,33 +1,24 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { generateText, tool, jsonSchema } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
-import { formatTurns, formatPersonas } from '../utils/prompt-formatters.js';
+import { formatTurns, formatPersonas, currentDateString } from '../utils/prompt-formatters.js';
 import type { DebateTurn } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
-import type { FacilitatorReply, Chapter } from '../types/debate.types.js';
+import type { FacilitatorReply } from '../types/debate.types.js';
+import type { Chapter } from '../types/chapter.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 
-const client = new Anthropic();
-
-function currentDateString(): string {
-	const d = new Date();
-	return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-}
-
-export function buildNeutralitySystemPrompt(): string {
-	return (
-		`本日は ${currentDateString()} です。時事的な話題に言及する際はこの日付を基準にしてください。` +
-		'あなたはテレビ討論番組のプロの司会者です。特定の立場への誘導は禁止しますが、議論を具体的な論点に絞り込んで進行するのがあなたの役割です。' +
-		'「建設的な議論を」「様々な視点から」のような抽象的な言葉は使わない。' +
-		'常に「〜についてはどうですか？」「〜という点で○○さんはどう思いますか？」のように具体的な問いかけで誘導する。' +
-		'発言は2〜3文以内。演説禁止。'
-	);
-}
+export const buildNeutralitySystemPrompt = (): string =>
+	`本日は ${currentDateString()} です。時事的な話題に言及する際はこの日付を基準にしてください。` +
+	'あなたはテレビ討論番組のプロの司会者です。特定の立場への誘導は禁止しますが、議論を具体的な論点に絞り込んで進行するのがあなたの役割です。' +
+	'「建設的な議論を」「様々な視点から」のような抽象的な言葉は使わない。' +
+	'常に「〜についてはどうですか？」「〜という点で○○さんはどう思いますか？」のように具体的な問いかけで誘導する。' +
+	'発言は2〜3文以内。演説禁止。';
 
 // 先に指名先（targetPersonaId）を確定させてから content を書かせる（呼びかけと ID の不一致防止）
-const OPENING_TOOL: Anthropic.Tool = {
-	name: 'submit_opening',
+const OPENING_TOOL = tool({
 	description: '最初に発言させるペルソナを決めてから、討論の冒頭発言を提出する',
-	input_schema: {
+	parameters: jsonSchema({
 		type: 'object' as const,
 		properties: {
 			targetPersonaId: {
@@ -42,16 +33,15 @@ const OPENING_TOOL: Anthropic.Tool = {
 			}
 		},
 		required: ['targetPersonaId', 'content']
-	}
-};
+	})
+});
 
 // プロパティの定義順 = LLM の生成順。先に指名先（targetPersonaId）を確定させてから
 // content を書かせることで、文中の呼びかけと指名 ID の不一致・ID 漏れを防ぐ
-const INTERVENTION_TOOL: Anthropic.Tool = {
-	name: 'evaluate_intervention',
+const INTERVENTION_TOOL = tool({
 	description:
 		'ファシリテーターとして可視介入が必要か判断する。介入する場合のみ targetPersonaId と content を返す。介入しない場合は両方省略する',
-	input_schema: {
+	parameters: jsonSchema({
 		type: 'object' as const,
 		properties: {
 			targetPersonaId: {
@@ -66,20 +56,19 @@ const INTERVENTION_TOOL: Anthropic.Tool = {
 			}
 		},
 		required: []
-	}
-};
+	})
+});
 
-const CLOSING_TOOL: Anthropic.Tool = {
-	name: 'submit_closing',
+const CLOSING_TOOL = tool({
 	description: '討論のクロージング発言を提出する',
-	input_schema: {
+	parameters: jsonSchema({
 		type: 'object' as const,
 		properties: {
 			content: { type: 'string', description: 'ファシリテーターのクロージング発言テキスト' }
 		},
 		required: ['content']
-	}
-};
+	})
+});
 
 const runInterventionCheck = async (
 	turns: DebateTurn[],
@@ -92,12 +81,12 @@ const runInterventionCheck = async (
 			? `\n\n【この章のミッション】「${currentChapter.title}」\nフォーカス問い: ${currentChapter.focusQuestion}\n司会の役割: この章の間、会話が常にこのフォーカス問いに関連するよう誘導する。`
 			: '';
 
-		const response = await client.messages.create({
-			model: AI_MODELS.SONNET,
-			max_tokens: MAX_TOKENS.FACILITATOR_INTERVENTION,
+		const result = await generateText({
+			model: anthropic(AI_MODELS.SONNET),
+			maxTokens: MAX_TOKENS.FACILITATOR_INTERVENTION,
 			system: buildNeutralitySystemPrompt(),
-			tools: [INTERVENTION_TOOL],
-			tool_choice: { type: 'tool', name: 'evaluate_intervention' },
+			tools: { evaluate_intervention: INTERVENTION_TOOL },
+			toolChoice: { type: 'tool', toolName: 'evaluate_intervention' },
 			messages: [
 				{
 					role: 'user',
@@ -106,17 +95,15 @@ const runInterventionCheck = async (
 			]
 		});
 
-		const toolBlock = response.content.find(
-			(b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-		);
-		if (!toolBlock) {
+		const toolCall = result.toolCalls[0];
+		if (!toolCall) {
 			return {
 				ok: false,
-				error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true }
+				error: { code: 'AI_API_ERROR', message: 'No tool call in response', retryable: true }
 			};
 		}
 
-		const { content, targetPersonaId } = toolBlock.input as FacilitatorReply;
+		const { content, targetPersonaId } = toolCall.args as FacilitatorReply;
 		return { ok: true, value: { content, targetPersonaId } };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
@@ -133,12 +120,12 @@ export const generateOpening = async (
 		const chapterContext = firstChapter
 			? `\n\n第1章「${firstChapter.title}」のフォーカス: ${firstChapter.focusQuestion}`
 			: '';
-		const response = await client.messages.create({
-			model: AI_MODELS.SONNET,
-			max_tokens: MAX_TOKENS.FACILITATOR_OPENING,
+		const result = await generateText({
+			model: anthropic(AI_MODELS.SONNET),
+			maxTokens: MAX_TOKENS.FACILITATOR_OPENING,
 			system: buildNeutralitySystemPrompt(),
-			tools: [OPENING_TOOL],
-			tool_choice: { type: 'tool', name: 'submit_opening' },
+			tools: { submit_opening: OPENING_TOOL },
+			toolChoice: { type: 'tool', toolName: 'submit_opening' },
 			messages: [
 				{
 					role: 'user',
@@ -147,17 +134,15 @@ export const generateOpening = async (
 			]
 		});
 
-		const toolBlock = response.content.find(
-			(b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-		);
-		if (!toolBlock) {
+		const toolCall = result.toolCalls[0];
+		if (!toolCall) {
 			return {
 				ok: false,
 				error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true }
 			};
 		}
 
-		const { content, targetPersonaId } = toolBlock.input as FacilitatorReply;
+		const { content, targetPersonaId } = toolCall.args as FacilitatorReply;
 		return { ok: true, value: { content, targetPersonaId } };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
@@ -202,12 +187,12 @@ export const generateClosing = async (
 			.map(([id, belief]) => `ペルソナ ${id}:\n${belief}`)
 			.join('\n\n');
 
-		const response = await client.messages.create({
-			model: AI_MODELS.SONNET,
-			max_tokens: MAX_TOKENS.FACILITATOR_CLOSING,
+		const result = await generateText({
+			model: anthropic(AI_MODELS.SONNET),
+			maxTokens: MAX_TOKENS.FACILITATOR_CLOSING,
 			system: buildNeutralitySystemPrompt(),
-			tools: [CLOSING_TOOL],
-			tool_choice: { type: 'tool', name: 'submit_closing' },
+			tools: { submit_closing: CLOSING_TOOL },
+			toolChoice: { type: 'tool', toolName: 'submit_closing' },
 			messages: [
 				{
 					role: 'user',
@@ -216,17 +201,15 @@ export const generateClosing = async (
 			]
 		});
 
-		const toolBlock = response.content.find(
-			(b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-		);
-		if (!toolBlock) {
+		const toolCall = result.toolCalls[0];
+		if (!toolCall) {
 			return {
 				ok: false,
 				error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true }
 			};
 		}
 
-		const { content } = toolBlock.input as { content: string };
+		const { content } = toolCall.args as { content: string };
 		return { ok: true, value: content };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
@@ -234,23 +217,21 @@ export const generateClosing = async (
 	}
 };
 
-const GENERATE_CHAPTER_TRANSITION_TOOL: Anthropic.Tool = {
-	name: 'generate_chapter_transition',
+const GENERATE_CHAPTER_TRANSITION_TOOL = tool({
 	description: '章の遷移発言または最終章のまとめ発言を生成する',
-	input_schema: {
+	parameters: jsonSchema({
 		type: 'object' as const,
 		properties: {
 			content: { type: 'string', description: 'ファシリテーターの遷移発言テキスト' }
 		},
 		required: ['content']
-	}
-};
+	})
+});
 
 // 先に指名先（targetPersonaId）を確定させてから content を書かせる（呼びかけと ID の不一致防止）
-const CHAPTER_INTRO_TOOL: Anthropic.Tool = {
-	name: 'submit_chapter_intro',
+const CHAPTER_INTRO_TOOL = tool({
 	description: '次の章で最初に発言させるペルソナを決めてから、章の導入発言を提出する',
-	input_schema: {
+	parameters: jsonSchema({
 		type: 'object' as const,
 		properties: {
 			targetPersonaId: {
@@ -264,20 +245,20 @@ const CHAPTER_INTRO_TOOL: Anthropic.Tool = {
 			}
 		},
 		required: ['targetPersonaId', 'content']
-	}
-};
+	})
+});
 
 export const generateChapterSummary = async (
 	recentHistory: DebateTurn[],
 	currentChapter: Chapter
 ): Promise<Result<string, PipelineError>> => {
 	try {
-		const response = await client.messages.create({
-			model: AI_MODELS.SONNET,
-			max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
+		const result = await generateText({
+			model: anthropic(AI_MODELS.SONNET),
+			maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
 			system: buildNeutralitySystemPrompt(),
-			tools: [GENERATE_CHAPTER_TRANSITION_TOOL],
-			tool_choice: { type: 'tool', name: 'generate_chapter_transition' },
+			tools: { generate_chapter_transition: GENERATE_CHAPTER_TRANSITION_TOOL },
+			toolChoice: { type: 'tool', toolName: 'generate_chapter_transition' },
 			messages: [
 				{
 					role: 'user',
@@ -286,10 +267,8 @@ export const generateChapterSummary = async (
 			]
 		});
 
-		const toolBlock = response.content.find(
-			(b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-		);
-		if (!toolBlock) {
+		const toolCall = result.toolCalls[0];
+		if (!toolCall) {
 			return {
 				ok: false,
 				error: {
@@ -299,7 +278,7 @@ export const generateChapterSummary = async (
 				}
 			};
 		}
-		const { content } = toolBlock.input as { content: string };
+		const { content } = toolCall.args as { content: string };
 		return { ok: true, value: content };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
@@ -312,12 +291,12 @@ export const generateChapterIntroduction = async (
 	personas: Persona[]
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	try {
-		const response = await client.messages.create({
-			model: AI_MODELS.SONNET,
-			max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
+		const result = await generateText({
+			model: anthropic(AI_MODELS.SONNET),
+			maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
 			system: buildNeutralitySystemPrompt(),
-			tools: [CHAPTER_INTRO_TOOL],
-			tool_choice: { type: 'tool', name: 'submit_chapter_intro' },
+			tools: { submit_chapter_intro: CHAPTER_INTRO_TOOL },
+			toolChoice: { type: 'tool', toolName: 'submit_chapter_intro' },
 			messages: [
 				{
 					role: 'user',
@@ -326,10 +305,8 @@ export const generateChapterIntroduction = async (
 			]
 		});
 
-		const toolBlock = response.content.find(
-			(b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-		);
-		if (!toolBlock) {
+		const toolCall = result.toolCalls[0];
+		if (!toolCall) {
 			return {
 				ok: false,
 				error: {
@@ -339,7 +316,7 @@ export const generateChapterIntroduction = async (
 				}
 			};
 		}
-		const { content, targetPersonaId } = toolBlock.input as FacilitatorReply;
+		const { content, targetPersonaId } = toolCall.args as FacilitatorReply;
 		return { ok: true, value: { content, targetPersonaId } };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);

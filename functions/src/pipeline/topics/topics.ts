@@ -1,8 +1,10 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import type { Topic } from '../../types/topic.types.js';
 
+const db = () => getFirestore();
+
 export const getTopicById = async (id: string): Promise<Topic | null> => {
-	const snap = await getFirestore().doc(`topics/${id}`).get();
+	const snap = await db().doc(`topics/${id}`).get();
 	if (!snap.exists) return null;
 	const data = snap.data() as { title: string; createdAt: Timestamp; updatedAt: Timestamp };
 	return {

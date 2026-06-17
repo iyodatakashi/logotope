@@ -1,4 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { generateText, tool, jsonSchema } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { nanoid } from 'nanoid';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { AI_MODELS, MAX_TOKENS } from '../../constants/ai.constants.js';
@@ -10,13 +11,11 @@ import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
 
-const client = new Anthropic();
 const db = () => getFirestore();
 
-const SUBMIT_ISSUES_TOOL: Anthropic.Tool = {
-	name: 'submit_issues',
+const SUBMIT_ISSUES_TOOL = tool({
 	description: '討論テーマに関する多様な切り口をフラットに列挙する',
-	input_schema: {
+	parameters: jsonSchema({
 		type: 'object' as const,
 		properties: {
 			issues: {
@@ -27,13 +26,12 @@ const SUBMIT_ISSUES_TOOL: Anthropic.Tool = {
 			}
 		},
 		required: ['issues']
-	}
-};
+	})
+});
 
-const SUBMIT_CHAPTERS_TOOL: Anthropic.Tool = {
-	name: 'submit_chapters',
+const SUBMIT_CHAPTERS_TOOL = tool({
 	description: '列挙した切り口をもとに討論の章立てを構成する（目安3〜6章）',
-	input_schema: {
+	parameters: jsonSchema({
 		type: 'object' as const,
 		properties: {
 			chapters: {
@@ -49,8 +47,8 @@ const SUBMIT_CHAPTERS_TOOL: Anthropic.Tool = {
 			}
 		},
 		required: ['chapters']
-	}
-};
+	})
+});
 
 export const generateChapters = async (
 	topicTitle: string,
@@ -63,14 +61,14 @@ export const generateChapters = async (
 > => {
 	try {
 		// Step 1: 切り口洗い出し（一般切り口とペルソナ固有切り口を並列生成）
-		const [generalIssuesResponse, personaIssuesResponse] = await Promise.all([
+		const [generalIssuesResult, personaIssuesResult] = await Promise.all([
 			// 1a: トピックのみ（日常感覚・専門知識不要）
-			client.messages.create({
-				model: AI_MODELS.SONNET,
-				max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
+			generateText({
+				model: anthropic(AI_MODELS.SONNET),
+				maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
 				system: buildNeutralitySystemPrompt(),
-				tools: [SUBMIT_ISSUES_TOOL],
-				tool_choice: { type: 'tool', name: 'submit_issues' },
+				tools: { submit_issues: SUBMIT_ISSUES_TOOL },
+				toolChoice: { type: 'tool', toolName: 'submit_issues' },
 				messages: [
 					{
 						role: 'user',
@@ -79,12 +77,12 @@ export const generateChapters = async (
 				]
 			}),
 			// 1b: ペルソナに基づく（専門的・立場特有の論点）
-			client.messages.create({
-				model: AI_MODELS.SONNET,
-				max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
+			generateText({
+				model: anthropic(AI_MODELS.SONNET),
+				maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
 				system: buildNeutralitySystemPrompt(),
-				tools: [SUBMIT_ISSUES_TOOL],
-				tool_choice: { type: 'tool', name: 'submit_issues' },
+				tools: { submit_issues: SUBMIT_ISSUES_TOOL },
+				toolChoice: { type: 'tool', toolName: 'submit_issues' },
 				messages: [
 					{
 						role: 'user',
@@ -94,13 +92,9 @@ export const generateChapters = async (
 			})
 		]);
 
-		const generalIssuesBlock = generalIssuesResponse.content.find(
-			(b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-		);
-		const personaIssuesBlock = personaIssuesResponse.content.find(
-			(b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-		);
-		if (!generalIssuesBlock || !personaIssuesBlock) {
+		const generalIssuesCall = generalIssuesResult.toolCalls[0];
+		const personaIssuesCall = personaIssuesResult.toolCalls[0];
+		if (!generalIssuesCall || !personaIssuesCall) {
 			return {
 				ok: false,
 				error: {
@@ -110,16 +104,16 @@ export const generateChapters = async (
 				}
 			};
 		}
-		const { issues: generalIssues } = generalIssuesBlock.input as { issues: string[] };
-		const { issues: personaIssues } = personaIssuesBlock.input as { issues: string[] };
+		const { issues: generalIssues } = generalIssuesCall.args as { issues: string[] };
+		const { issues: personaIssues } = personaIssuesCall.args as { issues: string[] };
 
 		// Step 2: 章構造化（2種の切り口を区別して使用）
-		const chaptersResponse = await client.messages.create({
-			model: AI_MODELS.SONNET,
-			max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_STRUCTURE,
+		const chaptersResult = await generateText({
+			model: anthropic(AI_MODELS.SONNET),
+			maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_STRUCTURE,
 			system: buildNeutralitySystemPrompt(),
-			tools: [SUBMIT_CHAPTERS_TOOL],
-			tool_choice: { type: 'tool', name: 'submit_chapters' },
+			tools: { submit_chapters: SUBMIT_CHAPTERS_TOOL },
+			toolChoice: { type: 'tool', toolName: 'submit_chapters' },
 			messages: [
 				{
 					role: 'user',
@@ -128,10 +122,8 @@ export const generateChapters = async (
 			]
 		});
 
-		const chaptersBlock = chaptersResponse.content.find(
-			(b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
-		);
-		if (!chaptersBlock) {
+		const chaptersCall = chaptersResult.toolCalls[0];
+		if (!chaptersCall) {
 			return {
 				ok: false,
 				error: {
@@ -141,7 +133,7 @@ export const generateChapters = async (
 				}
 			};
 		}
-		const { chapters } = chaptersBlock.input as {
+		const { chapters } = chaptersCall.args as {
 			chapters: Array<{ title: string; focusQuestion: string }>;
 		};
 

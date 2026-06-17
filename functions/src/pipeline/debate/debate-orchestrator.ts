@@ -19,7 +19,7 @@ import {
 } from '../../constants/debate.constants.js';
 import { evaluateEngagements, evaluateEngagementWithFallback } from './engagement.js';
 import { expireQueuedIntents, addQueuedIntents, consumeQueuedIntent, loadQueuedIntents } from './queued-intents.js';
-import { tryIntervention, countPersonaTurnsSinceFacilitator, persistInterventionTurn } from './intervention.js';
+import { tryIntervention } from './intervention.js';
 import {
 	isDebateActive,
 	generateFacilitatorTurn,
@@ -31,15 +31,12 @@ import {
 	getDebateTurnsByTopicId
 } from './turn.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
-import type { SpeakerSelection } from '../../types/debate.types.js';
+import type { SpeakerSelection, DebateState, DebateTurn, DebateOptions } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
-import type { DebateState } from '../../types/debate.types.js';
-import type { DebateTurn } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
-import type { DebateOptions } from '../../types/debate.types.js';
 import { getFirestore } from 'firebase-admin/firestore';
 
-export { countPersonaTurnsSinceFacilitator, persistInterventionTurn };
+const db = () => getFirestore();
 
 export const DEFAULT_OPTIONS: DebateOptions = {
 	turnsPerChapter: TURNS_PER_CHAPTER,
@@ -304,5 +301,5 @@ const getLastTargetPersona = (
 };
 
 const updateCurrentChapterIndex = async (topicId: string, index: number): Promise<void> => {
-	await getFirestore().doc(`topics/${topicId}/sessions/0`).update({ currentChapterIndex: index });
+	await db().doc(`topics/${topicId}/sessions/0`).update({ currentChapterIndex: index });
 };

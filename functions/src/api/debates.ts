@@ -9,10 +9,10 @@ import { requireAuth } from '../utils/auth.js';
 
 const REGION = 'asia-northeast1';
 
-async function enqueueChapterTask(topicId: string, chapterIndex: number, singleChapterMode?: boolean): Promise<void> {
+const enqueueChapterTask = async (topicId: string, chapterIndex: number, singleChapterMode?: boolean): Promise<void> => {
   const queue = getFunctions().taskQueue(`locations/${REGION}/functions/runChapter`);
   await queue.enqueue({ topicId, chapterIndex, singleChapterMode }, { scheduleDelaySeconds: 0 });
-}
+};
 
 export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   requireAuth(request);
