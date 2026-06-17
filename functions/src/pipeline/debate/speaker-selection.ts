@@ -27,7 +27,7 @@ export const resolvePairConversation = (
 
 /** 選ばれた話者の発言は本人の意欲評価に従う（mode と score→長さ）。選ばれた以上は必ず発言するため none・低スコアは最小発言（score 2 / opinion）に切り上げる */
 /** 評価後: キュー > スコアの2段で次話者を決定する */
-export const decideNextSpeaker = (
+export const selectNextSpeaker = (
 	assessments: ReadonlyArray<Engagement>,
 	pendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>,
 	silenceMap: ReadonlyMap<string, number>,

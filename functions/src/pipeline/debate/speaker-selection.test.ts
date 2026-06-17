@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   resolvePairConversation,
-  decideNextSpeaker,
+  selectNextSpeaker,
   isHighEngagement,
   hasHighEngagement,
 } from './speaker-selection.js';
@@ -72,8 +72,8 @@ type DecideInput = {
   lastSpeakerId?: string;
 };
 
-describe('decideNextSpeaker', () => {
-  const call = (overrides: DecideInput = {}) => decideNextSpeaker(
+describe('selectNextSpeaker', () => {
+  const call = (overrides: DecideInput = {}) => selectNextSpeaker(
     overrides.assessments ?? [
       { personaId: 'p2', score: 3, mode: 'opinion' },
       { personaId: 'p3', score: 2, mode: 'opinion' },
