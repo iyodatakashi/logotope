@@ -1,13 +1,13 @@
 import type { SpeakerSelection, Engagement, PendingIntent } from '../../types/debate.types.js';
-import { HIGH_ENGAGEMENT_SCORE, MAX_PAIR_CONVERSATION_TURNS } from '../../constants/flow.constants.js';
+import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE, MAX_PAIR_CONVERSATION_TURNS } from '../../constants/flow.constants.js';
 
-/** 単一ペルソナが高意欲か（>= HIGH_ENGAGEMENT_SCORE）。キュー追加・キュー選択ゲートと共有 */
-export const isHighEngagement = (assessment: { score: number }): boolean =>
-	assessment.score >= HIGH_ENGAGEMENT_SCORE;
+/** 単一ペルソナの発言意図をキューに積むべきか（>= QUEUE_THRESHOLD_SCORE） */
+export const shouldQueue = (engagement: { score: number }): boolean =>
+	engagement.score >= QUEUE_THRESHOLD_SCORE;
 
-/** 集合に高意欲のペルソナが1人でもいるか。B ゲート・キュー選択・活性シグナルで共有 */
-export const hasHighEngagement = (assessments: ReadonlyArray<{ score: number }>): boolean =>
-	assessments.some(isHighEngagement);
+/** 集合に自発発言すべきペルソナが1人でもいるか（>= SPEAK_THRESHOLD_SCORE）。話者選択ゲート・スタール判定で使用 */
+export const shouldSpeak = (engagements: ReadonlyArray<{ score: number }>): boolean =>
+	engagements.some((a) => a.score >= SPEAK_THRESHOLD_SCORE);
 
 /** ターン冒頭: 前ターン由来の指名・直接質問で次話者が確定するか判定する */
 export const resolvePairConversation = (
@@ -28,13 +28,13 @@ export const resolvePairConversation = (
 /** 選ばれた話者の発言は本人の意欲評価に従う（mode と score→長さ）。選ばれた以上は必ず発言するため none・低スコアは最小発言（score 2 / opinion）に切り上げる */
 /** 評価後: キュー > スコアの2段で次話者を決定する */
 export const selectNextSpeaker = (
-	assessments: ReadonlyArray<Engagement>,
+	engagements: ReadonlyArray<Engagement>,
 	pendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>,
 	silenceMap: ReadonlyMap<string, number>,
 	personaIds: ReadonlyArray<string>,
 	lastSpeakerId?: string
 ): SpeakerSelection => {
-	const filteredAssessments = assessments.filter((a) => personaIds.includes(a.personaId));
+	const filteredAssessments = engagements.filter((a) => personaIds.includes(a.personaId));
 
 	const byScoreThenSilence = (a: Engagement, b: Engagement) =>
 		b.score !== a.score
@@ -42,7 +42,7 @@ export const selectNextSpeaker = (
 			: (silenceMap.get(b.personaId) ?? 0) - (silenceMap.get(a.personaId) ?? 0);
 
 	// (1) 高意欲者なし（キュー選択ゲート、追加と同一境界を逆向きに使う）→ キューの最古エントリ保持者（直前話者を除く）
-	if (!hasHighEngagement(filteredAssessments)) {
+	if (!shouldSpeak(filteredAssessments)) {
 		let oldestIdx = Infinity;
 		let oldestPersonaId: string | undefined;
 		for (const [personaId, items] of pendingIntents.entries()) {
