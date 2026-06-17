@@ -325,6 +325,7 @@ const expireQueuedIntents = async ({
 	topicId: string;
 	state: DebateState;
 }): Promise<void> => {
+	const writes: Array<{ personaId: string; alive: QueuedIntent[] }> = [];
 	for (const [personaId, items] of state.queuedIntents.entries()) {
 		const alive = items.filter(
 			(item) => state.turns.length - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS
@@ -334,9 +335,14 @@ const expireQueuedIntents = async ({
 			state.queuedIntents.delete(personaId);
 		} else {
 			state.queuedIntents.set(personaId, alive);
+			writes.push({ personaId, alive });
 		}
-		await db().doc(`topics/${topicId}/sessions/0/engagements/${personaId}`).set({ pendingIntents: [...alive] }, { merge: true });
 	}
+	await Promise.all(
+		writes.map(({ personaId, alive }) =>
+			db().doc(`topics/${topicId}/sessions/0/engagements/${personaId}`).set({ pendingIntents: alive }, { merge: true })
+		)
+	);
 };
 
 const evaluateEngagements = async ({
