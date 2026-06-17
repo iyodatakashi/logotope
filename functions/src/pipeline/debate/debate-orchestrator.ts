@@ -107,7 +107,7 @@ export const executeChapterTask = async (
 		await finalizeDebate({ topicId, personas, state });
 		return false;
 	}
-	await generateChapterTransition({ topicId, chapters, currentChapterIndex: chapterIndex, state, personas });
+	await generateChapterTransition({ topicId, chapter, nextChapter: chapters[chapterIndex + 1], state, personas });
 	return true;
 };
 
@@ -185,7 +185,6 @@ const executeTurn = async ({
 		personaIds
 	);
 
-	const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
 	const assessments = await evaluateEngagement({ topicId, personas, state });
 
 	const driftCooldownPassed = shouldEvaluateIntervention(
@@ -197,18 +196,12 @@ const executeTurn = async ({
 	if (pairDecision) {
 		decision = pairDecision;
 	} else if (driftCooldownPassed) {
-		const driftDecision = await tryTopicDriftIntervention({
-			topicId,
-			personas,
-			chapterHistory,
-			chapter,
-			state
-		});
+		const driftDecision = await tryTopicDriftIntervention({ topicId, personas, chapter, state });
 		if (driftDecision) {
 			decision = driftDecision;
 		} else {
 			decision =
-				(await tryStallIntervention({ topicId, personas, chapterHistory, chapter, state, assessments })) ??
+				(await tryStallIntervention({ topicId, personas, chapter, state, assessments })) ??
 				decideNextSpeaker(
 					assessments,
 					state.pendingIntents,
@@ -219,7 +212,7 @@ const executeTurn = async ({
 		}
 	} else {
 		decision =
-			(await tryStallIntervention({ topicId, personas, chapterHistory, chapter, state, assessments })) ??
+			(await tryStallIntervention({ topicId, personas, chapter, state, assessments })) ??
 			decideNextSpeaker(
 				assessments,
 				state.pendingIntents,
@@ -307,19 +300,18 @@ const evaluateEngagement = async ({
 const tryStallIntervention = async ({
 	topicId,
 	personas,
-	chapterHistory,
 	chapter,
 	state,
 	assessments
 }: {
 	topicId: string;
 	personas: Persona[];
-	chapterHistory: readonly DebateTurn[];
 	chapter: Chapter;
 	state: DebateState;
 	assessments: Engagement[];
 }): Promise<SpeakerSelection | undefined> => {
 	if (hasHighEngagement(assessments)) return undefined;
+	const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
 	const result = await evaluateStallIntervention(
 		chapterHistory as DebateTurn[],
 		personas,
@@ -362,16 +354,15 @@ export const persistInterventionTurn = async ({
 const tryTopicDriftIntervention = async ({
 	topicId,
 	personas,
-	chapterHistory,
 	chapter,
 	state
 }: {
 	topicId: string;
 	personas: Persona[];
-	chapterHistory: readonly DebateTurn[];
 	chapter: Chapter;
 	state: DebateState;
 }): Promise<SpeakerSelection | undefined> => {
+	const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
 	const result = await evaluateTopicDrift(
 		chapterHistory as DebateTurn[],
 		personas,
@@ -628,19 +619,17 @@ const saveFacilitatorTurn = async ({
 /** 章遷移: 現章まとめ＋次章導入の2ターンを生成し、導入で最初の発言者を指名する */
 const generateChapterTransition = async ({
 	topicId,
-	chapters,
-	currentChapterIndex,
+	chapter,
+	nextChapter,
 	state,
 	personas
 }: {
 	topicId: string;
-	chapters: Chapter[];
-	currentChapterIndex: number;
+	chapter: Chapter;
+	nextChapter: Chapter;
 	state: DebateState;
 	personas: Persona[];
 }): Promise<void> => {
-	const chapter = chapters[currentChapterIndex];
-	const nextChapter = chapters[currentChapterIndex + 1];
 	const recentHistory = state.history.slice(-10);
 
 	const summaryResult = await generateChapterSummary(recentHistory, chapter);
