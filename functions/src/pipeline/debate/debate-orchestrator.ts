@@ -57,7 +57,7 @@ export const executeChapterTask = async (
 		return chapterIndex < (session.chapters?.length ?? 0) - 1;
 	}
 
-	const { personas, topicTitle } = await loadSessionContext(topicId);
+	const { personas, topicTitle } = await getTopicContext(topicId);
 
 	const existingTurns = await getDebateTurnsByTopicId(topicId);
 	const persistedPendingIntents = await loadPendingIntents(topicId);
@@ -106,13 +106,13 @@ export const executeChapterTask = async (
 	return true;
 };
 
-const loadSessionContext = async (topicId: string) => {
-	const topic = await getTopicById(topicId);
+const getTopicContext = async (topicId: string) => {
+	const [topic, allPersonas] = await Promise.all([
+		getTopicById(topicId),
+		getPersonasByTopicId(topicId)
+	]);
 	if (!topic) throw new Error(`Topic not found: ${topicId}`);
-
-	const personas = (await getPersonasByTopicId(topicId)).filter((p) => p.approved);
-
-	return { topicTitle: topic.title, personas };
+	return { topicTitle: topic.title, personas: allPersonas.filter((p) => p.approved) };
 };
 
 /** 直近のファシリテーターターン以降のペルソナターン数を返す（A介入クールダウン判定用） */
