@@ -5,13 +5,21 @@ import {
 	getPersonasByTopicId,
 	getDebateSessionByTopicId
 } from '../../db/repository.js';
-import { FacilitatorAgentService } from '../../agents/facilitator-agent.js';
+import {
+	generateOpening,
+	evaluateTopicDrift,
+	evaluateStallIntervention,
+	generateClosing
+} from '../../agents/facilitator-agent.js';
 import {
 	generateTurn,
 	assessEngagement,
 	generatePostDebateComment
 } from '../../agents/persona-agent.js';
-import { ChapterGeneratorService } from '../chapters/chapter-generator.js';
+import {
+	generateChapterSummary,
+	generateChapterIntroduction
+} from '../chapters/chapter-generator.js';
 import {
 	resolvePairConversation,
 	decideNextSpeaker,
@@ -32,11 +40,7 @@ import { DEFAULT_OPTIONS } from '../../constants/debate-orchestrator.constants.j
 import type { DebateOptions } from '../../types/debate.types.js';
 
 export class DebateOrchestratorService {
-	constructor(
-		private facilitator: FacilitatorAgentService = new FacilitatorAgentService(),
-		private chapterGenerator: ChapterGeneratorService = new ChapterGeneratorService(),
-		private options: DebateOptions = DEFAULT_OPTIONS
-	) {}
+	constructor(private options: DebateOptions = DEFAULT_OPTIONS) {}
 
 	/** @returns 次章が存在する場合 true（呼び出し元が次章タスクを投入する） */
 	async executeChapterTask(topicId: string, chapterIndex: number): Promise<boolean> {
@@ -60,15 +64,11 @@ export class DebateOrchestratorService {
 		const persistedPendingIntents = await loadPendingIntents(sessionId);
 		const state = restoreDebateState(existingTurns, personas, persistedPendingIntents);
 
-		const chapters: Chapter[] = (session.chapters ?? []).map((c) => ({
-			id: c.id,
-			title: c.title,
-			focusQuestion: c.focusQuestion
-		}));
+		const chapters: Chapter[] = session.chapters ?? [];
 
 		// 第1章の開始: オープニング生成（章立ては generateChapters で事前に保存済み）
 		if (chapterIndex === 0 && state.history.length === 0) {
-			const openingResult = await this.facilitator.generateOpening(
+			const openingResult = await generateOpening(
 				topicTitle,
 				personas,
 				chapters[0]
@@ -314,7 +314,7 @@ export class DebateOrchestratorService {
 	): Promise<SpeakerSelection | undefined> {
 		if (hasHighEngagement(assessments)) return undefined;
 		const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
-		const result = await this.facilitator.evaluateStallIntervention(
+		const result = await evaluateStallIntervention(
 			chapterHistory,
 			personas,
 			state.speakCount,
@@ -335,7 +335,7 @@ export class DebateOrchestratorService {
 		state: DebateState
 	): Promise<SpeakerSelection | undefined> {
 		const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
-		const result = await this.facilitator.evaluateTopicDrift(
+		const result = await evaluateTopicDrift(
 			chapterHistory,
 			personas,
 			state.speakCount,
@@ -574,18 +574,12 @@ export class DebateOrchestratorService {
 		const nextChapter = chapters[currentChapterIndex + 1];
 		const recentHistory = state.history.slice(-10);
 
-		const summaryResult = await this.chapterGenerator.generateChapterSummary(
-			recentHistory,
-			chapter
-		);
+		const summaryResult = await generateChapterSummary(recentHistory, chapter);
 		if (summaryResult.ok) {
 			await this.saveFacilitatorTurn(sessionId, state, summaryResult.value, undefined, chapter.id);
 		}
 
-		const introResult = await this.chapterGenerator.generateChapterIntroduction(
-			nextChapter,
-			personas
-		);
+		const introResult = await generateChapterIntroduction(nextChapter, personas);
 		if (introResult.ok) {
 			const targetPersonaId = validPersonaId(introResult.value.targetPersonaId, personas);
 			await this.saveFacilitatorTurn(
@@ -609,7 +603,7 @@ export class DebateOrchestratorService {
 		state: DebateState
 	): Promise<void> {
 		const finalBeliefs = new Map(personas.map((p) => [p.id, getLatestBelief(p).content]));
-		const closingResult = await this.facilitator.generateClosing(state.history, finalBeliefs);
+		const closingResult = await generateClosing(state.history, finalBeliefs);
 		if (!closingResult.ok) throw new Error(pipelineErrorMessage(closingResult.error));
 		await this.saveFacilitatorTurn(sessionId, state, closingResult.value ?? '');
 
