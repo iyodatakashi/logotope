@@ -31,7 +31,7 @@ import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 import type { SpeakerSelection, PendingIntent } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { PipelineError } from '../../types/common.types.js';
-import type { Engagement, DebateState } from '../../types/debate.types.js';
+import type { Engagement, DebateState, BeliefChangeEvent } from '../../types/debate.types.js';
 import type { DebateTurn } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import { DEFAULT_OPTIONS } from '../../constants/debate-orchestrator.constants.js';
@@ -222,10 +222,9 @@ const executeTurn = async ({
 		assessments
 	});
 
-	const generated = await generatePersonaTurn({ personas, chapter, state, decision, speech });
-	// 生成中に討論が停止された場合は、生成済みのセリフを保存せず状態も更新しない
-	if (!(await isDebateActive(topicId))) return 'cancelled';
-	await commitPersonaTurn({ topicId, personas, chapter, state, decision, speech, generated });
+	const reply = await generatePersonaTurn({ topicId, personas, chapter, state, decision, speech });
+	if (!reply) return 'cancelled';
+	await applyPersonaTurnEffects({ topicId, personas, state, reply });
 
 	return { engagementSignal: toEngagementSignal(assessments) };
 };
@@ -493,20 +492,29 @@ const generateFacilitatorTurn = async ({
 	return { content, targetPersonaId };
 };
 
-/** 決定に基づきペルソナ発言を生成・保存し、状態（沈黙・キュー・信念・次ターン指名）を更新する */
+/** 決定に基づきペルソナ発言を生成・保存する。討論停止時は null を返す */
 const generatePersonaTurn = async ({
+	topicId,
 	personas,
 	chapter,
 	state,
 	decision,
 	speech
 }: {
+	topicId: string;
 	personas: Persona[];
 	chapter: Chapter;
 	state: DebateState;
 	decision: SpeakerSelection;
 	speech: Engagement;
-}) => {
+}): Promise<{
+	turnId: string;
+	personaId: string;
+	targetPersonaId: string | undefined;
+	beliefChange: BeliefChangeEvent | null;
+	pendingEntries: PendingIntent[] | undefined;
+	fromQueue: boolean;
+} | null> => {
 	const persona = personas.find((p) => p.id === decision.personaId)!;
 	const fromQueue = decision.reason === 'queue';
 
@@ -537,43 +545,13 @@ const generatePersonaTurn = async ({
 	);
 	if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
+	// 生成中に討論が停止された場合は、生成済みのセリフを保存せず状態も更新しない
+	if (!(await isDebateActive(topicId))) return null;
+
 	// 直接質問先は ID 検証のうえターンに永続化する（自分自身への指定は無視）
 	const rawTarget = turnResult.value.targetPersonaId;
 	const targetPersonaId =
 		rawTarget !== persona.id ? validPersonaId(rawTarget, personas) : undefined;
-
-	return {
-		content: turnResult.value.content,
-		speechMode: turnResult.value.speechMode,
-		targetPersonaId,
-		searchUsed: turnResult.value.searchUsed,
-		searchQueries: turnResult.value.searchQueries,
-		beliefChange: turnResult.value.beliefChange,
-		pendingEntries,
-		fromQueue
-	};
-};
-
-const commitPersonaTurn = async ({
-	topicId,
-	personas,
-	chapter,
-	state,
-	decision,
-	speech,
-	generated
-}: {
-	topicId: string;
-	personas: Persona[];
-	chapter: Chapter;
-	state: DebateState;
-	decision: SpeakerSelection;
-	speech: Engagement;
-	generated: Awaited<ReturnType<typeof generatePersonaTurn>>;
-}): Promise<void> => {
-	const persona = personas.find((p) => p.id === decision.personaId)!;
-	const belief = getLatestBelief(persona);
-	const { content, speechMode, targetPersonaId, searchUsed, searchQueries, beliefChange, pendingEntries, fromQueue } = generated;
 
 	const turnIndex = state.turns.length;
 	const { id: turnId } = await addTurn({
@@ -583,14 +561,14 @@ const commitPersonaTurn = async ({
 		personaId: persona.id,
 		speakerName: persona.name,
 		speakerRole: persona.specificRole,
-		content,
+		content: turnResult.value.content,
 		chapterId: chapter.id,
-		speechMode,
+		speechMode: turnResult.value.speechMode,
 		engagementScore: speech.score,
 		fromQueue: fromQueue || undefined,
 		targetPersonaId,
-		searchUsed,
-		searchQueries
+		searchUsed: turnResult.value.searchUsed,
+		searchQueries: turnResult.value.searchQueries
 	});
 	state.turns.push({
 		id: turnId,
@@ -600,28 +578,47 @@ const commitPersonaTurn = async ({
 		personaId: persona.id,
 		speakerName: persona.name,
 		speakerRole: persona.specificRole,
-		content,
+		content: turnResult.value.content,
 		createdAt: new Date().toISOString(),
 		chapterId: chapter.id,
 		fromQueue: fromQueue || undefined,
 		targetPersonaId
 	});
 
+	return { turnId, personaId: persona.id, targetPersonaId, beliefChange: turnResult.value.beliefChange, pendingEntries, fromQueue };
+};
+
+/** generatePersonaTurn 後に討論ステートへ副作用（沈黙・キュー・信念・指名）を適用する */
+const applyPersonaTurnEffects = async ({
+	topicId,
+	personas,
+	state,
+	reply
+}: {
+	topicId: string;
+	personas: Persona[];
+	state: DebateState;
+	reply: NonNullable<Awaited<ReturnType<typeof generatePersonaTurn>>>;
+}): Promise<void> => {
+	const { turnId, personaId, targetPersonaId, beliefChange, pendingEntries } = reply;
+	const persona = personas.find((p) => p.id === personaId)!;
+	const belief = getLatestBelief(persona);
+
 	for (const p of personas) {
-		state.silenceMap.set(p.id, p.id === persona.id ? 0 : (state.silenceMap.get(p.id) ?? 0) + 1);
+		state.silenceMap.set(p.id, p.id === personaId ? 0 : (state.silenceMap.get(p.id) ?? 0) + 1);
 	}
-	state.speakCount.set(persona.id, (state.speakCount.get(persona.id) ?? 0) + 1);
-	state.lastSpeakerId = persona.id;
+	state.speakCount.set(personaId, (state.speakCount.get(personaId) ?? 0) + 1);
+	state.lastSpeakerId = personaId;
 
 	// 発言後: そのペルソナの最古キューエントリを1件消費し write-through
 	if (pendingEntries && pendingEntries.length > 0) {
 		const remaining = pendingEntries.slice(1);
 		if (remaining.length === 0) {
-			state.pendingIntents.delete(persona.id);
+			state.pendingIntents.delete(personaId);
 		} else {
-			state.pendingIntents.set(persona.id, remaining);
+			state.pendingIntents.set(personaId, remaining);
 		}
-		await setPendingIntents({ topicId, personaId: persona.id, items: remaining });
+		await setPendingIntents({ topicId, personaId, items: remaining });
 	}
 
 	// 信念変化の保存と以後のターンへの反映
@@ -629,7 +626,7 @@ const commitPersonaTurn = async ({
 		const newVersion = belief.version + 1;
 		const savedBelief = await updatePersonaBelief({
 			topicId,
-			personaId: persona.id,
+			personaId,
 			version: newVersion,
 			content: beliefChange.updatedBelief,
 			changeType: beliefChange.type,
@@ -686,9 +683,9 @@ const generateUnansweredReply = async ({
 		state,
 		assessments
 	});
-	const generated = await generatePersonaTurn({ personas, chapter, state, decision, speech });
-	if (!(await isDebateActive(topicId))) return;
-	await commitPersonaTurn({ topicId, personas, chapter, state, decision, speech, generated });
+	const reply = await generatePersonaTurn({ topicId, personas, chapter, state, decision, speech });
+	if (!reply) return;
+	await applyPersonaTurnEffects({ topicId, personas, state, reply });
 	// 章は終了するため、応答ターン由来の指名は引き継がない
 	state.targetPersona = undefined;
 };
