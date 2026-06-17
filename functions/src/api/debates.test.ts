@@ -26,14 +26,8 @@ vi.mock('../db/repository.js', () => ({
   discardChapterProgress: vi.fn(),
   markTopicStopped: vi.fn(),
 }));
-vi.mock('../pipeline/debate-orchestrator.js', () => ({
-  // コンストラクタとして new されるため、アロー関数ではなく function 式でモックする（vitest 4）
-  DebateOrchestratorService: vi.fn(function (this: unknown) {
-    return {
-      executeChapterTask: mockExecuteChapterTask,
-      generateChaptersOnly: mockGenerateChaptersOnly,
-    };
-  }),
+vi.mock('../pipeline/debate/debate-orchestrator.js', () => ({
+  executeChapterTask: mockExecuteChapterTask,
 }));
 vi.mock('../utils/auth.js', () => ({ requireAuth: vi.fn() }));
 

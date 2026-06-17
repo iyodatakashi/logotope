@@ -2,7 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { getFunctions } from 'firebase-admin/functions';
 import { getTopicById, getDebateSessionByTopicId } from '../db/repository.js';
-import { DebateOrchestratorService } from '../pipeline/debate/debate-orchestrator.js';
+import { executeChapterTask } from '../pipeline/debate/debate-orchestrator.js';
 import { activateDebate, markDebateStopped, restartChapter } from '../pipeline/debate/debate-lifecycle.js';
 import { DEFAULT_OPTIONS } from '../constants/debate-orchestrator.constants.js';
 import { requireAuth } from '../utils/auth.js';
@@ -58,8 +58,7 @@ export const runChapter = onTaskDispatched(
   async (req) => {
     const { topicId, chapterIndex, singleChapterMode } = req.data as { topicId: string; chapterIndex: number; singleChapterMode?: boolean };
     try {
-      const orchestrator = new DebateOrchestratorService({ ...DEFAULT_OPTIONS, singleChapterMode });
-      const hasNextChapter = await orchestrator.executeChapterTask(topicId, chapterIndex);
+      const hasNextChapter = await executeChapterTask(topicId, chapterIndex, { ...DEFAULT_OPTIONS, singleChapterMode });
       if (hasNextChapter) {
         await enqueueChapterTask(topicId, chapterIndex + 1, singleChapterMode);
       }
