@@ -7,8 +7,8 @@ export function formatPersonas(personas: Persona[]): string {
     .join('\n');
 }
 
-export function formatHistory(history: DebateTurn[]): string {
-  return history
+export function formatTurns(turns: DebateTurn[]): string {
+  return turns
     .map(t => {
       const name = t.speakerName ?? (t.personaId ? `Persona(${t.personaId})` : 'ファシリテーター');
       const role = t.speakerRole ?? '';

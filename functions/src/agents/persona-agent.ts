@@ -2,7 +2,7 @@ import { generateText, jsonSchema } from 'ai';
 import { getPersonaModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../constants/ai.constants.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
-import { formatHistory } from '../utils/conversation.js';
+import { formatTurns } from '../utils/conversation.js';
 import type { DebateTurn } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { PersonaReply, BeliefChangeEvent, BeliefChangeType, PostDebateCommentResult, Engagement } from '../types/debate.types.js';
@@ -306,7 +306,7 @@ export async function generateTurn(
 	): Promise<Result<PersonaReply, PipelineError>> {
 		try {
 			const { chapter, pendingTrigger, targetedBy } = context;
-			const recentHistory = context.chapterHistory.slice(-20);
+			const recentTurns = context.chapterTurns.slice(-20);
 			const currentBelief = latestBeliefContent(persona);
 			const styleGuide = buildSpeechStyleGuide(persona);
 			const chapterContext = `\n\n【この章のフォーカス】「${chapter.title}」: ${chapter.focusQuestion}`;
@@ -322,7 +322,7 @@ export async function generateTurn(
 			const system = buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', currentBelief);
 			const llmType = persona.llmType ?? 'claude';
 
-			const lastSpeakerName = recentHistory[recentHistory.length - 1]?.speakerName;
+			const lastSpeakerName = recentTurns[recentTurns.length - 1]?.speakerName;
 			const lastSpeakerNote = lastSpeakerName
 				? `\n\n直前の発言は${lastSpeakerName}によるものです。${lastSpeakerName}に反応する場合は冒頭で名前を呼ばず、それより前の別の人の発言を取り上げるときだけ「さっき○○さんが言っていた〜」と名前を添えること。`
 				: '';
@@ -331,7 +331,7 @@ export async function generateTurn(
 			const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
 			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ targetPersonaId を指定。`;
 			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。直接質問する場合のみ targetPersonaId を指定。`;
-			const userContent = `討論の現在の状況:\n\n${formatHistory(recentHistory)}${chapterContext}${lastSpeakerNote}${pendingNote}${intentNote}${facilitatorTargetNote}\n\n${isFact ? factInstruction : opinionInstruction}`;
+			const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns)}${chapterContext}${lastSpeakerNote}${pendingNote}${intentNote}${facilitatorTargetNote}\n\n${isFact ? factInstruction : opinionInstruction}`;
 			const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 				generateText({
 					model,
@@ -411,14 +411,14 @@ export async function generateTurn(
 
 export async function assessEngagement(
 	persona: Persona,
-	history: DebateTurn[]
+	turns: DebateTurn[]
 ): Promise<Result<Engagement, PipelineError>> {
 		try {
-			const recentHistory = history.slice(-8);
-			const ownTurns = history.filter((t) => t.personaId === persona.id).slice(-5);
+			const recentTurns = turns.slice(-8);
+			const ownTurns = turns.filter((t) => t.personaId === persona.id).slice(-5);
 			const ownTurnsSection =
 				ownTurns.length > 0
-					? `\nあなた（${persona.name}）のこれまでの発言:\n${formatHistory(ownTurns)}\n`
+					? `\nあなた（${persona.name}）のこれまでの発言:\n${formatTurns(ownTurns)}\n`
 					: '';
 			const result = await generateText({
 				model: getPersonaModel(persona.llmType ?? 'claude'),
@@ -430,7 +430,7 @@ export async function assessEngagement(
 				messages: [
 					{
 						role: 'user',
-						content: `現在の会話:\n\n${formatHistory(recentHistory)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。score は mode ごとのスコアラベルに素直に当てはめて選んでください。score の強さがそのまま発言の長さになります（低い＝一言、高い＝しっかり）。mode は、まず相手に紹介すべき事実・データを持っているなら fact、そうでなく自分の考え・意見・実感を述べたいなら opinion を選びます。発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まり、専門知識の有無では決めません。専門知識がなくても、素朴な疑問・違和感・生活実感があれば高く評価してよく、逆に専門家でもその話題に関心がなければ低くてかまいません。すでに同じ論点・主張を述べており、新たに付け加えるべきことがなければ score 1（発言しなくてよい）を選んでください。`
+						content: `現在の会話:\n\n${formatTurns(recentTurns)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。score は mode ごとのスコアラベルに素直に当てはめて選んでください。score の強さがそのまま発言の長さになります（低い＝一言、高い＝しっかり）。mode は、まず相手に紹介すべき事実・データを持っているなら fact、そうでなく自分の考え・意見・実感を述べたいなら opinion を選びます。発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まり、専門知識の有無では決めません。専門知識がなくても、素朴な疑問・違和感・生活実感があれば高く評価してよく、逆に専門家でもその話題に関心がなければ低くてかまいません。すでに同じ論点・主張を述べており、新たに付け加えるべきことがなければ score 1（発言しなくてよい）を選んでください。`
 					}
 				]
 			});
@@ -461,7 +461,7 @@ export async function assessEngagement(
 export async function generatePostDebateComment(
 	persona: Persona,
 	finalBelief: string,
-	history: DebateTurn[]
+	turns: DebateTurn[]
 ): Promise<Result<PostDebateCommentResult, PipelineError>> {
 		try {
 			const result = await generateText({
@@ -473,7 +473,7 @@ export async function generatePostDebateComment(
 				messages: [
 					{
 						role: 'user',
-						content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。\n\n討論全体:\n${formatHistory(history)}`
+						content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。\n\n討論全体:\n${formatTurns(turns)}`
 					}
 				]
 			});

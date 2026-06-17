@@ -44,7 +44,7 @@ describe('restoreDebateState', () => {
     expect(state.silenceMap.get('p2')).toBe(2); // 最終発言 turn 2 → 5-2-1
     expect(state.lastFacilitatorTurnIndex).toBe(3);
     expect(state.lastSpeakerId).toBe('p1');
-    expect(state.history).toHaveLength(5);
+    expect(state.turns).toHaveLength(5);
   });
 
   it('ターンが空の場合は初期状態を返す', () => {
@@ -140,6 +140,6 @@ describe('restoreDebateState', () => {
 
     expect(state.currentTurnIndex).toBe(5);
     expect(state.lastSpeakerId).toBe('p1');
-    expect(state.history.map(t => t.turnIndex)).toEqual([0, 1, 2, 3, 4]);
+    expect(state.turns.map(t => t.turnIndex)).toEqual([0, 1, 2, 3, 4]);
   });
 });

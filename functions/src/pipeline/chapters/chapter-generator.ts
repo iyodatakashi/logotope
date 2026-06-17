@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { nanoid } from 'nanoid';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { AI_MODELS, MAX_TOKENS } from '../../constants/ai.constants.js';
-import { formatHistory, formatPersonas } from '../../utils/conversation.js';
+import { formatTurns, formatPersonas } from '../../utils/conversation.js';
 import { buildNeutralitySystemPrompt } from '../../agents/facilitator-agent.js';
 import { getTopicById, getPersonasByTopicId } from '../../db/repository.js';
 import type { DebateTurn, FacilitatorReply } from '../../types/debate.types.js';
@@ -205,7 +205,7 @@ export const generateChapterSummary = async (
 			messages: [
 				{
 					role: 'user',
-					content: `章「${currentChapter.title}」の議論をまとめる発言を生成してください。次の章への言及は不要です。この章で出た主な意見・対立点を簡潔にまとめてください。\n\n直近の会話:\n${formatHistory(recentHistory.slice(-10))}`
+					content: `章「${currentChapter.title}」の議論をまとめる発言を生成してください。次の章への言及は不要です。この章で出た主な意見・対立点を簡潔にまとめてください。\n\n直近の会話:\n${formatTurns(recentHistory.slice(-10))}`
 				}
 			]
 		});

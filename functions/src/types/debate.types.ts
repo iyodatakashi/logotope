@@ -27,7 +27,7 @@ export type DebateSession = {
 };
 
 export type DebateState = {
-	history: DebateTurn[];
+	turns: DebateTurn[];
 	silenceMap: Map<string, number>;
 	speakCount: Map<string, number>;
 	targetPersona?: { personaId: string; targetedBy: 'facilitator' | 'persona' };
@@ -71,7 +71,7 @@ export type PendingIntent = {
 };
 
 export type TurnGenerationContext = {
-	chapterHistory: ReadonlyArray<DebateTurn>;
+	chapterTurns: ReadonlyArray<DebateTurn>;
 	chapter: Chapter;
 	pendingTrigger?: { speakerName: string; content: string };
 	targetedBy?: 'facilitator' | 'persona';

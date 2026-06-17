@@ -88,7 +88,7 @@ const makePostDebateResult = (content: string) => ({
 });
 
 const ctx = (overrides: Partial<TurnGenerationContext> = {}): TurnGenerationContext => ({
-  chapterHistory: testHistory,
+  chapterTurns: testHistory,
   chapter: testChapter,
   targetedBy: undefined,
   ...overrides,
@@ -177,7 +177,7 @@ describe('task 1.2: スタイルガイドのシステムプロンプトとツー
   };
 
   it('発言スタイルセクション先頭（発言の長さルールより前）に語り口指針が含まれる', async () => {
-    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
+    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterTurns: [] }));
 
     const system: string = mockGenerateText.mock.calls[0][0].system;
     const sectionStart = system.indexOf('## 発言スタイルの厳守事項');
@@ -189,30 +189,30 @@ describe('task 1.2: スタイルガイドのシステムプロンプトとツー
   });
 
   it('若手ペルソナのシステムプロンプトに口語・疑問形スタイルが含まれる', async () => {
-    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
+    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterTurns: [] }));
     expect(mockGenerateText.mock.calls[0][0].system).toMatch(/口語|疑問形/);
   });
 
   it('経営者ペルソナのシステムプロンプトに断言的スタイルが含まれる', async () => {
-    await service.generateTurn(executivePersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
+    await service.generateTurn(executivePersona, 'belief', 'interview', ctx({ chapterTurns: [] }));
     expect(mockGenerateText.mock.calls[0][0].system).toMatch(/断言|謙遜|権威/);
   });
 
   it('若手と経営者ペルソナでシステムプロンプトの語り口指針が異なる', async () => {
-    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
+    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterTurns: [] }));
     const youngSystem: string = mockGenerateText.mock.calls[0][0].system;
     vi.clearAllMocks();
     mockGetPersonaModel.mockReturnValue(mockModel);
     mockGenerateText.mockResolvedValue(makeTurnResult());
 
-    await service.generateTurn(executivePersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
+    await service.generateTurn(executivePersona, 'belief', 'interview', ctx({ chapterTurns: [] }));
     const execSystem: string = mockGenerateText.mock.calls[0][0].system;
 
     expect(youngSystem).not.toBe(execSystem);
   });
 
   it('TURN_TOOL の content フィールド説明に語り口スタイルが含まれる', async () => {
-    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterHistory: [] }));
+    await service.generateTurn(youngPersona, 'belief', 'interview', ctx({ chapterTurns: [] }));
 
     const tools = mockGenerateText.mock.calls[0][0].tools as Record<string, { parameters: { properties: { content: { description: string } } } }>;
     const submitTurn = tools['submit_turn'];
@@ -391,7 +391,7 @@ describe('PersonaAgentService', () => {
       expect(msg).toMatch(/最も意見が分かれる点はどこか？/);
     });
 
-    it('context.chapterHistory の発言内容が user メッセージに含まれる', async () => {
+    it('context.chapterTurns の発言内容が user メッセージに含まれる', async () => {
       await service.generateTurn(testPersona, testCurrentBelief, testInterviewRecord, ctx());
       const msg: string = mockGenerateText.mock.calls[0][0].messages[0].content;
       expect(msg).toContain('費用負担が大きくなることが非常に心配です');

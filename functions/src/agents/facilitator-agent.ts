@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
-import { formatHistory, formatPersonas } from '../utils/conversation.js';
+import { formatTurns, formatPersonas } from '../utils/conversation.js';
 import type { DebateTurn } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { FacilitatorReply, Chapter } from '../types/debate.types.js';
@@ -82,7 +82,7 @@ const CLOSING_TOOL: Anthropic.Tool = {
 };
 
 const runInterventionCheck = async (
-	history: DebateTurn[],
+	turns: DebateTurn[],
 	personas: Persona[],
 	currentChapter: Chapter | undefined,
 	criteriaSection: string
@@ -101,7 +101,7 @@ const runInterventionCheck = async (
 			messages: [
 				{
 					role: 'user',
-					content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatHistory(history.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${criteriaSection}`
+					content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatTurns(turns.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${criteriaSection}`
 				}
 			]
 		});
@@ -167,7 +167,7 @@ export const generateOpening = async (
 
 /** A（論点ずれ）: 会話がフォーカス問いから逸脱しているときだけ介入し、論点を引き戻す。指名済みターンでも上書きしうる */
 export const evaluateTopicDrift = async (
-	history: DebateTurn[],
+	turns: DebateTurn[],
 	personas: Persona[],
 	speakCount: Map<string, number> = new Map(),
 	currentChapter?: Chapter
@@ -176,12 +176,12 @@ export const evaluateTopicDrift = async (
 		.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
 		.join(', ');
 	const criteria = `\n\n累計発言数: ${speakCountInfo}\n\n会話がこの章のフォーカス問いから明確に逸脱している（別の話題に流れている）場合のみ介入してください。逸脱していなければ content と targetPersonaId は省略してください。\n\n介入する場合は、フォーカス問いに引き戻す論点を決め、ふさわしい参加者を1人選んで targetPersonaId に設定してください。content は、まず話が逸れていることに触れて「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。`;
-	return runInterventionCheck(history, personas, currentChapter, criteria);
+	return runInterventionCheck(turns, personas, currentChapter, criteria);
 };
 
 /** B（出尽くし）: 今の論点で議論が落ち着いたとき、まだ議論されていない新しい論点に切り替えて次の話者を振る */
 export const evaluateStallIntervention = async (
-	history: DebateTurn[],
+	turns: DebateTurn[],
 	personas: Persona[],
 	speakCount: Map<string, number> = new Map(),
 	currentChapter?: Chapter
@@ -190,11 +190,11 @@ export const evaluateStallIntervention = async (
 		.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
 		.join(', ');
 	const criteria = `\n\n累計発言数: ${speakCountInfo}\n\nこの章の今の論点は議論が出尽くし、落ち着いています。まだ十分に議論されていない新しい論点に切り替えて、特定の参加者に振ってください。章をいつ終えるかはあなたの判断対象外です。\n\n手順：\n(1) この章のフォーカス問いに沿って、まだ十分に議論されていない新しい論点を決める。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。基準: 関連性が高い人。同程度なら発言数の少ない人を優先。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。\n\n適切な切り替え先が無ければ content と targetPersonaId は省略してください。`;
-	return runInterventionCheck(history, personas, currentChapter, criteria);
+	return runInterventionCheck(turns, personas, currentChapter, criteria);
 };
 
 export const generateClosing = async (
-	history: DebateTurn[],
+	turns: DebateTurn[],
 	finalBeliefs: Map<string, string>
 ): Promise<Result<string, PipelineError>> => {
 	try {
@@ -211,7 +211,7 @@ export const generateClosing = async (
 			messages: [
 				{
 					role: 'user',
-					content: `討論が終了しました。クロージング発言を3〜4文で作成してください（簡潔な締め括りのみ。長い総括は不要）。\n\n会話全体:\n${formatHistory(history)}\n\n各参加者の最終信念:\n${beliefsSummary}`
+					content: `討論が終了しました。クロージング発言を3〜4文で作成してください（簡潔な締め括りのみ。長い総括は不要）。\n\n会話全体:\n${formatTurns(turns)}\n\n各参加者の最終信念:\n${beliefsSummary}`
 				}
 			]
 		});

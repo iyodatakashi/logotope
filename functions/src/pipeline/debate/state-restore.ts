@@ -65,7 +65,7 @@ export const restoreDebateState = (
 	}
 
 	return {
-		history: turns,
+		turns,
 		silenceMap,
 		speakCount,
 		targetPersona,

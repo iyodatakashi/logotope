@@ -24,15 +24,15 @@ const makeTurn = (speakerType: 'persona' | 'facilitator', id: string, turnIndex 
   createdAt: '',
 });
 
-const makeState = (history: DebateTurn[] = []): DebateState => ({
-  history: [...history],
+const makeState = (turns: DebateTurn[] = []): DebateState => ({
+  turns: [...turns],
   lastSpeakerId: undefined,
   silenceMap: new Map(),
   speakCount: new Map(),
   pendingIntents: new Map(),
   pairConversationTurns: 0,
   targetPersona: undefined,
-  currentTurnIndex: history.length,
+  currentTurnIndex: turns.length,
   lastFacilitatorTurnIndex: -1,
 });
 
@@ -81,19 +81,19 @@ describe('persistInterventionTurn', () => {
     expect(result).toBeUndefined();
   });
 
-  it('targetPersonaId の有無にかかわらず state.history に1件追加される', async () => {
+  it('targetPersonaId の有無にかかわらず state.turns に1件追加される', async () => {
     const state = makeState();
 
     await persistInterventionTurn({ topicId: 'topic1', state, content: '介入A', targetPersonaId: 'p1', chapterId: 'ch-0' });
-    expect(state.history).toHaveLength(1);
+    expect(state.turns).toHaveLength(1);
 
     await persistInterventionTurn({ topicId: 'topic1', state, content: '介入B', targetPersonaId: undefined, chapterId: 'ch-0' });
-    expect(state.history).toHaveLength(2);
+    expect(state.turns).toHaveLength(2);
   });
 
   it('追加されたターンの speakerType は facilitator である', async () => {
     const state = makeState();
     await persistInterventionTurn({ topicId: 'topic1', state, content: '介入メッセージ', targetPersonaId: 'p1', chapterId: 'ch-0' });
-    expect(state.history[0].speakerType).toBe('facilitator');
+    expect(state.turns[0].speakerType).toBe('facilitator');
   });
 });
