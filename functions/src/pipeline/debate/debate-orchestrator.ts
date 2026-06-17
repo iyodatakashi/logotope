@@ -9,17 +9,15 @@ import {
 	generateOpening,
 	evaluateTopicDrift,
 	evaluateStallIntervention,
-	generateClosing
+	generateClosing,
+	generateChapterSummary,
+	generateChapterIntroduction
 } from '../../agents/facilitator-agent.js';
 import {
 	generateTurn,
 	assessEngagement,
 	generatePostDebateComment
 } from '../../agents/persona-agent.js';
-import {
-	generateChapterSummary,
-	generateChapterIntroduction
-} from '../chapters/chapter-generator.js';
 import {
 	resolvePairConversation,
 	decideNextSpeaker,
@@ -65,19 +63,6 @@ export const executeChapterTask = async (
 
 	const chapters: Chapter[] = session.chapters ?? [];
 
-	// 第1章の開始: オープニング生成（章立ては generateChapters で事前に保存済み）
-	if (chapterIndex === 0 && state.turns.length === 0) {
-		const openingResult = await generateOpening(topicTitle, personas, chapters[0]);
-		if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
-		await generateFacilitatorTurn({
-			topicId,
-			state,
-			chapterId: chapters[0].id,
-			content: openingResult.value.content ?? '',
-			targetPersonaId: validPersonaId(openingResult.value.targetPersonaId, personas)
-		});
-	}
-
 	if (!chapters[chapterIndex]) throw new Error(`Chapter not found: ${chapterIndex}`);
 	await updateCurrentChapterIndex(topicId, chapterIndex);
 
@@ -86,6 +71,32 @@ export const executeChapterTask = async (
 	const cap = chapterTurnCap(turnsPerChapter);
 	const engagementSignals: Array<0 | 1> = [];
 	const chapterTurnCount = () => state.turns.filter((t) => t.chapterId === chapter.id).length;
+
+	// 章開始: 第1章はオープニング、2章以降は導入を生成（章立ては generateChapters で事前に保存済み）
+	if (chapterTurnCount() === 0) {
+		if (chapterIndex === 0) {
+			const openingResult = await generateOpening(topicTitle, personas, chapter);
+			if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
+			await generateFacilitatorTurn({
+				topicId,
+				state,
+				chapterId: chapter.id,
+				content: openingResult.value.content ?? '',
+				targetPersonaId: validPersonaId(openingResult.value.targetPersonaId, personas)
+			});
+		} else {
+			const introResult = await generateChapterIntroduction(chapter, personas);
+			if (introResult.ok) {
+				await generateFacilitatorTurn({
+					topicId,
+					state,
+					chapterId: chapter.id,
+					content: introResult.value.content ?? '',
+					targetPersonaId: validPersonaId(introResult.value.targetPersonaId, personas)
+				});
+			}
+		}
+	}
 
 	while (chapterTurnCount() < cap && state.turns.length < maxTurns) {
 		const result = await executeTurn({
@@ -110,13 +121,7 @@ export const executeChapterTask = async (
 		await finalizeDebate({ topicId, personas, state });
 		return false;
 	}
-	await generateChapterTransition({
-		topicId,
-		chapter,
-		nextChapter: chapters[chapterIndex + 1],
-		state,
-		personas
-	});
+	await generateChapterTransition({ topicId, chapter, state });
 	return true;
 };
 
@@ -660,40 +665,23 @@ const generateUnansweredReply = async ({
 	state.targetPersona = undefined;
 };
 
-/** 章遷移: 現章まとめ＋次章導入の2ターンを生成し、導入で最初の発言者を指名する */
+/** 章まとめ: 現章の議論をまとめるファシリテーターターンを生成する */
 const generateChapterTransition = async ({
 	topicId,
 	chapter,
-	nextChapter,
-	state,
-	personas
+	state
 }: {
 	topicId: string;
 	chapter: Chapter;
-	nextChapter: Chapter;
 	state: DebateState;
-	personas: Persona[];
 }): Promise<void> => {
-	const recentTurns = state.turns.slice(-10);
-
-	const summaryResult = await generateChapterSummary(recentTurns, chapter);
+	const summaryResult = await generateChapterSummary(state.turns.slice(-10), chapter);
 	if (summaryResult.ok) {
 		await generateFacilitatorTurn({
 			topicId,
 			state,
 			chapterId: chapter.id,
 			content: summaryResult.value
-		});
-	}
-
-	const introResult = await generateChapterIntroduction(nextChapter, personas);
-	if (introResult.ok) {
-		await generateFacilitatorTurn({
-			topicId,
-			state,
-			chapterId: nextChapter.id,
-			content: introResult.value.content ?? '',
-			targetPersonaId: validPersonaId(introResult.value.targetPersonaId, personas)
 		});
 	}
 };
