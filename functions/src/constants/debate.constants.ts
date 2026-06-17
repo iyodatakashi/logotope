@@ -6,8 +6,11 @@ export const INTENT_EXPIRY_TURNS = 8;
 /** 発言意図キュー追加の閾値 */
 export const QUEUE_THRESHOLD_SCORE = 4;
 
-/** 自発発言が成立する閾値。話者選択ゲート・スタール判定で使用 */
+/** 自発発言が成立する閾値。話者選択ゲートで使用 */
 export const SPEAK_THRESHOLD_SCORE = 3;
+
+/** スタール介入を抑止する高意欲閾値。この値以上の参加者がいれば出尽くし介入を行わない */
+export const STALL_INTERVENTION_THRESHOLD_SCORE = 4;
 
 /** 章継続の活性シグナル閾値 */
 export const CONTINUE_CHAPTER_THRESHOLD = 4;
@@ -16,7 +19,7 @@ export const CONTINUE_CHAPTER_THRESHOLD = 4;
 export const MAX_PAIR_CONVERSATION_TURNS = 3;
 
 /** 介入クールダウン既定ターン数（ドリフト・スタール共通） */
-export const DEFAULT_INTERVENTION_COOLDOWN = 2;
+export const DEFAULT_INTERVENTION_COOLDOWN = 3;
 
 /** 1章あたりの目標ターン数（既定） */
 export const TURNS_PER_CHAPTER = 15;

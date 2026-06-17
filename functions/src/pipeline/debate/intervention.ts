@@ -2,12 +2,11 @@ import {
 	evaluateTopicDrift,
 	evaluateStallIntervention
 } from '../../agents/facilitator-agent.js';
-import { shouldSpeak } from './speaker-selection.js';
+import { hasHighEngagement } from './speaker-selection.js';
 import { addQueuedIntents } from './queued-intents.js';
 import { addTurn } from './turn.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
-import type { DebateState, SpeakerSelection, Engagement } from '../../types/debate.types.js';
-import type { DebateTurn } from '../../types/debate.types.js';
+import type { DebateState, SpeakerSelection, Engagement, DebateTurn } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
@@ -54,7 +53,6 @@ export const persistInterventionTurn = async ({
 	});
 	state.turns.push({
 		id: turnId,
-		sessionId: topicId,
 		turnIndex,
 		speakerType: 'facilitator',
 		speakerName: 'ファシリテーター',
@@ -138,7 +136,7 @@ const tryTopicDriftIntervention = async ({
 	return { content: result.value.content, targetPersonaId: targetId };
 };
 
-/** 出尽くし介入: 高意欲者がいない場合のみ発火する。ドリフト介入と同じクールダウンを共有する */
+/** 出尽くし介入: 高意欲者（>= QUEUE_THRESHOLD_SCORE）がいない場合のみ発火する。ドリフト介入と同じクールダウンを共有する */
 const tryStallIntervention = async ({
 	personas,
 	chapter,
@@ -150,7 +148,7 @@ const tryStallIntervention = async ({
 	state: DebateState;
 	engagements: Engagement[];
 }): Promise<{ content: string; targetPersonaId?: string } | undefined> => {
-	if (shouldSpeak(engagements)) return undefined;
+	if (hasHighEngagement(engagements)) return undefined;
 	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
 	const result = await evaluateStallIntervention(
 		chapterTurns as DebateTurn[],

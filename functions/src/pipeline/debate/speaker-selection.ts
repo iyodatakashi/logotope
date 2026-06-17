@@ -1,14 +1,18 @@
 import type { SpeakerSelection, Engagement, QueuedIntent, DebateState } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
-import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE } from '../../constants/debate.constants.js';
+import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE, STALL_INTERVENTION_THRESHOLD_SCORE } from '../../constants/debate.constants.js';
 
 /** 単一ペルソナの発言意図をキューに積むべきか（>= QUEUE_THRESHOLD_SCORE） */
 export const shouldQueue = (engagement: { score: number }): boolean =>
 	engagement.score >= QUEUE_THRESHOLD_SCORE;
 
-/** 集合に自発発言すべきペルソナが1人でもいるか（>= SPEAK_THRESHOLD_SCORE）。話者選択ゲート・スタール判定で使用 */
+/** 集合に自発発言すべきペルソナが1人でもいるか（>= SPEAK_THRESHOLD_SCORE）。話者選択ゲートで使用 */
 export const shouldSpeak = (engagements: ReadonlyArray<{ score: number }>): boolean =>
 	engagements.some((a) => a.score >= SPEAK_THRESHOLD_SCORE);
+
+/** 高意欲者（>= STALL_INTERVENTION_THRESHOLD_SCORE）が1人でもいるか。スタール介入ゲートで使用 */
+export const hasHighEngagement = (engagements: ReadonlyArray<{ score: number }>): boolean =>
+	engagements.some((a) => a.score >= STALL_INTERVENTION_THRESHOLD_SCORE);
 
 /** 指名があればそれを優先し、なければキュー > スコアで話者を決定する */
 export const selectSpeaker = ({
