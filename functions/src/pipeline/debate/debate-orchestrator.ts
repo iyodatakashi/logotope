@@ -20,11 +20,11 @@ import {
 } from '../../agents/persona-agent.js';
 import {
 	resolvePairConversation,
-	decideNextSpeaker,
+	selectNextSpeaker,
 	isHighEngagement,
 	hasHighEngagement
 } from './speaker-selection.js';
-import { toEngagementSignal, shouldEndChapterEarly, chapterTurnCap } from './chapter-progress.js';
+import { isEngagementActive, shouldEndChapterEarly, chapterTurnCap } from './chapter-progress.js';
 import { shouldEvaluateIntervention } from './intervention-policy.js';
 import { restoreDebateState } from './state-restore.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
@@ -69,7 +69,7 @@ export const executeChapterTask = async (
 	const chapter = chapters[chapterIndex];
 	const { turnsPerChapter, maxTurns, interventionCooldown } = options;
 	const cap = chapterTurnCap(turnsPerChapter);
-	const engagementSignals: Array<0 | 1> = [];
+	const activityLog: boolean[] = [];
 	const chapterTurnCount = () => state.turns.filter((t) => t.chapterId === chapter.id).length;
 
 	// 章開始: 第1章はオープニング、2章以降は導入を生成（章立ては generateChapters で事前に保存済み）
@@ -99,18 +99,17 @@ export const executeChapterTask = async (
 	}
 
 	while (chapterTurnCount() < cap && state.turns.length < maxTurns) {
-		const result = await executeTurn({
-			topicId,
-			personas,
-			chapter,
-			state,
-			interventionCooldown,
-			maxTurns
-		});
-		if (result === 'cancelled') return false;
-		if (result === 'limit') break;
-		engagementSignals.push(result.engagementSignal);
-		if (shouldEndChapterEarly(chapterTurnCount(), turnsPerChapter, engagementSignals)) break;
+		if (!(await isDebateActive(topicId))) return false;
+		if (state.pendingIntervention) {
+			const { content, targetPersonaId, chapterId } = state.pendingIntervention;
+			await persistInterventionTurn({ topicId, state, content, targetPersonaId, chapterId });
+			state.pendingIntervention = undefined;
+			if (state.turns.length >= maxTurns) break;
+		}
+		const isActive = await executeTurn({ topicId, personas, chapter, state, interventionCooldown });
+		if (isActive === null) return false;
+		activityLog.push(isActive);
+		if (shouldEndChapterEarly(chapterTurnCount(), turnsPerChapter, activityLog)) break;
 	}
 
 	// 章終了時に未応答の指名が残っていれば応答ターンを1件生成する（+1ターン許容）
@@ -159,18 +158,14 @@ const executeTurn = async ({
 	personas,
 	chapter,
 	state,
-	interventionCooldown,
-	maxTurns
+	interventionCooldown
 }: {
 	topicId: string;
 	personas: Persona[];
 	chapter: Chapter;
 	state: DebateState;
 	interventionCooldown: number;
-	maxTurns: number;
-}): Promise<'cancelled' | 'limit' | { engagementSignal: 0 | 1 }> => {
-	if (!(await isDebateActive(topicId))) return 'cancelled';
-
+}): Promise<boolean | null> => {
 	const targetPersona = state.targetPersona;
 	state.targetPersona = undefined;
 	const personaIds = personas.map((p) => p.id);
@@ -191,34 +186,32 @@ const executeTurn = async ({
 	if (pairSelection) {
 		speakerSelection = pairSelection;
 	} else if (driftCooldownPassed) {
-		const driftSelection = await tryTopicDriftIntervention({ topicId, personas, chapter, state });
-		if (driftSelection) {
-			speakerSelection = driftSelection;
+		const driftIntervention = await tryTopicDriftIntervention({ personas, chapter, state });
+		if (driftIntervention) {
+			state.pendingIntervention = { ...driftIntervention, chapterId: chapter.id };
+			speakerSelection = { personaId: driftIntervention.targetPersonaId, reason: 'targeted_by_facilitator' };
 		} else {
-			speakerSelection =
-				(await tryStallIntervention({ topicId, personas, chapter, state, assessments })) ??
-				decideNextSpeaker(
-					assessments,
-					state.pendingIntents,
-					state.silenceMap,
-					personaIds,
-					state.lastSpeakerId
-				);
+			const stallIntervention = await tryStallIntervention({ personas, chapter, state, assessments });
+			if (stallIntervention) {
+				state.pendingIntervention = { ...stallIntervention, chapterId: chapter.id };
+				speakerSelection = stallIntervention.targetPersonaId
+					? { personaId: stallIntervention.targetPersonaId, reason: 'targeted_by_facilitator' }
+					: selectNextSpeaker(assessments, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
+			} else {
+				speakerSelection = selectNextSpeaker(assessments, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
+			}
 		}
 	} else {
-		speakerSelection =
-			(await tryStallIntervention({ topicId, personas, chapter, state, assessments })) ??
-			decideNextSpeaker(
-				assessments,
-				state.pendingIntents,
-				state.silenceMap,
-				personaIds,
-				state.lastSpeakerId
-			);
+		const stallIntervention = await tryStallIntervention({ personas, chapter, state, assessments });
+		if (stallIntervention) {
+			state.pendingIntervention = { ...stallIntervention, chapterId: chapter.id };
+			speakerSelection = stallIntervention.targetPersonaId
+				? { personaId: stallIntervention.targetPersonaId, reason: 'targeted_by_facilitator' }
+				: selectNextSpeaker(assessments, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
+		} else {
+			speakerSelection = selectNextSpeaker(assessments, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
+		}
 	}
-
-	// 介入ターンで討論全体の上限に達した場合は打ち切る
-	if (state.turns.length >= maxTurns) return 'limit';
 
 	await enqueueHighEngagementIntents({
 		topicId,
@@ -239,13 +232,13 @@ const executeTurn = async ({
 	});
 
 	const reply = await generatePersonaTurn({ topicId, personas, chapter, state, speakerSelection, speech });
-	if (!reply) return 'cancelled';
+	if (!reply) return null;
 	updateSpeakerStats({ state, personas, personaId: reply.personaId });
 	await consumePendingIntent({ topicId, state, personaId: reply.personaId, pendingEntries: reply.pendingEntries });
 	if (reply.beliefChange) await applyBeliefChange({ topicId, persona: personas.find((p) => p.id === reply.personaId)!, turnId: reply.turnId, beliefChange: reply.beliefChange });
 	state.targetPersona = reply.targetPersonaId ? { personaId: reply.targetPersonaId, targetedBy: 'persona' } : undefined;
 
-	return { engagementSignal: toEngagementSignal(assessments) };
+	return isEngagementActive(assessments);
 };
 
 /** 直近のファシリテーターターン以降のペルソナターン数を返す（論点ずれ介入クールダウン判定用） */
@@ -337,16 +330,14 @@ const enqueueHighEngagementIntents = async ({
 
 /** 論点ずれチェック: 逸脱していれば介入を保存してSpeakerSelection を返す。クールダウン通過後かつ指名なし時のみ評価する */
 const tryTopicDriftIntervention = async ({
-	topicId,
 	personas,
 	chapter,
 	state
 }: {
-	topicId: string;
 	personas: Persona[];
 	chapter: Chapter;
 	state: DebateState;
-}): Promise<SpeakerSelection | undefined> => {
+}): Promise<{ content: string; targetPersonaId: string } | undefined> => {
 	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
 	const result = await evaluateTopicDrift(
 		chapterTurns as DebateTurn[],
@@ -358,29 +349,21 @@ const tryTopicDriftIntervention = async ({
 	if (!result.value.content) return undefined;
 	const targetId = validPersonaId(result.value.targetPersonaId, personas);
 	if (!targetId) return undefined;
-	return persistInterventionTurn({
-		topicId,
-		state,
-		content: result.value.content,
-		targetPersonaId: targetId,
-		chapterId: chapter.id
-	});
+	return { content: result.value.content, targetPersonaId: targetId };
 };
 
 /** 出尽くし介入: 高意欲者がいない場合のみ発火し、クールダウンを参照しない（BC1）。介入する場合はSpeakerSelection を返す */
 const tryStallIntervention = async ({
-	topicId,
 	personas,
 	chapter,
 	state,
 	assessments
 }: {
-	topicId: string;
 	personas: Persona[];
 	chapter: Chapter;
 	state: DebateState;
 	assessments: Engagement[];
-}): Promise<SpeakerSelection | undefined> => {
+}): Promise<{ content: string; targetPersonaId?: string } | undefined> => {
 	if (hasHighEngagement(assessments)) return undefined;
 	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
 	const result = await evaluateStallIntervention(
@@ -392,13 +375,7 @@ const tryStallIntervention = async ({
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 	if (!result.value.content) return undefined;
 	const targetId = validPersonaId(result.value.targetPersonaId, personas);
-	return persistInterventionTurn({
-		topicId,
-		state,
-		content: result.value.content,
-		targetPersonaId: targetId,
-		chapterId: chapter.id
-	});
+	return { content: result.value.content, targetPersonaId: targetId ?? undefined };
 };
 
 /** ファシリテーター介入ターンを保存し、ターゲットがあれば SpeakerSelection を返す */
