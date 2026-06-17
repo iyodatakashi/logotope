@@ -85,11 +85,29 @@ export const executeChapterTask = async (
 	if (!chapters[chapterIndex]) throw new Error(`Chapter not found: ${chapterIndex}`);
 	await updateCurrentChapterIndex(topicId, chapterIndex);
 
-	const outcome = await runChapterLoop(topicId, personas, chapters[chapterIndex], state, options);
-	if (outcome === 'cancelled') return false;
+	const chapter = chapters[chapterIndex];
+	const { turnsPerChapter, maxTurns, interventionCooldown } = options;
+	const cap = chapterTurnCap(turnsPerChapter);
+	const engagementSignals: Array<0 | 1> = [];
+	const chapterTurnCount = () => state.history.filter((t) => t.chapterId === chapter.id).length;
+
+	while (chapterTurnCount() < cap && state.history.length < maxTurns) {
+		const result = await executeTurn(
+			topicId,
+			personas,
+			chapter,
+			state,
+			interventionCooldown,
+			maxTurns
+		);
+		if (result === 'cancelled') return false;
+		if (result === 'limit') break;
+		engagementSignals.push(result.engagementSignal);
+		if (shouldEndChapterEarly(chapterTurnCount(), turnsPerChapter, engagementSignals)) break;
+	}
 
 	// 章終了時に未応答の指名・直接質問が残っていれば応答ターンを1件生成する（+1ターン許容）
-	await generateUnansweredReply(topicId, personas, chapters[chapterIndex], state);
+	await generateUnansweredReply(topicId, personas, chapter, state);
 
 	const isLastChapter = options.singleChapterMode || chapterIndex >= chapters.length - 1;
 	if (isLastChapter) {
@@ -139,77 +157,49 @@ const enqueueHighEngagementIntents = async (
 };
 
 /**
- * 正準フロー「章ループ」: 1ターンを「停止ゲート → 全員評価 → 話者決定 → 発言パラメータ取得 → 発言生成・保存 → 状態更新 → 章終了判定」の固定順で進行する。
+ * 正準フロー「1ターン処理」: 「停止ゲート → 全員評価 → 話者決定 → 発言パラメータ取得 → 発言生成・保存 → 状態更新」の固定順で進行する。
  * 話者決定の優先順位: 指名・直接質問 > A（論点ずれ、クールダウン後かつ指名なし時のみ評価）> B（出尽くし、高意欲者なし時のみ評価・クールダウン不問）> キュー > スコア。
  */
-const runChapterLoop = async (
+const executeTurn = async (
 	topicId: string,
 	personas: Persona[],
 	chapter: Chapter,
 	state: DebateState,
-	options: DebateOptions
-): Promise<'cancelled' | 'ended'> => {
-	const { turnsPerChapter, maxTurns, interventionCooldown } = options;
+	interventionCooldown: number,
+	maxTurns: number
+): Promise<'cancelled' | 'limit' | { engagementSignal: 0 | 1 }> => {
+	if (!(await isDebateActive(topicId))) return 'cancelled';
+
+	const targetPersona = state.targetPersona;
+	state.targetPersona = undefined;
 	const personaIds = personas.map((p) => p.id);
-	const cap = chapterTurnCap(turnsPerChapter);
-	const engagementSignals: Array<0 | 1> = [];
-	const chapterTurnCount = () => state.history.filter((t) => t.chapterId === chapter.id).length;
+	const pairDecision = resolvePairConversation(
+		targetPersona,
+		state.pairConversationTurns,
+		personaIds
+	);
 
-	while (chapterTurnCount() < cap && state.history.length < maxTurns) {
-		// 各ターン境界でトピックのゲートを確認する（上流再生成でフェーズが戻った場合も停止）
-		if (!(await isDebateActive(topicId))) return 'cancelled';
+	const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
+	const assessments = await evaluateEngagement(topicId, personas, state);
 
-		// 指名・直接質問は介入より優先して確定する
-		const targetPersona = state.targetPersona;
-		state.targetPersona = undefined;
-		const pairDecision = resolvePairConversation(
-			targetPersona,
-			state.pairConversationTurns,
-			personaIds
+	const driftCooldownPassed = shouldEvaluateIntervention(
+		countPersonaTurnsSinceFacilitator(state.history),
+		interventionCooldown
+	);
+
+	let decision: SpeakerSelection;
+	if (pairDecision) {
+		decision = pairDecision;
+	} else if (driftCooldownPassed) {
+		const driftDecision = await tryTopicDriftIntervention(
+			topicId,
+			personas,
+			chapterHistory,
+			chapter,
+			state
 		);
-
-		const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
-		const assessments = await evaluateEngagement(topicId, personas, state);
-		engagementSignals.push(toEngagementSignal(assessments));
-
-		// 論点ずれ介入クールダウン: ファシリテーター以降のペルソナターン数が閾値を超えた場合のみ評価する
-		const driftCooldownPassed = shouldEvaluateIntervention(
-			countPersonaTurnsSinceFacilitator(state.history),
-			interventionCooldown
-		);
-
-		// 優先: 指名 > 論点ずれ介入（クールダウン後） > 発言なし介入 > キュー > スコア
-		let decision: SpeakerSelection;
-		if (pairDecision) {
-			decision = pairDecision;
-		} else if (driftCooldownPassed) {
-			const driftDecision = await tryTopicDriftIntervention(
-				topicId,
-				personas,
-				chapterHistory,
-				chapter,
-				state
-			);
-			if (driftDecision) {
-				decision = driftDecision;
-			} else {
-				decision =
-					(await tryStallIntervention(
-						topicId,
-						personas,
-						chapterHistory,
-						chapter,
-						state,
-						assessments
-					)) ??
-					decideNextSpeaker(
-						assessments,
-						state.pendingIntents,
-						state.silenceMap,
-						personaIds,
-						state.lastSpeakerId
-					);
-			}
+		if (driftDecision) {
+			decision = driftDecision;
 		} else {
 			decision =
 				(await tryStallIntervention(
@@ -228,31 +218,45 @@ const runChapterLoop = async (
 					state.lastSpeakerId
 				);
 		}
-
-		// 介入ターンで討論全体の上限に達した場合は打ち切る
-		if (state.history.length >= maxTurns) break;
-
-		await enqueueHighEngagementIntents(
-			topicId,
-			state,
-			assessments,
-			decision,
-			Math.max(0, state.history.length - 1)
-		);
-
-		state.pairConversationTurns =
-			decision.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
-
-		const speech = await resolveSpeechParams(decision.personaId, personas, state, assessments);
-
-		const saved = await generatePersonaTurn(topicId, personas, chapter, state, decision, speech);
-		if (!saved) return 'cancelled';
-
-		if (shouldEndChapterEarly(chapterTurnCount(), turnsPerChapter, engagementSignals)) {
-			return 'ended';
-		}
+	} else {
+		decision =
+			(await tryStallIntervention(
+				topicId,
+				personas,
+				chapterHistory,
+				chapter,
+				state,
+				assessments
+			)) ??
+			decideNextSpeaker(
+				assessments,
+				state.pendingIntents,
+				state.silenceMap,
+				personaIds,
+				state.lastSpeakerId
+			);
 	}
-	return 'ended';
+
+	// 介入ターンで討論全体の上限に達した場合は打ち切る
+	if (state.history.length >= maxTurns) return 'limit';
+
+	await enqueueHighEngagementIntents(
+		topicId,
+		state,
+		assessments,
+		decision,
+		Math.max(0, state.history.length - 1)
+	);
+
+	state.pairConversationTurns =
+		decision.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
+
+	const speech = await resolveSpeechParams(decision.personaId, personas, state, assessments);
+
+	const saved = await generatePersonaTurn(topicId, personas, chapter, state, decision, speech);
+	if (!saved) return 'cancelled';
+
+	return { engagementSignal: toEngagementSignal(assessments) };
 };
 
 /**
