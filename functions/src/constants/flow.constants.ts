@@ -6,16 +6,19 @@
 /** 意図キューの失効ターン数（state-restore とキュー保守で共有） */
 export const INTENT_EXPIRY_TURNS = 8;
 
-/** 高意欲の下限スコア。>= で高意欲/キュー追加、< でキュー選択（同一境界を逆向きに使う） */
-export const HIGH_ENGAGEMENT_SCORE = 4;
+/** 発言意図キュー追加の閾値 */
+export const QUEUE_THRESHOLD_SCORE = 4;
 
-/** mode に依らず活性シグナルとみなすスコア */
-export const ACTIVE_SIGNAL_STRONG_SCORE = 5;
+/** 自発発言が成立する閾値。話者選択ゲート・スタール判定で使用 */
+export const SPEAK_THRESHOLD_SCORE = 3;
+
+/** 章継続の活性シグナル閾値 */
+export const CONTINUE_CHAPTER_THRESHOLD = 4;
 
 /** ペルソナ間の連続直接質問の上限 */
 export const MAX_PAIR_CONVERSATION_TURNS = 3;
 
-/** 論点ずれ介入(A)のクールダウン既定ターン数 */
+/** 介入クールダウン既定ターン数（ドリフト・スタール共通） */
 export const DEFAULT_INTERVENTION_COOLDOWN = 2;
 
 /** 1章あたりの目標ターン数（既定） */
@@ -24,8 +27,8 @@ export const TURNS_PER_CHAPTER = 15;
 /** 討論全体のターン上限（既定） */
 export const MAX_TURNS = 200;
 
-/** 早期終了判定で参照する直近シグナル窓 */
-export const RECENT_SIGNAL_WINDOW = 5;
+/** checkChapterContinuation が連続 false になった場合に章を早期終了するカウント上限 */
+export const CHAPTER_END_COUNT_LIMIT = 5;
 
 /** 早期終了の進捗比率（目標ターンの何割消化で打ち切り判定に入るか） */
 export const EARLY_END_PROGRESS_RATIO = 0.75;
