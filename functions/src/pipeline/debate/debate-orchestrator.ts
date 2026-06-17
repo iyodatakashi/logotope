@@ -32,7 +32,7 @@ import { restoreDebateState } from './state-restore.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 import type { SpeakerSelection, PendingIntent } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
-import type { Result, PipelineError } from '../../types/common.types.js';
+import type { PipelineError } from '../../types/common.types.js';
 import type { Engagement, DebateState } from '../../types/debate.types.js';
 import type { DebateTurn } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
@@ -67,16 +67,15 @@ export const executeChapterTask = async (
 
 	// 第1章の開始: オープニング生成（章立ては generateChapters で事前に保存済み）
 	if (chapterIndex === 0 && state.turns.length === 0) {
-		const targetPersonaId = await generateFacilitatorTurn({
+		const openingResult = await generateOpening(topicTitle, personas, chapters[0]);
+		if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
+		await generateFacilitatorTurn({
 			topicId,
 			state,
 			chapterId: chapters[0].id,
-			personas,
-			generate: () => generateOpening(topicTitle, personas, chapters[0])
+			content: openingResult.value.content ?? '',
+			targetPersonaId: validPersonaId(openingResult.value.targetPersonaId, personas)
 		});
-		state.targetPersona = targetPersonaId
-			? { personaId: targetPersonaId, targetedBy: 'facilitator' }
-			: undefined;
 	}
 
 	if (!chapters[chapterIndex]) throw new Error(`Chapter not found: ${chapterIndex}`);
@@ -89,7 +88,14 @@ export const executeChapterTask = async (
 	const chapterTurnCount = () => state.turns.filter((t) => t.chapterId === chapter.id).length;
 
 	while (chapterTurnCount() < cap && state.turns.length < maxTurns) {
-		const result = await executeTurn({ topicId, personas, chapter, state, interventionCooldown, maxTurns });
+		const result = await executeTurn({
+			topicId,
+			personas,
+			chapter,
+			state,
+			interventionCooldown,
+			maxTurns
+		});
 		if (result === 'cancelled') return false;
 		if (result === 'limit') break;
 		engagementSignals.push(result.engagementSignal);
@@ -104,7 +110,13 @@ export const executeChapterTask = async (
 		await finalizeDebate({ topicId, personas, state });
 		return false;
 	}
-	await generateChapterTransition({ topicId, chapter, nextChapter: chapters[chapterIndex + 1], state, personas });
+	await generateChapterTransition({
+		topicId,
+		chapter,
+		nextChapter: chapters[chapterIndex + 1],
+		state,
+		personas
+	});
 	return true;
 };
 
@@ -198,7 +210,12 @@ const executeTurn = async ({
 	state.pairConversationTurns =
 		decision.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
 
-	const speech = await resolveSpeechParams({ speakerId: decision.personaId, personas, state, assessments });
+	const speech = await resolveSpeechParams({
+		speakerId: decision.personaId,
+		personas,
+		state,
+		assessments
+	});
 
 	const saved = await generatePersonaTurn({ topicId, personas, chapter, state, decision, speech });
 	if (!saved) return 'cancelled';
@@ -373,7 +390,30 @@ export const persistInterventionTurn = async ({
 	targetPersonaId: string | undefined;
 	chapterId: string;
 }): Promise<SpeakerSelection | undefined> => {
-	await addFacilitatorTurn({ topicId, state, content, targetPersonaId, chapterId });
+	const turnIndex = state.turns.length;
+	const { id: turnId } = await addTurn({
+		topicId,
+		turnIndex,
+		speakerType: 'facilitator',
+		speakerName: 'ファシリテーター',
+		speakerRole: '',
+		content,
+		chapterId,
+		targetPersonaId
+	});
+	state.turns.push({
+		id: turnId,
+		sessionId: topicId,
+		turnIndex,
+		speakerType: 'facilitator',
+		speakerName: 'ファシリテーター',
+		speakerRole: '',
+		content,
+		createdAt: new Date().toISOString(),
+		chapterId,
+		targetPersonaId
+	});
+	state.pairConversationTurns = 0;
 	return targetPersonaId
 		? { personaId: targetPersonaId, reason: 'targeted_by_facilitator' }
 		: undefined;
@@ -402,6 +442,50 @@ const resolveSpeechParams = async ({
 	return result.value;
 };
 
+/** ファシリテーター発言を保存し、state.turns・state.targetPersona を更新して発言内容を返す */
+const generateFacilitatorTurn = async ({
+	topicId,
+	state,
+	content,
+	targetPersonaId,
+	chapterId
+}: {
+	topicId: string;
+	state: DebateState;
+	content: string;
+	targetPersonaId?: string;
+	chapterId?: string;
+}): Promise<{ content: string; targetPersonaId?: string }> => {
+	const turnIndex = state.turns.length;
+	const { id: turnId } = await addTurn({
+		topicId,
+		turnIndex,
+		speakerType: 'facilitator',
+		speakerName: 'ファシリテーター',
+		speakerRole: '',
+		content,
+		chapterId,
+		targetPersonaId
+	});
+	state.turns.push({
+		id: turnId,
+		sessionId: topicId,
+		turnIndex,
+		speakerType: 'facilitator',
+		speakerName: 'ファシリテーター',
+		speakerRole: '',
+		content,
+		createdAt: new Date().toISOString(),
+		chapterId,
+		targetPersonaId
+	});
+	state.pairConversationTurns = 0;
+	state.targetPersona = targetPersonaId
+		? { personaId: targetPersonaId, targetedBy: 'facilitator' }
+		: undefined;
+	return { content, targetPersonaId };
+};
+
 /** 決定に基づきペルソナ発言を生成・保存し、状態（沈黙・キュー・信念・次ターン指名）を更新する */
 const generatePersonaTurn = async ({
 	topicId,
@@ -426,9 +510,7 @@ const generatePersonaTurn = async ({
 	const pendingEntries = state.pendingIntents.get(persona.id);
 	let pendingTrigger: { speakerName: string; content: string } | undefined;
 	if (pendingEntries && pendingEntries.length > 0) {
-		const triggerTurn = state.turns.find(
-			(t) => t.turnIndex === pendingEntries[0].triggerTurnIndex
-		);
+		const triggerTurn = state.turns.find((t) => t.turnIndex === pendingEntries[0].triggerTurnIndex);
 		pendingTrigger = triggerTurn
 			? { speakerName: triggerTurn.speakerName ?? '', content: triggerTurn.content }
 			: undefined;
@@ -567,84 +649,15 @@ const generateUnansweredReply = async ({
 	if (!decision) return;
 
 	const assessments = await evaluateEngagement({ topicId, personas, state });
-	const speech = await resolveSpeechParams({ speakerId: decision.personaId, personas, state, assessments });
+	const speech = await resolveSpeechParams({
+		speakerId: decision.personaId,
+		personas,
+		state,
+		assessments
+	});
 	await generatePersonaTurn({ topicId, personas, chapter, state, decision, speech });
 	// 章は終了するため、応答ターン由来の指名は引き継がない
 	state.targetPersona = undefined;
-};
-
-/**
- * ファシリテーター発言を生成して保存し、state.turns に追加する。
- * optional=false（デフォルト）の場合、generate 失敗時は例外を投げる。
- * content が空なら保存せず undefined を返す（介入不要・optional 失敗を区別しない）。
- */
-const generateFacilitatorTurn = async ({
-	topicId,
-	state,
-	chapterId,
-	personas,
-	optional = false,
-	generate
-}: {
-	topicId: string;
-	state: DebateState;
-	chapterId?: string;
-	personas?: ReadonlyArray<Persona>;
-	optional?: boolean;
-	generate: () => Promise<Result<{ content?: string | null; targetPersonaId?: string }, PipelineError>>;
-}): Promise<string | undefined> => {
-	const result = await generate();
-	if (!result.ok) {
-		if (optional) return undefined;
-		throw new Error(pipelineErrorMessage(result.error));
-	}
-	const content = result.value.content;
-	if (!content) return undefined;
-	const targetPersonaId = personas
-		? validPersonaId(result.value.targetPersonaId, personas)
-		: result.value.targetPersonaId;
-	await addFacilitatorTurn({ topicId, state, content, targetPersonaId, chapterId });
-	return targetPersonaId;
-};
-
-/** ファシリテーター発言を保存し、state.turns に追加する */
-const addFacilitatorTurn = async ({
-	topicId,
-	state,
-	content,
-	targetPersonaId,
-	chapterId
-}: {
-	topicId: string;
-	state: DebateState;
-	content: string;
-	targetPersonaId?: string;
-	chapterId?: string;
-}): Promise<void> => {
-	const turnIndex = state.turns.length;
-	const { id: turnId } = await addTurn({
-		topicId,
-		turnIndex,
-		speakerType: 'facilitator',
-		speakerName: 'ファシリテーター',
-		speakerRole: '',
-		content,
-		chapterId,
-		targetPersonaId
-	});
-	state.turns.push({
-		id: turnId,
-		sessionId: topicId,
-		turnIndex,
-		speakerType: 'facilitator',
-		speakerName: 'ファシリテーター',
-		speakerRole: '',
-		content,
-		createdAt: new Date().toISOString(),
-		chapterId,
-		targetPersonaId
-	});
-	state.pairConversationTurns = 0;
 };
 
 /** 章遷移: 現章まとめ＋次章導入の2ターンを生成し、導入で最初の発言者を指名する */
@@ -663,28 +676,26 @@ const generateChapterTransition = async ({
 }): Promise<void> => {
 	const recentTurns = state.turns.slice(-10);
 
-	await generateFacilitatorTurn({
-		topicId,
-		state,
-		chapterId: chapter.id,
-		optional: true,
-		generate: async () => {
-			const r = await generateChapterSummary(recentTurns, chapter);
-			return r.ok ? { ok: true, value: { content: r.value } } : r;
-		}
-	});
+	const summaryResult = await generateChapterSummary(recentTurns, chapter);
+	if (summaryResult.ok) {
+		await generateFacilitatorTurn({
+			topicId,
+			state,
+			chapterId: chapter.id,
+			content: summaryResult.value
+		});
+	}
 
-	const targetPersonaId = await generateFacilitatorTurn({
-		topicId,
-		state,
-		chapterId: nextChapter.id,
-		personas,
-		optional: true,
-		generate: () => generateChapterIntroduction(nextChapter, personas)
-	});
-	state.targetPersona = targetPersonaId
-		? { personaId: targetPersonaId, targetedBy: 'facilitator' }
-		: undefined;
+	const introResult = await generateChapterIntroduction(nextChapter, personas);
+	if (introResult.ok) {
+		await generateFacilitatorTurn({
+			topicId,
+			state,
+			chapterId: nextChapter.id,
+			content: introResult.value.content ?? '',
+			targetPersonaId: validPersonaId(introResult.value.targetPersonaId, personas)
+		});
+	}
 };
 
 /** 討論終端: クロージング → 事後コメント → セッション完了 */
@@ -698,14 +709,9 @@ const finalizeDebate = async ({
 	state: DebateState;
 }): Promise<void> => {
 	const finalBeliefs = new Map(personas.map((p) => [p.id, getLatestBelief(p).content]));
-	await generateFacilitatorTurn({
-		topicId,
-		state,
-		generate: async () => {
-			const r = await generateClosing(state.turns, finalBeliefs);
-			return r.ok ? { ok: true, value: { content: r.value } } : r;
-		}
-	});
+	const closingResult = await generateClosing(state.turns, finalBeliefs);
+	if (!closingResult.ok) throw new Error(pipelineErrorMessage(closingResult.error));
+	await generateFacilitatorTurn({ topicId, state, content: closingResult.value ?? '' });
 
 	for (let i = 0; i < personas.length; i++) {
 		const persona = personas[i];
