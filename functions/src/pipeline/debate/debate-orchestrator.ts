@@ -116,13 +116,13 @@ export const executeChapterTask = async (
 	// 章終了時に未応答の指名が残っていれば応答ターンを1件生成する（+1ターン許容）
 	const unansweredTarget = state.targetPersona;
 	state.targetPersona = undefined;
-	const unansweredDecision = unansweredTarget
+	const speakerSelection = unansweredTarget
 		? resolvePairConversation(unansweredTarget, 0, personas.map((p) => p.id))
 		: undefined;
-	if (unansweredDecision) {
+	if (speakerSelection) {
 		const assessments = await evaluateEngagement({ topicId, personas, state });
-		const speech = await resolveSpeechParams({ speakerId: unansweredDecision.personaId, personas, state, assessments });
-		const reply = await generatePersonaTurn({ topicId, personas, chapter, state, decision: unansweredDecision, speech });
+		const speech = await resolveSpeechParams({ speakerId: speakerSelection.personaId, personas, state, assessments });
+		const reply = await generatePersonaTurn({ topicId, personas, chapter, state, speakerSelection, speech });
 		if (reply) {
 			updateSpeakerStats({ state, personas, personaId: reply.personaId });
 			await consumePendingIntent({ topicId, state, personaId: reply.personaId, pendingEntries: reply.pendingEntries });
@@ -174,7 +174,7 @@ const executeTurn = async ({
 	const targetPersona = state.targetPersona;
 	state.targetPersona = undefined;
 	const personaIds = personas.map((p) => p.id);
-	const pairDecision = resolvePairConversation(
+	const pairSelection = resolvePairConversation(
 		targetPersona,
 		state.pairConversationTurns,
 		personaIds
@@ -187,15 +187,15 @@ const executeTurn = async ({
 		interventionCooldown
 	);
 
-	let decision: SpeakerSelection;
-	if (pairDecision) {
-		decision = pairDecision;
+	let speakerSelection: SpeakerSelection;
+	if (pairSelection) {
+		speakerSelection = pairSelection;
 	} else if (driftCooldownPassed) {
-		const driftDecision = await tryTopicDriftIntervention({ topicId, personas, chapter, state });
-		if (driftDecision) {
-			decision = driftDecision;
+		const driftSelection = await tryTopicDriftIntervention({ topicId, personas, chapter, state });
+		if (driftSelection) {
+			speakerSelection = driftSelection;
 		} else {
-			decision =
+			speakerSelection =
 				(await tryStallIntervention({ topicId, personas, chapter, state, assessments })) ??
 				decideNextSpeaker(
 					assessments,
@@ -206,7 +206,7 @@ const executeTurn = async ({
 				);
 		}
 	} else {
-		decision =
+		speakerSelection =
 			(await tryStallIntervention({ topicId, personas, chapter, state, assessments })) ??
 			decideNextSpeaker(
 				assessments,
@@ -224,21 +224,21 @@ const executeTurn = async ({
 		topicId,
 		state,
 		assessments,
-		decision,
+		speakerSelection,
 		triggerTurnIndex: Math.max(0, state.turns.length - 1)
 	});
 
 	state.pairConversationTurns =
-		decision.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
+		speakerSelection.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
 
 	const speech = await resolveSpeechParams({
-		speakerId: decision.personaId,
+		speakerId: speakerSelection.personaId,
 		personas,
 		state,
 		assessments
 	});
 
-	const reply = await generatePersonaTurn({ topicId, personas, chapter, state, decision, speech });
+	const reply = await generatePersonaTurn({ topicId, personas, chapter, state, speakerSelection, speech });
 	if (!reply) return 'cancelled';
 	updateSpeakerStats({ state, personas, personaId: reply.personaId });
 	await consumePendingIntent({ topicId, state, personaId: reply.personaId, pendingEntries: reply.pendingEntries });
@@ -314,17 +314,17 @@ const enqueueHighEngagementIntents = async ({
 	topicId,
 	state,
 	assessments,
-	decision,
+	speakerSelection,
 	triggerTurnIndex
 }: {
 	topicId: string;
 	state: DebateState;
 	assessments: readonly Engagement[];
-	decision: SpeakerSelection;
+	speakerSelection: SpeakerSelection;
 	triggerTurnIndex: number;
 }): Promise<void> => {
 	for (const assessment of assessments) {
-		if (!isHighEngagement(assessment) || assessment.personaId === decision.personaId) continue;
+		if (!isHighEngagement(assessment) || assessment.personaId === speakerSelection.personaId) continue;
 		const existing = state.pendingIntents.get(assessment.personaId) ?? [];
 		const updated = [
 			...existing,
@@ -335,7 +335,7 @@ const enqueueHighEngagementIntents = async ({
 	}
 };
 
-/** 論点ずれチェック: 逸脱していれば介入を保存して指名 decision を返す。クールダウン通過後かつ指名なし時のみ評価する */
+/** 論点ずれチェック: 逸脱していれば介入を保存してSpeakerSelection を返す。クールダウン通過後かつ指名なし時のみ評価する */
 const tryTopicDriftIntervention = async ({
 	topicId,
 	personas,
@@ -367,7 +367,7 @@ const tryTopicDriftIntervention = async ({
 	});
 };
 
-/** 出尽くし介入: 高意欲者がいない場合のみ発火し、クールダウンを参照しない（BC1）。介入する場合は指名 decision を返す */
+/** 出尽くし介入: 高意欲者がいない場合のみ発火し、クールダウンを参照しない（BC1）。介入する場合はSpeakerSelection を返す */
 const tryStallIntervention = async ({
 	topicId,
 	personas,
@@ -517,14 +517,14 @@ const generatePersonaTurn = async ({
 	personas,
 	chapter,
 	state,
-	decision,
+	speakerSelection,
 	speech
 }: {
 	topicId: string;
 	personas: Persona[];
 	chapter: Chapter;
 	state: DebateState;
-	decision: SpeakerSelection;
+	speakerSelection: SpeakerSelection;
 	speech: Engagement;
 }): Promise<{
 	turnId: string;
@@ -534,8 +534,8 @@ const generatePersonaTurn = async ({
 	pendingEntries: PendingIntent[] | undefined;
 	fromQueue: boolean;
 } | null> => {
-	const persona = personas.find((p) => p.id === decision.personaId)!;
-	const fromQueue = decision.reason === 'queue';
+	const persona = personas.find((p) => p.id === speakerSelection.personaId)!;
+	const fromQueue = speakerSelection.reason === 'queue';
 
 	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
 	const pendingEntries = state.pendingIntents.get(persona.id);
@@ -554,13 +554,13 @@ const generatePersonaTurn = async ({
 			chapter,
 			pendingTrigger,
 			targetedBy:
-				decision.reason === 'targeted_by_facilitator' || decision.reason === 'targeted_by_persona'
-					? decision.reason === 'targeted_by_facilitator'
+				speakerSelection.reason === 'targeted_by_facilitator' || speakerSelection.reason === 'targeted_by_persona'
+					? speakerSelection.reason === 'targeted_by_facilitator'
 						? 'facilitator'
 						: 'persona'
 					: undefined
 		},
-		{ ...speech, intentSummary: decision.intentSummary ?? speech.intentSummary }
+		{ ...speech, intentSummary: speakerSelection.intentSummary ?? speech.intentSummary }
 	);
 	if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
