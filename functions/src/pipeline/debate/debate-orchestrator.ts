@@ -257,16 +257,16 @@ const executeTurn = async ({
 	});
 	if (!reply) return null;
 
-	// 10. 話者統計を更新する
-	updateSpeakerStats({ state, personas, personaId: reply.personaId });
-
-	// 11. 消化した発言意図をキューから除去する
+	// 10. 消化した発言意図をキューから除去する
 	await consumeQueuedIntent({
 		topicId,
 		state,
 		personaId: reply.personaId,
 		queuedEntries: reply.queuedEntries
 	});
+
+	// 11. 話者統計を更新する
+	updateSpeakerStats({ state, personas, personaId: reply.personaId });
 
 	// 12. 信念変化を記録する
 	if (reply.beliefChange)
