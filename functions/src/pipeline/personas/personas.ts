@@ -1,9 +1,18 @@
+import { getFirestore } from 'firebase-admin/firestore';
 import { generateText, jsonSchema } from 'ai';
 import { nanoid } from 'nanoid';
 import { getPipelineModel } from '../../llm/models.js';
 import { MAX_TOKENS } from '../../constants/ai.constants.js';
 import type { Stakeholder } from '../../types/stakeholder.types.js';
 import type { Persona } from '../../types/persona.types.js';
+
+export const getPersonasByTopicId = async (topicId: string): Promise<Persona[]> => {
+	const snap = await getFirestore().collection(`topics/${topicId}/personas`).orderBy('sortOrder', 'asc').get();
+	return snap.docs.map((docSnap) => {
+		const data = docSnap.data() as Omit<Persona, 'specificRole' | 'interviewRecord'> & { specificRole?: string; interview?: { interviewRecord: string } };
+		return { ...data, id: docSnap.id, specificRole: data.specificRole ?? data.stakeholderRole, interviewRecord: data.interview?.interviewRecord };
+	});
+};
 
 const buildPersonaTools = (count: number) =>
 	({

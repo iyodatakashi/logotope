@@ -1,6 +1,30 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
+import type { DebateSession } from '../../types/debate.types.js';
 
 const db = () => getFirestore();
+
+export const getDebateSessionByTopicId = async (topicId: string): Promise<DebateSession | null> => {
+	const snap = await db().doc(`topics/${topicId}/sessions/0`).get();
+	if (!snap.exists) return null;
+	const data = snap.data() as {
+		totalTurns?: number;
+		createdAt: Timestamp;
+		completedAt?: Timestamp;
+		publishedAt?: Timestamp;
+		chapters?: Array<{ id: string; title: string; focusQuestion: string }>;
+		currentChapterIndex?: number;
+	};
+	return {
+		id: topicId,
+		topicId,
+		totalTurns: data.totalTurns ?? null,
+		createdAt: data.createdAt?.toDate().toISOString() ?? '',
+		completedAt: data.completedAt?.toDate().toISOString() ?? null,
+		publishedAt: data.publishedAt?.toDate().toISOString() ?? null,
+		chapters: data.chapters,
+		currentChapterIndex: data.currentChapterIndex,
+	};
+};
 
 export const activateDebate = async (topicId: string): Promise<void> => {
 	await db().doc(`topics/${topicId}`).update({ phase: 5, phaseStatus: 'running', updatedAt: Timestamp.now() });
