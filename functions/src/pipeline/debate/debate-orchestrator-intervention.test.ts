@@ -191,7 +191,7 @@ describe('介入後ターン順序の統合テスト (task 5.3)', () => {
 		const assessedPersonas = mockAssessEngagement.mock.calls.map(
 			(c: unknown[]) => (c[0] as { id: string }).id
 		);
-		// Both p1 and p2 should appear in assessments across iterations
+		// Both p1 and p2 should appear in engagements across iterations
 		expect(assessedPersonas).toContain('p1');
 		expect(assessedPersonas).toContain('p2');
 	});

@@ -21,10 +21,14 @@ import {
 import {
 	resolvePairConversation,
 	selectNextSpeaker,
-	isHighEngagement,
-	hasHighEngagement
+	shouldQueue,
+	shouldSpeak
 } from './speaker-selection.js';
-import { isEngagementActive, shouldEndChapterEarly, chapterTurnCap } from './chapter-progress.js';
+import {
+	checkChapterContinuation,
+	hasReachedEarlyEnd,
+	chapterTurnCap
+} from './chapter-progress.js';
 import { shouldEvaluateIntervention } from './intervention-policy.js';
 import { restoreDebateState } from './state-restore.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
@@ -69,7 +73,7 @@ export const executeChapterTask = async (
 	const chapter = chapters[chapterIndex];
 	const { turnsPerChapter, maxTurns, interventionCooldown } = options;
 	const cap = chapterTurnCap(turnsPerChapter);
-	const activityLog: boolean[] = [];
+	let chapterEndCount = 0;
 	const chapterTurnCount = () => state.turns.filter((t) => t.chapterId === chapter.id).length;
 
 	// 章開始: 第1章はオープニング、2章以降は導入を生成（章立ては generateChapters で事前に保存済み）
@@ -100,26 +104,59 @@ export const executeChapterTask = async (
 
 	while (chapterTurnCount() < cap && state.turns.length < maxTurns) {
 		if (!(await isDebateActive(topicId))) return false;
-		const isActive = await executeTurn({ topicId, personas, chapter, state, interventionCooldown });
-		if (isActive === null) return false;
-		activityLog.push(isActive);
-		if (shouldEndChapterEarly(chapterTurnCount(), turnsPerChapter, activityLog)) break;
+		const shouldContinueChapter = await executeTurn({
+			topicId,
+			personas,
+			chapter,
+			state,
+			interventionCooldown
+		});
+		if (shouldContinueChapter === null) return false;
+		chapterEndCount = shouldContinueChapter ? 0 : chapterEndCount + 1;
+		if (hasReachedEarlyEnd(chapterTurnCount(), turnsPerChapter, chapterEndCount)) break;
 	}
 
 	// 章終了時に未応答の指名が残っていれば応答ターンを1件生成する（+1ターン許容）
 	const unansweredTarget = state.targetPersona;
 	state.targetPersona = undefined;
 	const speakerSelection = unansweredTarget
-		? resolvePairConversation(unansweredTarget, 0, personas.map((p) => p.id))
+		? resolvePairConversation(
+				unansweredTarget,
+				0,
+				personas.map((p) => p.id)
+			)
 		: undefined;
 	if (speakerSelection) {
-		const assessments = await evaluateEngagement({ topicId, personas, state });
-		const speech = await resolveSpeechParams({ speakerId: speakerSelection.personaId, personas, state, assessments });
-		const reply = await generatePersonaTurn({ topicId, personas, chapter, state, speakerSelection, speech });
+		const engagements = await evaluateEngagement({ topicId, personas, state });
+		const speech = await resolveSpeechParams({
+			speakerId: speakerSelection.personaId,
+			personas,
+			state,
+			engagements
+		});
+		const reply = await generatePersonaTurn({
+			topicId,
+			personas,
+			chapter,
+			state,
+			speakerSelection,
+			speech
+		});
 		if (reply) {
 			updateSpeakerStats({ state, personas, personaId: reply.personaId });
-			await consumePendingIntent({ topicId, state, personaId: reply.personaId, pendingEntries: reply.pendingEntries });
-			if (reply.beliefChange) await applyBeliefChange({ topicId, persona: personas.find((p) => p.id === reply.personaId)!, turnId: reply.turnId, beliefChange: reply.beliefChange });
+			await consumePendingIntent({
+				topicId,
+				state,
+				personaId: reply.personaId,
+				pendingEntries: reply.pendingEntries
+			});
+			if (reply.beliefChange)
+				await applyBeliefChange({
+					topicId,
+					persona: personas.find((p) => p.id === reply.personaId)!,
+					turnId: reply.turnId,
+					beliefChange: reply.beliefChange
+				});
 			// 章は終了するため、応答ターン由来の指名は引き継がない
 			state.targetPersona = undefined;
 		}
@@ -160,8 +197,22 @@ const executeTurn = async ({
 	state: DebateState;
 	interventionCooldown: number;
 }): Promise<boolean | null> => {
+	// 1. 前ターン由来の指名を取り出す
 	const targetPersona = state.targetPersona;
 	state.targetPersona = undefined;
+
+	// 2. 全員の発言意欲を評価する（直前話者を除く）
+	const engagements = await evaluateEngagement({ topicId, personas, state });
+
+	// 3. 介入判定: 指名なし かつ クールダウン経過済みの場合のみ評価する
+
+	// 3-1. 話題ずれ介入クールダウンを消化済みか判定
+	const driftCooldownPassed = shouldEvaluateIntervention(
+		countPersonaTurnsSinceFacilitator(state.turns),
+		interventionCooldown
+	);
+
+	// 3-2. 指名がペア会話として継続できるか判定
 	const personaIds = personas.map((p) => p.id);
 	const pairSelection = resolvePairConversation(
 		targetPersona,
@@ -169,26 +220,20 @@ const executeTurn = async ({
 		personaIds
 	);
 
-	const assessments = await evaluateEngagement({ topicId, personas, state });
-
-	const driftCooldownPassed = shouldEvaluateIntervention(
-		countPersonaTurnsSinceFacilitator(state.turns),
-		interventionCooldown
-	);
-
 	if (!pairSelection) {
 		let intervention: { content: string; targetPersonaId?: string } | undefined;
 		if (driftCooldownPassed) {
 			intervention = await tryTopicDriftIntervention({ personas, chapter, state });
-		}
-		if (!intervention) {
-			intervention = await tryStallIntervention({ personas, chapter, state, assessments });
+			if (!intervention) {
+				intervention = await tryStallIntervention({ personas, chapter, state, engagements });
+			}
 		}
 		if (intervention) {
+			// 介入発火: 意図キューを更新し、ファシリテーターターンを保存して終了する
 			await enqueueHighEngagementIntents({
 				topicId,
 				state,
-				assessments,
+				engagements,
 				speakerSelection: { personaId: '', reason: 'score' },
 				triggerTurnIndex: Math.max(0, state.turns.length - 1)
 			});
@@ -200,40 +245,77 @@ const executeTurn = async ({
 				chapterId: chapter.id
 			});
 			if (intervention.targetPersonaId) {
-				state.targetPersona = { personaId: intervention.targetPersonaId, targetedBy: 'facilitator' };
+				state.targetPersona = {
+					personaId: intervention.targetPersonaId,
+					targetedBy: 'facilitator'
+				};
 			}
 			return true;
 		}
 	}
 
-	const speakerSelection = pairSelection ?? selectNextSpeaker(assessments, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
+	// 4. 次話者を決定する（指名 > キュー > スコア順）
+	const speakerSelection =
+		pairSelection ??
+		selectNextSpeaker(
+			engagements,
+			state.pendingIntents,
+			state.silenceMap,
+			personaIds,
+			state.lastSpeakerId
+		);
 
+	// 5. 高意欲者の発言意図をキューに積む
 	await enqueueHighEngagementIntents({
 		topicId,
 		state,
-		assessments,
+		engagements,
 		speakerSelection,
 		triggerTurnIndex: Math.max(0, state.turns.length - 1)
 	});
 
+	// 6. ペア会話ターン数を更新する（ペルソナ間指名の連続回数を管理する）
 	state.pairConversationTurns =
 		speakerSelection.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
 
+	// 7. 発言パラメータ（モード・スコア・意図）を決定する
 	const speech = await resolveSpeechParams({
 		speakerId: speakerSelection.personaId,
 		personas,
 		state,
-		assessments
+		engagements
 	});
 
-	const reply = await generatePersonaTurn({ topicId, personas, chapter, state, speakerSelection, speech });
+	// 8. ペルソナターンを生成・保存し、状態を更新する
+	const reply = await generatePersonaTurn({
+		topicId,
+		personas,
+		chapter,
+		state,
+		speakerSelection,
+		speech
+	});
 	if (!reply) return null;
 	updateSpeakerStats({ state, personas, personaId: reply.personaId });
-	await consumePendingIntent({ topicId, state, personaId: reply.personaId, pendingEntries: reply.pendingEntries });
-	if (reply.beliefChange) await applyBeliefChange({ topicId, persona: personas.find((p) => p.id === reply.personaId)!, turnId: reply.turnId, beliefChange: reply.beliefChange });
-	state.targetPersona = reply.targetPersonaId ? { personaId: reply.targetPersonaId, targetedBy: 'persona' } : undefined;
+	await consumePendingIntent({
+		topicId,
+		state,
+		personaId: reply.personaId,
+		pendingEntries: reply.pendingEntries
+	});
+	if (reply.beliefChange)
+		await applyBeliefChange({
+			topicId,
+			persona: personas.find((p) => p.id === reply.personaId)!,
+			turnId: reply.turnId,
+			beliefChange: reply.beliefChange
+		});
+	state.targetPersona = reply.targetPersonaId
+		? { personaId: reply.targetPersonaId, targetedBy: 'persona' }
+		: undefined;
 
-	return isEngagementActive(assessments);
+	// 9. 章継続判定を返す
+	return checkChapterContinuation(engagements);
 };
 
 /** 直近のファシリテーターターン以降のペルソナターン数を返す（論点ずれ介入クールダウン判定用） */
@@ -275,7 +357,7 @@ const evaluateEngagement = async ({
 
 	// 直前話者を除く全員の発言意欲を評価する。評価失敗は最低意欲（score 1）として継続する
 	const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
-	const assessments = await Promise.all(
+	const engagements = await Promise.all(
 		assessTargets.map(async (p): Promise<Engagement> => {
 			const result = await assessEngagement(p, state.turns);
 			return result.ok ? result.value : { personaId: p.id, score: 1, mode: 'none' };
@@ -286,7 +368,7 @@ const evaluateEngagement = async ({
 	await saveEngagements({
 		topicId,
 		turnIndex: Math.max(0, state.turns.length - 1),
-		assessments: assessments.map((a) => ({
+		engagements: engagements.map((a) => ({
 			personaId: a.personaId,
 			score: a.score,
 			mode: a.mode,
@@ -294,32 +376,32 @@ const evaluateEngagement = async ({
 		}))
 	});
 
-	return assessments;
+	return engagements;
 };
 
 /** 高意欲かつ非選択ペルソナのインテントをキューに追加し Firestore に write-through する */
 const enqueueHighEngagementIntents = async ({
 	topicId,
 	state,
-	assessments,
+	engagements,
 	speakerSelection,
 	triggerTurnIndex
 }: {
 	topicId: string;
 	state: DebateState;
-	assessments: readonly Engagement[];
+	engagements: readonly Engagement[];
 	speakerSelection: SpeakerSelection;
 	triggerTurnIndex: number;
 }): Promise<void> => {
-	for (const assessment of assessments) {
-		if (!isHighEngagement(assessment) || assessment.personaId === speakerSelection.personaId) continue;
-		const existing = state.pendingIntents.get(assessment.personaId) ?? [];
+	for (const engagement of engagements) {
+		if (!shouldQueue(engagement) || engagement.personaId === speakerSelection.personaId) continue;
+		const existing = state.pendingIntents.get(engagement.personaId) ?? [];
 		const updated = [
 			...existing,
-			{ triggerTurnIndex, intentSummary: assessment.intentSummary ?? '' }
+			{ triggerTurnIndex, intentSummary: engagement.intentSummary ?? '' }
 		];
-		state.pendingIntents.set(assessment.personaId, updated);
-		await setPendingIntents({ topicId, personaId: assessment.personaId, items: updated });
+		state.pendingIntents.set(engagement.personaId, updated);
+		await setPendingIntents({ topicId, personaId: engagement.personaId, items: updated });
 	}
 };
 
@@ -347,19 +429,19 @@ const tryTopicDriftIntervention = async ({
 	return { content: result.value.content, targetPersonaId: targetId };
 };
 
-/** 出尽くし介入: 高意欲者がいない場合のみ発火し、クールダウンを参照しない（BC1）。介入する場合はSpeakerSelection を返す */
+/** 出尽くし介入: 高意欲者がいない場合のみ発火する。ドリフト介入と同じクールダウンを共有する */
 const tryStallIntervention = async ({
 	personas,
 	chapter,
 	state,
-	assessments
+	engagements
 }: {
 	personas: Persona[];
 	chapter: Chapter;
 	state: DebateState;
-	assessments: Engagement[];
+	engagements: Engagement[];
 }): Promise<{ content: string; targetPersonaId?: string } | undefined> => {
-	if (hasHighEngagement(assessments)) return undefined;
+	if (shouldSpeak(engagements)) return undefined;
 	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
 	const result = await evaluateStallIntervention(
 		chapterTurns as DebateTurn[],
@@ -422,14 +504,14 @@ const resolveSpeechParams = async ({
 	speakerId,
 	personas,
 	state,
-	assessments
+	engagements
 }: {
 	speakerId: string;
 	personas: Persona[];
 	state: DebateState;
-	assessments?: ReadonlyArray<Engagement>;
+	engagements?: ReadonlyArray<Engagement>;
 }): Promise<Engagement> => {
-	const existing = assessments?.find((a) => a.personaId === speakerId);
+	const existing = engagements?.find((a) => a.personaId === speakerId);
 	if (existing) {
 		return existing;
 	}
@@ -528,7 +610,8 @@ const generatePersonaTurn = async ({
 			chapter,
 			pendingTrigger,
 			targetedBy:
-				speakerSelection.reason === 'targeted_by_facilitator' || speakerSelection.reason === 'targeted_by_persona'
+				speakerSelection.reason === 'targeted_by_facilitator' ||
+				speakerSelection.reason === 'targeted_by_persona'
 					? speakerSelection.reason === 'targeted_by_facilitator'
 						? 'facilitator'
 						: 'persona'
@@ -578,7 +661,14 @@ const generatePersonaTurn = async ({
 		targetPersonaId
 	});
 
-	return { turnId, personaId: persona.id, targetPersonaId, beliefChange: turnResult.value.beliefChange, pendingEntries, fromQueue };
+	return {
+		turnId,
+		personaId: persona.id,
+		targetPersonaId,
+		beliefChange: turnResult.value.beliefChange,
+		pendingEntries,
+		fromQueue
+	};
 };
 
 const updateSpeakerStats = ({
@@ -830,17 +920,17 @@ const finalizeTopic = async (topicId: string): Promise<boolean> => {
 const saveEngagements = async (params: {
 	topicId: string;
 	turnIndex: number;
-	assessments: Array<{
+	engagements: Array<{
 		personaId: string;
 		score: number;
 		mode: 'opinion' | 'fact' | 'none';
 		intentSummary?: string;
 	}>;
 }): Promise<void> => {
-	for (const assessment of params.assessments) {
-		const ref = db().doc(`topics/${params.topicId}/sessions/0/engagements/${assessment.personaId}`);
-		const entry: Record<string, unknown> = { score: assessment.score, mode: assessment.mode };
-		if (assessment.intentSummary !== undefined) entry.intentSummary = assessment.intentSummary;
+	for (const engagement of params.engagements) {
+		const ref = db().doc(`topics/${params.topicId}/sessions/0/engagements/${engagement.personaId}`);
+		const entry: Record<string, unknown> = { score: engagement.score, mode: engagement.mode };
+		if (engagement.intentSummary !== undefined) entry.intentSummary = engagement.intentSummary;
 		await ref.set(
 			{ history: { [String(params.turnIndex)]: entry } },
 			{ mergeFields: [`history.${params.turnIndex}`] }
