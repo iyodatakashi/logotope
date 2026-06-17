@@ -96,4 +96,18 @@ describe('persistInterventionTurn', () => {
     await persistInterventionTurn({ topicId: 'topic1', state, content: '介入メッセージ', targetPersonaId: 'p1', chapterId: 'ch-0' });
     expect(state.turns[0].speakerType).toBe('facilitator');
   });
+
+  it('呼び出し後に state.lastSpeakerId が undefined になる', async () => {
+    const state = makeState();
+    state.lastSpeakerId = 'p1';
+    await persistInterventionTurn({ topicId: 'topic1', state, content: '介入', targetPersonaId: 'p2', chapterId: 'ch-0' });
+    expect(state.lastSpeakerId).toBeUndefined();
+  });
+
+  it('pairConversationTurns は 0 にリセットされる（非退行確認）', async () => {
+    const state = makeState();
+    state.pairConversationTurns = 3;
+    await persistInterventionTurn({ topicId: 'topic1', state, content: '介入', targetPersonaId: undefined, chapterId: 'ch-0' });
+    expect(state.pairConversationTurns).toBe(0);
+  });
 });
