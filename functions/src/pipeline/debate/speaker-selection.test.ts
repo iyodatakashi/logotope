@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  resolvePairConversation,
-  selectNextSpeaker,
+  selectSpeaker,
   shouldQueue,
   shouldSpeak,
 } from './speaker-selection.js';
@@ -9,32 +8,6 @@ import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE } from '../../constants/fl
 import type { PendingIntent } from '../../types/debate.types.js';
 
 const personaIds = ['p1', 'p2', 'p3'];
-
-describe('resolvePairConversation', () => {
-  it('ファシリテーター指名は連続ペア対話の上限に関わらず確定する', () => {
-    expect(resolvePairConversation({ personaId: 'p2', targetedBy: 'facilitator' }, 3, personaIds))
-      .toEqual({ personaId: 'p2', reason: 'targeted_by_facilitator' });
-  });
-
-  it('ペルソナ間の指名は上限未満なら確定する', () => {
-    expect(resolvePairConversation({ personaId: 'p3', targetedBy: 'persona' }, 2, personaIds))
-      .toEqual({ personaId: 'p3', reason: 'targeted_by_persona' });
-  });
-
-  it('ペルソナ間の指名が3回連続したら中断する（null）', () => {
-    expect(resolvePairConversation({ personaId: 'p3', targetedBy: 'persona' }, 3, personaIds))
-      .toBeNull();
-  });
-
-  it('指名先IDが参加ペルソナに存在しない場合は無視する（null）', () => {
-    expect(resolvePairConversation({ personaId: 'unknown', targetedBy: 'facilitator' }, 0, personaIds))
-      .toBeNull();
-  });
-
-  it('指名・直接質問がない場合は null を返す', () => {
-    expect(resolvePairConversation(undefined, 0, personaIds)).toBeNull();
-  });
-});
 
 describe('shouldQueue / shouldSpeak', () => {
   it('QUEUE_THRESHOLD_SCORE 以上はキューに積むべき', () => {

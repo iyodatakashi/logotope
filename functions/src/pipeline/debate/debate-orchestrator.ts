@@ -18,12 +18,7 @@ import {
 	assessEngagement,
 	generatePostDebateComment
 } from '../../agents/persona-agent.js';
-import {
-	resolvePairConversation,
-	selectNextSpeaker,
-	shouldQueue,
-	shouldSpeak
-} from './speaker-selection.js';
+import { selectSpeaker, shouldQueue, shouldSpeak } from './speaker-selection.js';
 import {
 	checkChapterContinuation,
 	hasReachedEarlyEnd,
@@ -31,7 +26,10 @@ import {
 } from './chapter-progress.js';
 import { shouldEvaluateIntervention } from './intervention-policy.js';
 import { restoreDebateState } from './state-restore.js';
-import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
+import {
+	INTENT_EXPIRY_TURNS,
+	MAX_PAIR_CONVERSATION_TURNS
+} from '../../constants/flow.constants.js';
 import type { SpeakerSelection, PendingIntent } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { PipelineError } from '../../types/common.types.js';
@@ -119,12 +117,14 @@ export const executeChapterTask = async (
 	// 章終了時に未応答の指名が残っていれば応答ターンを1件生成する（+1ターン許容）
 	const unansweredTarget = state.targetPersona;
 	state.targetPersona = undefined;
-	const speakerSelection = unansweredTarget
-		? resolvePairConversation(
-				unansweredTarget,
-				0,
-				personas.map((p) => p.id)
-			)
+	const speakerSelection: SpeakerSelection | undefined = unansweredTarget
+		? {
+				personaId: unansweredTarget.personaId,
+				reason:
+					unansweredTarget.targetedBy === 'facilitator'
+						? 'targeted_by_facilitator'
+						: 'targeted_by_persona'
+			}
 		: undefined;
 	if (speakerSelection) {
 		const engagements = await evaluateEngagement({ topicId, personas, state });
@@ -204,66 +204,39 @@ const executeTurn = async ({
 	// 2. 全員の発言意欲を評価する（直前話者を除く）
 	const engagements = await evaluateEngagement({ topicId, personas, state });
 
-	// 3. 介入判定: 指名なし かつ クールダウン経過済みの場合のみ評価する
+	// 3. ファシリテーター介入
+	const canContinuePairConversation = state.pairConversationTurns < MAX_PAIR_CONVERSATION_TURNS;
 
-	// 3-1. 話題ずれ介入クールダウンを消化済みか判定
-	const driftCooldownPassed = shouldEvaluateIntervention(
-		countPersonaTurnsSinceFacilitator(state.turns),
-		interventionCooldown
-	);
-
-	// 3-2. 指名がペア会話として継続できるか判定
-	const personaIds = personas.map((p) => p.id);
-	const pairSelection = resolvePairConversation(
-		targetPersona,
-		state.pairConversationTurns,
-		personaIds
-	);
-
-	if (!pairSelection) {
-		let intervention: { content: string; targetPersonaId?: string } | undefined;
-		if (driftCooldownPassed) {
-			intervention = await tryTopicDriftIntervention({ personas, chapter, state });
-			if (!intervention) {
-				intervention = await tryStallIntervention({ personas, chapter, state, engagements });
-			}
-		}
-		if (intervention) {
-			// 介入発火: 意図キューを更新し、ファシリテーターターンを保存して終了する
-			await enqueueHighEngagementIntents({
-				topicId,
-				state,
-				engagements,
-				speakerSelection: { personaId: '', reason: 'score' },
-				triggerTurnIndex: Math.max(0, state.turns.length - 1)
-			});
-			await persistInterventionTurn({
-				topicId,
-				state,
-				content: intervention.content,
-				targetPersonaId: intervention.targetPersonaId,
-				chapterId: chapter.id
-			});
-			if (intervention.targetPersonaId) {
-				state.targetPersona = {
-					personaId: intervention.targetPersonaId,
-					targetedBy: 'facilitator'
-				};
-			}
-			return true;
-		}
+	if (!targetPersona || !canContinuePairConversation) {
+		const intervened = await tryIntervention({
+			topicId,
+			personas,
+			chapter,
+			state,
+			engagements,
+			interventionCooldown
+		});
+		if (intervened) return true;
 	}
 
-	// 4. 次話者を決定する（指名 > キュー > スコア順）
-	const speakerSelection =
-		pairSelection ??
-		selectNextSpeaker(
-			engagements,
-			state.pendingIntents,
-			state.silenceMap,
-			personaIds,
-			state.lastSpeakerId
-		);
+	// 4. 話者を決定する（指名 > キュー > スコア順）
+	const personaIds = personas.map((p) => p.id);
+	const speakerSelection: SpeakerSelection =
+		targetPersona && (targetPersona.targetedBy === 'facilitator' || canContinuePairConversation)
+			? {
+					personaId: targetPersona.personaId,
+					reason:
+						targetPersona.targetedBy === 'facilitator'
+							? 'targeted_by_facilitator'
+							: 'targeted_by_persona'
+				}
+			: selectSpeaker(
+					engagements,
+					state.pendingIntents,
+					state.silenceMap,
+					personaIds,
+					state.lastSpeakerId
+				);
 
 	// 5. 高意欲者の発言意図をキューに積む
 	await enqueueHighEngagementIntents({
@@ -403,6 +376,53 @@ const enqueueHighEngagementIntents = async ({
 		state.pendingIntents.set(engagement.personaId, updated);
 		await setPendingIntents({ topicId, personaId: engagement.personaId, items: updated });
 	}
+};
+
+/** 介入が必要か評価し、発火した場合は state を更新して true を返す */
+const tryIntervention = async ({
+	topicId,
+	personas,
+	chapter,
+	state,
+	engagements,
+	interventionCooldown
+}: {
+	topicId: string;
+	personas: Persona[];
+	chapter: Chapter;
+	state: DebateState;
+	engagements: Engagement[];
+	interventionCooldown: number;
+}): Promise<boolean> => {
+	let intervention: { content: string; targetPersonaId?: string } | undefined;
+	if (
+		shouldEvaluateIntervention(countPersonaTurnsSinceFacilitator(state.turns), interventionCooldown)
+	) {
+		intervention = await tryTopicDriftIntervention({ personas, chapter, state });
+		if (!intervention) {
+			intervention = await tryStallIntervention({ personas, chapter, state, engagements });
+		}
+	}
+	if (!intervention) return false;
+
+	await enqueueHighEngagementIntents({
+		topicId,
+		state,
+		engagements,
+		speakerSelection: { personaId: '', reason: 'score' },
+		triggerTurnIndex: Math.max(0, state.turns.length - 1)
+	});
+	await persistInterventionTurn({
+		topicId,
+		state,
+		content: intervention.content,
+		targetPersonaId: intervention.targetPersonaId,
+		chapterId: chapter.id
+	});
+	if (intervention.targetPersonaId) {
+		state.targetPersona = { personaId: intervention.targetPersonaId, targetedBy: 'facilitator' };
+	}
+	return true;
 };
 
 /** 論点ずれチェック: 逸脱していれば介入を保存してSpeakerSelection を返す。クールダウン通過後かつ指名なし時のみ評価する */

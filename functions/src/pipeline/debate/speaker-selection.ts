@@ -1,5 +1,5 @@
 import type { SpeakerSelection, Engagement, PendingIntent } from '../../types/debate.types.js';
-import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE, MAX_PAIR_CONVERSATION_TURNS } from '../../constants/flow.constants.js';
+import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE } from '../../constants/flow.constants.js';
 
 /** 単一ペルソナの発言意図をキューに積むべきか（>= QUEUE_THRESHOLD_SCORE） */
 export const shouldQueue = (engagement: { score: number }): boolean =>
@@ -9,25 +9,9 @@ export const shouldQueue = (engagement: { score: number }): boolean =>
 export const shouldSpeak = (engagements: ReadonlyArray<{ score: number }>): boolean =>
 	engagements.some((a) => a.score >= SPEAK_THRESHOLD_SCORE);
 
-/** ターン冒頭: 前ターン由来の指名・直接質問で次話者が確定するか判定する */
-export const resolvePairConversation = (
-	targetPersona: { personaId: string; targetedBy: 'facilitator' | 'persona' } | undefined,
-	pairConversationTurns: number,
-	personaIds: ReadonlyArray<string>
-): SpeakerSelection | null => {
-	if (!targetPersona) return null;
-	if (!personaIds.includes(targetPersona.personaId)) return null;
-
-	if (targetPersona.targetedBy === 'facilitator') {
-		return { personaId: targetPersona.personaId, reason: 'targeted_by_facilitator' };
-	}
-	if (pairConversationTurns >= MAX_PAIR_CONVERSATION_TURNS) return null;
-	return { personaId: targetPersona.personaId, reason: 'targeted_by_persona' };
-};
-
 /** 選ばれた話者の発言は本人の意欲評価に従う（mode と score→長さ）。選ばれた以上は必ず発言するため none・低スコアは最小発言（score 2 / opinion）に切り上げる */
 /** 評価後: キュー > スコアの2段で次話者を決定する */
-export const selectNextSpeaker = (
+export const selectSpeaker = (
 	engagements: ReadonlyArray<Engagement>,
 	pendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>,
 	silenceMap: ReadonlyMap<string, number>,
