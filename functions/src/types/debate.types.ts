@@ -30,7 +30,6 @@ export type DebateState = {
 	turns: DebateTurn[];
 	silenceMap: Map<string, number>;
 	speakCount: Map<string, number>;
-	targetPersona?: { personaId: string; targetedBy: 'facilitator' | 'persona' };
 	lastSpeakerId?: string;
 	queuedIntents: Map<string, QueuedIntent[]>;
 	pairConversationTurns: number;
@@ -92,6 +91,7 @@ export type DebateTurn = {
 	engagementScore?: number;
 	fromQueue?: boolean;
 	targetPersonaId?: string;
+	targetedBy?: 'facilitator' | 'persona';
 	searchUsed?: boolean;
 	searchQueries?: string[];
 };

@@ -115,8 +115,7 @@ export const executeChapterTask = async (
 	}
 
 	// 章終了時に未応答の指名が残っていれば応答ターンを1件生成する（+1ターン許容）
-	const unansweredTarget = state.targetPersona;
-	state.targetPersona = undefined;
+	const unansweredTarget = getLastTargetPersona(state.turns);
 	const speakerSelection: SpeakerSelection | undefined = unansweredTarget
 		? {
 				personaId: unansweredTarget.personaId,
@@ -157,8 +156,7 @@ export const executeChapterTask = async (
 					turnId: reply.turnId,
 					beliefChange: reply.beliefChange
 				});
-			// 章は終了するため、応答ターン由来の指名は引き継がない
-			state.targetPersona = undefined;
+			// 章は終了するため、応答ターン由来の指名は引き継がない（ターン自体に targetedBy が記録済み）
 		}
 	}
 
@@ -198,8 +196,7 @@ const executeTurn = async ({
 	interventionCooldown: number;
 }): Promise<boolean | null> => {
 	// 1. 前ターン由来の指名を取り出す
-	const targetPersona = state.targetPersona;
-	state.targetPersona = undefined;
+	const targetPersona = getLastTargetPersona(state.turns);
 
 	// 2. 失効した発言意図をキューから除去する
 	await expireQueuedIntents({ topicId, state });
@@ -283,13 +280,16 @@ const executeTurn = async ({
 			beliefChange: reply.beliefChange
 		});
 
-	// 13. 次ターンの指名を記録する
-	state.targetPersona = reply.targetPersonaId
-		? { personaId: reply.targetPersonaId, targetedBy: 'persona' }
-		: undefined;
-
-	// 14. 章継続判定を返す
+	// 13. 章継続判定を返す
 	return checkChapterContinuation(engagements);
+};
+
+const getLastTargetPersona = (
+	turns: DebateTurn[]
+): { personaId: string; targetedBy: 'facilitator' | 'persona' } | undefined => {
+	const last = turns[turns.length - 1];
+	if (!last?.targetPersonaId || !last.targetedBy) return undefined;
+	return { personaId: last.targetPersonaId, targetedBy: last.targetedBy };
 };
 
 /** 直近のファシリテーターターン以降のペルソナターン数を返す（論点ずれ介入クールダウン判定用） */
@@ -456,9 +456,6 @@ const tryIntervention = async ({
 		targetPersonaId: intervention.targetPersonaId,
 		chapterId: chapter.id
 	});
-	if (intervention.targetPersonaId) {
-		state.targetPersona = { personaId: intervention.targetPersonaId, targetedBy: 'facilitator' };
-	}
 	return true;
 };
 
@@ -535,7 +532,8 @@ export const persistInterventionTurn = async ({
 		speakerRole: '',
 		content,
 		chapterId,
-		targetPersonaId
+		targetPersonaId,
+		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});
 	state.turns.push({
 		id: turnId,
@@ -547,7 +545,8 @@ export const persistInterventionTurn = async ({
 		content,
 		createdAt: new Date().toISOString(),
 		chapterId,
-		targetPersonaId
+		targetPersonaId,
+		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});
 	state.pairConversationTurns = 0;
 	state.lastSpeakerId = undefined;
@@ -556,7 +555,7 @@ export const persistInterventionTurn = async ({
 		: undefined;
 };
 
-/** ファシリテーター発言を保存し、state.turns・state.targetPersona を更新して発言内容を返す */
+/** ファシリテーター発言を保存し、state.turns を更新して発言内容を返す */
 const generateFacilitatorTurn = async ({
 	topicId,
 	state,
@@ -579,7 +578,8 @@ const generateFacilitatorTurn = async ({
 		speakerRole: '',
 		content,
 		chapterId,
-		targetPersonaId
+		targetPersonaId,
+		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});
 	state.turns.push({
 		id: turnId,
@@ -591,13 +591,11 @@ const generateFacilitatorTurn = async ({
 		content,
 		createdAt: new Date().toISOString(),
 		chapterId,
-		targetPersonaId
+		targetPersonaId,
+		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});
 	state.pairConversationTurns = 0;
 	state.lastSpeakerId = undefined;
-	state.targetPersona = targetPersonaId
-		? { personaId: targetPersonaId, targetedBy: 'facilitator' }
-		: undefined;
 	return { content, targetPersonaId };
 };
 
@@ -677,6 +675,7 @@ const generatePersonaTurn = async ({
 		engagementScore: engagement.score,
 		fromQueue: fromQueue || undefined,
 		targetPersonaId,
+		targetedBy: targetPersonaId ? 'persona' : undefined,
 		searchUsed: turnResult.value.searchUsed,
 		searchQueries: turnResult.value.searchQueries
 	});
@@ -692,7 +691,8 @@ const generatePersonaTurn = async ({
 		createdAt: new Date().toISOString(),
 		chapterId: chapter.id,
 		fromQueue: fromQueue || undefined,
-		targetPersonaId
+		targetPersonaId,
+		targetedBy: targetPersonaId ? 'persona' : undefined
 	});
 
 	return {
@@ -863,6 +863,7 @@ const addTurn = async (params: {
 	engagementScore?: number;
 	fromQueue?: boolean;
 	targetPersonaId?: string;
+	targetedBy?: 'facilitator' | 'persona';
 	searchUsed?: boolean;
 	searchQueries?: string[];
 }): Promise<{ id: string }> => {
@@ -882,6 +883,7 @@ const addTurn = async (params: {
 	if (params.fromQueue) turn.fromQueue = true;
 	if (params.chapterId !== undefined) turn.chapterId = params.chapterId;
 	if (params.targetPersonaId !== undefined) turn.targetPersonaId = params.targetPersonaId;
+	if (params.targetedBy !== undefined) turn.targetedBy = params.targetedBy;
 	if (params.searchUsed) turn.searchUsed = true;
 	if (params.searchQueries?.length) turn.searchQueries = params.searchQueries;
 	await db()
