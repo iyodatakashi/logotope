@@ -478,6 +478,7 @@ const generateFacilitatorTurn = async ({
 		targetPersonaId
 	});
 	state.pairConversationTurns = 0;
+	state.lastSpeakerId = undefined;
 	state.targetPersona = targetPersonaId
 		? { personaId: targetPersonaId, targetedBy: 'facilitator' }
 		: undefined;
