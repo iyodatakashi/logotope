@@ -128,25 +128,16 @@ export const executeChapterTask = async (
 		: undefined;
 	if (speakerSelection) {
 		const engagements = await evaluateEngagements({ topicId, personas, state });
-		const speakerEngagement = engagements.find((a) => a.personaId === speakerSelection.personaId);
-		const speech: Engagement =
-			speakerEngagement ??
-			(await (async () => {
-				const persona = personas.find((p) => p.id === speakerSelection.personaId);
-				if (!persona)
-					return { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
-				const result = await evaluateEngagement(persona, state.turns);
-				return result.ok
-					? result.value
-					: { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
-			})());
+		const engagement: Engagement =
+			engagements.find((a) => a.personaId === speakerSelection.personaId) ??
+			(await evaluateEngagementWithFallback(speakerSelection.personaId, personas, state.turns));
 		const reply = await generatePersonaTurn({
 			topicId,
 			personas,
 			chapter,
 			state,
 			speakerSelection,
-			speech
+			engagement
 		});
 		if (reply) {
 			updateSpeakerStats({ state, personas, personaId: reply.personaId });
@@ -251,18 +242,9 @@ const executeTurn = async ({
 		speakerSelection.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
 
 	// 8. 発言パラメータ（モード・スコア・意図）を決定する（直前話者など評価対象外の場合は単独評価）
-	const speakerEngagement = engagements.find((a) => a.personaId === speakerSelection.personaId);
-	const speech: Engagement =
-		speakerEngagement ??
-		(await (async () => {
-			const persona = personas.find((p) => p.id === speakerSelection.personaId);
-			if (!persona)
-				return { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
-			const result = await evaluateEngagement(persona, state.turns);
-			return result.ok
-				? result.value
-				: { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
-		})());
+	const engagement: Engagement =
+		engagements.find((a) => a.personaId === speakerSelection.personaId) ??
+		(await evaluateEngagementWithFallback(speakerSelection.personaId, personas, state.turns));
 
 	// 9. ペルソナターンを生成・保存する
 	const reply = await generatePersonaTurn({
@@ -271,7 +253,7 @@ const executeTurn = async ({
 		chapter,
 		state,
 		speakerSelection,
-		speech
+		engagement
 	});
 	if (!reply) return null;
 
@@ -340,7 +322,9 @@ const expireQueuedIntents = async ({
 	}
 	await Promise.all(
 		writes.map(({ personaId, alive }) =>
-			db().doc(`topics/${topicId}/sessions/0/engagements/${personaId}`).set({ pendingIntents: alive }, { merge: true })
+			db()
+				.doc(`topics/${topicId}/sessions/0/engagements/${personaId}`)
+				.set({ pendingIntents: alive }, { merge: true })
 		)
 	);
 };
@@ -357,10 +341,7 @@ const evaluateEngagements = async ({
 	// 直前話者を除く全員の発言意欲を評価する。評価失敗は最低意欲（score 1）として継続する
 	const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
 	const engagements = await Promise.all(
-		assessTargets.map(async (p): Promise<Engagement> => {
-			const result = await evaluateEngagement(p, state.turns);
-			return result.ok ? result.value : { personaId: p.id, score: 1, mode: 'none' };
-		})
+		assessTargets.map((p) => evaluateEngagement(p, state.turns))
 	);
 
 	// 評価結果を毎ターン保存する（管理画面での可視化用）
@@ -376,6 +357,17 @@ const evaluateEngagements = async ({
 	});
 
 	return engagements;
+};
+
+/** engagements に含まれない話者（直前話者など）を個別評価してフォールバックする */
+const evaluateEngagementWithFallback = async (
+	personaId: string,
+	personas: Persona[],
+	turns: DebateState['turns']
+): Promise<Engagement> => {
+	const persona = personas.find((p) => p.id === personaId);
+	if (!persona) return { personaId, mode: 'opinion' as const, score: 2 };
+	return evaluateEngagement(persona, turns);
 };
 
 /** 高意欲かつ非選択ペルソナのインテントをキューに追加し Firestore に write-through する */
@@ -402,7 +394,9 @@ const addQueuedIntents = async ({
 		});
 	await Promise.all(
 		updates.map(({ personaId, updated }) =>
-			db().doc(`topics/${topicId}/sessions/0/engagements/${personaId}`).set({ pendingIntents: updated }, { merge: true })
+			db()
+				.doc(`topics/${topicId}/sessions/0/engagements/${personaId}`)
+				.set({ pendingIntents: updated }, { merge: true })
 		)
 	);
 };
@@ -600,14 +594,14 @@ const generatePersonaTurn = async ({
 	chapter,
 	state,
 	speakerSelection,
-	speech
+	engagement
 }: {
 	topicId: string;
 	personas: Persona[];
 	chapter: Chapter;
 	state: DebateState;
 	speakerSelection: SpeakerSelection;
-	speech: Engagement;
+	engagement: Engagement;
 }): Promise<{
 	turnId: string;
 	personaId: string;
@@ -643,7 +637,7 @@ const generatePersonaTurn = async ({
 						: 'persona'
 					: undefined
 		},
-		{ ...speech, intentSummary: speakerSelection.intentSummary ?? speech.intentSummary }
+		{ ...engagement, intentSummary: speakerSelection.intentSummary ?? engagement.intentSummary }
 	);
 	if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
@@ -666,7 +660,7 @@ const generatePersonaTurn = async ({
 		content: turnResult.value.content,
 		chapterId: chapter.id,
 		speechMode: turnResult.value.speechMode,
-		engagementScore: speech.score,
+		engagementScore: engagement.score,
 		fromQueue: fromQueue || undefined,
 		targetPersonaId,
 		searchUsed: turnResult.value.searchUsed,
@@ -731,7 +725,9 @@ const consumeQueuedIntent = async ({
 	} else {
 		state.queuedIntents.set(personaId, remaining);
 	}
-	await db().doc(`topics/${topicId}/sessions/0/engagements/${personaId}`).set({ pendingIntents: [...remaining] }, { merge: true });
+	await db()
+		.doc(`topics/${topicId}/sessions/0/engagements/${personaId}`)
+		.set({ pendingIntents: [...remaining] }, { merge: true });
 };
 
 const applyBeliefChange = async ({

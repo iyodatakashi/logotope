@@ -412,50 +412,44 @@ export async function generateTurn(
 export async function evaluateEngagement(
 	persona: Persona,
 	turns: DebateTurn[]
-): Promise<Result<Engagement, PipelineError>> {
-		try {
-			const recentTurns = turns.slice(-8);
-			const ownTurns = turns.filter((t) => t.personaId === persona.id).slice(-5);
-			const ownTurnsSection =
-				ownTurns.length > 0
-					? `\nあなた（${persona.name}）のこれまでの発言:\n${formatTurns(ownTurns)}\n`
-					: '';
-			const result = await generateText({
-				model: getPersonaModel(persona.llmType ?? 'claude'),
-				maxTokens: MAX_TOKENS.PERSONA_ENGAGEMENT,
-				system: buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', latestBeliefContent(persona)),
-				tools: ASSESS_ENGAGEMENT_TOOLS,
-				toolChoice: { type: 'tool', toolName: 'assess_engagement' },
-				providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
-				messages: [
-					{
-						role: 'user',
-						content: `現在の会話:\n\n${formatTurns(recentTurns)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。score は mode ごとのスコアラベルに素直に当てはめて選んでください。score の強さがそのまま発言の長さになります（低い＝一言、高い＝しっかり）。mode は、まず相手に紹介すべき事実・データを持っているなら fact、そうでなく自分の考え・意見・実感を述べたいなら opinion を選びます。発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まり、専門知識の有無では決めません。専門知識がなくても、素朴な疑問・違和感・生活実感があれば高く評価してよく、逆に専門家でもその話題に関心がなければ低くてかまいません。すでに同じ論点・主張を述べており、新たに付け加えるべきことがなければ score 1（発言しなくてよい）を選んでください。`
-					}
-				]
-			});
+): Promise<Engagement> {
+	try {
+		const recentTurns = turns.slice(-8);
+		const ownTurns = turns.filter((t) => t.personaId === persona.id).slice(-5);
+		const ownTurnsSection =
+			ownTurns.length > 0
+				? `\nあなた（${persona.name}）のこれまでの発言:\n${formatTurns(ownTurns)}\n`
+				: '';
+		const result = await generateText({
+			model: getPersonaModel(persona.llmType ?? 'claude'),
+			maxTokens: MAX_TOKENS.PERSONA_ENGAGEMENT,
+			system: buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', latestBeliefContent(persona)),
+			tools: ASSESS_ENGAGEMENT_TOOLS,
+			toolChoice: { type: 'tool', toolName: 'assess_engagement' },
+			providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
+			messages: [
+				{
+					role: 'user',
+					content: `現在の会話:\n\n${formatTurns(recentTurns)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。score は mode ごとのスコアラベルに素直に当てはめて選んでください。score の強さがそのまま発言の長さになります（低い＝一言、高い＝しっかり）。mode は、まず相手に紹介すべき事実・データを持っているなら fact、そうでなく自分の考え・意見・実感を述べたいなら opinion を選びます。発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まり、専門知識の有無では決めません。専門知識がなくても、素朴な疑問・違和感・生活実感があれば高く評価してよく、逆に専門家でもその話題に関心がなければ低くてかまいません。すでに同じ論点・主張を述べており、新たに付け加えるべきことがなければ score 1（発言しなくてよい）を選んでください。`
+				}
+			]
+		});
 
-			const toolCall = result.toolCalls[0];
-			if (!toolCall) {
-				return { ok: true, value: { personaId: persona.id, score: 1, mode: 'none' } };
-			}
+		const toolCall = result.toolCalls[0];
+		if (!toolCall) return { personaId: persona.id, score: 1, mode: 'none' };
 
-			const { score, mode, intentSummary } = toolCall.args as {
-				score: number;
-				mode: 'opinion' | 'fact' | 'none';
-				intentSummary?: string;
-			};
-			const clampedScore = Math.max(1, Math.min(5, Math.round(score)));
-			const resolvedMode: 'opinion' | 'fact' | 'none' = clampedScore === 1 ? 'none' : mode;
-			const resolvedIntentSummary = resolvedMode === 'none' ? undefined : intentSummary;
-			return {
-				ok: true,
-				value: { personaId: persona.id, score: clampedScore, mode: resolvedMode, intentSummary: resolvedIntentSummary }
-			};
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
-		}
+		const { score, mode, intentSummary } = toolCall.args as {
+			score: number;
+			mode: 'opinion' | 'fact' | 'none';
+			intentSummary?: string;
+		};
+		const clampedScore = Math.max(1, Math.min(5, Math.round(score)));
+		const resolvedMode: 'opinion' | 'fact' | 'none' = clampedScore === 1 ? 'none' : mode;
+		const resolvedIntentSummary = resolvedMode === 'none' ? undefined : intentSummary;
+		return { personaId: persona.id, score: clampedScore, mode: resolvedMode, intentSummary: resolvedIntentSummary };
+	} catch {
+		return { personaId: persona.id, score: 1, mode: 'none' };
+	}
 }
 
 export async function generatePostDebateComment(

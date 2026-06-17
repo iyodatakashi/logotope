@@ -451,33 +451,25 @@ describe('PersonaAgentService', () => {
     it('mode フィールドが返り値に含まれる', async () => {
       mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 4, mode: 'opinion', intentSummary: '医療費問題に反論したい' }));
       const result = await service.evaluateEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value.mode).toBe('opinion');
+      expect(result.mode).toBe('opinion');
     });
 
     it('intentSummary フィールドが返り値に含まれる', async () => {
       mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'opinion', intentSummary: 'そうですね' }));
       const result = await service.evaluateEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value.intentSummary).toBe('そうですね');
+      expect(result.intentSummary).toBe('そうですね');
     });
 
     it('score === 1 のとき mode が強制的に none になる', async () => {
       mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 1, mode: 'opinion', intentSummary: '発言したい' }));
       const result = await service.evaluateEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value.mode).toBe('none');
+      expect(result.mode).toBe('none');
     });
 
     it('mode === none のとき intentSummary が undefined になる', async () => {
       mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 2, mode: 'none', intentSummary: 'なにか言いたい' }));
       const result = await service.evaluateEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
-      expect(result.ok).toBe(true);
-      if (!result.ok) return;
-      expect(result.value.intentSummary).toBeUndefined();
+      expect(result.intentSummary).toBeUndefined();
     });
 
     it('ASSESS_ENGAGEMENT_TOOL スキーマに mode フィールドが含まれる', async () => {
