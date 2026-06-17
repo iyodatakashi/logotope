@@ -2,8 +2,8 @@ import type { DebateTurn, QueuedIntent, DebateState } from '../../types/debate.t
 import type { Persona } from '../../types/persona.types.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 
-/** 保存済みターン・永続化キューから DebateState を一意に復元する（同一入力 → 同一出力） */
-export const restoreDebateState = (
+/** 保存済みターン・永続化キューから DebateState を導出する（同一入力 → 同一出力） */
+export const getDebateState = (
 	inputTurns: ReadonlyArray<DebateTurn>,
 	personas: ReadonlyArray<Persona>,
 	persistedQueuedIntents: ReadonlyMap<string, ReadonlyArray<QueuedIntent>>

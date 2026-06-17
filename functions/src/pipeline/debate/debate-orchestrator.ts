@@ -8,7 +8,7 @@ import {
 	generateChapterIntroduction
 } from '../../agents/facilitator-agent.js';
 import { selectSpeaker } from './speaker-selection.js';
-import { restoreDebateState } from './state-restore.js';
+import { getDebateState } from './debate-state.js';
 import {
 	MAX_PAIR_CONVERSATION_TURNS,
 	CHAPTER_END_COUNT_LIMIT,
@@ -63,7 +63,7 @@ export const executeChapterTask = async (
 
 	const existingTurns = await getDebateTurnsByTopicId(topicId);
 	const persistedQueuedIntents = await loadQueuedIntents(topicId);
-	const state = restoreDebateState(existingTurns, personas, persistedQueuedIntents);
+	const state = getDebateState(existingTurns, personas, persistedQueuedIntents);
 
 	const chapters: Chapter[] = session.chapters ?? [];
 
