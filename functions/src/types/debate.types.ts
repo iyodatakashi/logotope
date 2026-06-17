@@ -32,7 +32,7 @@ export type DebateState = {
 	speakCount: Map<string, number>;
 	targetPersona?: { personaId: string; targetedBy: 'facilitator' | 'persona' };
 	lastSpeakerId?: string;
-	pendingIntents: Map<string, PendingIntent[]>;
+	queuedIntents: Map<string, QueuedIntent[]>;
 	pairConversationTurns: number;
 	currentTurnIndex: number;
 	lastFacilitatorTurnIndex: number;
@@ -65,7 +65,7 @@ export type SpeakerSelection = {
 	intentSummary?: string;
 };
 
-export type PendingIntent = {
+export type QueuedIntent = {
 	triggerTurnIndex: number;
 	intentSummary: string;
 };

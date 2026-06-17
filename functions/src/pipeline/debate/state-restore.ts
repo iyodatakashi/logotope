@@ -1,4 +1,4 @@
-import type { DebateTurn, PendingIntent, DebateState } from '../../types/debate.types.js';
+import type { DebateTurn, QueuedIntent, DebateState } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 
@@ -6,7 +6,7 @@ import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
 export const restoreDebateState = (
 	inputTurns: ReadonlyArray<DebateTurn>,
 	personas: ReadonlyArray<Persona>,
-	persistedPendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>
+	persistedQueuedIntents: ReadonlyMap<string, ReadonlyArray<QueuedIntent>>
 ): DebateState => {
 	const turns = [...inputTurns].sort((a, b) => a.turnIndex - b.turnIndex);
 
@@ -40,13 +40,13 @@ export const restoreDebateState = (
 		if (lastSpeakerId !== undefined && lastFacilitatorTurnIndex !== 0) break;
 	}
 
-	const pendingIntents = new Map<string, PendingIntent[]>();
-	for (const [personaId, items] of persistedPendingIntents.entries()) {
+	const queuedIntents = new Map<string, QueuedIntent[]>();
+	for (const [personaId, items] of persistedQueuedIntents.entries()) {
 		const alive = items.filter(
 			(item) => currentTurnIndex - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS
 		);
 		if (alive.length > 0) {
-			pendingIntents.set(
+			queuedIntents.set(
 				personaId,
 				alive.map((item) => ({ ...item }))
 			);
@@ -70,7 +70,7 @@ export const restoreDebateState = (
 		speakCount,
 		targetPersona,
 		lastSpeakerId,
-		pendingIntents,
+		queuedIntents,
 		pairConversationTurns: 0,
 		currentTurnIndex,
 		lastFacilitatorTurnIndex,

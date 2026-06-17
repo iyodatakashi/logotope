@@ -19,8 +19,8 @@ vi.mock('../../db/repository.js', () => ({
   saveChapterIssues: vi.fn(),
   updateCurrentChapterIndex: vi.fn(),
   saveEngagements: vi.fn(),
-  setPendingIntents: vi.fn(),
-  loadPendingIntents: vi.fn(),
+  setQueuedIntents: vi.fn(),
+  loadQueuedIntents: vi.fn(),
 }));
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: vi.fn(),
@@ -113,8 +113,8 @@ function setupRepoDefaults() {
   vi.mocked(repo.saveChapterIssues).mockResolvedValue(undefined);
   vi.mocked(repo.updateCurrentChapterIndex).mockResolvedValue(undefined);
   vi.mocked(repo.saveEngagements).mockResolvedValue(undefined);
-  vi.mocked(repo.setPendingIntents).mockResolvedValue(undefined);
-  vi.mocked(repo.loadPendingIntents).mockResolvedValue(new Map());
+  vi.mocked(repo.setQueuedIntents).mockResolvedValue(undefined);
+  vi.mocked(repo.loadQueuedIntents).mockResolvedValue(new Map());
 }
 
 // 短い討論オプション: 毎評価ターンで介入チェック、章は2ターン（上限3ターン）で進む
@@ -202,7 +202,7 @@ describe('DebateOrchestratorService', () => {
       vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([
         { id: 't0', sessionId: 't1', turnIndex: 0, speakerType: 'facilitator', content: '討論を始めます。', createdAt: '' },
       ]);
-      vi.mocked(repo.loadPendingIntents).mockResolvedValue(new Map([
+      vi.mocked(repo.loadQueuedIntents).mockResolvedValue(new Map([
         ['p2', [{ triggerTurnIndex: 0, intentSummary: 'キューの意図' }]],
       ]));
       const mockPersonaAgent = makeMockPersonaAgent({
@@ -212,7 +212,7 @@ describe('DebateOrchestratorService', () => {
 
       await service.executeChapterTask('t1', 0);
 
-      expect(vi.mocked(repo.loadPendingIntents)).toHaveBeenCalledWith('t1');
+      expect(vi.mocked(repo.loadQueuedIntents)).toHaveBeenCalledWith('t1');
       const generateTurnCalls = (mockPersonaAgent.generateTurn as ReturnType<typeof vi.fn>).mock.calls;
       const queueCall = generateTurnCalls.find(c => (c[0] as { id: string }).id === 'p2');
       expect(queueCall).toBeDefined();
@@ -358,7 +358,7 @@ describe('DebateOrchestratorService', () => {
       expect(personaTurnCalls().length).toBeGreaterThanOrEqual(2);
     });
 
-    it('score 5 で選ばれなかったペルソナのキュー追加が setPendingIntents で永続化される', async () => {
+    it('score 5 で選ばれなかったペルソナのキュー追加が setQueuedIntents で永続化される', async () => {
       vi.mocked(repo.getPersonasByTopicId).mockResolvedValue([...testPersonas, p3Profile]);
       const mockPersonaAgent = makeMockPersonaAgent({
         evaluateEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => {
@@ -372,14 +372,14 @@ describe('DebateOrchestratorService', () => {
       await service.executeChapterTask('t1', 0);
 
       // 同点 score 5 のうち p2 が選ばれ、p3（score 5・未選択）がキューに write-through される
-      const queueWrites = vi.mocked(repo.setPendingIntents).mock.calls.filter(c => c[1] === 'p3');
+      const queueWrites = vi.mocked(repo.setQueuedIntents).mock.calls.filter(c => c[1] === 'p3');
       expect(queueWrites.length).toBeGreaterThanOrEqual(1);
       expect(queueWrites[0][2]).toEqual([
         expect.objectContaining({ intentSummary: '言いたいこと' }),
       ]);
     });
 
-    it('キュー発言後に消費が setPendingIntents で永続化される', async () => {
+    it('キュー発言後に消費が setQueuedIntents で永続化される', async () => {
       vi.mocked(repo.getDebateSessionByTopicId).mockResolvedValue({
         id: 't1', topicId: 't1', createdAt: '',
         chapters: twoChapters,
@@ -388,7 +388,7 @@ describe('DebateOrchestratorService', () => {
       vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([
         { id: 't0', sessionId: 't1', turnIndex: 0, speakerType: 'facilitator', content: '討論を始めます。', createdAt: '' },
       ]);
-      vi.mocked(repo.loadPendingIntents).mockResolvedValue(new Map([
+      vi.mocked(repo.loadQueuedIntents).mockResolvedValue(new Map([
         ['p2', [{ triggerTurnIndex: 0, intentSummary: 'キューの意図' }]],
       ]));
       const mockPersonaAgent = makeMockPersonaAgent({
@@ -399,7 +399,7 @@ describe('DebateOrchestratorService', () => {
       await service.executeChapterTask('t1', 0);
 
       // p2 のキュー消費（空配列の全置換書き込み）が発生する
-      const consumeWrites = vi.mocked(repo.setPendingIntents).mock.calls.filter(
+      const consumeWrites = vi.mocked(repo.setQueuedIntents).mock.calls.filter(
         c => c[1] === 'p2' && (c[2] as unknown[]).length === 0
       );
       expect(consumeWrites.length).toBeGreaterThanOrEqual(1);
@@ -644,7 +644,7 @@ describe('DebateOrchestratorService', () => {
       vi.mocked(repo.getDebateTurnsBySessionId).mockResolvedValue([
         { id: 't0', sessionId: 't1', turnIndex: 0, speakerType: 'facilitator', content: '討論を始めます。', createdAt: '' },
       ]);
-      vi.mocked(repo.loadPendingIntents).mockResolvedValue(new Map([
+      vi.mocked(repo.loadQueuedIntents).mockResolvedValue(new Map([
         ['p3', [{ triggerTurnIndex: 0, intentSummary: 'p3の言いたいこと' }]],
       ]));
       const mockFacilitator = makeMockFacilitator({

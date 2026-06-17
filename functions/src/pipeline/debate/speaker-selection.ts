@@ -1,4 +1,4 @@
-import type { SpeakerSelection, Engagement, PendingIntent, DebateState } from '../../types/debate.types.js';
+import type { SpeakerSelection, Engagement, QueuedIntent, DebateState } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE } from '../../constants/flow.constants.js';
 
@@ -31,13 +31,13 @@ export const selectSpeaker = ({
 		};
 	}
 	const personaIds = personas.map((p) => p.id);
-	return selectSpeakerByEngagement(engagements, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
+	return selectSpeakerByEngagement(engagements, state.queuedIntents, state.silenceMap, personaIds, state.lastSpeakerId);
 };
 
 /** キュー > スコアの2段で話者を決定する */
 const selectSpeakerByEngagement = (
 	engagements: ReadonlyArray<Engagement>,
-	pendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>,
+	queuedIntents: ReadonlyMap<string, ReadonlyArray<QueuedIntent>>,
 	silenceMap: ReadonlyMap<string, number>,
 	personaIds: ReadonlyArray<string>,
 	lastSpeakerId?: string
@@ -53,7 +53,7 @@ const selectSpeakerByEngagement = (
 	if (!shouldSpeak(filteredAssessments)) {
 		let oldestIdx = Infinity;
 		let oldestPersonaId: string | undefined;
-		for (const [personaId, items] of pendingIntents.entries()) {
+		for (const [personaId, items] of queuedIntents.entries()) {
 			if (personaId === lastSpeakerId || !personaIds.includes(personaId) || items.length === 0)
 				continue;
 			const oldest = Math.min(...items.map((item) => item.triggerTurnIndex));
@@ -63,7 +63,7 @@ const selectSpeakerByEngagement = (
 			}
 		}
 		if (oldestPersonaId) {
-			const items = [...(pendingIntents.get(oldestPersonaId) ?? [])].sort(
+			const items = [...(queuedIntents.get(oldestPersonaId) ?? [])].sort(
 				(a, b) => a.triggerTurnIndex - b.triggerTurnIndex
 			);
 			return {

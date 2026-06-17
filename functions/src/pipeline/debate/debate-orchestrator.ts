@@ -30,7 +30,7 @@ import {
 	INTENT_EXPIRY_TURNS,
 	MAX_PAIR_CONVERSATION_TURNS
 } from '../../constants/flow.constants.js';
-import type { SpeakerSelection, PendingIntent } from '../../types/debate.types.js';
+import type { SpeakerSelection, QueuedIntent } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { PipelineError } from '../../types/common.types.js';
 import type { Engagement, DebateState, BeliefChangeEvent } from '../../types/debate.types.js';
@@ -60,8 +60,8 @@ export const executeChapterTask = async (
 	const { personas, topicTitle } = await getTopicContext(topicId);
 
 	const existingTurns = await getDebateTurnsByTopicId(topicId);
-	const persistedPendingIntents = await loadPendingIntents(topicId);
-	const state = restoreDebateState(existingTurns, personas, persistedPendingIntents);
+	const persistedQueuedIntents = await loadQueuedIntents(topicId);
+	const state = restoreDebateState(existingTurns, personas, persistedQueuedIntents);
 
 	const chapters: Chapter[] = session.chapters ?? [];
 
@@ -129,12 +129,17 @@ export const executeChapterTask = async (
 	if (speakerSelection) {
 		const engagements = await evaluateEngagements({ topicId, personas, state });
 		const speakerEngagement = engagements.find((a) => a.personaId === speakerSelection.personaId);
-		const speech: Engagement = speakerEngagement ?? await (async () => {
-			const persona = personas.find((p) => p.id === speakerSelection.personaId);
-			if (!persona) return { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
-			const result = await evaluateEngagement(persona, state.turns);
-			return result.ok ? result.value : { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
-		})();
+		const speech: Engagement =
+			speakerEngagement ??
+			(await (async () => {
+				const persona = personas.find((p) => p.id === speakerSelection.personaId);
+				if (!persona)
+					return { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
+				const result = await evaluateEngagement(persona, state.turns);
+				return result.ok
+					? result.value
+					: { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
+			})());
 		const reply = await generatePersonaTurn({
 			topicId,
 			personas,
@@ -145,11 +150,11 @@ export const executeChapterTask = async (
 		});
 		if (reply) {
 			updateSpeakerStats({ state, personas, personaId: reply.personaId });
-			await consumePendingIntent({
+			await consumeQueuedIntent({
 				topicId,
 				state,
 				personaId: reply.personaId,
-				pendingEntries: reply.pendingEntries
+				queuedEntries: reply.queuedEntries
 			});
 			if (reply.beliefChange)
 				await applyBeliefChange({
@@ -202,10 +207,13 @@ const executeTurn = async ({
 	const targetPersona = state.targetPersona;
 	state.targetPersona = undefined;
 
-	// 2. 全員の発言意欲を評価する（直前話者を除く）
+	// 2. 失効した発言意図をキューから除去する
+	await expireQueuedIntents({ topicId, state });
+
+	// 3. 全員の発言意欲を評価する（直前話者を除く）
 	const engagements = await evaluateEngagements({ topicId, personas, state });
 
-	// 3. ファシリテーター介入（介入した場合は早期終了）
+	// 4. ファシリテーター介入（介入した場合は早期終了）
 	const canContinuePairConversation = state.pairConversationTurns < MAX_PAIR_CONVERSATION_TURNS;
 
 	if (!targetPersona || !canContinuePairConversation) {
@@ -220,7 +228,7 @@ const executeTurn = async ({
 		if (intervened) return true;
 	}
 
-	// 4. 話者を決定する（指名 > キュー > スコア順）
+	// 5. 話者を決定する（指名 > キュー > スコア順）
 	const speakerSelection = selectSpeaker({
 		targetPersona,
 		canContinuePairConversation,
@@ -229,8 +237,8 @@ const executeTurn = async ({
 		personas
 	});
 
-	// 5. 高意欲者の発言意図をキューに積む
-	await enqueueHighEngagementIntents({
+	// 6. 高意欲者の発言意図をキューに積む
+	await addQueuedIntents({
 		topicId,
 		state,
 		engagements,
@@ -238,20 +246,25 @@ const executeTurn = async ({
 		triggerTurnIndex: Math.max(0, state.turns.length - 1)
 	});
 
-	// 6. ペア会話ターン数を更新する（ペルソナ間指名の連続回数を管理する）
+	// 7. ペア会話ターン数を更新する（ペルソナ間指名の連続回数を管理する）
 	state.pairConversationTurns =
 		speakerSelection.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
 
-	// 7. 発言パラメータ（モード・スコア・意図）を決定する（直前話者など評価対象外の場合は単独評価）
+	// 8. 発言パラメータ（モード・スコア・意図）を決定する（直前話者など評価対象外の場合は単独評価）
 	const speakerEngagement = engagements.find((a) => a.personaId === speakerSelection.personaId);
-	const speech: Engagement = speakerEngagement ?? await (async () => {
-		const persona = personas.find((p) => p.id === speakerSelection.personaId);
-		if (!persona) return { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
-		const result = await evaluateEngagement(persona, state.turns);
-		return result.ok ? result.value : { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
-	})();
+	const speech: Engagement =
+		speakerEngagement ??
+		(await (async () => {
+			const persona = personas.find((p) => p.id === speakerSelection.personaId);
+			if (!persona)
+				return { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
+			const result = await evaluateEngagement(persona, state.turns);
+			return result.ok
+				? result.value
+				: { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
+		})());
 
-	// 8. ペルソナターンを生成・保存する
+	// 9. ペルソナターンを生成・保存する
 	const reply = await generatePersonaTurn({
 		topicId,
 		personas,
@@ -262,18 +275,18 @@ const executeTurn = async ({
 	});
 	if (!reply) return null;
 
-	// 9. 話者統計を更新する
+	// 10. 話者統計を更新する
 	updateSpeakerStats({ state, personas, personaId: reply.personaId });
 
-	// 10. 消化した発言意図をキューから除去する
-	await consumePendingIntent({
+	// 11. 消化した発言意図をキューから除去する
+	await consumeQueuedIntent({
 		topicId,
 		state,
 		personaId: reply.personaId,
-		pendingEntries: reply.pendingEntries
+		queuedEntries: reply.queuedEntries
 	});
 
-	// 11. 信念変化を記録する
+	// 12. 信念変化を記録する
 	if (reply.beliefChange)
 		await applyBeliefChange({
 			topicId,
@@ -282,12 +295,12 @@ const executeTurn = async ({
 			beliefChange: reply.beliefChange
 		});
 
-	// 12. 次ターンの指名を記録する
+	// 13. 次ターンの指名を記録する
 	state.targetPersona = reply.targetPersonaId
 		? { personaId: reply.targetPersonaId, targetedBy: 'persona' }
 		: undefined;
 
-	// 13. 章継続判定を返す
+	// 14. 章継続判定を返す
 	return checkChapterContinuation(engagements);
 };
 
@@ -305,6 +318,27 @@ export const countPersonaTurnsSinceFacilitator = (history: readonly DebateTurn[]
  * saveEngagements（可視化保存）・活性シグナル記録・キュー失効を行う。
  * 返り値は当ターンの評価結果（直前話者を除く）。キュー追加は話者決定後に行う（executeTurn 内）。
  */
+const expireQueuedIntents = async ({
+	topicId,
+	state
+}: {
+	topicId: string;
+	state: DebateState;
+}): Promise<void> => {
+	for (const [personaId, items] of state.queuedIntents.entries()) {
+		const alive = items.filter(
+			(item) => state.turns.length - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS
+		);
+		if (alive.length === items.length) continue;
+		if (alive.length === 0) {
+			state.queuedIntents.delete(personaId);
+		} else {
+			state.queuedIntents.set(personaId, alive);
+		}
+		await db().doc(`topics/${topicId}/sessions/0/engagements/${personaId}`).set({ pendingIntents: [...alive] }, { merge: true });
+	}
+};
+
 const evaluateEngagements = async ({
 	topicId,
 	personas,
@@ -314,20 +348,6 @@ const evaluateEngagements = async ({
 	personas: Persona[];
 	state: DebateState;
 }): Promise<Engagement[]> => {
-	// キュー失効（トリガーから INTENT_EXPIRY_TURNS 超過）を毎ターン適用し write-through
-	for (const [personaId, items] of state.pendingIntents.entries()) {
-		const alive = items.filter(
-			(item) => state.turns.length - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS
-		);
-		if (alive.length === items.length) continue;
-		if (alive.length === 0) {
-			state.pendingIntents.delete(personaId);
-		} else {
-			state.pendingIntents.set(personaId, alive);
-		}
-		await setPendingIntents({ topicId, personaId, items: alive });
-	}
-
 	// 直前話者を除く全員の発言意欲を評価する。評価失敗は最低意欲（score 1）として継続する
 	const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
 	const engagements = await Promise.all(
@@ -353,7 +373,7 @@ const evaluateEngagements = async ({
 };
 
 /** 高意欲かつ非選択ペルソナのインテントをキューに追加し Firestore に write-through する */
-const enqueueHighEngagementIntents = async ({
+const addQueuedIntents = async ({
 	topicId,
 	state,
 	engagements,
@@ -366,16 +386,19 @@ const enqueueHighEngagementIntents = async ({
 	speakerSelection: SpeakerSelection;
 	triggerTurnIndex: number;
 }): Promise<void> => {
-	for (const engagement of engagements) {
-		if (!shouldQueue(engagement) || engagement.personaId === speakerSelection.personaId) continue;
-		const existing = state.pendingIntents.get(engagement.personaId) ?? [];
-		const updated = [
-			...existing,
-			{ triggerTurnIndex, intentSummary: engagement.intentSummary ?? '' }
-		];
-		state.pendingIntents.set(engagement.personaId, updated);
-		await setPendingIntents({ topicId, personaId: engagement.personaId, items: updated });
-	}
+	const updates = engagements
+		.filter((e) => shouldQueue(e) && e.personaId !== speakerSelection.personaId)
+		.map((e) => {
+			const existing = state.queuedIntents.get(e.personaId) ?? [];
+			const updated = [...existing, { triggerTurnIndex, intentSummary: e.intentSummary ?? '' }];
+			state.queuedIntents.set(e.personaId, updated);
+			return { personaId: e.personaId, updated };
+		});
+	await Promise.all(
+		updates.map(({ personaId, updated }) =>
+			db().doc(`topics/${topicId}/sessions/0/engagements/${personaId}`).set({ pendingIntents: updated }, { merge: true })
+		)
+	);
 };
 
 /** 介入が必要か評価し、発火した場合は state を更新して true を返す */
@@ -405,7 +428,7 @@ const tryIntervention = async ({
 	}
 	if (!intervention) return false;
 
-	await enqueueHighEngagementIntents({
+	await addQueuedIntents({
 		topicId,
 		state,
 		engagements,
@@ -584,17 +607,17 @@ const generatePersonaTurn = async ({
 	personaId: string;
 	targetPersonaId: string | undefined;
 	beliefChange: BeliefChangeEvent | null;
-	pendingEntries: PendingIntent[] | undefined;
+	queuedEntries: QueuedIntent[] | undefined;
 	fromQueue: boolean;
 } | null> => {
 	const persona = personas.find((p) => p.id === speakerSelection.personaId)!;
 	const fromQueue = speakerSelection.reason === 'queue';
 
 	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
-	const pendingEntries = state.pendingIntents.get(persona.id);
+	const queuedEntries = state.queuedIntents.get(persona.id);
 	let pendingTrigger: { speakerName: string; content: string } | undefined;
-	if (pendingEntries && pendingEntries.length > 0) {
-		const triggerTurn = state.turns.find((t) => t.turnIndex === pendingEntries[0].triggerTurnIndex);
+	if (queuedEntries && queuedEntries.length > 0) {
+		const triggerTurn = state.turns.find((t) => t.turnIndex === queuedEntries[0].triggerTurnIndex);
 		pendingTrigger = triggerTurn
 			? { speakerName: triggerTurn.speakerName ?? '', content: triggerTurn.content }
 			: undefined;
@@ -663,7 +686,7 @@ const generatePersonaTurn = async ({
 		personaId: persona.id,
 		targetPersonaId,
 		beliefChange: turnResult.value.beliefChange,
-		pendingEntries,
+		queuedEntries,
 		fromQueue
 	};
 };
@@ -684,25 +707,25 @@ const updateSpeakerStats = ({
 	state.lastSpeakerId = personaId;
 };
 
-const consumePendingIntent = async ({
+const consumeQueuedIntent = async ({
 	topicId,
 	state,
 	personaId,
-	pendingEntries
+	queuedEntries
 }: {
 	topicId: string;
 	state: DebateState;
 	personaId: string;
-	pendingEntries: PendingIntent[] | undefined;
+	queuedEntries: QueuedIntent[] | undefined;
 }): Promise<void> => {
-	if (!pendingEntries || pendingEntries.length === 0) return;
-	const remaining = pendingEntries.slice(1);
+	if (!queuedEntries || queuedEntries.length === 0) return;
+	const remaining = queuedEntries.slice(1);
 	if (remaining.length === 0) {
-		state.pendingIntents.delete(personaId);
+		state.queuedIntents.delete(personaId);
 	} else {
-		state.pendingIntents.set(personaId, remaining);
+		state.queuedIntents.set(personaId, remaining);
 	}
-	await setPendingIntents({ topicId, personaId, items: remaining });
+	await db().doc(`topics/${topicId}/sessions/0/engagements/${personaId}`).set({ pendingIntents: [...remaining] }, { merge: true });
 };
 
 const applyBeliefChange = async ({
@@ -935,25 +958,11 @@ const saveEngagements = async (params: {
 	}
 };
 
-const setPendingIntents = async ({
-	topicId,
-	personaId,
-	items
-}: {
-	topicId: string;
-	personaId: string;
-	items: ReadonlyArray<PendingIntent>;
-}): Promise<void> => {
-	await db()
-		.doc(`topics/${topicId}/sessions/0/engagements/${personaId}`)
-		.set({ pendingIntents: [...items] }, { merge: true });
-};
-
-const loadPendingIntents = async (topicId: string): Promise<Map<string, PendingIntent[]>> => {
+const loadQueuedIntents = async (topicId: string): Promise<Map<string, QueuedIntent[]>> => {
 	const snap = await db().collection(`topics/${topicId}/sessions/0/engagements`).get();
-	const result = new Map<string, PendingIntent[]>();
+	const result = new Map<string, QueuedIntent[]>();
 	for (const docSnap of snap.docs) {
-		const data = docSnap.data() as { pendingIntents?: PendingIntent[] };
+		const data = docSnap.data() as { pendingIntents?: QueuedIntent[] };
 		result.set(docSnap.id, data.pendingIntents ?? []);
 	}
 	return result;
