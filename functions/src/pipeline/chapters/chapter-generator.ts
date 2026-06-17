@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { nanoid } from 'nanoid';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { AI_MODELS, MAX_TOKENS } from '../../constants/ai.constants.js';
-import { formatTurns, formatPersonas } from '../../utils/conversation.js';
+import { formatTurns, formatPersonas } from '../../utils/prompt-formatters.js';
 import { buildNeutralitySystemPrompt } from '../../agents/facilitator-agent.js';
 import { getTopicById, getPersonasByTopicId } from '../../db/repository.js';
 import type { DebateTurn, FacilitatorReply } from '../../types/debate.types.js';

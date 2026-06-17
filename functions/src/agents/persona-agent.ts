@@ -2,7 +2,7 @@ import { generateText, jsonSchema } from 'ai';
 import { getPersonaModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../constants/ai.constants.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
-import { formatTurns } from '../utils/conversation.js';
+import { formatTurns } from '../utils/prompt-formatters.js';
 import type { DebateTurn } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { PersonaReply, BeliefChangeEvent, BeliefChangeType, PostDebateCommentResult, Engagement } from '../types/debate.types.js';

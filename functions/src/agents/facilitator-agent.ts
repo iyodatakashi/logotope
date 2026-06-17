@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
-import { formatTurns, formatPersonas } from '../utils/conversation.js';
+import { formatTurns, formatPersonas } from '../utils/prompt-formatters.js';
 import type { DebateTurn } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { FacilitatorReply, Chapter } from '../types/debate.types.js';

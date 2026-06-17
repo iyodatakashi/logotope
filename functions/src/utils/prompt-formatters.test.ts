@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatTurns } from './conversation.js';
+import { formatTurns } from './prompt-formatters.js';
 import type { ConversationTurn } from '../types/index.js';
 
 describe('formatTurns', () => {
