@@ -128,9 +128,12 @@ export const executeChapterTask = async (
 		: undefined;
 	if (speakerSelection) {
 		const engagements = await evaluateEngagements({ topicId, personas, state });
-		const engagement: Engagement =
-			engagements.find((a) => a.personaId === speakerSelection.personaId) ??
-			(await evaluateEngagementWithFallback(speakerSelection.personaId, personas, state.turns));
+		const engagement = await evaluateEngagementWithFallback({
+			personaId: speakerSelection.personaId,
+			personas,
+			turns: state.turns,
+			engagements
+		});
 		const reply = await generatePersonaTurn({
 			topicId,
 			personas,
@@ -242,9 +245,12 @@ const executeTurn = async ({
 		speakerSelection.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
 
 	// 8. 発言パラメータ（モード・スコア・意図）を決定する（直前話者など評価対象外の場合は単独評価）
-	const engagement: Engagement =
-		engagements.find((a) => a.personaId === speakerSelection.personaId) ??
-		(await evaluateEngagementWithFallback(speakerSelection.personaId, personas, state.turns));
+	const engagement = await evaluateEngagementWithFallback({
+		personaId: speakerSelection.personaId,
+		personas,
+		turns: state.turns,
+		engagements
+	});
 
 	// 9. ペルソナターンを生成・保存する
 	const reply = await generatePersonaTurn({
@@ -360,11 +366,19 @@ const evaluateEngagements = async ({
 };
 
 /** engagements に含まれない話者（直前話者など）を個別評価してフォールバックする */
-const evaluateEngagementWithFallback = async (
-	personaId: string,
-	personas: Persona[],
-	turns: DebateState['turns']
-): Promise<Engagement> => {
+const evaluateEngagementWithFallback = async ({
+	personaId,
+	personas,
+	turns,
+	engagements = []
+}: {
+	personaId: string;
+	personas: Persona[];
+	turns: DebateState['turns'];
+	engagements?: Engagement[];
+}): Promise<Engagement> => {
+	const fromList = engagements.find((a) => a.personaId === personaId);
+	if (fromList) return fromList;
 	const persona = personas.find((p) => p.id === personaId);
 	if (!persona) return { personaId, mode: 'opinion' as const, score: 2 };
 	return evaluateEngagement(persona, turns);
