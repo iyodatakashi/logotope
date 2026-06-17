@@ -2,12 +2,10 @@ import { generateText, jsonSchema } from 'ai';
 import { getPersonaModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../constants/ai.constants.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
-import { formatTurns } from '../utils/prompt-formatters.js';
-import type { DebateTurn } from '../types/debate.types.js';
+import { formatTurns, currentDateString } from '../utils/prompt-formatters.js';
+import type { DebateTurn, PersonaReply, BeliefChangeEvent, BeliefChangeType, PostDebateCommentResult, Engagement, TurnGenerationContext } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
-import type { PersonaReply, BeliefChangeEvent, BeliefChangeType, PostDebateCommentResult, Engagement } from '../types/debate.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
-import type { TurnGenerationContext } from '../types/debate.types.js';
 
 const latestBeliefContent = (persona: Persona): string => {
 	const beliefs = persona.beliefs ?? [];
@@ -37,24 +35,19 @@ const HIGH_AUTHORITY_KEYWORDS = [
 ];
 const MID_AUTHORITY_KEYWORDS = ['主任', '係長', '課長', 'マネージャー', '管理'];
 
-function estimateExperienceLevel(age: number, occupation: string): ExperienceLevel {
+const estimateExperienceLevel = (age: number, occupation: string): ExperienceLevel => {
 	if (YOUNG_KEYWORDS.some((kw) => occupation.includes(kw)) || age <= 30) return 'young';
 	if (VETERAN_KEYWORDS.some((kw) => occupation.includes(kw)) || age >= 55) return 'veteran';
 	return 'mid';
-}
+};
 
-function estimateAuthorityLevel(stakeholderRole: string): AuthorityLevel {
+const estimateAuthorityLevel = (stakeholderRole: string): AuthorityLevel => {
 	if (HIGH_AUTHORITY_KEYWORDS.some((kw) => stakeholderRole.includes(kw))) return 'high';
 	if (MID_AUTHORITY_KEYWORDS.some((kw) => stakeholderRole.includes(kw))) return 'mid';
 	return 'general';
-}
+};
 
-function currentDateString(): string {
-	const d = new Date();
-	return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-}
-
-export function buildSpeechStyleGuide(persona: Persona & { gender?: string }): string {
+export const buildSpeechStyleGuide = (persona: Persona & { gender?: string }): string => {
 	const expLevel = estimateExperienceLevel(persona.age, persona.occupation);
 	const authLevel = estimateAuthorityLevel(persona.specificRole || persona.stakeholderRole);
 	const lines: string[] = [];
@@ -101,13 +94,13 @@ export function buildSpeechStyleGuide(persona: Persona & { gender?: string }): s
 	}
 
 	return lines.join('\n');
-}
+};
 
-function buildPersonaSystemPrompt(
+const buildPersonaSystemPrompt = (
 	persona: Persona & { gender?: string },
 	interviewRecord: string,
 	currentBelief: string
-): string {
+): string => {
 	const styleGuide = buildSpeechStyleGuide(persona);
 	return `あなたは以下のペルソナとして、グループインタビューに参加しています。これは討論ではなく、さまざまな立場の人が集まって、あるテーマについてそれぞれの経験や感じ方を話す場です。正しいことを言う必要はありません。自分の生活や仕事の経験から思うことを素直に話し、他の参加者の話を聞いて感じたことを返してください。
 
@@ -147,10 +140,10 @@ ${currentBelief}
 検索クエリは自分の立場・職業・関心に沿った視点で構築すること。
 検索ツールは必要なときのみ使用し、1〜2回以内にとどめること。
 自分の体験・実感はそのまま語ってよい。`;
-}
+};
 
 // 発言意欲スコア（2〜5）に応じた発言の長さ。score 不明時（指名・キュー）は中くらい。
-function speechLengthGuide(score?: number): string {
+const speechLengthGuide = (score?: number): string => {
 	switch (score) {
 		case 2:
 			return '20〜50文字程度（一言）';
@@ -163,7 +156,7 @@ function speechLengthGuide(score?: number): string {
 		default:
 			return '80〜140文字程度';
 	}
-}
+};
 
 type AnyTool = {
 	description: string;
@@ -171,10 +164,10 @@ type AnyTool = {
 	execute?: (args: { [key: string]: unknown }) => Promise<string>;
 };
 
-function buildFullTurnTools(
+const buildFullTurnTools = (
 	styleGuide: string,
 	lengthGuide: string
-): Record<string, AnyTool> {
+): Record<string, AnyTool> => {
 	const styleSummary = styleGuide.split('\n')[0];
 	const tools: Record<string, AnyTool> = {
 		submit_turn: {
@@ -229,7 +222,7 @@ function buildFullTurnTools(
 	}
 
 	return tools;
-}
+};
 
 const ASSESS_ENGAGEMENT_TOOLS = {
 	assess_engagement: {
@@ -257,15 +250,15 @@ const ASSESS_ENGAGEMENT_TOOLS = {
 fact（リサーチ・事実・データに基づく説明をする発言。皆が知っている前提にせず、相手に紹介・共有するトーンで話す）:
   score 1: 説明しなくてよい（共有すべき事実・データがない）
   score 2: 補足したい（関連する事実を一言添えたい）
-  score 3: 説明したい（自分が知っている事実・データを紹介したい）
-  score 4: ぜひ説明したい（議論に欠けている重要な事実・データを共有したい）
+  score 3: 説明したい（関連する情報や背景を一言添えたい）
+  score 4: ぜひ説明したい（自分が知っている事実・データを積極的に紹介したい）
   score 5: すぐ説明したい（誤解や事実誤認があり、正確な情報を今すぐ伝えたい）
 
 opinion（自分の考え・意見・実感を展開する発言）:
   score 1: 発言しなくてよい（この話題に付け加えることがない）
   score 2: 発言してもよい（自分の立場・感じ方を一言だけ述べたい）
-  score 3: 発言したい（自分の体験・実感・専門のいずれかから言いたいことがある）
-  score 4: ぜひ発言したい（自分の生活・仕事・専門に関わる話題で、思うことを伝えたい）
+  score 3: 発言したい（何か付け加えたいことや感じることがある）
+  score 4: ぜひ発言したい（自分の体験・立場・考えから積極的に伝えたいことがある）
   score 5: すぐ発言したい（自分の立場・生活・専門に強く関わり、黙っていられない）
 
 none: score 1 のときのみ選択する`
@@ -299,11 +292,11 @@ const POST_DEBATE_COMMENT_TOOLS = {
 	}
 } as const;
 
-export async function generateTurn(
+export const generateTurn = async (
 		persona: Persona,
 		context: TurnGenerationContext,
 		engagement: Engagement
-	): Promise<Result<PersonaReply, PipelineError>> {
+	): Promise<Result<PersonaReply, PipelineError>> => {
 		try {
 			const { chapter, pendingTrigger, targetedBy } = context;
 			const recentTurns = context.chapterTurns.slice(-20);
@@ -407,12 +400,12 @@ export async function generateTurn(
 			const message = err instanceof Error ? err.message : String(err);
 			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 		}
-}
+};
 
-export async function evaluateEngagement(
+export const evaluateEngagement = async (
 	persona: Persona,
 	turns: DebateTurn[]
-): Promise<Engagement> {
+): Promise<Engagement> => {
 	try {
 		const recentTurns = turns.slice(-8);
 		const ownTurns = turns.filter((t) => t.personaId === persona.id).slice(-5);
@@ -450,13 +443,13 @@ export async function evaluateEngagement(
 	} catch {
 		return { personaId: persona.id, score: 1, mode: 'none' };
 	}
-}
+};
 
-export async function generatePostDebateComment(
+export const generatePostDebateComment = async (
 	persona: Persona,
 	finalBelief: string,
 	turns: DebateTurn[]
-): Promise<Result<PostDebateCommentResult, PipelineError>> {
+): Promise<Result<PostDebateCommentResult, PipelineError>> => {
 		try {
 			const result = await generateText({
 				model: getPersonaModel(persona.llmType ?? 'claude'),
@@ -486,4 +479,4 @@ export async function generatePostDebateComment(
 			const message = err instanceof Error ? err.message : String(err);
 			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 		}
-}
+};
