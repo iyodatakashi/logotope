@@ -233,3 +233,116 @@ export const generateClosing = async (
 		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 	}
 };
+
+const GENERATE_CHAPTER_TRANSITION_TOOL: Anthropic.Tool = {
+	name: 'generate_chapter_transition',
+	description: '章の遷移発言または最終章のまとめ発言を生成する',
+	input_schema: {
+		type: 'object' as const,
+		properties: {
+			content: { type: 'string', description: 'ファシリテーターの遷移発言テキスト' }
+		},
+		required: ['content']
+	}
+};
+
+// 先に指名先（targetPersonaId）を確定させてから content を書かせる（呼びかけと ID の不一致防止）
+const CHAPTER_INTRO_TOOL: Anthropic.Tool = {
+	name: 'submit_chapter_intro',
+	description: '次の章で最初に発言させるペルソナを決めてから、章の導入発言を提出する',
+	input_schema: {
+		type: 'object' as const,
+		properties: {
+			targetPersonaId: {
+				type: 'string',
+				description:
+					'最初に発言させるペルソナのID（参加者リストのIDをそのまま指定）。先にここで指名先を確定させてから content を書くこと'
+			},
+			content: {
+				type: 'string',
+				description: '章の導入発言テキスト。targetPersonaId の参加者に名前で呼びかけて問いを向ける'
+			}
+		},
+		required: ['targetPersonaId', 'content']
+	}
+};
+
+export const generateChapterSummary = async (
+	recentHistory: DebateTurn[],
+	currentChapter: Chapter
+): Promise<Result<string, PipelineError>> => {
+	try {
+		const response = await client.messages.create({
+			model: AI_MODELS.SONNET,
+			max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
+			system: buildNeutralitySystemPrompt(),
+			tools: [GENERATE_CHAPTER_TRANSITION_TOOL],
+			tool_choice: { type: 'tool', name: 'generate_chapter_transition' },
+			messages: [
+				{
+					role: 'user',
+					content: `章「${currentChapter.title}」の議論をまとめる発言を生成してください。次の章への言及は不要です。この章で出た主な意見・対立点を簡潔にまとめてください。\n\n直近の会話:\n${formatTurns(recentHistory.slice(-10))}`
+				}
+			]
+		});
+
+		const toolBlock = response.content.find(
+			(b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+		);
+		if (!toolBlock) {
+			return {
+				ok: false,
+				error: {
+					code: 'AI_API_ERROR',
+					message: 'No tool_use block in summary response',
+					retryable: true
+				}
+			};
+		}
+		const { content } = toolBlock.input as { content: string };
+		return { ok: true, value: content };
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+	}
+};
+
+export const generateChapterIntroduction = async (
+	nextChapter: Chapter,
+	personas: Persona[]
+): Promise<Result<FacilitatorReply, PipelineError>> => {
+	try {
+		const response = await client.messages.create({
+			model: AI_MODELS.SONNET,
+			max_tokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
+			system: buildNeutralitySystemPrompt(),
+			tools: [CHAPTER_INTRO_TOOL],
+			tool_choice: { type: 'tool', name: 'submit_chapter_intro' },
+			messages: [
+				{
+					role: 'user',
+					content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、このフォーカス問いについて参加者に問いかける形で始めてください。最初に発言させるペルソナIDも指定してください。\n\nフォーカス: ${nextChapter.focusQuestion}\n\n参加者:\n${formatPersonas(personas)}\n\ntargetPersonaIdには必ず上記リストのIDを使用してください。`
+				}
+			]
+		});
+
+		const toolBlock = response.content.find(
+			(b): b is Anthropic.ToolUseBlock => b.type === 'tool_use'
+		);
+		if (!toolBlock) {
+			return {
+				ok: false,
+				error: {
+					code: 'AI_API_ERROR',
+					message: 'No tool_use block in introduction response',
+					retryable: true
+				}
+			};
+		}
+		const { content, targetPersonaId } = toolBlock.input as FacilitatorReply;
+		return { ok: true, value: { content, targetPersonaId } };
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+	}
+};
