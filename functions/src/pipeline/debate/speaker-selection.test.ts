@@ -4,7 +4,7 @@ import {
   shouldQueue,
   shouldSpeak,
 } from './speaker-selection.js';
-import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE } from '../../constants/flow.constants.js';
+import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE } from '../../constants/debate.constants.js';
 import type { QueuedIntent } from '../../types/debate.types.js';
 
 const personaIds = ['p1', 'p2', 'p3'];

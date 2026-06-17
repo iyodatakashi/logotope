@@ -1,8 +1,6 @@
-import {
-	getTopicById,
-	getPersonasByTopicId,
-	getDebateSessionByTopicId
-} from '../../db/repository.js';
+import { getTopicById } from '../topics/topics.js';
+import { getPersonasByTopicId } from '../personas/personas.js';
+import { getDebateSessionByTopicId } from './debate-lifecycle.js';
 import {
 	generateOpening,
 	generateChapterIntroduction
@@ -14,8 +12,11 @@ import {
 	CHAPTER_END_COUNT_LIMIT,
 	EARLY_END_PROGRESS_RATIO,
 	TURN_CAP_RATIO,
-	CONTINUE_CHAPTER_THRESHOLD
-} from '../../constants/flow.constants.js';
+	CONTINUE_CHAPTER_THRESHOLD,
+	TURNS_PER_CHAPTER,
+	MAX_TURNS,
+	DEFAULT_INTERVENTION_COOLDOWN
+} from '../../constants/debate.constants.js';
 import { evaluateEngagements, evaluateEngagementWithFallback } from './engagement.js';
 import { expireQueuedIntents, addQueuedIntents, consumeQueuedIntent, loadQueuedIntents } from './queued-intents.js';
 import { tryIntervention, countPersonaTurnsSinceFacilitator, persistInterventionTurn } from './intervention.js';
@@ -30,7 +31,6 @@ import {
 	getDebateTurnsByTopicId
 } from './turn.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
-import { DEFAULT_OPTIONS } from '../../constants/debate-orchestrator.constants.js';
 import type { SpeakerSelection } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { DebateState } from '../../types/debate.types.js';
@@ -41,11 +41,17 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 export { countPersonaTurnsSinceFacilitator, persistInterventionTurn };
 
+export const DEFAULT_OPTIONS: DebateOptions = {
+	turnsPerChapter: TURNS_PER_CHAPTER,
+	maxTurns: MAX_TURNS,
+	interventionCooldown: DEFAULT_INTERVENTION_COOLDOWN
+};
+
 /** @returns 次章が存在する場合 true（呼び出し元が次章タスクを投入する） */
 export const executeChapterTask = async (
 	topicId: string,
 	chapterIndex: number,
-	options: DebateOptions = DEFAULT_OPTIONS
+	options: DebateOptions = { turnsPerChapter: TURNS_PER_CHAPTER, maxTurns: MAX_TURNS, interventionCooldown: DEFAULT_INTERVENTION_COOLDOWN }
 ): Promise<boolean> => {
 	// 停止ゲート: トピックが討論かつ実行中でなければ何も生成・上書きしない
 	if (!(await isDebateActive(topicId))) return false;

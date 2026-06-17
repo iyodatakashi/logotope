@@ -1,6 +1,6 @@
 import type { DebateTurn, QueuedIntent, DebateState } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
-import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
+import { INTENT_EXPIRY_TURNS } from '../../constants/debate.constants.js';
 
 /** 保存済みターン・永続化キューから DebateState を導出する（同一入力 → 同一出力） */
 export const getDebateState = (

@@ -1,6 +1,6 @@
 import type { SpeakerSelection, Engagement, QueuedIntent, DebateState } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
-import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE } from '../../constants/flow.constants.js';
+import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE } from '../../constants/debate.constants.js';
 
 /** 単一ペルソナの発言意図をキューに積むべきか（>= QUEUE_THRESHOLD_SCORE） */
 export const shouldQueue = (engagement: { score: number }): boolean =>

@@ -11,10 +11,10 @@ import {
 	CHAPTER_END_COUNT_LIMIT,
 	EARLY_END_PROGRESS_RATIO,
 	TURN_CAP_RATIO
-} from './flow.constants';
+} from './debate.constants';
 
-describe('flow/constants', () => {
-	it('フロー制御定数を単一の定義元から提供する', () => {
+describe('debate/constants', () => {
+	it('討論制御定数を単一の定義元から提供する', () => {
 		expect(INTENT_EXPIRY_TURNS).toBe(8);
 		expect(SPEAK_THRESHOLD_SCORE).toBe(3);
 		expect(QUEUE_THRESHOLD_SCORE).toBe(4);

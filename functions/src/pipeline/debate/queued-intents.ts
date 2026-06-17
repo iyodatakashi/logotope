@@ -1,6 +1,6 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { shouldQueue } from './speaker-selection.js';
-import { INTENT_EXPIRY_TURNS } from '../../constants/flow.constants.js';
+import { INTENT_EXPIRY_TURNS } from '../../constants/debate.constants.js';
 import type { DebateState, QueuedIntent, SpeakerSelection, Engagement } from '../../types/debate.types.js';
 
 const db = () => getFirestore();
