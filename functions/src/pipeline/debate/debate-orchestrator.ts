@@ -222,8 +222,10 @@ const executeTurn = async ({
 		assessments
 	});
 
-	const saved = await generatePersonaTurn({ topicId, personas, chapter, state, decision, speech });
-	if (!saved) return 'cancelled';
+	const generated = await generatePersonaTurn({ personas, chapter, state, decision, speech });
+	// 生成中に討論が停止された場合は、生成済みのセリフを保存せず状態も更新しない
+	if (!(await isDebateActive(topicId))) return 'cancelled';
+	await commitPersonaTurn({ topicId, personas, chapter, state, decision, speech, generated });
 
 	return { engagementSignal: toEngagementSignal(assessments) };
 };
@@ -315,7 +317,7 @@ const enqueueHighEngagementIntents = async ({
 	}
 };
 
-/** A（論点ずれ）: 逸脱していれば介入を保存して指名 decision を返す。クールダウン通過後かつ指名なし時のみ評価する */
+/** 論点ずれチェック: 逸脱していれば介入を保存して指名 decision を返す。クールダウン通過後かつ指名なし時のみ評価する */
 const tryTopicDriftIntervention = async ({
 	topicId,
 	personas,
@@ -347,7 +349,7 @@ const tryTopicDriftIntervention = async ({
 	});
 };
 
-/** B（出尽くし）介入: 高意欲者がいない場合のみ発火し、クールダウンを参照しない（BC1）。介入する場合は指名 decision を返す */
+/** 出尽くし介入: 高意欲者がいない場合のみ発火し、クールダウンを参照しない（BC1）。介入する場合は指名 decision を返す */
 const tryStallIntervention = async ({
 	topicId,
 	personas,
@@ -493,22 +495,19 @@ const generateFacilitatorTurn = async ({
 
 /** 決定に基づきペルソナ発言を生成・保存し、状態（沈黙・キュー・信念・次ターン指名）を更新する */
 const generatePersonaTurn = async ({
-	topicId,
 	personas,
 	chapter,
 	state,
 	decision,
 	speech
 }: {
-	topicId: string;
 	personas: Persona[];
 	chapter: Chapter;
 	state: DebateState;
 	decision: SpeakerSelection;
 	speech: Engagement;
-}): Promise<boolean> => {
+}) => {
 	const persona = personas.find((p) => p.id === decision.personaId)!;
-	const belief = getLatestBelief(persona);
 	const fromQueue = decision.reason === 'queue';
 
 	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
@@ -538,13 +537,43 @@ const generatePersonaTurn = async ({
 	);
 	if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
-	// 生成中に討論が停止された場合は、生成済みのセリフを保存せず状態も更新しない
-	if (!(await isDebateActive(topicId))) return false;
-
 	// 直接質問先は ID 検証のうえターンに永続化する（自分自身への指定は無視）
 	const rawTarget = turnResult.value.targetPersonaId;
 	const targetPersonaId =
 		rawTarget !== persona.id ? validPersonaId(rawTarget, personas) : undefined;
+
+	return {
+		content: turnResult.value.content,
+		speechMode: turnResult.value.speechMode,
+		targetPersonaId,
+		searchUsed: turnResult.value.searchUsed,
+		searchQueries: turnResult.value.searchQueries,
+		beliefChange: turnResult.value.beliefChange,
+		pendingEntries,
+		fromQueue
+	};
+};
+
+const commitPersonaTurn = async ({
+	topicId,
+	personas,
+	chapter,
+	state,
+	decision,
+	speech,
+	generated
+}: {
+	topicId: string;
+	personas: Persona[];
+	chapter: Chapter;
+	state: DebateState;
+	decision: SpeakerSelection;
+	speech: Engagement;
+	generated: Awaited<ReturnType<typeof generatePersonaTurn>>;
+}): Promise<void> => {
+	const persona = personas.find((p) => p.id === decision.personaId)!;
+	const belief = getLatestBelief(persona);
+	const { content, speechMode, targetPersonaId, searchUsed, searchQueries, beliefChange, pendingEntries, fromQueue } = generated;
 
 	const turnIndex = state.turns.length;
 	const { id: turnId } = await addTurn({
@@ -554,14 +583,14 @@ const generatePersonaTurn = async ({
 		personaId: persona.id,
 		speakerName: persona.name,
 		speakerRole: persona.specificRole,
-		content: turnResult.value.content,
+		content,
 		chapterId: chapter.id,
-		speechMode: turnResult.value.speechMode,
+		speechMode,
 		engagementScore: speech.score,
 		fromQueue: fromQueue || undefined,
 		targetPersonaId,
-		searchUsed: turnResult.value.searchUsed,
-		searchQueries: turnResult.value.searchQueries
+		searchUsed,
+		searchQueries
 	});
 	state.turns.push({
 		id: turnId,
@@ -571,7 +600,7 @@ const generatePersonaTurn = async ({
 		personaId: persona.id,
 		speakerName: persona.name,
 		speakerRole: persona.specificRole,
-		content: turnResult.value.content,
+		content,
 		createdAt: new Date().toISOString(),
 		chapterId: chapter.id,
 		fromQueue: fromQueue || undefined,
@@ -596,8 +625,7 @@ const generatePersonaTurn = async ({
 	}
 
 	// 信念変化の保存と以後のターンへの反映
-	if (turnResult.value.beliefChange) {
-		const beliefChange = turnResult.value.beliefChange;
+	if (beliefChange) {
 		const newVersion = belief.version + 1;
 		const savedBelief = await updatePersonaBelief({
 			topicId,
@@ -626,8 +654,6 @@ const generatePersonaTurn = async ({
 	state.targetPersona = targetPersonaId
 		? { personaId: targetPersonaId, targetedBy: 'persona' }
 		: undefined;
-
-	return true;
 };
 
 /** 章終了時に未応答の指名・直接質問が残っていれば応答ターンを1件生成する（本体と同じ評価・発言生成の流れ） */
@@ -660,7 +686,9 @@ const generateUnansweredReply = async ({
 		state,
 		assessments
 	});
-	await generatePersonaTurn({ topicId, personas, chapter, state, decision, speech });
+	const generated = await generatePersonaTurn({ personas, chapter, state, decision, speech });
+	if (!(await isDebateActive(topicId))) return;
+	await commitPersonaTurn({ topicId, personas, chapter, state, decision, speech, generated });
 	// 章は終了するため、応答ターン由来の指名は引き継がない
 	state.targetPersona = undefined;
 };
