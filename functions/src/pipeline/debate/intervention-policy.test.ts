@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { shouldEvaluateIntervention } from './intervention-policy.js';
+import { shouldEvaluateIntervention } from './intervention.js';
 
 describe('shouldEvaluateIntervention', () => {
   it('クールダウン経過で true（毎ターン評価が原則）', () => {
