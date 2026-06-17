@@ -204,7 +204,7 @@ const executeTurn = async ({
 	// 2. 全員の発言意欲を評価する（直前話者を除く）
 	const engagements = await evaluateEngagement({ topicId, personas, state });
 
-	// 3. ファシリテーター介入
+	// 3. ファシリテーター介入（介入した場合は早期終了）
 	const canContinuePairConversation = state.pairConversationTurns < MAX_PAIR_CONVERSATION_TURNS;
 
 	if (!targetPersona || !canContinuePairConversation) {
@@ -220,23 +220,13 @@ const executeTurn = async ({
 	}
 
 	// 4. 話者を決定する（指名 > キュー > スコア順）
-	const personaIds = personas.map((p) => p.id);
-	const speakerSelection: SpeakerSelection =
-		targetPersona && (targetPersona.targetedBy === 'facilitator' || canContinuePairConversation)
-			? {
-					personaId: targetPersona.personaId,
-					reason:
-						targetPersona.targetedBy === 'facilitator'
-							? 'targeted_by_facilitator'
-							: 'targeted_by_persona'
-				}
-			: selectSpeaker(
-					engagements,
-					state.pendingIntents,
-					state.silenceMap,
-					personaIds,
-					state.lastSpeakerId
-				);
+	const speakerSelection = selectSpeaker({
+		targetPersona,
+		canContinuePairConversation,
+		engagements,
+		state,
+		personas
+	});
 
 	// 5. 高意欲者の発言意図をキューに積む
 	await enqueueHighEngagementIntents({
@@ -259,7 +249,7 @@ const executeTurn = async ({
 		engagements
 	});
 
-	// 8. ペルソナターンを生成・保存し、状態を更新する
+	// 8. ペルソナターンを生成・保存する
 	const reply = await generatePersonaTurn({
 		topicId,
 		personas,
@@ -269,13 +259,19 @@ const executeTurn = async ({
 		speech
 	});
 	if (!reply) return null;
+
+	// 9. 話者統計を更新する
 	updateSpeakerStats({ state, personas, personaId: reply.personaId });
+
+	// 10. 消化した発言意図をキューから除去する
 	await consumePendingIntent({
 		topicId,
 		state,
 		personaId: reply.personaId,
 		pendingEntries: reply.pendingEntries
 	});
+
+	// 11. 信念変化を記録する
 	if (reply.beliefChange)
 		await applyBeliefChange({
 			topicId,
@@ -283,11 +279,13 @@ const executeTurn = async ({
 			turnId: reply.turnId,
 			beliefChange: reply.beliefChange
 		});
+
+	// 12. 次ターンの指名を記録する
 	state.targetPersona = reply.targetPersonaId
 		? { personaId: reply.targetPersonaId, targetedBy: 'persona' }
 		: undefined;
 
-	// 9. 章継続判定を返す
+	// 13. 章継続判定を返す
 	return checkChapterContinuation(engagements);
 };
 

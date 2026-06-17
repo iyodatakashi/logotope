@@ -1,4 +1,5 @@
-import type { SpeakerSelection, Engagement, PendingIntent } from '../../types/debate.types.js';
+import type { SpeakerSelection, Engagement, PendingIntent, DebateState } from '../../types/debate.types.js';
+import type { Persona } from '../../types/persona.types.js';
 import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE } from '../../constants/flow.constants.js';
 
 /** 単一ペルソナの発言意図をキューに積むべきか（>= QUEUE_THRESHOLD_SCORE） */
@@ -9,9 +10,32 @@ export const shouldQueue = (engagement: { score: number }): boolean =>
 export const shouldSpeak = (engagements: ReadonlyArray<{ score: number }>): boolean =>
 	engagements.some((a) => a.score >= SPEAK_THRESHOLD_SCORE);
 
-/** 選ばれた話者の発言は本人の意欲評価に従う（mode と score→長さ）。選ばれた以上は必ず発言するため none・低スコアは最小発言（score 2 / opinion）に切り上げる */
-/** 評価後: キュー > スコアの2段で次話者を決定する */
-export const selectSpeaker = (
+/** 指名があればそれを優先し、なければキュー > スコアで話者を決定する */
+export const selectSpeaker = ({
+	targetPersona,
+	canContinuePairConversation,
+	engagements,
+	state,
+	personas
+}: {
+	targetPersona: { personaId: string; targetedBy: 'facilitator' | 'persona' } | undefined;
+	canContinuePairConversation: boolean;
+	engagements: ReadonlyArray<Engagement>;
+	state: DebateState;
+	personas: ReadonlyArray<Persona>;
+}): SpeakerSelection => {
+	if (targetPersona && (targetPersona.targetedBy === 'facilitator' || canContinuePairConversation)) {
+		return {
+			personaId: targetPersona.personaId,
+			reason: targetPersona.targetedBy === 'facilitator' ? 'targeted_by_facilitator' : 'targeted_by_persona'
+		};
+	}
+	const personaIds = personas.map((p) => p.id);
+	return selectSpeakerByEngagement(engagements, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
+};
+
+/** キュー > スコアの2段で話者を決定する */
+const selectSpeakerByEngagement = (
 	engagements: ReadonlyArray<Engagement>,
 	pendingIntents: ReadonlyMap<string, ReadonlyArray<PendingIntent>>,
 	silenceMap: ReadonlyMap<string, number>,
