@@ -43,22 +43,54 @@ src/
 ```
 functions/src/
 ├── index.ts                    # Functions エクスポートエントリポイント
-├── api/                        # HTTPエンドポイント（onRequest）
-│   ├── topics.ts
-│   ├── stakeholders.ts
-│   ├── personas.ts
+├── api/                        # HTTPエンドポイント（onCall / onTaskDispatched）
+│   ├── chapters.ts
+│   ├── debates.ts
 │   ├── interviews.ts
-│   └── debates.ts
-├── pipeline/                   # AI生成パイプライン
-│   ├── stakeholder-analyzer.ts
-│   ├── persona-generator.ts
-│   ├── interviewer.ts
-│   └── debate-orchestrator.ts
+│   ├── personas.ts
+│   └── stakeholders.ts
 ├── agents/                     # マルチエージェント構造
 │   ├── facilitator-agent.ts
 │   └── persona-agent.ts
-└── types/
-    └── index.ts                # Functions共通型定義
+├── constants/
+│   ├── ai.constants.ts
+│   └── debate.constants.ts
+├── llm/
+│   └── models.ts
+├── pipeline/                   # AI生成パイプライン（ドメイン別サブディレクトリ）
+│   ├── chapters/
+│   │   └── chapter-generator.ts
+│   ├── debate/
+│   │   ├── debate-lifecycle.ts
+│   │   ├── debate-orchestrator.ts
+│   │   ├── debate-state.ts
+│   │   ├── engagement.ts
+│   │   ├── intervention.ts
+│   │   ├── queued-intents.ts
+│   │   ├── speaker-selection.ts
+│   │   ├── turn.ts
+│   │   └── utils.ts
+│   ├── interviews/
+│   │   └── interview-runner.ts
+│   ├── personas/
+│   │   └── personas.ts
+│   ├── stakeholders/
+│   │   └── stakeholder-generator.ts
+│   └── topics/
+│       └── topics.ts
+├── search/
+│   └── search-service.ts
+├── types/                      # Functions共通型定義（ドメイン別分割）
+│   ├── chapter.types.ts
+│   ├── common.types.ts
+│   ├── debate.types.ts
+│   ├── interview.types.ts
+│   ├── persona.types.ts
+│   ├── stakeholder.types.ts
+│   └── topic.types.ts
+└── utils/
+    ├── auth.ts
+    └── prompt-formatters.ts
 ```
 
 ### Firebase Data Connect（データスキーマ）
