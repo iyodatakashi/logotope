@@ -8,13 +8,14 @@ import {
 	generateChapterIntroduction
 } from '../../agents/facilitator-agent.js';
 import { selectSpeaker } from './speaker-selection.js';
-import {
-	checkChapterContinuation,
-	hasReachedEarlyEnd,
-	chapterTurnCap
-} from './chapter-progress.js';
 import { restoreDebateState } from './state-restore.js';
-import { MAX_PAIR_CONVERSATION_TURNS } from '../../constants/flow.constants.js';
+import {
+	MAX_PAIR_CONVERSATION_TURNS,
+	CHAPTER_END_COUNT_LIMIT,
+	EARLY_END_PROGRESS_RATIO,
+	TURN_CAP_RATIO,
+	CONTINUE_CHAPTER_THRESHOLD
+} from '../../constants/flow.constants.js';
 import { evaluateEngagements, evaluateEngagementWithFallback } from './engagement.js';
 import { expireQueuedIntents, addQueuedIntents, consumeQueuedIntent, loadQueuedIntents } from './queued-intents.js';
 import { tryIntervention, countPersonaTurnsSinceFacilitator, persistInterventionTurn } from './intervention.js';
@@ -71,7 +72,7 @@ export const executeChapterTask = async (
 
 	const chapter = chapters[chapterIndex];
 	const { turnsPerChapter, maxTurns, interventionCooldown } = options;
-	const cap = chapterTurnCap(turnsPerChapter);
+	const cap = Math.ceil(turnsPerChapter * TURN_CAP_RATIO);
 	let chapterEndCount = 0;
 	const chapterTurnCount = () => state.turns.filter((t) => t.chapterId === chapter.id).length;
 
@@ -112,7 +113,10 @@ export const executeChapterTask = async (
 		});
 		if (shouldContinueChapter === null) return false;
 		chapterEndCount = shouldContinueChapter ? 0 : chapterEndCount + 1;
-		if (hasReachedEarlyEnd(chapterTurnCount(), turnsPerChapter, chapterEndCount)) break;
+		if (
+			chapterTurnCount() >= Math.ceil(turnsPerChapter * EARLY_END_PROGRESS_RATIO) &&
+			chapterEndCount >= CHAPTER_END_COUNT_LIMIT
+		) break;
 	}
 
 	// 章終了時に未応答の指名が残っていれば応答ターンを1件生成する（+1ターン許容）
@@ -282,7 +286,7 @@ const executeTurn = async ({
 		});
 
 	// 13. 章継続判定を返す
-	return checkChapterContinuation(engagements);
+	return engagements.length === 0 || engagements.some((a) => a.score >= CONTINUE_CHAPTER_THRESHOLD);
 };
 
 const getLastTargetPersona = (
