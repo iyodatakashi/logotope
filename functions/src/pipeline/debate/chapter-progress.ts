@@ -1,31 +1,26 @@
 import {
-	RECENT_SIGNAL_WINDOW,
+	CHAPTER_END_COUNT_LIMIT,
 	EARLY_END_PROGRESS_RATIO,
 	TURN_CAP_RATIO,
-	ACTIVE_SIGNAL_STRONG_SCORE
+	CONTINUE_CHAPTER_THRESHOLD
 } from '../../constants/flow.constants.js';
-import { isHighEngagement } from './speaker-selection.js';
-/** 評価結果から活性シグナルを算出する。評価スキップターン（評価なし）は常に 1 とする */
-export const isEngagementActive = (
-	assessments: ReadonlyArray<{ score: number; mode: 'opinion' | 'fact' | 'none' }>
+
+/** 評価結果から章継続判定を行う。評価スキップターン（評価なし）は常に true とする */
+export const checkChapterContinuation = (
+	engagements: ReadonlyArray<{ score: number }>
 ): boolean => {
-	if (assessments.length === 0) return true;
-	return assessments.some(
-		(a) =>
-			((a.mode === 'opinion' || a.mode === 'fact') && isHighEngagement(a)) ||
-			a.score >= ACTIVE_SIGNAL_STRONG_SCORE
-	);
+	if (engagements.length === 0) return true;
+	return engagements.some((a) => a.score >= CONTINUE_CHAPTER_THRESHOLD);
 };
 
-/** 目標の75%消化かつ直近5シグナルすべて非活性で true（シグナル5件未満は必ず false） */
-export const shouldEndChapterEarly = (
+/** 目標の75%消化かつ checkChapterContinuation が CHAPTER_END_COUNT_LIMIT 回連続 false で true */
+export const hasReachedEarlyEnd = (
 	chapterTurnCount: number,
 	targetTurns: number,
-	engagementSignals: ReadonlyArray<boolean>
+	chapterEndCount: number
 ): boolean => {
-	if (engagementSignals.length < RECENT_SIGNAL_WINDOW) return false;
 	if (chapterTurnCount < Math.ceil(targetTurns * EARLY_END_PROGRESS_RATIO)) return false;
-	return engagementSignals.slice(-RECENT_SIGNAL_WINDOW).every((signal) => !signal);
+	return chapterEndCount >= CHAPTER_END_COUNT_LIMIT;
 };
 
 /** 章の強制終了上限 = ceil(targetTurns * 1.5) */

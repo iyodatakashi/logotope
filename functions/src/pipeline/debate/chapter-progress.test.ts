@@ -1,55 +1,42 @@
 import { describe, it, expect } from 'vitest';
-import { toEngagementSignal, shouldEndChapterEarly, chapterTurnCap } from './chapter-progress.js';
+import { checkChapterContinuation, hasReachedEarlyEnd, chapterTurnCap } from './chapter-progress.js';
+import { CONTINUE_CHAPTER_THRESHOLD, CHAPTER_END_COUNT_LIMIT } from '../../constants/flow.constants.js';
 
-describe('toEngagementSignal', () => {
-  it('full かつ score>=4 のペルソナがいれば活性（1）', () => {
-    expect(toEngagementSignal([
-      { score: 4, mode: 'opinion' },
-      { score: 1, mode: 'none' },
-    ])).toBe(1);
+describe('checkChapterContinuation', () => {
+  it('CONTINUE_CHAPTER_THRESHOLD 以上のペルソナがいれば true', () => {
+    expect(checkChapterContinuation([
+      { score: CONTINUE_CHAPTER_THRESHOLD },
+      { score: 1 },
+    ])).toBe(true);
   });
 
-  it('score 5 はモードに関わらず活性（1）', () => {
-    expect(toEngagementSignal([{ score: 5, mode: 'none' }])).toBe(1);
+  it('全員が CONTINUE_CHAPTER_THRESHOLD 未満なら false', () => {
+    expect(checkChapterContinuation([
+      { score: CONTINUE_CHAPTER_THRESHOLD - 1 },
+      { score: 1 },
+    ])).toBe(false);
   });
 
-  it('opinion/fact でも score 3 以下なら非活性（0）', () => {
-    expect(toEngagementSignal([
-      { score: 3, mode: 'opinion' },
-      { score: 2, mode: 'fact' },
-    ])).toBe(0);
-  });
-
-  it('評価スキップターン（評価なし）は常に活性（1）', () => {
-    expect(toEngagementSignal([])).toBe(1);
+  it('評価スキップターン（評価なし）は常に true', () => {
+    expect(checkChapterContinuation([])).toBe(true);
   });
 });
 
-describe('shouldEndChapterEarly', () => {
-  const fiveInactive: Array<0 | 1> = [0, 0, 0, 0, 0];
-
-  it('75%消化かつ直近5シグナルすべて非活性なら true', () => {
-    expect(shouldEndChapterEarly(12, 16, fiveInactive)).toBe(true); // 75% = 12
+describe('hasReachedEarlyEnd', () => {
+  it('75%消化かつ chapterEndCount が CHAPTER_END_COUNT_LIMIT 以上なら true', () => {
+    expect(hasReachedEarlyEnd(12, 15, CHAPTER_END_COUNT_LIMIT)).toBe(true); // ceil(15*0.75)=12
   });
 
   it('75% 未満なら false（境界: ceil(15*0.75)=12 に対し 11）', () => {
-    expect(shouldEndChapterEarly(11, 15, fiveInactive)).toBe(false);
+    expect(hasReachedEarlyEnd(11, 15, CHAPTER_END_COUNT_LIMIT)).toBe(false);
   });
 
   it('75% 境界ちょうど（ceil(15*0.75)=12）で true', () => {
-    expect(shouldEndChapterEarly(12, 15, fiveInactive)).toBe(true);
+    expect(hasReachedEarlyEnd(12, 15, CHAPTER_END_COUNT_LIMIT)).toBe(true);
   });
 
-  it('シグナルが5件未満なら必ず false', () => {
-    expect(shouldEndChapterEarly(20, 15, [0, 0, 0, 0])).toBe(false);
-  });
-
-  it('直近5件に活性が1つでもあれば false', () => {
-    expect(shouldEndChapterEarly(12, 15, [0, 0, 1, 0, 0])).toBe(false);
-  });
-
-  it('直近5件より前の活性は判定に影響しない', () => {
-    expect(shouldEndChapterEarly(12, 15, [1, 1, 0, 0, 0, 0, 0])).toBe(true);
+  it('chapterEndCount が CHAPTER_END_COUNT_LIMIT 未満なら false', () => {
+    expect(hasReachedEarlyEnd(20, 15, CHAPTER_END_COUNT_LIMIT - 1)).toBe(false);
   });
 });
 
