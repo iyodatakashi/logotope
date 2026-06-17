@@ -1,0 +1,99 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { DebateTurn, DebateState } from '../../types/debate.types.js';
+
+const mockUpdate = vi.fn().mockResolvedValue(undefined);
+const mockDoc = vi.fn().mockReturnValue({ update: mockUpdate });
+
+vi.mock('firebase-admin/firestore', () => ({
+  getFirestore: vi.fn(() => ({ doc: mockDoc })),
+  Timestamp: { now: vi.fn(() => ({ toDate: () => new Date() })) },
+  FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args) },
+}));
+
+import {
+  countPersonaTurnsSinceFacilitator,
+  persistInterventionTurn,
+} from './debate-orchestrator.js';
+
+const makeTurn = (speakerType: 'persona' | 'facilitator', id: string, turnIndex = 0): DebateTurn => ({
+  id,
+  sessionId: 'topic1',
+  turnIndex,
+  speakerType,
+  content: 'test',
+  createdAt: '',
+});
+
+const makeState = (history: DebateTurn[] = []): DebateState => ({
+  history: [...history],
+  lastSpeakerId: undefined,
+  silenceMap: new Map(),
+  speakCount: new Map(),
+  pendingIntents: new Map(),
+  pairConversationTurns: 0,
+  targetPersona: undefined,
+  currentTurnIndex: history.length,
+  lastFacilitatorTurnIndex: -1,
+});
+
+describe('countPersonaTurnsSinceFacilitator', () => {
+  it('ファシリテーターターンが存在しない場合は全ペルソナターン数を返す', () => {
+    const history = [makeTurn('persona', 't1', 0), makeTurn('persona', 't2', 1)];
+    expect(countPersonaTurnsSinceFacilitator(history)).toBe(2);
+  });
+
+  it('末尾がファシリテーターターンの場合は 0 を返す', () => {
+    const history = [makeTurn('persona', 't1', 0), makeTurn('facilitator', 't2', 1)];
+    expect(countPersonaTurnsSinceFacilitator(history)).toBe(0);
+  });
+
+  it('複数のファシリテーターターンがある場合は最後のもの以降のペルソナターン数を返す', () => {
+    const history = [
+      makeTurn('persona', 't1', 0),
+      makeTurn('facilitator', 't2', 1),
+      makeTurn('persona', 't3', 2),
+      makeTurn('persona', 't4', 3),
+      makeTurn('facilitator', 't5', 4),
+      makeTurn('persona', 't6', 5),
+    ];
+    expect(countPersonaTurnsSinceFacilitator(history)).toBe(1);
+  });
+
+  it('空の履歴の場合は 0 を返す', () => {
+    expect(countPersonaTurnsSinceFacilitator([])).toBe(0);
+  });
+});
+
+describe('persistInterventionTurn', () => {
+  beforeEach(() => {
+    mockUpdate.mockClear();
+  });
+
+  it('targetPersonaId がある場合は targeted_by_facilitator の SpeakerSelection を返す', async () => {
+    const state = makeState();
+    const result = await persistInterventionTurn('topic1', state, '介入メッセージ', 'p1', 'ch-0');
+    expect(result).toEqual({ personaId: 'p1', reason: 'targeted_by_facilitator' });
+  });
+
+  it('targetPersonaId がない場合は undefined を返す', async () => {
+    const state = makeState();
+    const result = await persistInterventionTurn('topic1', state, '介入メッセージ', undefined, 'ch-0');
+    expect(result).toBeUndefined();
+  });
+
+  it('targetPersonaId の有無にかかわらず state.history に1件追加される', async () => {
+    const state = makeState();
+
+    await persistInterventionTurn('topic1', state, '介入A', 'p1', 'ch-0');
+    expect(state.history).toHaveLength(1);
+
+    await persistInterventionTurn('topic1', state, '介入B', undefined, 'ch-0');
+    expect(state.history).toHaveLength(2);
+  });
+
+  it('追加されたターンの speakerType は facilitator である', async () => {
+    const state = makeState();
+    await persistInterventionTurn('topic1', state, '介入メッセージ', 'p1', 'ch-0');
+    expect(state.history[0].speakerType).toBe('facilitator');
+  });
+});
