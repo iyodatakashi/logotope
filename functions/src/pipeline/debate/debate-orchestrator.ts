@@ -15,7 +15,7 @@ import {
 } from '../../agents/facilitator-agent.js';
 import {
 	generateTurn,
-	assessEngagement,
+	evaluateEngagement,
 	generatePostDebateComment
 } from '../../agents/persona-agent.js';
 import { selectSpeaker, shouldQueue, shouldSpeak } from './speaker-selection.js';
@@ -127,13 +127,14 @@ export const executeChapterTask = async (
 			}
 		: undefined;
 	if (speakerSelection) {
-		const engagements = await evaluateEngagement({ topicId, personas, state });
-		const speech = await resolveSpeechParams({
-			speakerId: speakerSelection.personaId,
-			personas,
-			state,
-			engagements
-		});
+		const engagements = await evaluateEngagements({ topicId, personas, state });
+		const speakerEngagement = engagements.find((a) => a.personaId === speakerSelection.personaId);
+		const speech: Engagement = speakerEngagement ?? await (async () => {
+			const persona = personas.find((p) => p.id === speakerSelection.personaId);
+			if (!persona) return { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
+			const result = await evaluateEngagement(persona, state.turns);
+			return result.ok ? result.value : { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
+		})();
 		const reply = await generatePersonaTurn({
 			topicId,
 			personas,
@@ -202,7 +203,7 @@ const executeTurn = async ({
 	state.targetPersona = undefined;
 
 	// 2. 全員の発言意欲を評価する（直前話者を除く）
-	const engagements = await evaluateEngagement({ topicId, personas, state });
+	const engagements = await evaluateEngagements({ topicId, personas, state });
 
 	// 3. ファシリテーター介入（介入した場合は早期終了）
 	const canContinuePairConversation = state.pairConversationTurns < MAX_PAIR_CONVERSATION_TURNS;
@@ -241,13 +242,14 @@ const executeTurn = async ({
 	state.pairConversationTurns =
 		speakerSelection.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
 
-	// 7. 発言パラメータ（モード・スコア・意図）を決定する
-	const speech = await resolveSpeechParams({
-		speakerId: speakerSelection.personaId,
-		personas,
-		state,
-		engagements
-	});
+	// 7. 発言パラメータ（モード・スコア・意図）を決定する（直前話者など評価対象外の場合は単独評価）
+	const speakerEngagement = engagements.find((a) => a.personaId === speakerSelection.personaId);
+	const speech: Engagement = speakerEngagement ?? await (async () => {
+		const persona = personas.find((p) => p.id === speakerSelection.personaId);
+		if (!persona) return { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
+		const result = await evaluateEngagement(persona, state.turns);
+		return result.ok ? result.value : { personaId: speakerSelection.personaId, mode: 'opinion' as const, score: 2 };
+	})();
 
 	// 8. ペルソナターンを生成・保存する
 	const reply = await generatePersonaTurn({
@@ -303,7 +305,7 @@ export const countPersonaTurnsSinceFacilitator = (history: readonly DebateTurn[]
  * saveEngagements（可視化保存）・活性シグナル記録・キュー失効を行う。
  * 返り値は当ターンの評価結果（直前話者を除く）。キュー追加は話者決定後に行う（executeTurn 内）。
  */
-const evaluateEngagement = async ({
+const evaluateEngagements = async ({
 	topicId,
 	personas,
 	state
@@ -330,7 +332,7 @@ const evaluateEngagement = async ({
 	const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
 	const engagements = await Promise.all(
 		assessTargets.map(async (p): Promise<Engagement> => {
-			const result = await assessEngagement(p, state.turns);
+			const result = await evaluateEngagement(p, state.turns);
 			return result.ok ? result.value : { personaId: p.id, score: 1, mode: 'none' };
 		})
 	);
@@ -515,29 +517,6 @@ export const persistInterventionTurn = async ({
 	return targetPersonaId
 		? { personaId: targetPersonaId, reason: 'targeted_by_facilitator' }
 		: undefined;
-};
-
-/** 選ばれた話者の発言パラメータ（mode/score・意図）を決める。evaluateEngagement の結果を優先し、評価対象外（直前話者など）のときのみ単独評価へフォールバックする */
-const resolveSpeechParams = async ({
-	speakerId,
-	personas,
-	state,
-	engagements
-}: {
-	speakerId: string;
-	personas: Persona[];
-	state: DebateState;
-	engagements?: ReadonlyArray<Engagement>;
-}): Promise<Engagement> => {
-	const existing = engagements?.find((a) => a.personaId === speakerId);
-	if (existing) {
-		return existing;
-	}
-	const persona = personas.find((p) => p.id === speakerId);
-	if (!persona) return { personaId: speakerId, mode: 'opinion', score: 2 };
-	const result = await assessEngagement(persona, state.turns);
-	if (!result.ok) return { personaId: speakerId, mode: 'opinion', score: 2 };
-	return result.value;
 };
 
 /** ファシリテーター発言を保存し、state.turns・state.targetPersona を更新して発言内容を返す */

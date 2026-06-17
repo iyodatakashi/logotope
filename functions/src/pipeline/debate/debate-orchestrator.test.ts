@@ -75,7 +75,7 @@ function makeMockPersonaAgent(overrides: Partial<Record<string, ReturnType<typeo
   return {
     generateTurn: vi.fn().mockResolvedValue({ ok: true, value: { content: '私の意見です。', speechMode: 'opinion', beliefChange: null, targetPersonaId: undefined } }),
     // デフォルト: p1=score4, p2=score2 で交互に発言が進む（どちらも opinion）
-    assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => ({
+    evaluateEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => ({
       ok: true, value: { score: persona.id === 'p1' ? 4 : 2, mode: 'opinion', intentSummary: undefined },
     })),
     generatePostDebateComment: vi.fn().mockImplementation(async (persona: { id: string }) => ({
@@ -206,7 +206,7 @@ describe('DebateOrchestratorService', () => {
         ['p2', [{ triggerTurnIndex: 0, intentSummary: 'キューの意図' }]],
       ]));
       const mockPersonaAgent = makeMockPersonaAgent({
-        assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
+        evaluateEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
       });
       const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
@@ -335,7 +335,7 @@ describe('DebateOrchestratorService', () => {
 
       await service.executeChapterTask('t1', 0);
 
-      const assessCalls = (mockPersonaAgent.assessEngagement as ReturnType<typeof vi.fn>).mock.calls;
+      const assessCalls = (mockPersonaAgent.evaluateEngagement as ReturnType<typeof vi.fn>).mock.calls;
       expect(assessCalls.length).toBeGreaterThanOrEqual(1);
       // 開会で指名された本人（p1）を評価する
       expect(assessCalls[0][0].id).toBe('p1');
@@ -346,7 +346,7 @@ describe('DebateOrchestratorService', () => {
 
     it('個別ペルソナの意欲評価失敗は score 1 として継続する', async () => {
       const mockPersonaAgent = makeMockPersonaAgent({
-        assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) =>
+        evaluateEngagement: vi.fn().mockImplementation(async (persona: { id: string }) =>
           persona.id === 'p2'
             ? { ok: false, error: { code: 'AI_API_ERROR', message: 'assess failed', retryable: true } }
             : { ok: true, value: { score: 3, mode: 'opinion', intentSummary: undefined } }
@@ -361,7 +361,7 @@ describe('DebateOrchestratorService', () => {
     it('score 5 で選ばれなかったペルソナのキュー追加が setPendingIntents で永続化される', async () => {
       vi.mocked(repo.getPersonasByTopicId).mockResolvedValue([...testPersonas, p3Profile]);
       const mockPersonaAgent = makeMockPersonaAgent({
-        assessEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => {
+        evaluateEngagement: vi.fn().mockImplementation(async (persona: { id: string }) => {
           if (persona.id === 'p2') return { ok: true, value: { score: 5, mode: 'opinion', intentSummary: '先に言いたい' } };
           if (persona.id === 'p3') return { ok: true, value: { score: 5, mode: 'opinion', intentSummary: '言いたいこと' } };
           return { ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } };
@@ -392,7 +392,7 @@ describe('DebateOrchestratorService', () => {
         ['p2', [{ triggerTurnIndex: 0, intentSummary: 'キューの意図' }]],
       ]));
       const mockPersonaAgent = makeMockPersonaAgent({
-        assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
+        evaluateEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
       });
       const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, makeMockChapterGenerator(), shortOptions);
 
@@ -523,7 +523,7 @@ describe('DebateOrchestratorService', () => {
     it('75%消化かつ直近5シグナル非活性で章を早期終了する', async () => {
       // turnsPerChapter=8 → 75%=ceil(6)ターン・上限12ターン。ファシリテーターのオープニングが1ターン消費するため、ペルソナ発言は5ターンで総数6に達し早期終了
       const mockPersonaAgent = makeMockPersonaAgent({
-        assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 1, mode: 'none', intentSummary: undefined } }),
+        evaluateEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 1, mode: 'none', intentSummary: undefined } }),
       });
       const mockChapterGenerator = makeMockChapterGenerator();
       const service = new DebateOrchestratorService(makeMockFacilitator(), mockPersonaAgent, mockChapterGenerator, { turnsPerChapter: 8, maxTurns: 40, interventionCooldown: 99 });
@@ -578,7 +578,7 @@ describe('DebateOrchestratorService', () => {
           .mockResolvedValue({ ok: true, value: { } }),
       });
       const mockPersonaAgent = makeMockPersonaAgent({
-        assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
+        evaluateEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
       });
       // interventionCooldown=99 → 現行コードでは B が一切発火しない（interventionAllowed=false）
       const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockChapterGenerator(), {
@@ -653,7 +653,7 @@ describe('DebateOrchestratorService', () => {
           .mockResolvedValue({ ok: true, value: { } }),
       });
       const mockPersonaAgent = makeMockPersonaAgent({
-        assessEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
+        evaluateEngagement: vi.fn().mockResolvedValue({ ok: true, value: { score: 2, mode: 'opinion', intentSummary: undefined } }),
       });
       // cap を広げてA介入後にp3のキュー選択が実行されるターンを確保する
       const service = new DebateOrchestratorService(mockFacilitator, mockPersonaAgent, makeMockChapterGenerator(), { turnsPerChapter: 3, maxTurns: 40, interventionCooldown: 0 });

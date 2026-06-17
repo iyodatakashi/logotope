@@ -409,7 +409,7 @@ export async function generateTurn(
 		}
 }
 
-export async function assessEngagement(
+export async function evaluateEngagement(
 	persona: Persona,
 	turns: DebateTurn[]
 ): Promise<Result<Engagement, PipelineError>> {

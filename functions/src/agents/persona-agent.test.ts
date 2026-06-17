@@ -445,12 +445,12 @@ describe('PersonaAgentService', () => {
     });
   });
 
-  // ---- assessEngagement ----
+  // ---- evaluateEngagement ----
 
-  describe('assessEngagement — Task 2.1 スキーマ拡張', () => {
+  describe('evaluateEngagement — Task 2.1 スキーマ拡張', () => {
     it('mode フィールドが返り値に含まれる', async () => {
       mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 4, mode: 'opinion', intentSummary: '医療費問題に反論したい' }));
-      const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.evaluateEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value.mode).toBe('opinion');
@@ -458,7 +458,7 @@ describe('PersonaAgentService', () => {
 
     it('intentSummary フィールドが返り値に含まれる', async () => {
       mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'opinion', intentSummary: 'そうですね' }));
-      const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.evaluateEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value.intentSummary).toBe('そうですね');
@@ -466,7 +466,7 @@ describe('PersonaAgentService', () => {
 
     it('score === 1 のとき mode が強制的に none になる', async () => {
       mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 1, mode: 'opinion', intentSummary: '発言したい' }));
-      const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.evaluateEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value.mode).toBe('none');
@@ -474,7 +474,7 @@ describe('PersonaAgentService', () => {
 
     it('mode === none のとき intentSummary が undefined になる', async () => {
       mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 2, mode: 'none', intentSummary: 'なにか言いたい' }));
-      const result = await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      const result = await service.evaluateEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       expect(result.ok).toBe(true);
       if (!result.ok) return;
       expect(result.value.intentSummary).toBeUndefined();
@@ -482,22 +482,22 @@ describe('PersonaAgentService', () => {
 
     it('ASSESS_ENGAGEMENT_TOOL スキーマに mode フィールドが含まれる', async () => {
       mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'opinion' }));
-      await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      await service.evaluateEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       const tools = mockGenerateText.mock.calls[0][0].tools as Record<string, { parameters: { properties: Record<string, unknown> } }>;
       expect(tools['assess_engagement'].parameters.properties).toHaveProperty('mode');
     });
 
     it('ASSESS_ENGAGEMENT_TOOL スキーマに intentSummary フィールドが含まれる', async () => {
       mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'opinion', intentSummary: '意見あり' }));
-      await service.assessEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
+      await service.evaluateEngagement(testPersona, testCurrentBelief, testInterviewRecord, testHistory);
       const tools = mockGenerateText.mock.calls[0][0].tools as Record<string, { parameters: { properties: Record<string, unknown> } }>;
       expect(tools['assess_engagement'].parameters.properties).toHaveProperty('intentSummary');
     });
 
-    it('assessEngagement が persona.llmType に応じた getPersonaModel を呼び出す（task 5.2）', async () => {
+    it('evaluateEngagement が persona.llmType に応じた getPersonaModel を呼び出す（task 5.2）', async () => {
       mockGenerateText.mockResolvedValue(makeEngagementResult({ score: 3, mode: 'opinion' }));
       const personaWithLlmType = { ...testPersona, llmType: 'gemini' as const };
-      await service.assessEngagement(personaWithLlmType, testCurrentBelief, testInterviewRecord, testHistory);
+      await service.evaluateEngagement(personaWithLlmType, testCurrentBelief, testInterviewRecord, testHistory);
       expect(mockGetPersonaModel).toHaveBeenCalledWith('gemini');
     });
   });

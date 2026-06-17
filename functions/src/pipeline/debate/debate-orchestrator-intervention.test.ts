@@ -64,7 +64,7 @@ vi.mock('../../agents/facilitator-agent.js', () => ({
 
 vi.mock('../../agents/persona-agent.js', () => ({
 	generateTurn: mockGenerateTurn,
-	assessEngagement: mockAssessEngagement,
+	evaluateEngagement: mockAssessEngagement,
 	generatePostDebateComment: vi.fn().mockImplementation(async (persona: { id: string }) => ({
 		ok: true,
 		value: { personaId: persona.id, content: 'コメント' },
@@ -180,7 +180,7 @@ describe('介入後ターン順序の統合テスト (task 5.3)', () => {
 		expect(turnUpdates[2].speakerType).toBe('persona');     // persona after intervention
 	});
 
-	it('介入後イテレーションで assessEngagement が全ペルソナを対象とする（lastSpeakerId クリア確認）', async () => {
+	it('介入後イテレーションで evaluateEngagement が全ペルソナを対象とする（lastSpeakerId クリア確認）', async () => {
 		mockEvaluateTopicDrift
 			.mockResolvedValueOnce({ ok: true, value: { content: '論点逸れ。', targetPersonaId: 'p2' } })
 			.mockResolvedValue({ ok: true, value: {} });
