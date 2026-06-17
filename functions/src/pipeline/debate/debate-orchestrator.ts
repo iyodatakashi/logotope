@@ -45,8 +45,6 @@ export const executeChapterTask = async (
 	chapterIndex: number,
 	options: DebateOptions = DEFAULT_OPTIONS
 ): Promise<boolean> => {
-	const sessionId = topicId;
-
 	// 停止ゲート: トピックが討論かつ実行中でなければ何も生成・上書きしない
 	if (!(await isDebateActive(topicId))) return false;
 
@@ -61,23 +59,19 @@ export const executeChapterTask = async (
 
 	const { personas, topicTitle } = await loadSessionContext(topicId);
 
-	const existingTurns = await getDebateTurnsBySessionId(topicId);
-	const persistedPendingIntents = await loadPendingIntents(sessionId);
+	const existingTurns = await getDebateTurnsByTopicId(topicId);
+	const persistedPendingIntents = await loadPendingIntents(topicId);
 	const state = restoreDebateState(existingTurns, personas, persistedPendingIntents);
 
 	const chapters: Chapter[] = session.chapters ?? [];
 
 	// 第1章の開始: オープニング生成（章立ては generateChapters で事前に保存済み）
 	if (chapterIndex === 0 && state.history.length === 0) {
-		const openingResult = await generateOpening(
-			topicTitle,
-			personas,
-			chapters[0]
-		);
+		const openingResult = await generateOpening(topicTitle, personas, chapters[0]);
 		if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
 		const targetPersonaId = validPersonaId(openingResult.value.targetPersonaId, personas);
 		await saveFacilitatorTurn(
-			sessionId,
+			topicId,
 			state,
 			openingResult.value.content ?? '',
 			targetPersonaId,
@@ -92,7 +86,6 @@ export const executeChapterTask = async (
 	await updateCurrentChapterIndex(topicId, chapterIndex);
 
 	const outcome = await runChapterLoop(
-		sessionId,
 		topicId,
 		personas,
 		chapters[chapterIndex],
@@ -102,14 +95,14 @@ export const executeChapterTask = async (
 	if (outcome === 'cancelled') return false;
 
 	// 章終了時に未応答の指名・直接質問が残っていれば応答ターンを1件生成する（+1ターン許容）
-	await generateUnansweredReply(sessionId, topicId, personas, chapters[chapterIndex], state);
+	await generateUnansweredReply(topicId, personas, chapters[chapterIndex], state);
 
 	const isLastChapter = options.singleChapterMode || chapterIndex >= chapters.length - 1;
 	if (isLastChapter) {
-		await finalizeDebate(sessionId, topicId, personas, state);
+		await finalizeDebate(topicId, personas, state);
 		return false;
 	}
-	await generateChapterTransition(sessionId, chapters, chapterIndex, state, personas);
+	await generateChapterTransition(topicId, chapters, chapterIndex, state, personas);
 	return true;
 };
 
@@ -122,12 +115,40 @@ const loadSessionContext = async (topicId: string) => {
 	return { topicTitle: topic.title, personas };
 };
 
+/** 直近のファシリテーターターン以降のペルソナターン数を返す（A介入クールダウン判定用） */
+export const countPersonaTurnsSinceFacilitator = (history: readonly DebateTurn[]): number => {
+	const lastFacilitatorIdx = history.reduce(
+		(max, t, i) => (t.speakerType === 'facilitator' ? i : max),
+		-1
+	);
+	return history.slice(lastFacilitatorIdx + 1).filter((t) => t.speakerType === 'persona').length;
+};
+
+/** 高意欲かつ非選択ペルソナのインテントをキューに追加し Firestore に write-through する */
+const enqueueHighEngagementIntents = async (
+	topicId: string,
+	state: DebateState,
+	assessments: readonly Engagement[],
+	decision: SpeakerSelection,
+	triggerTurnIndex: number
+): Promise<void> => {
+	for (const assessment of assessments) {
+		if (!isHighEngagement(assessment) || assessment.personaId === decision.personaId) continue;
+		const existing = state.pendingIntents.get(assessment.personaId) ?? [];
+		const updated = [
+			...existing,
+			{ triggerTurnIndex, intentSummary: assessment.intentSummary ?? '' }
+		];
+		state.pendingIntents.set(assessment.personaId, updated);
+		await setPendingIntents(topicId, assessment.personaId, updated);
+	}
+};
+
 /**
  * 正準フロー「章ループ」: 1ターンを「停止ゲート → 全員評価 → 話者決定 → 発言パラメータ取得 → 発言生成・保存 → 状態更新 → 章終了判定」の固定順で進行する。
  * 話者決定の優先順位: 指名・直接質問 > A（論点ずれ、クールダウン後かつ指名なし時のみ評価）> B（出尽くし、高意欲者なし時のみ評価・クールダウン不問）> キュー > スコア。
  */
 const runChapterLoop = async (
-	sessionId: string,
 	topicId: string,
 	personas: Persona[],
 	chapter: Chapter,
@@ -144,7 +165,7 @@ const runChapterLoop = async (
 		// 各ターン境界でトピックのゲートを確認する（上流再生成でフェーズが戻った場合も停止）
 		if (!(await isDebateActive(topicId))) return 'cancelled';
 
-		// 1. 指名済みターゲットを確認する（BC2: 指名は介入より優先）
+		// 指名・直接質問は介入より優先して確定する
 		const targetPersona = state.targetPersona;
 		state.targetPersona = undefined;
 		const pairDecision = resolvePairConversation(
@@ -153,39 +174,27 @@ const runChapterLoop = async (
 			personaIds
 		);
 
-		// 2. 毎ターン全員（直前話者除く）の発言意欲を評価・保存・キュー失効を実行する（BC3）
-		const assessments = await evaluateEngagement(sessionId, personas, state);
+		const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
+		const assessments = await evaluateEngagement(topicId, personas, state);
 		engagementSignals.push(toEngagementSignal(assessments));
 
-		// 3. 論点ずれ介入(A)専用のクールダウン判定
-		const lastFacilitatorIdx = state.history.reduce(
-			(max, t, i) => (t.speakerType === 'facilitator' ? i : max),
-			-1
-		);
-		const personaTurnsSinceFacilitator = state.history
-			.slice(lastFacilitatorIdx + 1)
-			.filter((t) => t.speakerType === 'persona').length;
+		// A介入クールダウン: ファシリテーター以降のペルソナターン数が閾値を超えた場合のみ評価する
 		const driftCooldownPassed = shouldEvaluateIntervention(
-			personaTurnsSinceFacilitator,
+			countPersonaTurnsSinceFacilitator(state.history),
 			interventionCooldown
 		);
 
-		// 4. 話者決定: 指名・直接質問 > A > B > キュー > スコア（BC1: B はクールダウン不問 / BC2: 指名を先行評価）
+		// 優先: 指名 > A介入（クールダウン後） > B介入 > キュー > スコア
 		let decision: SpeakerSelection;
 		if (pairDecision) {
 			decision = pairDecision;
 		} else if (driftCooldownPassed) {
-			const driftDecision = await tryTopicDriftIntervention(
-				sessionId,
-				personas,
-				chapter,
-				state
-			);
+			const driftDecision = await tryTopicDriftIntervention(topicId, personas, chapterHistory, chapter, state);
 			if (driftDecision) {
 				decision = driftDecision;
 			} else {
 				decision =
-					(await tryStallIntervention(sessionId, personas, chapter, state, assessments)) ??
+					(await tryStallIntervention(topicId, personas, chapterHistory, chapter, state, assessments)) ??
 					decideNextSpeaker(
 						assessments,
 						state.pendingIntents,
@@ -196,7 +205,7 @@ const runChapterLoop = async (
 			}
 		} else {
 			decision =
-				(await tryStallIntervention(sessionId, personas, chapter, state, assessments)) ??
+				(await tryStallIntervention(topicId, personas, chapterHistory, chapter, state, assessments)) ??
 				decideNextSpeaker(
 					assessments,
 					state.pendingIntents,
@@ -206,37 +215,23 @@ const runChapterLoop = async (
 				);
 		}
 
-		// 5. 介入ターンで討論全体の上限に達した場合は打ち切る
+		// 介入ターンで討論全体の上限に達した場合は打ち切る
 		if (state.history.length >= maxTurns) break;
 
-		// 6. キュー追加（高意欲・非選択）を発生の都度 write-through
-		const triggerTurnIndex = Math.max(0, state.history.length - 1);
-		for (const assessment of assessments) {
-			if (!isHighEngagement(assessment) || assessment.personaId === decision.personaId) continue;
-			const existing = state.pendingIntents.get(assessment.personaId) ?? [];
-			const updated = [
-				...existing,
-				{ triggerTurnIndex, intentSummary: assessment.intentSummary ?? '' }
-			];
-			state.pendingIntents.set(assessment.personaId, updated);
-			await setPendingIntents(sessionId, assessment.personaId, updated);
-		}
+		await enqueueHighEngagementIntents(
+			topicId,
+			state,
+			assessments,
+			decision,
+			Math.max(0, state.history.length - 1)
+		);
 
-		// 7. ペア対話カウントを一元更新する（persona:+1、その他:0）
 		state.pairConversationTurns =
 			decision.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
 
-		// 8. 発言パラメータを確定する
-		const speech = await resolveSpeechParams(
-			decision.personaId,
-			personas,
-			state,
-			assessments
-		);
+		const speech = await resolveSpeechParams(decision.personaId, personas, state, assessments);
 
-		// 9. 発言生成・保存・状態更新
 		const saved = await generatePersonaTurn(
-			sessionId,
 			topicId,
 			personas,
 			chapter,
@@ -246,7 +241,6 @@ const runChapterLoop = async (
 		);
 		if (!saved) return 'cancelled';
 
-		// 10. 章終了判定（早期終了）
 		if (shouldEndChapterEarly(chapterTurnCount(), turnsPerChapter, engagementSignals)) {
 			return 'ended';
 		}
@@ -260,7 +254,7 @@ const runChapterLoop = async (
  * 返り値は当ターンの評価結果（直前話者を除く）。キュー追加は話者決定後に行う（runChapterLoop 内）。
  */
 const evaluateEngagement = async (
-	sessionId: string,
+	topicId: string,
 	personas: Persona[],
 	state: DebateState
 ): Promise<Engagement[]> => {
@@ -275,7 +269,7 @@ const evaluateEngagement = async (
 		} else {
 			state.pendingIntents.set(personaId, alive);
 		}
-		await setPendingIntents(sessionId, personaId, alive);
+		await setPendingIntents(topicId, personaId, alive);
 	}
 
 	// 直前話者を除く全員の発言意欲を評価する。評価失敗は最低意欲（score 1）として継続する
@@ -289,7 +283,7 @@ const evaluateEngagement = async (
 
 	// 評価結果を毎ターン保存する（管理画面での可視化用）
 	await saveEngagements({
-		sessionId,
+		topicId,
 		turnIndex: Math.max(0, state.history.length - 1),
 		assessments: assessments.map((a) => ({
 			personaId: a.personaId,
@@ -304,16 +298,16 @@ const evaluateEngagement = async (
 
 /** B（出尽くし）介入: 高意欲者がいない場合のみ発火し、クールダウンを参照しない（BC1）。介入する場合は指名 decision を返す */
 const tryStallIntervention = async (
-	sessionId: string,
+	topicId: string,
 	personas: Persona[],
+	chapterHistory: readonly DebateTurn[],
 	chapter: Chapter,
 	state: DebateState,
 	assessments: Engagement[]
 ): Promise<SpeakerSelection | undefined> => {
 	if (hasHighEngagement(assessments)) return undefined;
-	const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
 	const result = await evaluateStallIntervention(
-		chapterHistory,
+		chapterHistory as DebateTurn[],
 		personas,
 		state.speakCount,
 		chapter
@@ -321,30 +315,35 @@ const tryStallIntervention = async (
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 	if (!result.value.content) return undefined;
 	const targetId = validPersonaId(result.value.targetPersonaId, personas);
-	await saveFacilitatorTurn(sessionId, state, result.value.content, targetId, chapter.id);
-	return targetId ? { personaId: targetId, reason: 'targeted_by_facilitator' } : undefined;
+	return persistInterventionTurn(topicId, state, result.value.content, targetId, chapter.id);
+};
+
+/** ファシリテーター介入ターンを保存し、ターゲットがあれば SpeakerSelection を返す */
+export const persistInterventionTurn = async (
+	topicId: string,
+	state: DebateState,
+	content: string,
+	targetPersonaId: string | undefined,
+	chapterId: string
+): Promise<SpeakerSelection | undefined> => {
+	await saveFacilitatorTurn(topicId, state, content, targetPersonaId, chapterId);
+	return targetPersonaId ? { personaId: targetPersonaId, reason: 'targeted_by_facilitator' } : undefined;
 };
 
 /** A（論点ずれ）: 逸脱していれば介入を保存して指名 decision を返す。クールダウン通過後かつ指名なし時のみ評価する */
 const tryTopicDriftIntervention = async (
-	sessionId: string,
+	topicId: string,
 	personas: Persona[],
+	chapterHistory: readonly DebateTurn[],
 	chapter: Chapter,
 	state: DebateState
 ): Promise<SpeakerSelection | undefined> => {
-	const chapterHistory = state.history.filter((t) => t.chapterId === chapter.id);
-	const result = await evaluateTopicDrift(
-		chapterHistory,
-		personas,
-		state.speakCount,
-		chapter
-	);
+	const result = await evaluateTopicDrift(chapterHistory as DebateTurn[], personas, state.speakCount, chapter);
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 	if (!result.value.content) return undefined;
 	const targetId = validPersonaId(result.value.targetPersonaId, personas);
 	if (!targetId) return undefined;
-	await saveFacilitatorTurn(sessionId, state, result.value.content, targetId, chapter.id);
-	return { personaId: targetId, reason: 'targeted_by_facilitator' };
+	return persistInterventionTurn(topicId, state, result.value.content, targetId, chapter.id);
 };
 
 /** 選ばれた話者の発言パラメータ（mode/score・意図）を決める。evaluateEngagement の結果を優先し、評価対象外（直前話者など）のときのみ単独評価へフォールバックする */
@@ -367,7 +366,6 @@ const resolveSpeechParams = async (
 
 /** 決定に基づきペルソナ発言を生成・保存し、状態（沈黙・キュー・信念・次ターン指名）を更新する */
 const generatePersonaTurn = async (
-	sessionId: string,
 	topicId: string,
 	personas: Persona[],
 	chapter: Chapter,
@@ -418,7 +416,7 @@ const generatePersonaTurn = async (
 
 	const turnIndex = state.history.length;
 	const { id: turnId } = await addTurn({
-		sessionId,
+		topicId,
 		turnIndex,
 		speakerType: 'persona',
 		personaId: persona.id,
@@ -435,7 +433,7 @@ const generatePersonaTurn = async (
 	});
 	state.history.push({
 		id: turnId,
-		sessionId,
+		sessionId: topicId,
 		turnIndex,
 		speakerType: 'persona',
 		personaId: persona.id,
@@ -462,7 +460,7 @@ const generatePersonaTurn = async (
 		} else {
 			state.pendingIntents.set(persona.id, remaining);
 		}
-		await setPendingIntents(sessionId, persona.id, remaining);
+		await setPendingIntents(topicId, persona.id, remaining);
 	}
 
 	// 信念変化の保存と以後のターンへの反映
@@ -502,7 +500,6 @@ const generatePersonaTurn = async (
 
 /** 章終了時に未応答の指名・直接質問が残っていれば応答ターンを1件生成する（本体と同じ評価・発言生成の流れ） */
 const generateUnansweredReply = async (
-	sessionId: string,
 	topicId: string,
 	personas: Persona[],
 	chapter: Chapter,
@@ -519,16 +516,16 @@ const generateUnansweredReply = async (
 	);
 	if (!decision) return;
 
-	const assessments = await evaluateEngagement(sessionId, personas, state);
+	const assessments = await evaluateEngagement(topicId, personas, state);
 	const speech = await resolveSpeechParams(decision.personaId, personas, state, assessments);
-	await generatePersonaTurn(sessionId, topicId, personas, chapter, state, decision, speech);
+	await generatePersonaTurn(topicId, personas, chapter, state, decision, speech);
 	// 章は終了するため、応答ターン由来の指名は引き継がない
 	state.targetPersona = undefined;
 };
 
 /** ファシリテーター発言を保存し、state.history に追加する */
 const saveFacilitatorTurn = async (
-	sessionId: string,
+	topicId: string,
 	state: DebateState,
 	content: string,
 	targetPersonaId?: string,
@@ -536,7 +533,7 @@ const saveFacilitatorTurn = async (
 ): Promise<void> => {
 	const turnIndex = state.history.length;
 	const { id: turnId } = await addTurn({
-		sessionId,
+		topicId,
 		turnIndex,
 		speakerType: 'facilitator',
 		speakerName: 'ファシリテーター',
@@ -547,7 +544,7 @@ const saveFacilitatorTurn = async (
 	});
 	state.history.push({
 		id: turnId,
-		sessionId,
+		sessionId: topicId,
 		turnIndex,
 		speakerType: 'facilitator',
 		speakerName: 'ファシリテーター',
@@ -562,7 +559,7 @@ const saveFacilitatorTurn = async (
 
 /** 章遷移: 現章まとめ＋次章導入の2ターンを生成し、導入で最初の発言者を指名する */
 const generateChapterTransition = async (
-	sessionId: string,
+	topicId: string,
 	chapters: Chapter[],
 	currentChapterIndex: number,
 	state: DebateState,
@@ -574,14 +571,14 @@ const generateChapterTransition = async (
 
 	const summaryResult = await generateChapterSummary(recentHistory, chapter);
 	if (summaryResult.ok) {
-		await saveFacilitatorTurn(sessionId, state, summaryResult.value, undefined, chapter.id);
+		await saveFacilitatorTurn(topicId, state, summaryResult.value, undefined, chapter.id);
 	}
 
 	const introResult = await generateChapterIntroduction(nextChapter, personas);
 	if (introResult.ok) {
 		const targetPersonaId = validPersonaId(introResult.value.targetPersonaId, personas);
 		await saveFacilitatorTurn(
-			sessionId,
+			topicId,
 			state,
 			introResult.value.content ?? '',
 			targetPersonaId,
@@ -595,7 +592,6 @@ const generateChapterTransition = async (
 
 /** 討論終端: クロージング → 事後コメント → セッション完了 */
 const finalizeDebate = async (
-	sessionId: string,
 	topicId: string,
 	personas: Persona[],
 	state: DebateState
@@ -603,7 +599,7 @@ const finalizeDebate = async (
 	const finalBeliefs = new Map(personas.map((p) => [p.id, getLatestBelief(p).content]));
 	const closingResult = await generateClosing(state.history, finalBeliefs);
 	if (!closingResult.ok) throw new Error(pipelineErrorMessage(closingResult.error));
-	await saveFacilitatorTurn(sessionId, state, closingResult.value ?? '');
+	await saveFacilitatorTurn(topicId, state, closingResult.value ?? '');
 
 	for (let i = 0; i < personas.length; i++) {
 		const persona = personas[i];
@@ -611,7 +607,7 @@ const finalizeDebate = async (
 		const commentResult = await generatePostDebateComment(persona, finalBelief, state.history);
 		if (commentResult.ok) {
 			await createPostDebateComment({
-				sessionId,
+				topicId,
 				personaId: persona.id,
 				content: commentResult.value.content,
 				sortOrder: i
@@ -619,11 +615,9 @@ const finalizeDebate = async (
 		}
 	}
 
-	await completeDebateSession(sessionId, state.history.length);
+	await completeDebateSession(topicId, state.history.length);
 	await finalizeTopic(topicId);
 };
-
-// ---- Firestore helpers ----
 
 const db = () => getFirestore();
 
@@ -650,7 +644,7 @@ const finalizeTopic = async (topicId: string): Promise<boolean> => {
 };
 
 const addTurn = async (params: {
-	sessionId: string;
+	topicId: string;
 	turnIndex: number;
 	speakerType: 'persona' | 'facilitator';
 	personaId?: string;
@@ -684,7 +678,7 @@ const addTurn = async (params: {
 	if (params.searchUsed) turn.searchUsed = true;
 	if (params.searchQueries?.length) turn.searchQueries = params.searchQueries;
 	await db()
-		.doc(`topics/${params.sessionId}/sessions/0`)
+		.doc(`topics/${params.topicId}/sessions/0`)
 		.update({ turns: FieldValue.arrayUnion(turn) });
 	return { id };
 };
@@ -715,14 +709,14 @@ const updatePersonaBelief = async (params: {
 };
 
 const createPostDebateComment = async (params: {
-	sessionId: string;
+	topicId: string;
 	personaId: string;
 	content: string;
 	sortOrder: number;
 }): Promise<{ id: string }> => {
 	const id = nanoid();
 	await db()
-		.doc(`topics/${params.sessionId}/sessions/0`)
+		.doc(`topics/${params.topicId}/sessions/0`)
 		.update({
 			postDebateComments: FieldValue.arrayUnion({
 				id,
@@ -734,8 +728,8 @@ const createPostDebateComment = async (params: {
 	return { id };
 };
 
-const completeDebateSession = async (id: string, totalTurns: number): Promise<void> => {
-	await db().doc(`topics/${id}/sessions/0`).update({ totalTurns, completedAt: Timestamp.now() });
+const completeDebateSession = async (topicId: string, totalTurns: number): Promise<void> => {
+	await db().doc(`topics/${topicId}/sessions/0`).update({ totalTurns, completedAt: Timestamp.now() });
 };
 
 const updateCurrentChapterIndex = async (topicId: string, index: number): Promise<void> => {
@@ -743,7 +737,7 @@ const updateCurrentChapterIndex = async (topicId: string, index: number): Promis
 };
 
 const saveEngagements = async (params: {
-	sessionId: string;
+	topicId: string;
 	turnIndex: number;
 	assessments: Array<{
 		personaId: string;
@@ -754,7 +748,7 @@ const saveEngagements = async (params: {
 }): Promise<void> => {
 	for (const assessment of params.assessments) {
 		const ref = db().doc(
-			`topics/${params.sessionId}/sessions/0/engagements/${assessment.personaId}`
+			`topics/${params.topicId}/sessions/0/engagements/${assessment.personaId}`
 		);
 		const entry: Record<string, unknown> = { score: assessment.score, mode: assessment.mode };
 		if (assessment.intentSummary !== undefined) entry.intentSummary = assessment.intentSummary;
@@ -766,17 +760,17 @@ const saveEngagements = async (params: {
 };
 
 const setPendingIntents = async (
-	sessionId: string,
+	topicId: string,
 	personaId: string,
 	items: ReadonlyArray<PendingIntent>
 ): Promise<void> => {
 	await db()
-		.doc(`topics/${sessionId}/sessions/0/engagements/${personaId}`)
+		.doc(`topics/${topicId}/sessions/0/engagements/${personaId}`)
 		.set({ pendingIntents: [...items] }, { merge: true });
 };
 
-const loadPendingIntents = async (sessionId: string): Promise<Map<string, PendingIntent[]>> => {
-	const snap = await db().collection(`topics/${sessionId}/sessions/0/engagements`).get();
+const loadPendingIntents = async (topicId: string): Promise<Map<string, PendingIntent[]>> => {
+	const snap = await db().collection(`topics/${topicId}/sessions/0/engagements`).get();
 	const result = new Map<string, PendingIntent[]>();
 	for (const docSnap of snap.docs) {
 		const data = docSnap.data() as { pendingIntents?: PendingIntent[] };
@@ -785,8 +779,8 @@ const loadPendingIntents = async (sessionId: string): Promise<Map<string, Pendin
 	return result;
 };
 
-const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[]> => {
-	const snap = await db().doc(`topics/${sessionId}/sessions/0`).get();
+const getDebateTurnsByTopicId = async (topicId: string): Promise<DebateTurn[]> => {
+	const snap = await db().doc(`topics/${topicId}/sessions/0`).get();
 	if (!snap.exists) return [];
 	const data = snap.data() as {
 		turns?: Array<{
@@ -805,7 +799,7 @@ const getDebateTurnsBySessionId = async (sessionId: string): Promise<DebateTurn[
 	};
 	return (data.turns ?? []).map((t) => ({
 		id: t.id,
-		sessionId,
+		sessionId: topicId,
 		turnIndex: t.turnIndex,
 		speakerType: t.speakerType,
 		personaId: t.personaId ?? null,
