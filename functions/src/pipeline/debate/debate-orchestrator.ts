@@ -100,12 +100,6 @@ export const executeChapterTask = async (
 
 	while (chapterTurnCount() < cap && state.turns.length < maxTurns) {
 		if (!(await isDebateActive(topicId))) return false;
-		if (state.pendingIntervention) {
-			const { content, targetPersonaId, chapterId } = state.pendingIntervention;
-			await persistInterventionTurn({ topicId, state, content, targetPersonaId, chapterId });
-			state.pendingIntervention = undefined;
-			if (state.turns.length >= maxTurns) break;
-		}
 		const isActive = await executeTurn({ topicId, personas, chapter, state, interventionCooldown });
 		if (isActive === null) return false;
 		activityLog.push(isActive);
@@ -182,36 +176,37 @@ const executeTurn = async ({
 		interventionCooldown
 	);
 
-	let speakerSelection: SpeakerSelection;
-	if (pairSelection) {
-		speakerSelection = pairSelection;
-	} else if (driftCooldownPassed) {
-		const driftIntervention = await tryTopicDriftIntervention({ personas, chapter, state });
-		if (driftIntervention) {
-			state.pendingIntervention = { ...driftIntervention, chapterId: chapter.id };
-			speakerSelection = { personaId: driftIntervention.targetPersonaId, reason: 'targeted_by_facilitator' };
-		} else {
-			const stallIntervention = await tryStallIntervention({ personas, chapter, state, assessments });
-			if (stallIntervention) {
-				state.pendingIntervention = { ...stallIntervention, chapterId: chapter.id };
-				speakerSelection = stallIntervention.targetPersonaId
-					? { personaId: stallIntervention.targetPersonaId, reason: 'targeted_by_facilitator' }
-					: selectNextSpeaker(assessments, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
-			} else {
-				speakerSelection = selectNextSpeaker(assessments, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
-			}
+	if (!pairSelection) {
+		let intervention: { content: string; targetPersonaId?: string } | undefined;
+		if (driftCooldownPassed) {
+			intervention = await tryTopicDriftIntervention({ personas, chapter, state });
 		}
-	} else {
-		const stallIntervention = await tryStallIntervention({ personas, chapter, state, assessments });
-		if (stallIntervention) {
-			state.pendingIntervention = { ...stallIntervention, chapterId: chapter.id };
-			speakerSelection = stallIntervention.targetPersonaId
-				? { personaId: stallIntervention.targetPersonaId, reason: 'targeted_by_facilitator' }
-				: selectNextSpeaker(assessments, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
-		} else {
-			speakerSelection = selectNextSpeaker(assessments, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
+		if (!intervention) {
+			intervention = await tryStallIntervention({ personas, chapter, state, assessments });
+		}
+		if (intervention) {
+			await enqueueHighEngagementIntents({
+				topicId,
+				state,
+				assessments,
+				speakerSelection: { personaId: '', reason: 'score' },
+				triggerTurnIndex: Math.max(0, state.turns.length - 1)
+			});
+			await persistInterventionTurn({
+				topicId,
+				state,
+				content: intervention.content,
+				targetPersonaId: intervention.targetPersonaId,
+				chapterId: chapter.id
+			});
+			if (intervention.targetPersonaId) {
+				state.targetPersona = { personaId: intervention.targetPersonaId, targetedBy: 'facilitator' };
+			}
+			return true;
 		}
 	}
+
+	const speakerSelection = pairSelection ?? selectNextSpeaker(assessments, state.pendingIntents, state.silenceMap, personaIds, state.lastSpeakerId);
 
 	await enqueueHighEngagementIntents({
 		topicId,
@@ -416,6 +411,7 @@ export const persistInterventionTurn = async ({
 		targetPersonaId
 	});
 	state.pairConversationTurns = 0;
+	state.lastSpeakerId = undefined;
 	return targetPersonaId
 		? { personaId: targetPersonaId, reason: 'targeted_by_facilitator' }
 		: undefined;

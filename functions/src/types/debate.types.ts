@@ -33,7 +33,6 @@ export type DebateState = {
 	targetPersona?: { personaId: string; targetedBy: 'facilitator' | 'persona' };
 	lastSpeakerId?: string;
 	pendingIntents: Map<string, PendingIntent[]>;
-	pendingIntervention?: { content: string; targetPersonaId?: string; chapterId: string };
 	pairConversationTurns: number;
 	currentTurnIndex: number;
 	lastFacilitatorTurnIndex: number;
