@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { requireAuth } from '../utils/auth.js';
-import { generateStakeholders as runStakeholderGeneration } from '../pipeline/stakeholders/stakeholder-generator.js';
+import { generateStakeholders as runStakeholderGeneration } from '../agents/stakeholder-agent.js';
 
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
 

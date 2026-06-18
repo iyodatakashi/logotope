@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { requireAuth } from '../utils/auth.js';
-import { generatePersonas as runPersonaGeneration } from '../pipeline/personas/personas.js';
+import { generatePersonas as runPersonaGeneration } from '../agents/persona-generator-agent.js';
 import type { Stakeholder } from '../types/stakeholder.types.js';
 
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];

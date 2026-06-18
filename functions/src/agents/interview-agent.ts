@@ -1,8 +1,8 @@
 import { generateText, jsonSchema } from 'ai';
 import { tavily } from '@tavily/core';
-import { getPipelineModel } from '../../llm/models.js';
-import { MAX_TOKENS } from '../../constants/ai.constants.js';
-import type { Persona } from '../../types/persona.types.js';
+import { getPipelineModel } from '../llm/models.js';
+import { MAX_TOKENS } from '../constants/ai.constants.js';
+import type { Persona } from '../types/persona.types.js';
 
 export type InterviewOutput = {
 	researchSummary: string;
@@ -71,17 +71,16 @@ const buildTools = () => {
 	} as const;
 };
 
-export class InterviewRunnerService {
-	async runInterview(topicTitle: string, persona: Persona): Promise<InterviewOutput> {
-		const result = await generateText({
-			model: getPipelineModel('personaInterview'),
-			maxTokens: MAX_TOKENS.INTERVIEW,
-			maxSteps: 10,
-			tools: buildTools(),
-			messages: [
-				{
-					role: 'user',
-					content: `テーマ「${topicTitle}」について、以下のペルソナの取材を行い、初期信念を構築してください。
+export const runInterview = async (topicTitle: string, persona: Persona): Promise<InterviewOutput> => {
+	const result = await generateText({
+		model: getPipelineModel('personaInterview'),
+		maxTokens: MAX_TOKENS.INTERVIEW,
+		maxSteps: 10,
+		tools: buildTools(),
+		messages: [
+			{
+				role: 'user',
+				content: `テーマ「${topicTitle}」について、以下のペルソナの取材を行い、初期信念を構築してください。
 
 【ステップ1: ウェブリサーチ】
 まず web_search ツールを使って、このペルソナの立場に立つ実在の人々が実際にどんなことを考え、感じ、経験しているかを調査してください。
@@ -101,13 +100,12 @@ export class InterviewRunnerService {
 立場: ${persona.specificRole}
 背景: ${persona.background}
 関心事: ${persona.interests}`
-				}
-			]
-		});
+			}
+		]
+	});
 
-		const submitCall = result.toolCalls.find((c) => c.toolName === 'submit_research');
-		if (!submitCall) throw new Error('submit_research was not called');
+	const submitCall = result.toolCalls.find((c) => c.toolName === 'submit_research');
+	if (!submitCall) throw new Error('submit_research was not called');
 
-		return submitCall.args as InterviewOutput;
-	}
-}
+	return submitCall.args as InterviewOutput;
+};
