@@ -197,7 +197,7 @@ const buildFullTurnTools = (
 					},
 					targetPersonaId: {
 						type: 'string' as const,
-						description: '返答を求める特定のペルソナのID。直接質問する場合のみ指定する。'
+						description: '特定の人物への質問・反論など、明確に向け先がある発言の場合にそのペルソナのIDを指定する。漠然と会話全体に向けた発言では省略する。'
 					}
 				},
 				required: ['content']
@@ -224,7 +224,7 @@ const buildFullTurnTools = (
 	return tools;
 };
 
-const ASSESS_ENGAGEMENT_TOOLS = {
+export const ASSESS_ENGAGEMENT_TOOLS = {
 	assess_engagement: {
 		description:
 			'現在の会話を踏まえて、発言意欲（score）と発言形式（mode）を独立して自己評価する。score と mode はそれぞれ独立して選択すること。',
@@ -239,13 +239,21 @@ const ASSESS_ENGAGEMENT_TOOLS = {
 				},
 				mode: {
 					type: 'string' as const,
-					enum: ['fact', 'opinion', 'none'],
+					enum: ['question', 'fact', 'opinion', 'none'],
 					description: `発言形式（score とは独立して選択する）。score の強さがそのまま発言の長さになる（低い＝一言、高い＝しっかり）。
 
 【mode の選び方】
-1. 相手に紹介すべき事実・データ・調査結果を持っているなら → fact
-2. それ以外で、自分の考え・意見・実感を述べたいなら → opinion
-まず「紹介できる事実があるか」を先に確認し、あれば fact を優先する。付け加える中身がなく発言する必要がなければ score 1（none）。
+1. 直前または以前の特定の参加者の発言を受けて、その人物に問い返し・確認・反論を向けたいなら → question
+2. 紹介すべき事実・データ・調査結果を持っているなら → fact
+3. それ以外で、自分の考え・意見・実感を述べたいなら → opinion
+付け加える中身がなく発言する必要がなければ score 1（none）。
+
+question（特定の参加者に直接問い返し・質問をする発言）:
+  score 1: 質問しなくてよい（問い返したいことがない）
+  score 2: 軽く質問したい（一言確認したいことがある）
+  score 3: 質問したい（相手の発言をもっと深堀りしたい）
+  score 4: ぜひ質問したい（相手の立場・経験を具体的に聞きたいことがある）
+  score 5: すぐ質問したい（見逃せない点・矛盾を今すぐ確認したい）
 
 fact（リサーチ・事実・データに基づく説明をする発言。皆が知っている前提にせず、相手に紹介・共有するトーンで話す）:
   score 1: 説明しなくてよい（共有すべき事実・データがない）
@@ -266,7 +274,7 @@ none: score 1 のときのみ選択する`
 				intentSummary: {
 					type: 'string' as const,
 					description:
-						'opinion / fact の場合は80文字以内で「今伝えたいこと」を要約する。mode が none の場合は省略する。'
+						'opinion / fact の場合は80文字以内で「今伝えたいこと」を要約する。question の場合は「誰のどの発言について何を聞きたいか」を80文字以内で記述する（自分自身を対象にしてはならない）。mode が none の場合は省略する。'
 				}
 			},
 			required: ['score', 'mode']
@@ -312,6 +320,7 @@ export const generateTurn = async (
 				: '';
 
 			const isFact = engagement.mode === 'fact';
+			const isQuestion = engagement.mode === 'question';
 			const system = buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', currentBelief);
 			const llmType = persona.llmType ?? 'claude';
 
@@ -322,9 +331,14 @@ export const generateTurn = async (
 
 			const lengthGuide = speechLengthGuide(engagement.score);
 			const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
-			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。直接質問する場合のみ targetPersonaId を指定。`;
-			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。直接質問する場合のみ targetPersonaId を指定。`;
-			const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns)}${chapterContext}${lastSpeakerNote}${pendingNote}${intentNote}${facilitatorTargetNote}\n\n${isFact ? factInstruction : opinionInstruction}`;
+			const otherPersonas = context.otherPersonas ?? [];
+			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。特定の相手への質問・反論がある場合のみ targetPersonaId を指定する。`;
+			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。特定の相手に直接問いかける場合のみ targetPersonaId を指定する。`;
+			const questionInstruction = isQuestion && engagement.intentSummary
+				? `${persona.name}として、特定の参加者に直接質問してください（${lengthGuide}）。\n【今回の質問意図】${engagement.intentSummary}\n【参加者一覧（targetPersonaId に使用するID）】\n${otherPersonas.map((p) => `- ${p.name}: ${p.id}`).join('\n')}\n必ず targetPersonaId に質問相手のIDを指定すること。信念変化があれば beliefChangeType を指定。`
+				: '';
+			const instruction = isQuestion && questionInstruction ? questionInstruction : isFact ? factInstruction : opinionInstruction;
+			const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns)}${chapterContext}${lastSpeakerNote}${pendingNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}`;
 			const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 				generateText({
 					model,
@@ -387,7 +401,7 @@ export const generateTurn = async (
 				ok: true,
 				value: {
 					content,
-					speechMode: isFact ? 'fact' : 'opinion',
+					speechMode: isQuestion ? 'question' : isFact ? 'fact' : 'opinion',
 					beliefChange,
 					targetPersonaId,
 					...(searchQueries.length > 0 && {
@@ -404,7 +418,8 @@ export const generateTurn = async (
 
 export const evaluateEngagement = async (
 	persona: Persona,
-	turns: DebateTurn[]
+	turns: DebateTurn[],
+	otherPersonaNames: string[] = []
 ): Promise<Engagement> => {
 	try {
 		const recentTurns = turns.slice(-8);
@@ -412,6 +427,10 @@ export const evaluateEngagement = async (
 		const ownTurnsSection =
 			ownTurns.length > 0
 				? `\nあなた（${persona.name}）のこれまでの発言:\n${formatTurns(ownTurns)}\n`
+				: '';
+		const otherPersonasNote =
+			otherPersonaNames.length > 0
+				? `\n他の参加者: ${otherPersonaNames.join('、')}`
 				: '';
 		const result = await generateText({
 			model: getPersonaModel(persona.llmType ?? 'claude'),
@@ -423,7 +442,7 @@ export const evaluateEngagement = async (
 			messages: [
 				{
 					role: 'user',
-					content: `現在の会話:\n\n${formatTurns(recentTurns)}${ownTurnsSection}\n${persona.name}として、自分の信念に照らして発言意欲（score）と発言形式（mode）を独立して評価してください。score は mode ごとのスコアラベルに素直に当てはめて選んでください。score の強さがそのまま発言の長さになります（低い＝一言、高い＝しっかり）。mode は、まず相手に紹介すべき事実・データを持っているなら fact、そうでなく自分の考え・意見・実感を述べたいなら opinion を選びます。発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まり、専門知識の有無では決めません。専門知識がなくても、素朴な疑問・違和感・生活実感があれば高く評価してよく、逆に専門家でもその話題に関心がなければ低くてかまいません。すでに同じ論点・主張を述べており、新たに付け加えるべきことがなければ score 1（発言しなくてよい）を選んでください。`
+					content: `現在の会話:\n\n${formatTurns(recentTurns)}${ownTurnsSection}${otherPersonasNote}\n\n${persona.name}として、発言意欲（score）と発言形式（mode）を評価してください。\n\nまず上の会話を読んで、他の参加者の発言の中に「もっと聞きたい」「それは本当に？」「自分の経験では違う」「なぜそう思うのか確認したい」と感じるものがないか振り返ってください。そういう相手がいれば mode は question です（intentSummary に「誰の・どの発言について・何を聞きたいか」を書く）。\n\n次に、紹介すべき事実・データがあれば fact。それ以外は opinion。付け加えることがなければ score 1（none）。\n\nscore は mode ごとのスコアラベルに従って選んでください。発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まります。すでに同じ主張を述べており新たに付け加えることがなければ score 1 を選んでください。`
 				}
 			]
 		});
@@ -433,11 +452,12 @@ export const evaluateEngagement = async (
 
 		const { score, mode, intentSummary } = toolCall.args as {
 			score: number;
-			mode: 'opinion' | 'fact' | 'none';
+			mode: 'opinion' | 'fact' | 'none' | 'question';
 			intentSummary?: string;
 		};
 		const clampedScore = Math.max(1, Math.min(5, Math.round(score)));
-		const resolvedMode: 'opinion' | 'fact' | 'none' = clampedScore === 1 ? 'none' : mode;
+		let resolvedMode: 'opinion' | 'fact' | 'none' | 'question' = clampedScore === 1 ? 'none' : mode;
+		if (resolvedMode === 'question' && !intentSummary) resolvedMode = 'opinion';
 		const resolvedIntentSummary = resolvedMode === 'none' ? undefined : intentSummary;
 		return { personaId: persona.id, score: clampedScore, mode: resolvedMode, intentSummary: resolvedIntentSummary };
 	} catch {
