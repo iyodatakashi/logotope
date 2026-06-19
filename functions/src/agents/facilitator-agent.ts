@@ -38,7 +38,7 @@ const OPENING_TOOL = tool({
 
 // プロパティの定義順 = LLM の生成順。先に指名先（targetPersonaId）を確定させてから
 // content を書かせることで、文中の呼びかけと指名 ID の不一致・ID 漏れを防ぐ
-const INTERVENTION_TOOL = tool({
+export const INTERVENTION_TOOL = tool({
 	description:
 		'ファシリテーターとして可視介入が必要か判断する。介入する場合のみ targetPersonaId と content を返す。介入しない場合は両方省略する',
 	parameters: jsonSchema({
@@ -53,6 +53,11 @@ const INTERVENTION_TOOL = tool({
 				type: 'string',
 				description:
 					'ファシリテーターの介入発言テキスト。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように必ず名前で呼びかける。介入する場合のみ指定'
+			},
+			selectedDiscussionPointIndex: {
+				type: 'number',
+				description:
+					'投入した未完了論点の「未完了論点リスト」内インデックス（0始まり）。論点を投入した場合のみ指定。投入しない場合は省略'
 			}
 		},
 		required: []
@@ -103,8 +108,9 @@ const runInterventionCheck = async (
 			};
 		}
 
-		const { content, targetPersonaId } = toolCall.args as FacilitatorReply;
-		return { ok: true, value: { content, targetPersonaId } };
+		const { content, targetPersonaId, selectedDiscussionPointIndex } =
+			toolCall.args as FacilitatorReply;
+		return { ok: true, value: { content, targetPersonaId, selectedDiscussionPointIndex } };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
@@ -120,6 +126,10 @@ export const generateOpening = async (
 		const chapterContext = firstChapter
 			? `\n\n第1章「${firstChapter.title}」のフォーカス: ${firstChapter.focusQuestion}`
 			: '';
+		const hasPoints = (firstChapter?.discussionPoints?.length ?? 0) > 0;
+		const firstPointContext = hasPoints && firstChapter
+			? `\n\nこの章の最初の論点: ${firstChapter.discussionPoints[0]}。この論点を最初の問いかけの切り口として使ってください。`
+			: '';
 		const result = await generateText({
 			model: anthropic(AI_MODELS.SONNET),
 			maxTokens: MAX_TOKENS.FACILITATOR_OPENING,
@@ -129,7 +139,7 @@ export const generateOpening = async (
 			messages: [
 				{
 					role: 'user',
-					content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${chapterContext}\n\n冒頭発言（2〜3文）の構成：\n1. 第1章のフォーカス問いの趣旨に沿って、「このテーマに詳しくない人でも感覚的に答えられる」オープンな問いかけをする。固有名詞（特定の映像作品・企業名・人名・統計）や専門用語を使わないこと。誰もが「自分の立場から答えられそう」と感じる入口となる問いにする。\n2. 最初の発言者にその問いを向ける\n\n「議論を始めましょう」などの抽象的な言葉は禁止。専門知識なしでも答えられる具体的な問いで始める。targetPersonaIdには必ず上記リストのIDを使用してください。`
+					content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${firstPointContext}\n\n冒頭発言（2〜3文）の構成：\n1. 第1章のフォーカス問いの趣旨に沿って、「このテーマに詳しくない人でも感覚的に答えられる」オープンな問いかけをする。固有名詞（特定の映像作品・企業名・人名・統計）や専門用語を使わないこと。誰もが「自分の立場から答えられそう」と感じる入口となる問いにする。\n2. 最初の発言者にその問いを向ける\n\n「議論を始めましょう」などの抽象的な言葉は禁止。専門知識なしでも答えられる具体的な問いで始める。targetPersonaIdには必ず上記リストのIDを使用してください。`
 				}
 			]
 		});
@@ -143,7 +153,10 @@ export const generateOpening = async (
 		}
 
 		const { content, targetPersonaId } = toolCall.args as FacilitatorReply;
-		return { ok: true, value: { content, targetPersonaId } };
+		return {
+			ok: true,
+			value: { content, targetPersonaId, selectedDiscussionPointIndex: hasPoints ? 0 : undefined }
+		};
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
@@ -155,12 +168,22 @@ export const evaluateTopicDrift = async (
 	turns: DebateTurn[],
 	personas: Persona[],
 	speakCount: Map<string, number> = new Map(),
-	currentChapter?: Chapter
+	currentChapter?: Chapter,
+	unaddressedDiscussionPoints?: string[]
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	const speakCountInfo = personas
 		.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
 		.join(', ');
-	const criteria = `\n\n累計発言数: ${speakCountInfo}\n\n会話がこの章のフォーカス問いから明確に逸脱している（別の話題に流れている）場合のみ介入してください。逸脱していなければ content と targetPersonaId は省略してください。\n\n介入する場合は、フォーカス問いに引き戻す論点を決め、ふさわしい参加者を1人選んで targetPersonaId に設定してください。content は、まず話が逸れていることに触れて「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。`;
+
+	const hasPoints = (unaddressedDiscussionPoints?.length ?? 0) > 0;
+	const pointsContext = hasPoints
+		? `\n\n【未完了論点リスト（インデックス順）】\n${unaddressedDiscussionPoints!.map((p, i) => `${i}. ${p}`).join('\n')}\n\n【三択判断】以下のいずれかを選択してください（流れ最優先）:\n1. 会話がフォーカス問いから逸脱している → 引き戻す（content・targetPersonaId を指定。selectedDiscussionPointIndex は省略）\n2. 逸脱していないが現在の論点が一段落しており、未完了論点へ自然に移れる → 未完了論点を1件投入する（content・targetPersonaId・selectedDiscussionPointIndex を指定）\n3. 流れが深まっている最中 → 介入しない（content・targetPersonaId を省略）\n\n論点を投入する場合は selectedDiscussionPointIndex に上記リストのインデックスを指定してください。`
+		: '';
+
+	const fallbackCriteria = hasPoints
+		? ''
+		: '\n\n会話がこの章のフォーカス問いから明確に逸脱している（別の話題に流れている）場合のみ介入してください。逸脱していなければ content と targetPersonaId は省略してください。\n\n介入する場合は、フォーカス問いに引き戻す論点を決め、ふさわしい参加者を1人選んで targetPersonaId に設定してください。content は、まず話が逸れていることに触れて「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。';
+	const criteria = `\n\n累計発言数: ${speakCountInfo}${pointsContext}${fallbackCriteria}`;
 	return runInterventionCheck(turns, personas, currentChapter, criteria);
 };
 
@@ -169,12 +192,19 @@ export const evaluateStallIntervention = async (
 	turns: DebateTurn[],
 	personas: Persona[],
 	speakCount: Map<string, number> = new Map(),
-	currentChapter?: Chapter
+	currentChapter?: Chapter,
+	unaddressedDiscussionPoints?: string[]
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	const speakCountInfo = personas
 		.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
 		.join(', ');
-	const criteria = `\n\n累計発言数: ${speakCountInfo}\n\nこの章の今の論点は議論が出尽くし、落ち着いています。まだ十分に議論されていない新しい論点に切り替えて、特定の参加者に振ってください。章をいつ終えるかはあなたの判断対象外です。\n\n手順：\n(1) この章のフォーカス問いに沿って、まだ十分に議論されていない新しい論点を決める。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。基準: 関連性が高い人。同程度なら発言数の少ない人を優先。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。\n\n適切な切り替え先が無ければ content と targetPersonaId は省略してください。`;
+
+	const hasPoints = (unaddressedDiscussionPoints?.length ?? 0) > 0;
+	const pointsContext = hasPoints
+		? `\n\n【未完了論点リスト（インデックス順）】\n${unaddressedDiscussionPoints!.map((p, i) => `${i}. ${p}`).join('\n')}\n\n流れが有効な方向に進んでいればそれを優先してください。流れが落ち着いていれば未完了論点から最適な1件を投入し、selectedDiscussionPointIndex に該当インデックスを指定してください。1介入1論点です。`
+		: '';
+
+	const criteria = `\n\n累計発言数: ${speakCountInfo}${pointsContext}\n\nこの章の今の論点は議論が出尽くし、落ち着いています。まだ十分に議論されていない新しい論点に切り替えて、特定の参加者に振ってください。章をいつ終えるかはあなたの判断対象外です。\n\n手順：\n(1) この章のフォーカス問いに沿って、まだ十分に議論されていない新しい論点を決める。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。基準: 関連性が高い人。同程度なら発言数の少ない人を優先。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。\n\n適切な切り替え先が無ければ content と targetPersonaId は省略してください。`;
 	return runInterventionCheck(turns, personas, currentChapter, criteria);
 };
 
@@ -291,6 +321,10 @@ export const generateChapterIntroduction = async (
 	personas: Persona[]
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	try {
+		const hasPoints = (nextChapter.discussionPoints?.length ?? 0) > 0;
+		const firstPointContext = hasPoints
+			? `\n\nこの章の最初の論点: ${nextChapter.discussionPoints[0]}。この論点を導入の問いかけの切り口として使ってください。`
+			: '';
 		const result = await generateText({
 			model: anthropic(AI_MODELS.SONNET),
 			maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
@@ -300,7 +334,7 @@ export const generateChapterIntroduction = async (
 			messages: [
 				{
 					role: 'user',
-					content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、このフォーカス問いについて参加者に問いかける形で始めてください。最初に発言させるペルソナIDも指定してください。\n\nフォーカス: ${nextChapter.focusQuestion}\n\n参加者:\n${formatPersonas(personas)}\n\ntargetPersonaIdには必ず上記リストのIDを使用してください。`
+					content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、このフォーカス問いについて参加者に問いかける形で始めてください。最初に発言させるペルソナIDも指定してください。\n\nフォーカス: ${nextChapter.focusQuestion}${firstPointContext}\n\n参加者:\n${formatPersonas(personas)}\n\ntargetPersonaIdには必ず上記リストのIDを使用してください。`
 				}
 			]
 		});
@@ -317,7 +351,60 @@ export const generateChapterIntroduction = async (
 			};
 		}
 		const { content, targetPersonaId } = toolCall.args as FacilitatorReply;
-		return { ok: true, value: { content, targetPersonaId } };
+		return {
+			ok: true,
+			value: { content, targetPersonaId, selectedDiscussionPointIndex: hasPoints ? 0 : undefined }
+		};
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+	}
+};
+
+const COVERAGE_TOOL = tool({
+	description: '各未完了論点がチャプターのターンで実質的に議論されたか評価する',
+	parameters: jsonSchema({
+		type: 'object' as const,
+		properties: {
+			addressedIndices: {
+				type: 'array',
+				items: { type: 'number' },
+				description: '消化済みと判定された論点のインデックス配列（未完了論点リスト内の位置）。消化なしの場合は空配列'
+			}
+		},
+		required: ['addressedIndices']
+	})
+});
+
+export const evaluateDiscussionPointCoverage = async (
+	chapterTurns: DebateTurn[],
+	incompletePoints: string[]
+): Promise<Result<number[], PipelineError>> => {
+	try {
+		const pointsList = incompletePoints.map((p, i) => `${i}. ${p}`).join('\n');
+		const result = await generateText({
+			model: anthropic(AI_MODELS.SONNET),
+			maxTokens: MAX_TOKENS.FACILITATOR_COVERAGE,
+			system: buildNeutralitySystemPrompt(),
+			tools: { evaluate_coverage: COVERAGE_TOOL },
+			toolChoice: { type: 'tool', toolName: 'evaluate_coverage' },
+			messages: [
+				{
+					role: 'user',
+					content: `以下の各論点について、チャプターのターンで実質的な議論が行われたか評価してください。\n\n【未完了論点リスト】\n${pointsList}\n\n【チャプターターン】\n${formatTurns(chapterTurns)}\n\n評価基準: 各論点について「その論点に関する具体的な意見・主張・事例が述べられている」場合のみ消化済みと判定してください。話題に触れただけでは不十分です。消化済みと判定した論点のインデックスを addressedIndices に含めてください。`
+				}
+			]
+		});
+
+		const toolCall = result.toolCalls[0];
+		if (!toolCall) {
+			return {
+				ok: false,
+				error: { code: 'AI_API_ERROR', message: 'No tool call in coverage response', retryable: true }
+			};
+		}
+		const { addressedIndices } = toolCall.args as { addressedIndices: number[] };
+		return { ok: true, value: addressedIndices };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
