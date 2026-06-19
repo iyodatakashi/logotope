@@ -24,7 +24,7 @@ const SUBMIT_ISSUES_TOOL = tool({
 	})
 });
 
-const SUBMIT_CHAPTERS_TOOL = tool({
+export const SUBMIT_CHAPTERS_TOOL = tool({
 	description: '列挙した切り口をもとに討論の章立てを構成する（目安3〜6章）',
 	parameters: jsonSchema({
 		type: 'object' as const,
@@ -35,9 +35,14 @@ const SUBMIT_CHAPTERS_TOOL = tool({
 					type: 'object',
 					properties: {
 						title: { type: 'string', description: '章タイトル' },
-						focusQuestion: { type: 'string', description: '討論フォーカス問い' }
+						focusQuestion: { type: 'string', description: '討論フォーカス問い' },
+						discussionPoints: {
+							type: 'array',
+							items: { type: 'string' },
+							description: 'この章で押さえるべき論点を3〜5件。focusQuestion に沿った多様な切り口'
+						}
 					},
-					required: ['title', 'focusQuestion']
+					required: ['title', 'focusQuestion', 'discussionPoints']
 				}
 			}
 		},
@@ -96,8 +101,14 @@ export const generateChapters = async (
 				}
 			};
 		}
-		const { issues: generalIssues } = generalIssuesCall.args as { issues: string[] };
-		const { issues: personaIssues } = personaIssuesCall.args as { issues: string[] };
+		const { issues: generalIssues } = generalIssuesCall.args as { issues: string[] | undefined };
+		const { issues: personaIssues } = personaIssuesCall.args as { issues: string[] | undefined };
+		if (!Array.isArray(generalIssues) || !Array.isArray(personaIssues)) {
+			return {
+				ok: false,
+				error: { code: 'AI_API_ERROR', message: 'Missing issues array in AI response', retryable: true }
+			};
+		}
 
 		const chaptersResult = await generateText({
 			model: anthropic(AI_MODELS.SONNET),
@@ -108,7 +119,7 @@ export const generateChapters = async (
 			messages: [
 				{
 					role: 'user',
-					content: `以下の2種類の切り口をもとに、討論の章立てを3〜6章に構成してください。\n\n【一般的な切り口（専門知識不要・日常感覚）】\n${generalIssues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n【参加者固有の切り口（専門的・立場に基づく論点）】\n${personaIssues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n各章に「章タイトル」と「その章で探求する具体的なフォーカス問い」を設定してください。\n\n【構成の原則・厳守事項】\n- 第1章は必ず「一般的な切り口」から選ぶこと。固有名詞・専門用語・業界用語を第1章のタイトルとフォーカス問いに含めてはならない。\n- 章を追うごとに「参加者固有の切り口」を取り込み、専門性・対立の鋭さを段階的に増す。固有名詞や専門用語は第3章以降から自然に導入してよい。\n- 「誰でも感覚的に答えられる入口 → 具体的な事例・比較 → 深いジレンマ・価値観の対立」の順に進むこと。`
+					content: `以下の2種類の切り口をもとに、討論の章立てを3〜6章に構成してください。\n\n【一般的な切り口（専門知識不要・日常感覚）】\n${generalIssues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n【参加者固有の切り口（専門的・立場に基づく論点）】\n${personaIssues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n各章に「章タイトル」「フォーカス問い」「discussionPoints（3〜5件の論点）」を設定してください。\n\n【構成の原則・厳守事項】\n- 第1章は必ず「一般的な切り口」から選ぶこと。固有名詞・専門用語・業界用語を第1章のタイトルとフォーカス問いに含めてはならない。\n- 第1章の discussionPoints は、専門知識のない人でも日常感覚で答えられる切り口にすること。固有名詞・専門用語は第2章以降の論点から導入してよい。\n- 章を追うごとに「参加者固有の切り口」を取り込み、専門性・対立の鋭さを段階的に増す。固有名詞や専門用語は第3章以降から自然に導入してよい。\n- 「誰でも感覚的に答えられる入口 → 具体的な事例・比較 → 深いジレンマ・価値観の対立」の順に進むこと。`
 				}
 			]
 		});
@@ -125,13 +136,20 @@ export const generateChapters = async (
 			};
 		}
 		const { chapters } = chaptersCall.args as {
-			chapters: Array<{ title: string; focusQuestion: string }>;
+			chapters: Array<{ title: string; focusQuestion: string; discussionPoints?: string[] }> | undefined;
 		};
+		if (!Array.isArray(chapters)) {
+			return {
+				ok: false,
+				error: { code: 'AI_API_ERROR', message: 'Missing chapters array in AI response', retryable: true }
+			};
+		}
 
 		const debateChapters: Chapter[] = chapters.map((c) => ({
 			id: nanoid(),
 			title: c.title,
-			focusQuestion: c.focusQuestion
+			focusQuestion: c.focusQuestion,
+			discussionPoints: c.discussionPoints ?? []
 		}));
 
 		return { ok: true, value: { chapters: debateChapters, generalIssues, personaIssues } };

@@ -25,7 +25,7 @@ export const planChapters = async (topicId: string): Promise<void> => {
 
 	const { chapters, generalIssues, personaIssues } = result.value;
 	await db().doc(`topics/${topicId}/sessions/0`).update({
-		chapters: chapters.map(({ id, title, focusQuestion }) => ({ id, title, focusQuestion })),
+		chapters: chapters.map(({ id, title, focusQuestion, discussionPoints }) => ({ id, title, focusQuestion, discussionPoints })),
 		currentChapterIndex: 0,
 		chapterIssues: { general: generalIssues, persona: personaIssues }
 	});
