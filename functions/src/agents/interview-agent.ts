@@ -3,6 +3,9 @@ import { tavily } from '@tavily/core';
 import { getPipelineModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../constants/ai.constants.js';
 import type { Persona } from '../types/persona.types.js';
+import type { TopicContext } from '../types/topic.types.js';
+
+const MAX_SOURCE_CHARS = 3_000;
 
 export type InterviewOutput = {
 	researchSummary: string;
@@ -71,7 +74,23 @@ const buildTools = () => {
 	} as const;
 };
 
-export const runInterview = async (topicTitle: string, persona: Persona): Promise<InterviewOutput> => {
+const buildTopicContextSection = (topicContext?: TopicContext): string => {
+	if (!topicContext) return '';
+	const parts: string[] = [];
+	if (topicContext.description) {
+		parts.push(`\n【テーマの詳細説明】\n${topicContext.description}`);
+	}
+	if (topicContext.sourceContents?.length) {
+		const sources = topicContext.sourceContents
+			.map((c, i) => `--- 参考資料 ${i + 1} ---\n${c.slice(0, MAX_SOURCE_CHARS)}`)
+			.join('\n\n');
+		parts.push(`\n【参考資料】\n${sources}`);
+	}
+	return parts.join('\n');
+};
+
+export const runInterview = async (topicTitle: string, persona: Persona, topicContext?: TopicContext): Promise<InterviewOutput> => {
+	const contextSection = buildTopicContextSection(topicContext);
 	const result = await generateText({
 		model: getPipelineModel('personaInterview'),
 		maxTokens: MAX_TOKENS.INTERVIEW,
@@ -80,7 +99,7 @@ export const runInterview = async (topicTitle: string, persona: Persona): Promis
 		messages: [
 			{
 				role: 'user',
-				content: `テーマ「${topicTitle}」について、以下のペルソナの取材を行い、初期信念を構築してください。
+				content: `テーマ「${topicTitle}」について、以下のペルソナの取材を行い、初期信念を構築してください。${contextSection}
 
 【ステップ1: ウェブリサーチ】
 まず web_search ツールを使って、このペルソナの立場に立つ実在の人々が実際にどんなことを考え、感じ、経験しているかを調査してください。

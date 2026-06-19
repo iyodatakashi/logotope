@@ -1,60 +1,26 @@
-import { generateText, jsonSchema } from 'ai';
+import { generateObject } from 'ai';
+import { z } from 'zod';
 import { getPipelineModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../constants/ai.constants.js';
 import type { Stakeholder } from '../types/stakeholder.types.js';
 
-const STAKEHOLDER_TOOLS = {
-	submit_stakeholders: {
-		description: 'テーマに関する全利害関係者（直接・間接の当事者）を5件以上提出する',
-		parameters: jsonSchema({
-			type: 'object' as const,
-			additionalProperties: false as const,
-			properties: {
-				stakeholders: {
-					type: 'array' as const,
-					minItems: 5,
-					items: {
-						type: 'object' as const,
-						additionalProperties: false as const,
-						properties: {
-							role: {
-								type: 'string' as const,
-								description:
-									'立場・役割の総称（ステークホルダーのグループ／カテゴリ。例: F1チーム関係者、地域住民、規制当局、ヘビーユーザー）。オーナー／メカニックのような個人の具体的な役職までは絞り込まない（具体化はペルソナ段階で行う）'
-							},
-							reason: { type: 'string' as const, description: 'この立場が当事者である理由' },
-							mainInterests: {
-								type: 'array' as const,
-								items: { type: 'string' as const },
-								description: '主な関心事'
-							},
-							minorityLevel: {
-								type: 'string' as const,
-								enum: ['high', 'medium', 'low'],
-								description: 'マイノリティ度'
-							},
-							engagementLevel: {
-								type: 'string' as const,
-								enum: ['high', 'medium', 'low'],
-								description:
-									'テーマに対する専門・意識レベル。high=専門知識を持ち深く考えている当事者・専門家、medium=一定の知識と関心を持つ等身大の市民、low=専門知識は乏しいが生活者目線で自分なりの意見を持つ一般層（無関心・傍観者ではなく、議論には参加する立場）'
-							}
-						},
-						required: ['role', 'reason', 'mainInterests', 'minorityLevel', 'engagementLevel']
-					}
-				}
-			},
-			required: ['stakeholders']
+const stakeholdersSchema = z.object({
+	stakeholders: z.array(
+		z.object({
+			role: z.string(),
+			reason: z.string(),
+			mainInterests: z.array(z.string()),
+			minorityLevel: z.enum(['high', 'medium', 'low']),
+			engagementLevel: z.enum(['high', 'medium', 'low'])
 		})
-	}
-} as const;
+	).min(5)
+});
 
 export const generateStakeholders = async (title: string): Promise<{ stakeholders: Stakeholder[] }> => {
-	const result = await generateText({
+	const result = await generateObject({
 		model: getPipelineModel('stakeholderAnalyzer'),
 		maxTokens: MAX_TOKENS.STAKEHOLDER,
-		tools: STAKEHOLDER_TOOLS,
-		toolChoice: { type: 'tool', toolName: 'submit_stakeholders' } as const,
+		schema: stakeholdersSchema,
 		messages: [
 			{
 				role: 'user',
@@ -63,7 +29,5 @@ export const generateStakeholders = async (title: string): Promise<{ stakeholder
 		]
 	});
 
-	const toolCall = result.toolCalls[0];
-	if (!toolCall) throw new Error('No tool call in response');
-	return { stakeholders: (toolCall.args as { stakeholders: Stakeholder[] }).stakeholders };
+	return { stakeholders: result.object.stakeholders };
 };

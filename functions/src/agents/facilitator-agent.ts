@@ -1,4 +1,5 @@
-import { generateText, tool, jsonSchema } from 'ai';
+import { generateObject } from 'ai';
+import { z } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic';
 import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
 import { formatTurns, formatPersonas, currentDateString } from '../utils/prompt-formatters.js';
@@ -15,65 +16,25 @@ export const buildNeutralitySystemPrompt = (): string =>
 	'常に「〜についてはどうですか？」「〜という点で○○さんはどう思いますか？」のように具体的な問いかけで誘導する。' +
 	'発言は2〜3文以内。演説禁止。';
 
-// 先に指名先（targetPersonaId）を確定させてから content を書かせる（呼びかけと ID の不一致防止）
-const OPENING_TOOL = tool({
-	description: '最初に発言させるペルソナを決めてから、討論の冒頭発言を提出する',
-	parameters: jsonSchema({
-		type: 'object' as const,
-		properties: {
-			targetPersonaId: {
-				type: 'string',
-				description:
-					'最初に発言させるペルソナのID（参加者リストのIDをそのまま指定）。先にここで指名先を確定させてから content を書くこと'
-			},
-			content: {
-				type: 'string',
-				description:
-					'ファシリテーターの冒頭発言テキスト。targetPersonaId の参加者に名前で呼びかけて問いを向ける'
-			}
-		},
-		required: ['targetPersonaId', 'content']
-	})
+const facilitatorReplyWithTargetSchema = z.object({
+	targetPersonaId: z.string(),
+	content: z.string()
 });
 
-// プロパティの定義順 = LLM の生成順。先に指名先（targetPersonaId）を確定させてから
-// content を書かせることで、文中の呼びかけと指名 ID の不一致・ID 漏れを防ぐ
-export const INTERVENTION_TOOL = tool({
-	description:
-		'ファシリテーターとして可視介入が必要か判断する。介入する場合のみ targetPersonaId と content を返す。介入しない場合は両方省略する',
-	parameters: jsonSchema({
-		type: 'object' as const,
-		properties: {
-			targetPersonaId: {
-				type: 'string',
-				description:
-					'次の論点を振る参加者のID。参加者リストに記載されたIDをそのまま指定する（名前ではなくID）。介入する場合のみ指定。先にここで指名先を確定させてから content を書くこと'
-			},
-			content: {
-				type: 'string',
-				description:
-					'ファシリテーターの介入発言テキスト。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように必ず名前で呼びかける。介入する場合のみ指定'
-			},
-			selectedDiscussionPointIndex: {
-				type: 'number',
-				description:
-					'投入した未完了論点の「未完了論点リスト」内インデックス（0始まり）。論点を投入した場合のみ指定。投入しない場合は省略'
-			}
-		},
-		required: []
-	})
+const contentOnlySchema = z.object({
+	content: z.string()
 });
 
-const CLOSING_TOOL = tool({
-	description: '討論のクロージング発言を提出する',
-	parameters: jsonSchema({
-		type: 'object' as const,
-		properties: {
-			content: { type: 'string', description: 'ファシリテーターのクロージング発言テキスト' }
-		},
-		required: ['content']
-	})
+const interventionSchema = z.object({
+	targetPersonaId: z.string().optional(),
+	content: z.string().optional(),
+	selectedDiscussionPointIndex: z.number().optional()
 });
+
+const coverageSchema = z.object({
+	addressedIndices: z.array(z.number()).nullish()
+});
+
 
 const runInterventionCheck = async (
 	turns: DebateTurn[],
@@ -86,12 +47,11 @@ const runInterventionCheck = async (
 			? `\n\n【この章のミッション】「${currentChapter.title}」\nフォーカス問い: ${currentChapter.focusQuestion}\n司会の役割: この章の間、会話が常にこのフォーカス問いに関連するよう誘導する。`
 			: '';
 
-		const result = await generateText({
+		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
 			maxTokens: MAX_TOKENS.FACILITATOR_INTERVENTION,
 			system: buildNeutralitySystemPrompt(),
-			tools: { evaluate_intervention: INTERVENTION_TOOL },
-			toolChoice: { type: 'tool', toolName: 'evaluate_intervention' },
+			schema: interventionSchema,
 			messages: [
 				{
 					role: 'user',
@@ -100,16 +60,7 @@ const runInterventionCheck = async (
 			]
 		});
 
-		const toolCall = result.toolCalls[0];
-		if (!toolCall) {
-			return {
-				ok: false,
-				error: { code: 'AI_API_ERROR', message: 'No tool call in response', retryable: true }
-			};
-		}
-
-		const { content, targetPersonaId, selectedDiscussionPointIndex } =
-			toolCall.args as FacilitatorReply;
+		const { content, targetPersonaId, selectedDiscussionPointIndex } = result.object;
 		return { ok: true, value: { content, targetPersonaId, selectedDiscussionPointIndex } };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
@@ -130,12 +81,12 @@ export const generateOpening = async (
 		const firstPointContext = hasPoints && firstChapter
 			? `\n\nこの章の最初の論点: ${firstChapter.discussionPoints[0]}。この論点を最初の問いかけの切り口として使ってください。`
 			: '';
-		const result = await generateText({
+
+		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
 			maxTokens: MAX_TOKENS.FACILITATOR_OPENING,
 			system: buildNeutralitySystemPrompt(),
-			tools: { submit_opening: OPENING_TOOL },
-			toolChoice: { type: 'tool', toolName: 'submit_opening' },
+			schema: facilitatorReplyWithTargetSchema,
 			messages: [
 				{
 					role: 'user',
@@ -144,15 +95,7 @@ export const generateOpening = async (
 			]
 		});
 
-		const toolCall = result.toolCalls[0];
-		if (!toolCall) {
-			return {
-				ok: false,
-				error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true }
-			};
-		}
-
-		const { content, targetPersonaId } = toolCall.args as FacilitatorReply;
+		const { content, targetPersonaId } = result.object;
 		return {
 			ok: true,
 			value: { content, targetPersonaId, selectedDiscussionPointIndex: hasPoints ? 0 : undefined }
@@ -217,12 +160,11 @@ export const generateClosing = async (
 			.map(([id, belief]) => `ペルソナ ${id}:\n${belief}`)
 			.join('\n\n');
 
-		const result = await generateText({
+		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
 			maxTokens: MAX_TOKENS.FACILITATOR_CLOSING,
 			system: buildNeutralitySystemPrompt(),
-			tools: { submit_closing: CLOSING_TOOL },
-			toolChoice: { type: 'tool', toolName: 'submit_closing' },
+			schema: contentOnlySchema,
 			messages: [
 				{
 					role: 'user',
@@ -231,64 +173,23 @@ export const generateClosing = async (
 			]
 		});
 
-		const toolCall = result.toolCalls[0];
-		if (!toolCall) {
-			return {
-				ok: false,
-				error: { code: 'AI_API_ERROR', message: 'No tool_use block in response', retryable: true }
-			};
-		}
-
-		const { content } = toolCall.args as { content: string };
-		return { ok: true, value: content };
+		return { ok: true, value: result.object.content };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 	}
 };
 
-const GENERATE_CHAPTER_TRANSITION_TOOL = tool({
-	description: '章の遷移発言または最終章のまとめ発言を生成する',
-	parameters: jsonSchema({
-		type: 'object' as const,
-		properties: {
-			content: { type: 'string', description: 'ファシリテーターの遷移発言テキスト' }
-		},
-		required: ['content']
-	})
-});
-
-// 先に指名先（targetPersonaId）を確定させてから content を書かせる（呼びかけと ID の不一致防止）
-const CHAPTER_INTRO_TOOL = tool({
-	description: '次の章で最初に発言させるペルソナを決めてから、章の導入発言を提出する',
-	parameters: jsonSchema({
-		type: 'object' as const,
-		properties: {
-			targetPersonaId: {
-				type: 'string',
-				description:
-					'最初に発言させるペルソナのID（参加者リストのIDをそのまま指定）。先にここで指名先を確定させてから content を書くこと'
-			},
-			content: {
-				type: 'string',
-				description: '章の導入発言テキスト。targetPersonaId の参加者に名前で呼びかけて問いを向ける'
-			}
-		},
-		required: ['targetPersonaId', 'content']
-	})
-});
-
 export const generateChapterSummary = async (
 	recentHistory: DebateTurn[],
 	currentChapter: Chapter
 ): Promise<Result<string, PipelineError>> => {
 	try {
-		const result = await generateText({
+		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
 			maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
 			system: buildNeutralitySystemPrompt(),
-			tools: { generate_chapter_transition: GENERATE_CHAPTER_TRANSITION_TOOL },
-			toolChoice: { type: 'tool', toolName: 'generate_chapter_transition' },
+			schema: contentOnlySchema,
 			messages: [
 				{
 					role: 'user',
@@ -297,19 +198,7 @@ export const generateChapterSummary = async (
 			]
 		});
 
-		const toolCall = result.toolCalls[0];
-		if (!toolCall) {
-			return {
-				ok: false,
-				error: {
-					code: 'AI_API_ERROR',
-					message: 'No tool_use block in summary response',
-					retryable: true
-				}
-			};
-		}
-		const { content } = toolCall.args as { content: string };
-		return { ok: true, value: content };
+		return { ok: true, value: result.object.content };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
@@ -325,12 +214,12 @@ export const generateChapterIntroduction = async (
 		const firstPointContext = hasPoints
 			? `\n\nこの章の最初の論点: ${nextChapter.discussionPoints[0]}。この論点を導入の問いかけの切り口として使ってください。`
 			: '';
-		const result = await generateText({
+
+		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
 			maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
 			system: buildNeutralitySystemPrompt(),
-			tools: { submit_chapter_intro: CHAPTER_INTRO_TOOL },
-			toolChoice: { type: 'tool', toolName: 'submit_chapter_intro' },
+			schema: facilitatorReplyWithTargetSchema,
 			messages: [
 				{
 					role: 'user',
@@ -339,18 +228,7 @@ export const generateChapterIntroduction = async (
 			]
 		});
 
-		const toolCall = result.toolCalls[0];
-		if (!toolCall) {
-			return {
-				ok: false,
-				error: {
-					code: 'AI_API_ERROR',
-					message: 'No tool_use block in introduction response',
-					retryable: true
-				}
-			};
-		}
-		const { content, targetPersonaId } = toolCall.args as FacilitatorReply;
+		const { content, targetPersonaId } = result.object;
 		return {
 			ok: true,
 			value: { content, targetPersonaId, selectedDiscussionPointIndex: hasPoints ? 0 : undefined }
@@ -361,33 +239,18 @@ export const generateChapterIntroduction = async (
 	}
 };
 
-const COVERAGE_TOOL = tool({
-	description: '各未完了論点がチャプターのターンで実質的に議論されたか評価する',
-	parameters: jsonSchema({
-		type: 'object' as const,
-		properties: {
-			addressedIndices: {
-				type: 'array',
-				items: { type: 'number' },
-				description: '消化済みと判定された論点のインデックス配列（未完了論点リスト内の位置）。消化なしの場合は空配列'
-			}
-		},
-		required: ['addressedIndices']
-	})
-});
-
 export const evaluateDiscussionPointCoverage = async (
 	chapterTurns: DebateTurn[],
 	incompletePoints: string[]
 ): Promise<Result<number[], PipelineError>> => {
 	try {
 		const pointsList = incompletePoints.map((p, i) => `${i}. ${p}`).join('\n');
-		const result = await generateText({
+
+		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
 			maxTokens: MAX_TOKENS.FACILITATOR_COVERAGE,
 			system: buildNeutralitySystemPrompt(),
-			tools: { evaluate_coverage: COVERAGE_TOOL },
-			toolChoice: { type: 'tool', toolName: 'evaluate_coverage' },
+			schema: coverageSchema,
 			messages: [
 				{
 					role: 'user',
@@ -396,17 +259,10 @@ export const evaluateDiscussionPointCoverage = async (
 			]
 		});
 
-		const toolCall = result.toolCalls[0];
-		if (!toolCall) {
-			return {
-				ok: false,
-				error: { code: 'AI_API_ERROR', message: 'No tool call in coverage response', retryable: true }
-			};
-		}
-		const { addressedIndices } = toolCall.args as { addressedIndices: number[] };
-		return { ok: true, value: addressedIndices };
+		return { ok: true, value: result.object.addressedIndices ?? [] };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 	}
 };
+

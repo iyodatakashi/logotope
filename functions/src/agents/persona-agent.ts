@@ -1,4 +1,5 @@
-import { generateText, jsonSchema } from 'ai';
+import { generateText, generateObject, jsonSchema } from 'ai';
+import { z } from 'zod';
 import { getPersonaModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../constants/ai.constants.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
@@ -224,81 +225,6 @@ const buildFullTurnTools = (
 	return tools;
 };
 
-export const ASSESS_ENGAGEMENT_TOOLS = {
-	assess_engagement: {
-		description:
-			'現在の会話を踏まえて、発言意欲（score）と発言形式（mode）を独立して自己評価する。score と mode はそれぞれ独立して選択すること。',
-		parameters: jsonSchema({
-			type: 'object' as const,
-			additionalProperties: false as const,
-			properties: {
-				score: {
-					type: 'integer' as const,
-					description:
-						'発言意欲の強度（1〜5の整数）。mode ごとのスコアラベルを参照して選択すること。'
-				},
-				mode: {
-					type: 'string' as const,
-					enum: ['question', 'fact', 'opinion', 'none'],
-					description: `発言形式（score とは独立して選択する）。score の強さがそのまま発言の長さになる（低い＝一言、高い＝しっかり）。
-
-【mode の選び方】
-1. 直前または以前の特定の参加者の発言を受けて、その人物に問い返し・確認・反論を向けたいなら → question
-2. 紹介すべき事実・データ・調査結果を持っているなら → fact
-3. それ以外で、自分の考え・意見・実感を述べたいなら → opinion
-付け加える中身がなく発言する必要がなければ score 1（none）。
-
-question（特定の参加者に直接問い返し・質問をする発言）:
-  score 1: 質問しなくてよい（問い返したいことがない）
-  score 2: 軽く質問したい（一言確認したいことがある）
-  score 3: 質問したい（相手の発言をもっと深堀りしたい）
-  score 4: ぜひ質問したい（相手の立場・経験を具体的に聞きたいことがある）
-  score 5: すぐ質問したい（見逃せない点・矛盾を今すぐ確認したい）
-
-fact（リサーチ・事実・データに基づく説明をする発言。皆が知っている前提にせず、相手に紹介・共有するトーンで話す）:
-  score 1: 説明しなくてよい（共有すべき事実・データがない）
-  score 2: 補足したい（関連する事実を一言添えたい）
-  score 3: 説明したい（関連する情報や背景を一言添えたい）
-  score 4: ぜひ説明したい（自分が知っている事実・データを積極的に紹介したい）
-  score 5: すぐ説明したい（誤解や事実誤認があり、正確な情報を今すぐ伝えたい）
-
-opinion（自分の考え・意見・実感を展開する発言）:
-  score 1: 発言しなくてよい（この話題に付け加えることがない）
-  score 2: 発言してもよい（自分の立場・感じ方を一言だけ述べたい）
-  score 3: 発言したい（何か付け加えたいことや感じることがある）
-  score 4: ぜひ発言したい（自分の体験・立場・考えから積極的に伝えたいことがある）
-  score 5: すぐ発言したい（自分の立場・生活・専門に強く関わり、黙っていられない）
-
-none: score 1 のときのみ選択する`
-				},
-				intentSummary: {
-					type: 'string' as const,
-					description:
-						'opinion / fact の場合は80文字以内で「今伝えたいこと」を要約する。question の場合は「誰のどの発言について何を聞きたいか」を80文字以内で記述する（自分自身を対象にしてはならない）。mode が none の場合は省略する。'
-				}
-			},
-			required: ['score', 'mode']
-		})
-	}
-} as const;
-
-const POST_DEBATE_COMMENT_TOOLS = {
-	submit_post_debate_comment: {
-		description: 'ペルソナとして討論後の短いコメントを提出する（2〜4文）',
-		parameters: jsonSchema({
-			type: 'object' as const,
-			additionalProperties: false as const,
-			properties: {
-				content: {
-					type: 'string' as const,
-					description:
-						'討論後コメント（2〜4文）: 他の参加者の意見を聞いてどう感じたか・印象に残った意見・自分の考えの変化を含める'
-				}
-			},
-			required: ['content']
-		})
-	}
-} as const;
 
 export const generateTurn = async (
 		persona: Persona,
@@ -416,6 +342,12 @@ export const generateTurn = async (
 		}
 };
 
+const engagementSchema = z.object({
+	score: z.number().int().min(1).max(5),
+	mode: z.enum(['question', 'fact', 'opinion', 'none']),
+	intentSummary: z.string().optional()
+});
+
 export const evaluateEngagement = async (
 	persona: Persona,
 	turns: DebateTurn[],
@@ -432,12 +364,11 @@ export const evaluateEngagement = async (
 			otherPersonaNames.length > 0
 				? `\n他の参加者: ${otherPersonaNames.join('、')}`
 				: '';
-		const result = await generateText({
+		const result = await generateObject({
 			model: getPersonaModel(persona.llmType ?? 'claude'),
 			maxTokens: MAX_TOKENS.PERSONA_ENGAGEMENT,
 			system: buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', latestBeliefContent(persona)),
-			tools: ASSESS_ENGAGEMENT_TOOLS,
-			toolChoice: { type: 'tool', toolName: 'assess_engagement' },
+			schema: engagementSchema,
 			providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
 			messages: [
 				{
@@ -447,14 +378,7 @@ export const evaluateEngagement = async (
 			]
 		});
 
-		const toolCall = result.toolCalls[0];
-		if (!toolCall) return { personaId: persona.id, score: 1, mode: 'none' };
-
-		const { score, mode, intentSummary } = toolCall.args as {
-			score: number;
-			mode: 'opinion' | 'fact' | 'none' | 'question';
-			intentSummary?: string;
-		};
+		const { score, mode, intentSummary } = result.object;
 		const clampedScore = Math.max(1, Math.min(5, Math.round(score)));
 		let resolvedMode: 'opinion' | 'fact' | 'none' | 'question' = clampedScore === 1 ? 'none' : mode;
 		if (resolvedMode === 'question' && !intentSummary) resolvedMode = 'opinion';
@@ -465,38 +389,32 @@ export const evaluateEngagement = async (
 	}
 };
 
+const postDebateCommentSchema = z.object({
+	content: z.string()
+});
+
 export const generatePostDebateComment = async (
 	persona: Persona,
 	finalBelief: string,
 	turns: DebateTurn[]
 ): Promise<Result<PostDebateCommentResult, PipelineError>> => {
-		try {
-			const result = await generateText({
-				model: getPersonaModel(persona.llmType ?? 'claude'),
-				maxTokens: MAX_TOKENS.PERSONA_POST_DEBATE,
-				system: buildPersonaSystemPrompt(persona, '', finalBelief),
-				tools: POST_DEBATE_COMMENT_TOOLS,
-				toolChoice: { type: 'tool', toolName: 'submit_post_debate_comment' },
-				messages: [
-					{
-						role: 'user',
-						content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。\n\n討論全体:\n${formatTurns(turns)}`
-					}
-				]
-			});
+	try {
+		const result = await generateObject({
+			model: getPersonaModel(persona.llmType ?? 'claude'),
+			maxTokens: MAX_TOKENS.PERSONA_POST_DEBATE,
+			system: buildPersonaSystemPrompt(persona, '', finalBelief),
+			schema: postDebateCommentSchema,
+			messages: [
+				{
+					role: 'user',
+					content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。\n\n討論全体:\n${formatTurns(turns)}`
+				}
+			]
+		});
 
-			const toolCall = result.toolCalls[0];
-			if (!toolCall) {
-				return {
-					ok: false,
-					error: { code: 'AI_API_ERROR', message: 'No tool call in response', retryable: true }
-				};
-			}
-
-			const { content } = toolCall.args as { content: string };
-			return { ok: true, value: { personaId: persona.id, content } };
-		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
-		}
+		return { ok: true, value: { personaId: persona.id, content: result.object.content } };
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+	}
 };

@@ -1,90 +1,27 @@
-import { generateText, jsonSchema } from 'ai';
+import { generateObject } from 'ai';
+import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getPipelineModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../constants/ai.constants.js';
 import type { Stakeholder } from '../types/stakeholder.types.js';
 import type { Persona } from '../types/persona.types.js';
 
-const buildPersonaTools = (count: number) =>
-	({
-		submit_personas: {
-			description: 'ステークホルダーリストの各立場に対応するペルソナを1体ずつ生成して提出する',
-			parameters: jsonSchema({
-				type: 'object' as const,
-				additionalProperties: false as const,
-				properties: {
-					personas: {
-						type: 'array' as const,
-						minItems: count,
-						maxItems: count,
-						items: {
-							type: 'object' as const,
-							additionalProperties: false as const,
-							properties: {
-								stakeholderRole: {
-									type: 'string' as const,
-									description:
-										'どのステークホルダー（立場の総称）に対応するか。立場リストの総称をそのまま記入する（例: F1チーム関係者）'
-								},
-								specificRole: {
-									type: 'string' as const,
-									description:
-										'このテーマにおけるその人物の具体的な立場・肩書き。stakeholderRole が「F1チーム関係者」のような総称の場合は、オーナー／レースエンジニア／メカニックなど具体的な役職に必ず特定する。「F1の熱心なファン」のように総称が既に具体的ならそれを反映する。occupation（実生活上の職業）とは別物で、ファンなど職業外で関わる人物では両者は異なる'
-								},
-								name: {
-									type: 'string' as const,
-									description:
-										'氏名（テーマ・ステークホルダーの国際的文脈に合った名前。グローバルなテーマでは多国籍の名前を使う）'
-								},
-								nationality: { type: 'string' as const, description: '国籍・出身国' },
-								age: { type: 'integer' as const, description: '年齢' },
-								occupation: {
-									type: 'string' as const,
-									description:
-										'実生活上の職業（具体的な職種・役職を1つ。例: 中学校の理科教師、物流会社の経理担当）。テーマに職業として関わる人物では specificRole と一致するが、ファンや利用者などテーマへの関わりが職業由来でない人物では、テーマと無関係な職業（例: 市役所職員）でよい。カテゴリ名や職種の列挙は禁止'
-								},
-								background: {
-									type: 'string' as const,
-									description:
-										'人物像を具体的に描写（200字以内）。家族構成・居住地・年収・趣味・生活習慣など、この人物をリアルに想像できる情報を盛り込む。例：「妻と小学生の子ども2人の4人家族。埼玉県の一戸建てに住む。年収600万円台。週末はサッカーコーチとして地域の少年団に関わる。」'
-								},
-								interests: {
-									type: 'string' as const,
-									description:
-										'テーマに対して持つ具体的な関心事・懸念・期待（200字以内）。抽象的な価値観ではなく、この人物の生活・立場から生まれる具体的な視点を記述する'
-								},
-								engagementLevel: {
-									type: 'string' as const,
-									enum: ['high', 'medium', 'low'],
-									description:
-										'対応するステークホルダーの専門・意識レベルをそのまま引き継ぐ。high=専門知識を持ち明確な持論がある当事者・専門家、medium=一定の知識と関心を持つ等身大の市民、low=専門知識は乏しいが生活者目線で自分なりの意見を持つ一般層'
-								},
-								llmType: {
-									type: 'string' as const,
-									enum: ['gemini', 'claude', 'gpt'],
-									description:
-										'gemini=最新情報重視・SNS世論に敏感(記者・アナリスト・活動家等)、claude=学術・論理重視(研究者・教授等)、gpt=バランス型(一般市民・会社員等)'
-								}
-							},
-							required: [
-								'stakeholderRole',
-								'specificRole',
-								'name',
-								'nationality',
-								'age',
-								'occupation',
-								'background',
-								'interests',
-								'engagementLevel',
-								'llmType'
-							]
-						}
-					}
-				},
-				required: ['personas']
-			})
-		}
-	}) as const;
+const personasSchema = (count: number) => z.object({
+	personas: z.array(
+		z.object({
+			stakeholderRole: z.string(),
+			specificRole: z.string(),
+			name: z.string(),
+			nationality: z.string(),
+			age: z.number().int(),
+			occupation: z.string(),
+			background: z.string(),
+			interests: z.string(),
+			engagementLevel: z.enum(['high', 'medium', 'low']),
+			llmType: z.enum(['gemini', 'claude', 'gpt'])
+		})
+	).length(count)
+});
 
 export const generatePersonas = async (
 	title: string,
@@ -97,11 +34,10 @@ export const generatePersonas = async (
 		.map((s, i) => `${i + 1}. ${s.role}（${engagementLabel(s.engagementLevel)}）`)
 		.join('\n');
 
-	const result = await generateText({
+	const result = await generateObject({
 		model: getPipelineModel('personaGenerator'),
 		maxTokens: MAX_TOKENS.PERSONA,
-		tools: buildPersonaTools(stakeholders.length),
-		toolChoice: { type: 'tool', toolName: 'submit_personas' } as const,
+		schema: personasSchema(stakeholders.length),
 		messages: [
 			{
 				role: 'user',
@@ -110,11 +46,9 @@ export const generatePersonas = async (
 		]
 	});
 
-	const toolCall = result.toolCalls[0];
-	if (!toolCall) throw new Error('No tool call in response');
 	type LLMPersona = Omit<Persona, 'id' | 'topicId' | 'approved' | 'sortOrder'>;
-	const personas: Persona[] = (toolCall.args as { personas: LLMPersona[] }).personas.map(
-		(p, i) => ({ ...p, id: nanoid(), topicId, approved: false, sortOrder: i })
+	const personas: Persona[] = result.object.personas.map(
+		(p, i) => ({ ...(p as LLMPersona), id: nanoid(), topicId, approved: false, sortOrder: i })
 	);
 	return { personas };
 };
