@@ -29,7 +29,7 @@ export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 
 export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   requireAuth(request);
-  const { topicId } = request.data as { topicId: string };
+  const { topicId, singleChapterMode } = request.data as { topicId: string; singleChapterMode?: boolean };
 
   const topic = await getTopicById(topicId);
   if (!topic) throw new HttpsError('not-found', 'Topic not found');
@@ -40,7 +40,7 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   if (!chapterId) throw new HttpsError('not-found', 'Chapter not found');
 
   await restartChapter(topicId, chapterId);
-  await enqueueChapterTask(topicId, chapterIndex);
+  await enqueueChapterTask(topicId, chapterIndex, singleChapterMode);
 
   return { topicId };
 });

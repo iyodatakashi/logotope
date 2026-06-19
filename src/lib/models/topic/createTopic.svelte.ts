@@ -204,12 +204,12 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 
 	// 停止した討論を currentChapterIndex から再開する。
 	const restartDebate = async (): Promise<void> => {
-		const restartDebateCallable = httpsCallable<{ topicId: string }, unknown>(
-			functions,
-			'restartDebate',
-			{ timeout: 60000 }
-		);
-		await restartDebateCallable({ topicId: id });
+		const restartDebateCallable = httpsCallable<
+			{ topicId: string; singleChapterMode?: boolean },
+			unknown
+		>(functions, 'restartDebate', { timeout: 60000 });
+		const singleChapterMode = import.meta.env.VITE_SINGLE_CHAPTER_MODE === 'true';
+		await restartDebateCallable({ topicId: id, singleChapterMode: singleChapterMode || undefined });
 	};
 
 	// 討論の停止操作: トピックのフェーズ状態を停止にする。実行中のオーケストレータは
