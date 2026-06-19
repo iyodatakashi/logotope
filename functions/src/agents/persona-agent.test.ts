@@ -44,6 +44,7 @@ const mockChapter: Chapter = {
 	id: 'ch1',
 	title: 'テスト章',
 	focusQuestion: 'テスト質問？',
+	discussionPoints: [],
 };
 
 const mockTurns: DebateTurn[] = [];

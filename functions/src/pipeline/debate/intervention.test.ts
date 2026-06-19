@@ -14,6 +14,7 @@ import {
   shouldEvaluateIntervention,
   countPersonaTurnsSinceFacilitator,
   persistInterventionTurn,
+  tryIntervention,
 } from './intervention.js';
 
 const makeTurn = (speakerType: 'persona' | 'facilitator', id: string, turnIndex = 0): DebateTurn => ({
@@ -25,7 +26,7 @@ const makeTurn = (speakerType: 'persona' | 'facilitator', id: string, turnIndex 
   createdAt: '',
 });
 
-const makeState = (turns: DebateTurn[] = []): DebateState => ({
+const makeState = (turns: DebateTurn[] = [], discussionPoints: DebateState['discussionPoints'] = []): DebateState => ({
   turns: [...turns],
   lastSpeakerId: undefined,
   silenceMap: new Map(),
@@ -34,6 +35,7 @@ const makeState = (turns: DebateTurn[] = []): DebateState => ({
   pairConversationTurns: 0,
   currentTurnIndex: turns.length,
   lastFacilitatorTurnIndex: -1,
+  discussionPoints,
 });
 
 describe('shouldEvaluateIntervention', () => {
@@ -125,5 +127,158 @@ describe('persistInterventionTurn', () => {
     state.pairConversationTurns = 3;
     await persistInterventionTurn({ topicId: 'topic1', state, content: '介入', targetPersonaId: undefined, chapterId: 'ch-0' });
     expect(state.pairConversationTurns).toBe(0);
+  });
+});
+
+// --- tryIntervention 論点伝播テスト ---
+vi.mock('../../agents/facilitator-agent.js', () => ({
+  evaluateTopicDrift: vi.fn(),
+  evaluateStallIntervention: vi.fn(),
+}));
+vi.mock('./speaker-selection.js', () => ({
+  hasHighEngagement: vi.fn(() => false),
+}));
+vi.mock('./queued-intents.js', () => ({
+  addQueuedIntents: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('./turn.js', () => ({
+  addTurn: vi.fn().mockResolvedValue({ id: 'turn-new' }),
+}));
+vi.mock('./utils.js', () => ({
+  pipelineErrorMessage: vi.fn((e: { message: string }) => e.message),
+  validPersonaId: vi.fn((_id: string | undefined, _personas: unknown[]) => _id),
+}));
+
+import type { Persona, Engagement } from '../../types/debate.types.js';
+import type { Chapter } from '../../types/chapter.types.js';
+
+const mockPersonas: Persona[] = [{ id: 'p1', name: 'テスト' } as Persona];
+const mockChapter: Chapter = { id: 'ch1', title: '章', focusQuestion: '?', discussionPoints: [] };
+const mockEngagements: Engagement[] = [];
+
+describe('tryIntervention - 論点ステータスのマーク', () => {
+  let evaluateTopicDrift: ReturnType<typeof vi.fn>;
+  let evaluateStallIntervention: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    const mod = await import('../../agents/facilitator-agent.js');
+    evaluateTopicDrift = vi.mocked(mod.evaluateTopicDrift);
+    evaluateStallIntervention = vi.mocked(mod.evaluateStallIntervention);
+  });
+
+  it('介入が selectedDiscussionPointIndex を返した場合、state.discussionPoints を introduced にマークする', async () => {
+    evaluateTopicDrift.mockResolvedValueOnce({
+      ok: true,
+      value: { content: '論点投入', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 },
+    });
+
+    const state = makeState(
+      [makeTurn('facilitator', 'f1'), makeTurn('persona', 'p1'), makeTurn('persona', 'p2')],
+      [
+        { point: '論点A', status: 'untouched' },
+        { point: '論点B', status: 'untouched' },
+      ]
+    );
+
+    const { tryIntervention: tryIntervention_ } = await import('./intervention.js');
+    await tryIntervention_({
+      topicId: 'topic1',
+      personas: mockPersonas,
+      chapter: mockChapter,
+      state,
+      engagements: mockEngagements,
+      interventionCooldown: 2,
+    });
+
+    expect(state.discussionPoints[0].status).toBe('introduced');
+    expect(state.discussionPoints[1].status).toBe('untouched');
+  });
+
+  it('selectedDiscussionPointIndex が範囲外の場合はマークしない', async () => {
+    evaluateTopicDrift.mockResolvedValueOnce({
+      ok: true,
+      value: { content: '論点投入', targetPersonaId: 'p1', selectedDiscussionPointIndex: 99 },
+    });
+
+    const unaddressedPoints = [{ point: '論点A', status: 'untouched' as const }];
+    const state = makeState(
+      [makeTurn('facilitator', 'f1'), makeTurn('persona', 'p1'), makeTurn('persona', 'p2')],
+      [...unaddressedPoints]
+    );
+
+    const { tryIntervention: tryIntervention_ } = await import('./intervention.js');
+    await tryIntervention_({
+      topicId: 'topic1',
+      personas: mockPersonas,
+      chapter: mockChapter,
+      state,
+      engagements: mockEngagements,
+      interventionCooldown: 2,
+    });
+
+    expect(state.discussionPoints[0].status).toBe('untouched');
+  });
+
+  it('selectedDiscussionPointIndex が undefined の場合はマークしない', async () => {
+    evaluateTopicDrift.mockResolvedValueOnce({
+      ok: true,
+      value: { content: '引き戻し', targetPersonaId: 'p1' },
+    });
+
+    const state = makeState(
+      [makeTurn('facilitator', 'f1'), makeTurn('persona', 'p1'), makeTurn('persona', 'p2')],
+      [{ point: '論点A', status: 'untouched' }]
+    );
+
+    const { tryIntervention: tryIntervention_ } = await import('./intervention.js');
+    await tryIntervention_({
+      topicId: 'topic1',
+      personas: mockPersonas,
+      chapter: mockChapter,
+      state,
+      engagements: mockEngagements,
+      interventionCooldown: 2,
+    });
+
+    expect(state.discussionPoints[0].status).toBe('untouched');
+  });
+
+  it('未完了論点（addressed 以外）のみを介入関数に渡す', async () => {
+    evaluateTopicDrift.mockResolvedValueOnce({
+      ok: true,
+      value: {},
+    });
+    evaluateStallIntervention.mockResolvedValueOnce({
+      ok: true,
+      value: {},
+    });
+
+    const state = makeState(
+      [makeTurn('facilitator', 'f1'), makeTurn('persona', 'p1'), makeTurn('persona', 'p2')],
+      [
+        { point: '論点A', status: 'untouched' },
+        { point: '論点B', status: 'addressed' },
+        { point: '論点C', status: 'introduced' },
+      ]
+    );
+
+    const { tryIntervention: tryIntervention_ } = await import('./intervention.js');
+    await tryIntervention_({
+      topicId: 'topic1',
+      personas: mockPersonas,
+      chapter: mockChapter,
+      state,
+      engagements: mockEngagements,
+      interventionCooldown: 2,
+    });
+
+    expect(evaluateTopicDrift).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      ['論点A', '論点C']
+    );
   });
 });

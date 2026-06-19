@@ -10,7 +10,8 @@ import {
 	MAX_TURNS,
 	CHAPTER_END_COUNT_LIMIT,
 	EARLY_END_PROGRESS_RATIO,
-	TURN_CAP_RATIO
+	TURN_CAP_RATIO,
+	AGENDA_TURN_CAP_RATIO
 } from './debate.constants';
 
 describe('debate/constants', () => {
@@ -30,5 +31,10 @@ describe('debate/constants', () => {
 
 	it('SPEAK_THRESHOLD_SCORE < QUEUE_THRESHOLD_SCORE の順序を保つ', () => {
 		expect(SPEAK_THRESHOLD_SCORE).toBeLessThan(QUEUE_THRESHOLD_SCORE);
+	});
+
+	it('論点リストありの章は既定より高いターン上限比率を使う', () => {
+		expect(AGENDA_TURN_CAP_RATIO).toBe(2.5);
+		expect(AGENDA_TURN_CAP_RATIO).toBeGreaterThan(TURN_CAP_RATIO);
 	});
 });
