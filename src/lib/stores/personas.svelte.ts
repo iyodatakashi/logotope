@@ -2,6 +2,7 @@ import { onSnapshot, collection, query, orderBy, doc, updateDoc, writeBatch, Tim
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
 import type { PersonaDoc, PersonaForInterview } from '$lib/models/persona/persona.types';
+import type { TopicContext } from '$lib/models/topic/topic.types';
 
 export const createPersonasStore = (topicId: string) => {
 	let personas = $state<PersonaDoc[]>([]);
@@ -80,13 +81,13 @@ export const createPersonasStore = (topicId: string) => {
 	// 取材フローの実行: 実行中→（未完了ペルソナの取材）→生成完了。
 	// 途中で失敗を捕捉した場合はトピックを停止状態にする。
 	// all=true で全ペルソナを再取材する（再生成・やり直し用）。
-	const runInterviews = async (topicTitle: string, all = false): Promise<void> => {
+	const runInterviews = async (topicTitle: string, topicContext?: TopicContext, all = false): Promise<void> => {
 		await markInterviewsStarted();
 		try {
 			const targets = all
 				? personas
 				: personas.filter((p) => p.interview?.status !== 'completed');
-			await Promise.all(targets.map((p) => runInterview(p.id, topicTitle)));
+			await Promise.all(targets.map((p) => runInterview(p.id, topicTitle, topicContext)));
 			await markInterviewsComplete();
 		} catch (e) {
 			await markInterviewsStopped();
@@ -94,7 +95,7 @@ export const createPersonasStore = (topicId: string) => {
 		}
 	};
 
-	const runInterview = async (personaId: string, topicTitle: string): Promise<void> => {
+	const runInterview = async (personaId: string, topicTitle: string, topicContext?: TopicContext): Promise<void> => {
 		const persona = personas.find((p) => p.id === personaId);
 		if (!persona) return;
 
@@ -104,7 +105,7 @@ export const createPersonasStore = (topicId: string) => {
 
 		try {
 			const fn = httpsCallable<
-				{ topicTitle: string; persona: PersonaForInterview },
+				{ topicTitle: string; persona: PersonaForInterview; topicContext?: TopicContext },
 				{ researchSummary: string; interviewRecord: string; initialBelief: string }
 			>(functions, 'runInterview', { timeout: 310000 });
 			const { data } = await fn({
@@ -117,7 +118,8 @@ export const createPersonasStore = (topicId: string) => {
 					specificRole: persona.specificRole ?? persona.stakeholderRole,
 					background: persona.background,
 					interests: persona.interests
-				}
+				},
+				...(topicContext && { topicContext })
 			});
 			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
 				interview: {

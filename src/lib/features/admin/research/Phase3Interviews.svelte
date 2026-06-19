@@ -4,6 +4,7 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import type { TopicContext } from '$lib/models/topic/topic.types';
 
 	const PHASE = 3;
 	const logicalState = $derived.by(() => {
@@ -43,10 +44,18 @@
 	const pendingCount = $derived(personasStore.personas.filter((p) => p.interview == null).length);
 	const totalCount = $derived(personasStore.personas.length);
 
+	const buildTopicContext = (topic: { description?: string; fetchedSourceContents?: { content: string }[] }): TopicContext | undefined => {
+		const description = topic.description;
+		const sourceContents = topic.fetchedSourceContents?.map((fc) => fc.content);
+		if (!description && !sourceContents?.length) return undefined;
+		return { description, sourceContents };
+	};
+
 	const handleRetry = async (personaId: string) => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
-		await personasStore.runInterview(personaId, topic.title);
+		const topicContext = buildTopicContext(topic);
+		await personasStore.runInterview(personaId, topic.title, topicContext);
 		const allDone = personasStore.personas.every((p) => p.interview?.status === 'completed');
 		if (allDone) {
 			await personasStore.markInterviewsComplete();
@@ -57,14 +66,16 @@
 	const generate = () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
-		return personasStore.runInterviews(topic.title);
+		const topicContext = buildTopicContext(topic);
+		return personasStore.runInterviews(topic.title, topicContext);
 	};
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
+		const topicContext = buildTopicContext(topic);
 		await topic.resetChapters();
 		await topic.resetDebate();
-		await personasStore.runInterviews(topic.title, true);
+		await personasStore.runInterviews(topic.title, topicContext, true);
 	};
 	const approve = async () => {
 		const topic = currentTopicStore.topic;

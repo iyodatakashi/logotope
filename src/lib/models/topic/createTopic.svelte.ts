@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
-import type { TopicDoc, StakeholderDoc } from './topic.types';
+import type { TopicDoc, StakeholderDoc, FetchedSourceContent } from './topic.types';
 import type { PersonaData } from '../persona/persona.types';
 import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
 
@@ -20,6 +20,9 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 	let title: string = $state(topicDoc.title);
 	let phase: Phase = $state(topicDoc.phase);
 	let phaseStatus: PhaseStatus = $state(topicDoc.phaseStatus);
+	let description: string | undefined = $state(topicDoc.description);
+	let sourceUrls: string[] | undefined = $state(topicDoc.sourceUrls);
+	let fetchedSourceContents: FetchedSourceContent[] | undefined = $state(topicDoc.fetchedSourceContents);
 	let stakeholders: StakeholderDoc[] = $state(topicDoc.stakeholders ?? []);
 	let personaCount: number = $state(topicDoc.personaCount ?? 0);
 	let createdAt: Date = topicDoc.createdAt.toDate();
@@ -248,6 +251,15 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 		},
 		get stakeholders() {
 			return stakeholders;
+		},
+		get description() {
+			return description;
+		},
+		get sourceUrls() {
+			return sourceUrls;
+		},
+		get fetchedSourceContents() {
+			return fetchedSourceContents;
 		},
 
 		generateStakeholders,

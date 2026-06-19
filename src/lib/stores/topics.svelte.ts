@@ -33,12 +33,14 @@ const create = () => {
 		unsubscribe = null;
 	};
 
-	const addTopic = async (title: string): Promise<string> => {
+	const addTopic = async (title: string, description?: string, sourceUrls?: string[]): Promise<string> => {
 		const id = nanoid();
 		const now = Timestamp.now();
 		await setDoc(doc(db, 'topics', id), {
 			id,
 			title,
+			...(description?.trim() && { description }),
+			...(sourceUrls?.length && { sourceUrls }),
 			phase: 1,
 			phaseStatus: 'not_started',
 			createdAt: now,
