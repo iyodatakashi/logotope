@@ -43,7 +43,7 @@ export type FacilitatorReply = {
 
 export type PersonaReply = {
 	content: string;
-	speechMode?: 'opinion' | 'fact';
+	speechMode?: 'opinion' | 'fact' | 'question';
 	beliefChange: BeliefChangeEvent | null;
 	targetPersonaId?: string;
 	searchUsed?: boolean;
@@ -53,7 +53,7 @@ export type PersonaReply = {
 export type Engagement = {
 	personaId: string;
 	score: number;
-	mode: 'opinion' | 'fact' | 'none';
+	mode: 'opinion' | 'fact' | 'none' | 'question';
 	intentSummary?: string;
 };
 
@@ -73,6 +73,7 @@ export type TurnGenerationContext = {
 	chapter: Chapter;
 	pendingTrigger?: { speakerName: string; content: string };
 	targetedBy?: 'facilitator' | 'persona';
+	otherPersonas?: ReadonlyArray<{ id: string; name: string }>;
 };
 
 export type DebateTurn = {
@@ -85,7 +86,7 @@ export type DebateTurn = {
 	content: string;
 	createdAt: string;
 	chapterId?: string;
-	speechMode?: 'opinion' | 'fact';
+	speechMode?: 'opinion' | 'fact' | 'question';
 	engagementScore?: number;
 	fromQueue?: boolean;
 	targetPersonaId?: string;
