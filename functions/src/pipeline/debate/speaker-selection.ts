@@ -38,6 +38,9 @@ export const selectSpeaker = ({
 	return selectSpeakerByEngagement(engagements, state.queuedIntents, state.silenceMap, personaIds, state.lastSpeakerId);
 };
 
+const modeRank = (mode: string): number =>
+	mode === 'fact' ? 2 : mode === 'question' ? 1 : 0;
+
 /** キュー > スコアの2段で話者を決定する */
 const selectSpeakerByEngagement = (
 	engagements: ReadonlyArray<Engagement>,
@@ -48,12 +51,14 @@ const selectSpeakerByEngagement = (
 ): SpeakerSelection => {
 	const filteredAssessments = engagements.filter((a) => personaIds.includes(a.personaId));
 
-	const byScoreThenSilence = (a: Engagement, b: Engagement) =>
-		b.score !== a.score
-			? b.score - a.score
-			: (silenceMap.get(b.personaId) ?? 0) - (silenceMap.get(a.personaId) ?? 0);
+	const silence = (a: Engagement) => silenceMap.get(a.personaId) ?? 0;
+	const byScoreThenSilenceThenMode = (a: Engagement, b: Engagement) => {
+		if (b.score !== a.score) return b.score - a.score;
+		if (silence(b) !== silence(a)) return silence(b) - silence(a);
+		return modeRank(b.mode) - modeRank(a.mode);
+	};
 
-	// (1) 高意欲者なし（キュー選択ゲート、追加と同一境界を逆向きに使う）→ キューの最古エントリ保持者（直前話者を除く）
+	// (1) 高意欲者なし（キュー選択ゲート）→ キューの最古エントリ保持者（直前話者を除く）
 	if (!shouldSpeak(filteredAssessments)) {
 		let oldestIdx = Infinity;
 		let oldestPersonaId: string | undefined;
@@ -78,8 +83,9 @@ const selectSpeakerByEngagement = (
 		}
 	}
 
-	// (2) スコア降順（同点は沈黙優先）。直前話者は唯一の最高スコアでない限り回避
-	const sorted = [...filteredAssessments].sort(byScoreThenSilence);
+	// (2) スコア降順 → 沈黙優先 → モード優先（fact>question>opinion）→ 同点はランダム
+	//     直前話者は唯一の最高スコアでない限り回避
+	const sorted = [...filteredAssessments].sort(byScoreThenSilenceThenMode);
 	if (sorted.length === 0) {
 		const fallbackId = personaIds.find((id) => id !== lastSpeakerId) ?? personaIds[0];
 		return { personaId: fallbackId, reason: 'score' };
@@ -88,8 +94,20 @@ const selectSpeakerByEngagement = (
 	const isLastSpeakerUniqueTop =
 		sorted[0].personaId === lastSpeakerId &&
 		sorted.filter((a) => a.score === maxScore).length === 1;
-	const selected = isLastSpeakerUniqueTop
-		? sorted[0]
-		: (sorted.find((a) => a.personaId !== lastSpeakerId) ?? sorted[0]);
+
+	const pool = (() => {
+		if (isLastSpeakerUniqueTop) return [sorted[0]];
+		const candidates = sorted.filter((a) => a.personaId !== lastSpeakerId);
+		const best = candidates[0];
+		if (!best) return [sorted[0]];
+		return candidates.filter(
+			(a) =>
+				a.score === best.score &&
+				silence(a) === silence(best) &&
+				modeRank(a.mode) === modeRank(best.mode)
+		);
+	})();
+
+	const selected = pool[Math.floor(Math.random() * pool.length)];
 	return { personaId: selected.personaId, reason: 'score' };
 };
