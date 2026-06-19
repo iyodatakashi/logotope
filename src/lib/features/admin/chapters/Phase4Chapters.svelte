@@ -56,6 +56,13 @@
 					<li>
 						<strong>{chapter.title}</strong>
 						<span class="focus">{chapter.focusQuestion}</span>
+						{#if chapter.discussionPoints?.length}
+							<ul class="points">
+								{#each chapter.discussionPoints as point}
+									<li>{point}</li>
+								{/each}
+							</ul>
+						{/if}
 					</li>
 				{/each}
 			</ol>
@@ -102,6 +109,19 @@
 		color: #757575;
 		font-size: 0.875rem;
 		margin-top: 2px;
+	}
+	.points {
+		margin: 6px 0 0;
+		padding-left: 20px;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+		list-style: disc;
+	}
+	.points li {
+		font-size: 0.8rem;
+		color: #888;
+		line-height: 1.5;
 	}
 	.issues {
 		margin-top: 24px;

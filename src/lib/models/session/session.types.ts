@@ -6,6 +6,7 @@ export type SpeakerType = 'facilitator' | 'persona';
 export type ChapterDoc = {
 	title: string;
 	focusQuestion: string;
+	discussionPoints?: string[];
 	startTurnIndex?: number;
 };
 
@@ -36,6 +37,13 @@ export type ChapterIssuesDoc = {
 	persona: string[];
 };
 
+export type DiscussionPointStatus = 'untouched' | 'introduced' | 'addressed';
+
+export type DiscussionPointStatusDoc = {
+	point: string;
+	status: DiscussionPointStatus;
+};
+
 export type SessionDoc = {
 	totalTurns?: number;
 	createdAt: Timestamp;
@@ -46,6 +54,7 @@ export type SessionDoc = {
 	chapters?: ChapterDoc[];
 	currentChapterIndex?: number;
 	chapterIssues?: ChapterIssuesDoc;
+	discussionPointStatuses?: DiscussionPointStatusDoc[];
 };
 
 export type PublishedTurn = {

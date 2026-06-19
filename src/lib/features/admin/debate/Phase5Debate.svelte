@@ -69,6 +69,9 @@
 	const currentChapter = $derived(
 		chapters && currentChapterIndex !== null ? chapters[currentChapterIndex] : null
 	);
+	const discussionPointStatuses = $derived(
+		currentTopicStore.sessionStore.session?.discussionPointStatuses ?? null
+	);
 	const completedTurns = $derived(turns.length);
 	const totalTurns = $derived(currentTopicStore.sessionStore.session?.totalTurns ?? 0);
 </script>
@@ -109,6 +112,16 @@
 					<li class:current={i === (currentChapterIndex ?? 0)}>
 						<strong>{chapter.title}</strong>
 						<span class="focus">{chapter.focusQuestion}</span>
+						{#if i === (currentChapterIndex ?? 0) && discussionPointStatuses?.length}
+							<ul class="points">
+								{#each discussionPointStatuses as dp}
+									<li class="point" data-status={dp.status}>
+										<span class="status-badge">{dp.status === 'untouched' ? '未' : dp.status === 'introduced' ? '着' : '済'}</span>
+										{dp.point}
+									</li>
+								{/each}
+							</ul>
+						{/if}
 					</li>
 				{/each}
 			</ol>
@@ -174,6 +187,39 @@
 	.chapters li.current {
 		color: #1565c0;
 		font-weight: 600;
+	}
+	.points {
+		margin: 4px 0 0 8px;
+		padding: 0;
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.point {
+		display: flex;
+		align-items: baseline;
+		gap: 6px;
+		font-size: 0.78rem;
+		font-weight: normal;
+		color: #666;
+	}
+	.status-badge {
+		flex-shrink: 0;
+		font-size: 0.7rem;
+		font-weight: 700;
+		padding: 1px 4px;
+		border-radius: 3px;
+		background: #e0e0e0;
+		color: #757575;
+	}
+	.point[data-status='introduced'] .status-badge {
+		background: #fff3e0;
+		color: #e65100;
+	}
+	.point[data-status='addressed'] .status-badge {
+		background: #e8f5e9;
+		color: #2e7d32;
 	}
 	.focus {
 		margin-left: 8px;
