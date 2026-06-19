@@ -29,13 +29,15 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { updateDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { createPersonasStore } from './personas.svelte';
+import type { TopicContext } from '$lib/models/topic/topic.types';
 
 const TOPIC_PATH = { path: 'topics/t1' };
 
 const populate = (store: ReturnType<typeof createPersonasStore>, ids: string[]) => {
 	store.start();
-	snapshotCb?.({ docs: ids.map((id) => ({ id, data: () => ({ name: id }) })) });
+	snapshotCb?.({ docs: ids.map((id) => ({ id, data: () => ({ name: id, beliefs: [], approved: true }) })) });
 };
 
 describe('createPersonasStore', () => {
@@ -99,5 +101,58 @@ describe('createPersonasStore', () => {
 			(c) => (c[0] as { path: string }).path === 'topics/t1'
 		);
 		expect(topicUpdate?.[1]).not.toHaveProperty('status');
+	});
+
+	it('runInterview は topicContext を Cloud Function ペイロードに含める', async () => {
+		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
+		vi.mocked(httpsCallable).mockReturnValue(mockFn as ReturnType<typeof httpsCallable>);
+
+		const store = createPersonasStore('t1');
+		populate(store, ['p1']);
+
+		const context: TopicContext = { description: 'テーマの詳細', sourceContents: ['記事1'] };
+		await store.runInterview('p1', 'テストテーマ', context);
+
+		const payload = mockFn.mock.calls[0][0] as Record<string, unknown>;
+		expect(payload).toMatchObject({ topicContext: context });
+	});
+
+	it('runInterview は topicContext が undefined のとき ペイロードに含めない（後方互換）', async () => {
+		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
+		vi.mocked(httpsCallable).mockReturnValue(mockFn as ReturnType<typeof httpsCallable>);
+
+		const store = createPersonasStore('t1');
+		populate(store, ['p1']);
+
+		await store.runInterview('p1', 'テストテーマ');
+
+		const payload = mockFn.mock.calls[0][0] as Record<string, unknown>;
+		expect(payload).not.toHaveProperty('topicContext');
+	});
+
+	it('runInterviews は topicContext を runInterview に転送する', async () => {
+		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
+		vi.mocked(httpsCallable).mockReturnValue(mockFn as ReturnType<typeof httpsCallable>);
+
+		const store = createPersonasStore('t1');
+		populate(store, ['p1']);
+
+		const context: TopicContext = { description: '詳細説明' };
+		await store.runInterviews('テストテーマ', context);
+
+		const payload = mockFn.mock.calls[0][0] as Record<string, unknown>;
+		expect(payload).toMatchObject({ topicContext: context });
+	});
+
+	it('runInterviews の all=true で全ペルソナを取材する', async () => {
+		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
+		vi.mocked(httpsCallable).mockReturnValue(mockFn as ReturnType<typeof httpsCallable>);
+
+		const store = createPersonasStore('t1');
+		populate(store, ['p1', 'p2']);
+
+		await store.runInterviews('テストテーマ', undefined, true);
+
+		expect(mockFn).toHaveBeenCalledTimes(2);
 	});
 });

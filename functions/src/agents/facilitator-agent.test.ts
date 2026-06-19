@@ -4,9 +4,7 @@ import type { Chapter } from '../types/chapter.types.js';
 import type { Persona } from '../types/persona.types.js';
 
 vi.mock('ai', () => ({
-	generateText: vi.fn(),
-	tool: vi.fn((def: unknown) => def),
-	jsonSchema: (schema: unknown) => schema,
+	generateObject: vi.fn(),
 }));
 
 vi.mock('@ai-sdk/anthropic', () => ({
@@ -64,34 +62,22 @@ const makeTurn = (content: string, speakerType = 'persona'): DebateTurn => ({
 	chapterId: 'ch1',
 });
 
-const mockGenerateText = (args: Record<string, string | number>) => ({
-	toolCalls: [{ toolName: 'mock', args }],
-});
-
-describe('INTERVENTION_TOOL スキーマ', () => {
-	it('selectedDiscussionPointIndex が schema に含まれる', async () => {
-		const { INTERVENTION_TOOL } = await import('./facilitator-agent.js');
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		const props = (INTERVENTION_TOOL as any).parameters.properties;
-		expect(props).toHaveProperty('selectedDiscussionPointIndex');
-		expect(props.selectedDiscussionPointIndex.type).toBe('number');
-	});
-});
+const makeObjectResult = (obj: Record<string, unknown>) => ({ object: obj });
 
 describe('generateOpening - 論点対応', () => {
-	let generateText: ReturnType<typeof vi.fn>;
+	let generateObject: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
 		vi.resetModules();
 		const aiMod = await import('ai');
-		generateText = vi.mocked(aiMod.generateText);
+		generateObject = vi.mocked(aiMod.generateObject);
 	});
 
 	it('discussionPoints がある章で、論点1がプロンプトに含まれる', async () => {
 		const capturedArgs: unknown[] = [];
-		generateText.mockImplementationOnce(async (args) => {
+		generateObject.mockImplementationOnce(async (args: unknown) => {
 			capturedArgs.push(args);
-			return mockGenerateText({ targetPersonaId: 'p1', content: '論点を問いかける発言' });
+			return makeObjectResult({ targetPersonaId: 'p1', content: '論点を問いかける発言' });
 		});
 
 		const { generateOpening } = await import('./facilitator-agent.js');
@@ -103,8 +89,8 @@ describe('generateOpening - 論点対応', () => {
 	});
 
 	it('discussionPoints がある章で selectedDiscussionPointIndex: 0 を返す', async () => {
-		generateText.mockResolvedValueOnce(
-			mockGenerateText({ targetPersonaId: 'p1', content: '問いかけ' })
+		generateObject.mockResolvedValueOnce(
+			makeObjectResult({ targetPersonaId: 'p1', content: '問いかけ' })
 		);
 
 		const { generateOpening } = await import('./facilitator-agent.js');
@@ -118,8 +104,8 @@ describe('generateOpening - 論点対応', () => {
 	});
 
 	it('discussionPoints が空の章では selectedDiscussionPointIndex を返さない', async () => {
-		generateText.mockResolvedValueOnce(
-			mockGenerateText({ targetPersonaId: 'p1', content: '通常の開幕' })
+		generateObject.mockResolvedValueOnce(
+			makeObjectResult({ targetPersonaId: 'p1', content: '通常の開幕' })
 		);
 
 		const { generateOpening } = await import('./facilitator-agent.js');
@@ -134,19 +120,19 @@ describe('generateOpening - 論点対応', () => {
 });
 
 describe('generateChapterIntroduction - 論点対応', () => {
-	let generateText: ReturnType<typeof vi.fn>;
+	let generateObject: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
 		vi.resetModules();
 		const aiMod = await import('ai');
-		generateText = vi.mocked(aiMod.generateText);
+		generateObject = vi.mocked(aiMod.generateObject);
 	});
 
 	it('discussionPoints がある章で、論点1がプロンプトに含まれる', async () => {
 		const capturedArgs: unknown[] = [];
-		generateText.mockImplementationOnce(async (args) => {
+		generateObject.mockImplementationOnce(async (args: unknown) => {
 			capturedArgs.push(args);
-			return mockGenerateText({ targetPersonaId: 'p1', content: '章導入' });
+			return makeObjectResult({ targetPersonaId: 'p1', content: '章導入' });
 		});
 
 		const { generateChapterIntroduction } = await import('./facilitator-agent.js');
@@ -158,8 +144,8 @@ describe('generateChapterIntroduction - 論点対応', () => {
 	});
 
 	it('discussionPoints がある場合 selectedDiscussionPointIndex: 0 を返す', async () => {
-		generateText.mockResolvedValueOnce(
-			mockGenerateText({ targetPersonaId: 'p1', content: '章導入' })
+		generateObject.mockResolvedValueOnce(
+			makeObjectResult({ targetPersonaId: 'p1', content: '章導入' })
 		);
 
 		const { generateChapterIntroduction } = await import('./facilitator-agent.js');
@@ -174,19 +160,19 @@ describe('generateChapterIntroduction - 論点対応', () => {
 });
 
 describe('evaluateTopicDrift - 未完了論点対応', () => {
-	let generateText: ReturnType<typeof vi.fn>;
+	let generateObject: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
 		vi.resetModules();
 		const aiMod = await import('ai');
-		generateText = vi.mocked(aiMod.generateText);
+		generateObject = vi.mocked(aiMod.generateObject);
 	});
 
 	it('unaddressedDiscussionPoints がある場合、論点リストがプロンプトに含まれる', async () => {
 		const capturedArgs: unknown[] = [];
-		generateText.mockImplementationOnce(async (args) => {
+		generateObject.mockImplementationOnce(async (args: unknown) => {
 			capturedArgs.push(args);
-			return mockGenerateText({ targetPersonaId: 'p1', content: '介入' });
+			return makeObjectResult({ targetPersonaId: 'p1', content: '介入' });
 		});
 
 		const { evaluateTopicDrift } = await import('./facilitator-agent.js');
@@ -204,9 +190,9 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 
 	it('unaddressedDiscussionPoints がある場合、三択判断の指示がプロンプトに含まれる', async () => {
 		const capturedArgs: unknown[] = [];
-		generateText.mockImplementationOnce(async (args) => {
+		generateObject.mockImplementationOnce(async (args: unknown) => {
 			capturedArgs.push(args);
-			return mockGenerateText({});
+			return makeObjectResult({});
 		});
 
 		const { evaluateTopicDrift } = await import('./facilitator-agent.js');
@@ -224,8 +210,8 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 	});
 
 	it('selectedDiscussionPointIndex をそのまま返す', async () => {
-		generateText.mockResolvedValueOnce(
-			mockGenerateText({ targetPersonaId: 'p1', content: '論点投入', selectedDiscussionPointIndex: 1 })
+		generateObject.mockResolvedValueOnce(
+			makeObjectResult({ targetPersonaId: 'p1', content: '論点投入', selectedDiscussionPointIndex: 1 })
 		);
 
 		const { evaluateTopicDrift } = await import('./facilitator-agent.js');
@@ -245,9 +231,9 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 
 	it('unaddressedDiscussionPoints が空の場合、論点リストをプロンプトに含めない', async () => {
 		const capturedArgs: unknown[] = [];
-		generateText.mockImplementationOnce(async (args) => {
+		generateObject.mockImplementationOnce(async (args: unknown) => {
 			capturedArgs.push(args);
-			return mockGenerateText({});
+			return makeObjectResult({});
 		});
 
 		const { evaluateTopicDrift } = await import('./facilitator-agent.js');
@@ -259,19 +245,19 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 });
 
 describe('evaluateStallIntervention - 未完了論点対応', () => {
-	let generateText: ReturnType<typeof vi.fn>;
+	let generateObject: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
 		vi.resetModules();
 		const aiMod = await import('ai');
-		generateText = vi.mocked(aiMod.generateText);
+		generateObject = vi.mocked(aiMod.generateObject);
 	});
 
 	it('unaddressedDiscussionPoints がある場合、流れ優先の指示が含まれる', async () => {
 		const capturedArgs: unknown[] = [];
-		generateText.mockImplementationOnce(async (args) => {
+		generateObject.mockImplementationOnce(async (args: unknown) => {
 			capturedArgs.push(args);
-			return mockGenerateText({});
+			return makeObjectResult({});
 		});
 
 		const { evaluateStallIntervention } = await import('./facilitator-agent.js');
@@ -290,8 +276,8 @@ describe('evaluateStallIntervention - 未完了論点対応', () => {
 	});
 
 	it('selectedDiscussionPointIndex をそのまま返す', async () => {
-		generateText.mockResolvedValueOnce(
-			mockGenerateText({ targetPersonaId: 'p1', content: '論点投入', selectedDiscussionPointIndex: 0 })
+		generateObject.mockResolvedValueOnce(
+			makeObjectResult({ targetPersonaId: 'p1', content: '論点投入', selectedDiscussionPointIndex: 0 })
 		);
 
 		const { evaluateStallIntervention } = await import('./facilitator-agent.js');
@@ -311,18 +297,16 @@ describe('evaluateStallIntervention - 未完了論点対応', () => {
 });
 
 describe('evaluateDiscussionPointCoverage', () => {
-	let generateText: ReturnType<typeof vi.fn>;
+	let generateObject: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
 		vi.resetModules();
 		const aiMod = await import('ai');
-		generateText = vi.mocked(aiMod.generateText);
+		generateObject = vi.mocked(aiMod.generateObject);
 	});
 
 	it('消化済みと判定された論点のインデックス配列を返す', async () => {
-		generateText.mockResolvedValueOnce(
-			mockGenerateText({ addressedIndices: [0, 2] })
-		);
+		generateObject.mockResolvedValueOnce(makeObjectResult({ addressedIndices: [0, 2] }));
 
 		const { evaluateDiscussionPointCoverage } = await import('./facilitator-agent.js');
 		const turns = [makeTurn('論点Aについて話した'), makeTurn('論点Cについても話した')];
@@ -335,9 +319,7 @@ describe('evaluateDiscussionPointCoverage', () => {
 	});
 
 	it('全論点未消化の場合は空配列を返す', async () => {
-		generateText.mockResolvedValueOnce(
-			mockGenerateText({ addressedIndices: [] })
-		);
+		generateObject.mockResolvedValueOnce(makeObjectResult({ addressedIndices: [] }));
 
 		const { evaluateDiscussionPointCoverage } = await import('./facilitator-agent.js');
 		const result = await evaluateDiscussionPointCoverage([makeTurn('無関係な発言')], ['論点A']);
@@ -349,7 +331,7 @@ describe('evaluateDiscussionPointCoverage', () => {
 	});
 
 	it('AI 呼び出し失敗時は ok: false でエラーを返す', async () => {
-		generateText.mockRejectedValueOnce(new Error('API error'));
+		generateObject.mockRejectedValueOnce(new Error('API error'));
 
 		const { evaluateDiscussionPointCoverage } = await import('./facilitator-agent.js');
 		const result = await evaluateDiscussionPointCoverage([makeTurn('発言')], ['論点A']);
@@ -362,9 +344,9 @@ describe('evaluateDiscussionPointCoverage', () => {
 
 	it('ターンと未完了論点の内容がプロンプトに含まれる', async () => {
 		const capturedArgs: unknown[] = [];
-		generateText.mockImplementationOnce(async (args) => {
+		generateObject.mockImplementationOnce(async (args: unknown) => {
 			capturedArgs.push(args);
-			return mockGenerateText({ addressedIndices: [] });
+			return makeObjectResult({ addressedIndices: [] });
 		});
 
 		const { evaluateDiscussionPointCoverage } = await import('./facilitator-agent.js');

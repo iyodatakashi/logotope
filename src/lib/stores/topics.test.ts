@@ -43,4 +43,33 @@ describe('topicsStore.addTopic (task 3.3)', () => {
 		const call = vi.mocked(setDoc).mock.calls.at(-1)?.[1] as Record<string, unknown>;
 		expect(call).not.toHaveProperty('status');
 	});
+
+	it('descriptionを渡すとFirestoreに保存する', async () => {
+		await topicsStore.addTopic('題名', '詳細説明');
+		const call = vi.mocked(setDoc).mock.calls.at(-1)?.[1] as Record<string, unknown>;
+		expect(call).toHaveProperty('description', '詳細説明');
+	});
+
+	it('descriptionが空文字のときFirestoreに保存しない', async () => {
+		await topicsStore.addTopic('題名', '');
+		const call = vi.mocked(setDoc).mock.calls.at(-1)?.[1] as Record<string, unknown>;
+		expect(call).not.toHaveProperty('description');
+	});
+
+	it('sourceUrlsを渡すとFirestoreに保存する', async () => {
+		await topicsStore.addTopic('題名', '', ['https://example.com']);
+		const call = vi.mocked(setDoc).mock.calls.at(-1)?.[1] as Record<string, unknown>;
+		expect(call).toHaveProperty('sourceUrls', ['https://example.com']);
+	});
+
+	it('sourceUrlsが空配列のときFirestoreに保存しない', async () => {
+		await topicsStore.addTopic('題名', '', []);
+		const call = vi.mocked(setDoc).mock.calls.at(-1)?.[1] as Record<string, unknown>;
+		expect(call).not.toHaveProperty('sourceUrls');
+	});
+
+	it('topicIdを返す', async () => {
+		const id = await topicsStore.addTopic('題名');
+		expect(id).toBe('new-id');
+	});
 });

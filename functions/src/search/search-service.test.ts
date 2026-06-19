@@ -6,11 +6,9 @@ vi.mock('@tavily/core', () => ({
 	tavily: vi.fn(() => ({ search: mockSearch })),
 }));
 
-import { SearchService } from './search-service.js';
+import { isSearchAvailable, executeSearch } from './search-service.js';
 
 describe('SearchService', () => {
-	let service: SearchService;
-
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
@@ -18,22 +16,19 @@ describe('SearchService', () => {
 	describe('isAvailable()', () => {
 		it('TAVILY_API_KEY が設定されている場合 true を返す', () => {
 			process.env.TAVILY_API_KEY = 'test-key';
-			service = new SearchService();
-			expect(service.isAvailable()).toBe(true);
+			expect(isSearchAvailable()).toBe(true);
 			delete process.env.TAVILY_API_KEY;
 		});
 
 		it('TAVILY_API_KEY が未設定の場合 false を返す', () => {
 			delete process.env.TAVILY_API_KEY;
-			service = new SearchService();
-			expect(service.isAvailable()).toBe(false);
+			expect(isSearchAvailable()).toBe(false);
 		});
 	});
 
 	describe('executeSearch()', () => {
 		beforeEach(() => {
 			process.env.TAVILY_API_KEY = 'test-key';
-			service = new SearchService();
 		});
 
 		afterEach(() => {
@@ -51,10 +46,12 @@ describe('SearchService', () => {
 				responseTime: 100,
 			});
 
-			const result = await service.executeSearch('少子化 統計');
+			const result = await executeSearch('少子化 統計');
 			expect(result.ok).toBe(true);
-			expect(result.content).toContain('コンテンツA');
-			expect(result.content).toContain('コンテンツB');
+			if (result.ok) {
+				expect(result.value).toContain('コンテンツA');
+				expect(result.value).toContain('コンテンツB');
+			}
 		});
 
 		it('空の検索結果: ok: true で空に近いコンテンツを返す', async () => {
@@ -65,22 +62,24 @@ describe('SearchService', () => {
 				responseTime: 50,
 			});
 
-			const result = await service.executeSearch('存在しないクエリ');
+			const result = await executeSearch('存在しないクエリ');
 			expect(result.ok).toBe(true);
 		});
 
 		it('HTTP エラー（例外）: ok: false を返し例外を投出しない', async () => {
 			mockSearch.mockRejectedValue(new Error('HTTP 500 Internal Server Error'));
 
-			const result = await service.executeSearch('エラークエリ');
+			const result = await executeSearch('エラークエリ');
 			expect(result.ok).toBe(false);
-			expect(result.error).toBeDefined();
+			if (!result.ok) {
+				expect(result.error).toBeDefined();
+			}
 		});
 
 		it('タイムアウト: ok: false を返し例外を投出しない', async () => {
 			mockSearch.mockRejectedValue(new Error('Request timeout'));
 
-			const result = await service.executeSearch('タイムアウトクエリ');
+			const result = await executeSearch('タイムアウトクエリ');
 			expect(result.ok).toBe(false);
 		});
 
@@ -94,7 +93,7 @@ describe('SearchService', () => {
 			}));
 			mockSearch.mockResolvedValue({ query: 'test', results: manyResults, images: [], responseTime: 100 });
 
-			await service.executeSearch('テスト');
+			await executeSearch('テスト');
 			const callArgs = mockSearch.mock.calls[0][1] as { maxResults?: number };
 			expect(callArgs?.maxResults).toBeLessThanOrEqual(5);
 		});

@@ -5,6 +5,7 @@ import type { Chapter } from '../types/chapter.types.js';
 
 vi.mock('ai', () => ({
 	generateText: vi.fn(),
+	generateObject: vi.fn(),
 	jsonSchema: (schema: unknown) => schema,
 }));
 
@@ -49,44 +50,15 @@ const mockChapter: Chapter = {
 
 const mockTurns: DebateTurn[] = [];
 
-describe('ASSESS_ENGAGEMENT_TOOLS', () => {
-	it('mode の enum に question が含まれる', async () => {
-		const { ASSESS_ENGAGEMENT_TOOLS } = await import('./persona-agent.js');
-		const modeEnum =
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(ASSESS_ENGAGEMENT_TOOLS as any).assess_engagement.parameters.properties.mode.enum;
-		expect(modeEnum).toContain('question');
-	});
-
-	it('mode の enum に fact, opinion, none も含まれる', async () => {
-		const { ASSESS_ENGAGEMENT_TOOLS } = await import('./persona-agent.js');
-		const modeEnum =
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			(ASSESS_ENGAGEMENT_TOOLS as any).assess_engagement.parameters.properties.mode.enum;
-		expect(modeEnum).toContain('fact');
-		expect(modeEnum).toContain('opinion');
-		expect(modeEnum).toContain('none');
-	});
-});
-
 describe('evaluateEngagement', () => {
-	let generateText: ReturnType<typeof vi.fn>;
-
 	beforeEach(async () => {
 		vi.resetModules();
-		const aiMod = await import('ai');
-		generateText = vi.mocked(aiMod.generateText);
 	});
 
 	it('mode: question かつ intentSummary が空の場合、mode: opinion に正規化して返す', async () => {
 		const aiMod = await import('ai');
-		vi.mocked(aiMod.generateText).mockResolvedValueOnce({
-			toolCalls: [
-				{
-					toolName: 'assess_engagement',
-					args: { score: 4, mode: 'question', intentSummary: '' },
-				},
-			],
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: { score: 4, mode: 'question', intentSummary: '' },
 		} as never);
 
 		const { evaluateEngagement } = await import('./persona-agent.js');
@@ -98,13 +70,8 @@ describe('evaluateEngagement', () => {
 
 	it('mode: question かつ intentSummary が未設定の場合、mode: opinion に正規化して返す', async () => {
 		const aiMod = await import('ai');
-		vi.mocked(aiMod.generateText).mockResolvedValueOnce({
-			toolCalls: [
-				{
-					toolName: 'assess_engagement',
-					args: { score: 3, mode: 'question' },
-				},
-			],
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: { score: 3, mode: 'question' },
 		} as never);
 
 		const { evaluateEngagement } = await import('./persona-agent.js');
@@ -115,13 +82,8 @@ describe('evaluateEngagement', () => {
 
 	it('mode: question かつ intentSummary が非空の場合、そのまま mode: question を返す', async () => {
 		const aiMod = await import('ai');
-		vi.mocked(aiMod.generateText).mockResolvedValueOnce({
-			toolCalls: [
-				{
-					toolName: 'assess_engagement',
-					args: { score: 4, mode: 'question', intentSummary: '佐藤さんの根拠を聞きたい' },
-				},
-			],
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: { score: 4, mode: 'question', intentSummary: '佐藤さんの根拠を聞きたい' },
 		} as never);
 
 		const { evaluateEngagement } = await import('./persona-agent.js');
@@ -134,16 +96,9 @@ describe('evaluateEngagement', () => {
 	it('otherPersonaNames がプロンプトに含まれる', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
-		vi.mocked(aiMod.generateText).mockImplementationOnce(async (args) => {
+		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
 			capturedArgs.push(args);
-			return {
-				toolCalls: [
-					{
-						toolName: 'assess_engagement',
-						args: { score: 2, mode: 'opinion', intentSummary: 'テスト' },
-					},
-				],
-			} as never;
+			return { object: { score: 2, mode: 'opinion', intentSummary: 'テスト' } } as never;
 		});
 
 		const { evaluateEngagement } = await import('./persona-agent.js');
@@ -154,8 +109,6 @@ describe('evaluateEngagement', () => {
 		expect(userContent).toContain('佐藤花子');
 		expect(userContent).toContain('鈴木次郎');
 	});
-
-	void generateText;
 });
 
 describe('generateTurn', () => {
@@ -257,7 +210,6 @@ describe('generateTurn', () => {
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ role: string; content: string }> };
 		const userContent = callArgs.messages[0].content;
-		// intentSummary is still included via intentNote but no targetPersonaId mandate
 		expect(userContent).not.toContain('必ず targetPersonaId に質問相手のIDを指定');
 	});
 

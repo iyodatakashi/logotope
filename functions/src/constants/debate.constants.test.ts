@@ -21,7 +21,7 @@ describe('debate/constants', () => {
 		expect(QUEUE_THRESHOLD_SCORE).toBe(4);
 		expect(CONTINUE_CHAPTER_THRESHOLD).toBe(4);
 		expect(MAX_PAIR_CONVERSATION_TURNS).toBe(3);
-		expect(DEFAULT_INTERVENTION_COOLDOWN).toBe(2);
+		expect(DEFAULT_INTERVENTION_COOLDOWN).toBe(3);
 		expect(TURNS_PER_CHAPTER).toBe(15);
 		expect(MAX_TURNS).toBe(200);
 		expect(CHAPTER_END_COUNT_LIMIT).toBe(5);
