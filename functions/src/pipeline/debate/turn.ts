@@ -40,7 +40,7 @@ export const addTurn = async (params: {
 	speakerRole?: string;
 	content: string;
 	chapterId?: string;
-	speechMode?: 'opinion' | 'fact';
+	speechMode?: 'opinion' | 'fact' | 'question';
 	engagementScore?: number;
 	fromQueue?: boolean;
 	targetPersonaId?: string;
@@ -208,6 +208,10 @@ export const generatePersonaTurn = async ({
 			: undefined;
 	}
 
+	const otherPersonas = personas
+		.filter((p) => p.id !== persona.id)
+		.map((p) => ({ id: p.id, name: p.name }));
+
 	const turnResult = await generateTurn(
 		persona,
 		{
@@ -220,7 +224,8 @@ export const generatePersonaTurn = async ({
 					? speakerSelection.reason === 'targeted_by_facilitator'
 						? 'facilitator'
 						: 'persona'
-					: undefined
+					: undefined,
+			otherPersonas
 		},
 		{ ...engagement, intentSummary: speakerSelection.intentSummary ?? engagement.intentSummary }
 	);
@@ -234,6 +239,12 @@ export const generatePersonaTurn = async ({
 	const targetPersonaId =
 		rawTarget !== persona.id ? validPersonaId(rawTarget, personas) : undefined;
 
+	// question モードで targetPersonaId が設定されなかった場合は opinion にフォールバック
+	const effectiveSpeechMode =
+		turnResult.value.speechMode === 'question' && !targetPersonaId
+			? 'opinion'
+			: turnResult.value.speechMode;
+
 	const turnIndex = state.turns.length;
 	const { id: turnId } = await addTurn({
 		topicId,
@@ -244,7 +255,7 @@ export const generatePersonaTurn = async ({
 		speakerRole: persona.specificRole,
 		content: turnResult.value.content,
 		chapterId: chapter.id,
-		speechMode: turnResult.value.speechMode,
+		speechMode: effectiveSpeechMode,
 		engagementScore: engagement.score,
 		fromQueue: fromQueue || undefined,
 		targetPersonaId,

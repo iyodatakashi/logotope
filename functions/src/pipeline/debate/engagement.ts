@@ -11,7 +11,7 @@ const saveEngagements = async (params: {
 	engagements: Array<{
 		personaId: string;
 		score: number;
-		mode: 'opinion' | 'fact' | 'none';
+		mode: 'opinion' | 'fact' | 'none' | 'question';
 		intentSummary?: string;
 	}>;
 }): Promise<void> => {
@@ -37,7 +37,10 @@ export const evaluateEngagements = async ({
 }): Promise<Engagement[]> => {
 	const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
 	const engagements = await Promise.all(
-		assessTargets.map((p) => evaluateEngagement(p, state.turns))
+		assessTargets.map((p) => {
+			const otherPersonaNames = personas.filter((q) => q.id !== p.id).map((q) => q.name);
+			return evaluateEngagement(p, state.turns, otherPersonaNames);
+		})
 	);
 	await saveEngagements({
 		topicId,
@@ -68,5 +71,6 @@ export const evaluateEngagementWithFallback = async ({
 	if (fromList) return fromList;
 	const persona = personas.find((p) => p.id === personaId);
 	if (!persona) return { personaId, mode: 'opinion' as const, score: 2 };
-	return evaluateEngagement(persona, turns);
+	const otherPersonaNames = personas.filter((p) => p.id !== personaId).map((p) => p.name);
+	return evaluateEngagement(persona, turns, otherPersonaNames);
 };
