@@ -86,14 +86,29 @@ export const tryIntervention = async ({
 	engagements: Engagement[];
 	interventionCooldown: number;
 }): Promise<boolean> => {
-	let intervention: { content: string; targetPersonaId?: string } | undefined;
+	let intervention: { content: string; targetPersonaId?: string; selectedDiscussionPointIndex?: number } | undefined;
+
+	const unaddressedDiscussionPoints = state.discussionPoints
+		.filter((p) => p.status !== 'addressed')
+		.map((p) => p.point);
+
 	if (shouldEvaluateIntervention(countPersonaTurnsSinceFacilitator(state.turns), interventionCooldown)) {
-		intervention = await tryTopicDriftIntervention({ personas, chapter, state });
+		intervention = await tryTopicDriftIntervention({ personas, chapter, state, unaddressedDiscussionPoints });
 		if (!intervention) {
-			intervention = await tryStallIntervention({ personas, chapter, state, engagements });
+			intervention = await tryStallIntervention({ personas, chapter, state, engagements, unaddressedDiscussionPoints });
 		}
 	}
 	if (!intervention) return false;
+
+	if (
+		intervention.selectedDiscussionPointIndex !== undefined &&
+		intervention.selectedDiscussionPointIndex >= 0 &&
+		intervention.selectedDiscussionPointIndex < unaddressedDiscussionPoints.length
+	) {
+		const introducedPoint = unaddressedDiscussionPoints[intervention.selectedDiscussionPointIndex];
+		const target = state.discussionPoints.find((p) => p.point === introducedPoint);
+		if (target) target.status = 'introduced';
+	}
 
 	await addQueuedIntents({
 		topicId,
@@ -116,24 +131,27 @@ export const tryIntervention = async ({
 const tryTopicDriftIntervention = async ({
 	personas,
 	chapter,
-	state
+	state,
+	unaddressedDiscussionPoints
 }: {
 	personas: Persona[];
 	chapter: Chapter;
 	state: DebateState;
-}): Promise<{ content: string; targetPersonaId: string } | undefined> => {
+	unaddressedDiscussionPoints: string[];
+}): Promise<{ content: string; targetPersonaId: string; selectedDiscussionPointIndex?: number } | undefined> => {
 	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
 	const result = await evaluateTopicDrift(
 		chapterTurns as DebateTurn[],
 		personas,
 		state.speakCount,
-		chapter
+		chapter,
+		unaddressedDiscussionPoints.length > 0 ? unaddressedDiscussionPoints : undefined
 	);
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 	if (!result.value.content) return undefined;
 	const targetId = validPersonaId(result.value.targetPersonaId, personas);
 	if (!targetId) return undefined;
-	return { content: result.value.content, targetPersonaId: targetId };
+	return { content: result.value.content, targetPersonaId: targetId, selectedDiscussionPointIndex: result.value.selectedDiscussionPointIndex };
 };
 
 /** 出尽くし介入: 高意欲者（>= QUEUE_THRESHOLD_SCORE）がいない場合のみ発火する。ドリフト介入と同じクールダウンを共有する */
@@ -141,23 +159,26 @@ const tryStallIntervention = async ({
 	personas,
 	chapter,
 	state,
-	engagements
+	engagements,
+	unaddressedDiscussionPoints
 }: {
 	personas: Persona[];
 	chapter: Chapter;
 	state: DebateState;
 	engagements: Engagement[];
-}): Promise<{ content: string; targetPersonaId?: string } | undefined> => {
+	unaddressedDiscussionPoints: string[];
+}): Promise<{ content: string; targetPersonaId?: string; selectedDiscussionPointIndex?: number } | undefined> => {
 	if (hasHighEngagement(engagements)) return undefined;
 	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
 	const result = await evaluateStallIntervention(
 		chapterTurns as DebateTurn[],
 		personas,
 		state.speakCount,
-		chapter
+		chapter,
+		unaddressedDiscussionPoints.length > 0 ? unaddressedDiscussionPoints : undefined
 	);
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 	if (!result.value.content) return undefined;
 	const targetId = validPersonaId(result.value.targetPersonaId, personas);
-	return { content: result.value.content, targetPersonaId: targetId ?? undefined };
+	return { content: result.value.content, targetPersonaId: targetId ?? undefined, selectedDiscussionPointIndex: result.value.selectedDiscussionPointIndex };
 };

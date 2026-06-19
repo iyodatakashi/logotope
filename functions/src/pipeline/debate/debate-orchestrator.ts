@@ -3,7 +3,8 @@ import { getPersonasByTopicId } from '../personas/personas.js';
 import { getDebateSessionByTopicId } from './debate-lifecycle.js';
 import {
 	generateOpening,
-	generateChapterIntroduction
+	generateChapterIntroduction,
+	evaluateDiscussionPointCoverage
 } from '../../agents/facilitator-agent.js';
 import { selectSpeaker } from './speaker-selection.js';
 import { getDebateState } from './debate-state.js';
@@ -12,6 +13,7 @@ import {
 	CHAPTER_END_COUNT_LIMIT,
 	EARLY_END_PROGRESS_RATIO,
 	TURN_CAP_RATIO,
+	AGENDA_TURN_CAP_RATIO,
 	CONTINUE_CHAPTER_THRESHOLD,
 	TURNS_PER_CHAPTER,
 	MAX_TURNS,
@@ -75,7 +77,15 @@ export const executeChapterTask = async (
 
 	const chapter = chapters[chapterIndex];
 	const { turnsPerChapter, maxTurns, interventionCooldown } = options;
-	const cap = Math.ceil(turnsPerChapter * TURN_CAP_RATIO);
+
+	// 論点ステータスを章の discussionPoints から初期化する（タスク再実行時も全 untouched でリセット）
+	state.discussionPoints = (chapter.discussionPoints ?? []).map((point) => ({
+		point,
+		status: 'untouched' as const
+	}));
+
+	const hasPoints = state.discussionPoints.length > 0;
+	const cap = Math.ceil(turnsPerChapter * (hasPoints ? AGENDA_TURN_CAP_RATIO : TURN_CAP_RATIO));
 	let chapterEndCount = 0;
 	const chapterTurnCount = () => state.turns.filter((t) => t.chapterId === chapter.id).length;
 
@@ -91,6 +101,8 @@ export const executeChapterTask = async (
 				content: openingResult.value.content ?? '',
 				targetPersonaId: validPersonaId(openingResult.value.targetPersonaId, personas)
 			});
+			markIntroduced(state, openingResult.value.selectedDiscussionPointIndex);
+			await saveDiscussionPointStatuses(topicId, state);
 		} else {
 			const introResult = await generateChapterIntroduction(chapter, personas);
 			if (introResult.ok) {
@@ -101,6 +113,8 @@ export const executeChapterTask = async (
 					content: introResult.value.content ?? '',
 					targetPersonaId: validPersonaId(introResult.value.targetPersonaId, personas)
 				});
+				markIntroduced(state, introResult.value.selectedDiscussionPointIndex);
+				await saveDiscussionPointStatuses(topicId, state);
 			}
 		}
 	}
@@ -119,7 +133,28 @@ export const executeChapterTask = async (
 		if (
 			chapterTurnCount() >= Math.ceil(turnsPerChapter * EARLY_END_PROGRESS_RATIO) &&
 			chapterEndCount >= CHAPTER_END_COUNT_LIMIT
-		) break;
+		) {
+			const incomplete = state.discussionPoints.filter((p) => p.status !== 'addressed');
+			if (incomplete.length > 0) {
+				const coverageResult = await evaluateDiscussionPointCoverage(
+					state.turns.filter((t) => t.chapterId === chapter.id),
+					incomplete.map((p) => p.point)
+				);
+				if (coverageResult.ok) {
+					for (const idx of coverageResult.value) {
+						const target = state.discussionPoints.find((p) => p.point === incomplete[idx]?.point);
+						if (target) target.status = 'addressed';
+					}
+					await saveDiscussionPointStatuses(topicId, state);
+					if (state.discussionPoints.some((p) => p.status !== 'addressed')) {
+						chapterEndCount = 0;
+						continue;
+					}
+				}
+				// coverageResult 失敗 → フォールバックで break
+			}
+			break;
+		}
 	}
 
 	// 章終了時に未応答の指名が残っていれば応答ターンを1件生成する（+1ターン許容）
@@ -224,7 +259,10 @@ const executeTurn = async ({
 			engagements,
 			interventionCooldown
 		});
-		if (intervened) return true;
+		if (intervened) {
+			await saveDiscussionPointStatuses(topicId, state);
+			return true;
+		}
 	}
 
 	// 5. 話者を決定する（指名 > キュー > スコア順）
@@ -290,6 +328,22 @@ const executeTurn = async ({
 
 	// 13. 章継続判定を返す
 	return engagements.length === 0 || engagements.some((a) => a.score >= CONTINUE_CHAPTER_THRESHOLD);
+};
+
+const saveDiscussionPointStatuses = async (topicId: string, state: DebateState): Promise<void> => {
+	if (state.discussionPoints.length === 0) return;
+	await db().doc(`topics/${topicId}/sessions/0`).update({
+		discussionPointStatuses: state.discussionPoints.map((p) => ({ point: p.point, status: p.status }))
+	});
+};
+
+const markIntroduced = (state: DebateState, index: number | undefined): void => {
+	if (index === undefined) return;
+	const untouched = state.discussionPoints.filter((p) => p.status !== 'addressed');
+	const target = untouched[index] !== undefined
+		? state.discussionPoints.find((p) => p.point === untouched[index].point)
+		: undefined;
+	if (target) target.status = 'introduced';
 };
 
 const getLastTargetPersona = (
