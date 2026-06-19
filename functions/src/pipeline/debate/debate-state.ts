@@ -62,5 +62,6 @@ export const getDebateState = (
 		pairConversationTurns: 0,
 		currentTurnIndex,
 		lastFacilitatorTurnIndex,
+		discussionPoints: [],
 	};
 };

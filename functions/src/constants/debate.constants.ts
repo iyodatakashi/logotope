@@ -35,3 +35,6 @@ export const EARLY_END_PROGRESS_RATIO = 0.75;
 
 /** 章の強制終了上限の比率（目標ターンに対する倍率） */
 export const TURN_CAP_RATIO = 1.5;
+
+/** 論点リストが存在する章の強制終了上限の比率（論点消化を許容するため既定より高い） */
+export const AGENDA_TURN_CAP_RATIO = 2.5;

@@ -25,6 +25,13 @@ export type DebateSession = {
 	currentChapterIndex?: number;
 };
 
+export type DiscussionPointStatus = 'untouched' | 'introduced' | 'addressed';
+
+export type DiscussionPointState = {
+	point: string;
+	status: DiscussionPointStatus;
+};
+
 export type DebateState = {
 	turns: DebateTurn[];
 	silenceMap: Map<string, number>;
@@ -34,11 +41,13 @@ export type DebateState = {
 	pairConversationTurns: number;
 	currentTurnIndex: number;
 	lastFacilitatorTurnIndex: number;
+	discussionPoints: DiscussionPointState[];
 };
 
 export type FacilitatorReply = {
 	content?: string;
 	targetPersonaId?: string;
+	selectedDiscussionPointIndex?: number;
 };
 
 export type PersonaReply = {

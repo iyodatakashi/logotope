@@ -11,7 +11,7 @@ export const getDebateSessionByTopicId = async (topicId: string): Promise<Debate
 		createdAt: Timestamp;
 		completedAt?: Timestamp;
 		publishedAt?: Timestamp;
-		chapters?: Array<{ id: string; title: string; focusQuestion: string }>;
+		chapters?: Array<{ id: string; title: string; focusQuestion: string; discussionPoints?: string[] }>;
 		currentChapterIndex?: number;
 	};
 	return {
@@ -21,7 +21,7 @@ export const getDebateSessionByTopicId = async (topicId: string): Promise<Debate
 		createdAt: data.createdAt?.toDate().toISOString() ?? '',
 		completedAt: data.completedAt?.toDate().toISOString() ?? null,
 		publishedAt: data.publishedAt?.toDate().toISOString() ?? null,
-		chapters: data.chapters,
+		chapters: data.chapters?.map((c) => ({ ...c, discussionPoints: c.discussionPoints ?? [] })),
 		currentChapterIndex: data.currentChapterIndex,
 	};
 };
