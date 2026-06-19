@@ -52,6 +52,10 @@
 		background: #e3f2fd;
 		color: #1565c0;
 	}
+	.engagement[data-mode='question'] {
+		background: #fff3e0;
+		color: #e65100;
+	}
 	.engagement[data-mode='none'] {
 		background: #f5f5f5;
 		color: #999;
