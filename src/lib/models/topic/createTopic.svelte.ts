@@ -118,9 +118,22 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 				postDebateComments: [],
 				currentChapterIndex: deleteField(),
 				totalTurns: deleteField(),
-				completedAt: deleteField()
+				completedAt: deleteField(),
+				discussionPointStatuses: deleteField()
 			},
 			{ merge: true }
+		);
+		// 討論中に蓄積したペルソナの信念変化（triggeredByTurnId 付き）を削除する
+		const personasSnap = await getDocs(collection(db, 'topics', id, 'personas'));
+		await Promise.all(
+			personasSnap.docs.map((personaDoc) => {
+				const beliefs: Array<{ triggeredByTurnId?: string | null }> =
+					(personaDoc.data().beliefs as Array<{ triggeredByTurnId?: string | null }>) ?? [];
+				const kept = beliefs.filter((b) => !b.triggeredByTurnId);
+				if (kept.length !== beliefs.length) {
+					return updateDoc(personaDoc.ref, { beliefs: kept });
+				}
+			})
 		);
 	};
 

@@ -91,6 +91,8 @@ export const executeChapterTask = async (
 
 	// 章開始: 第1章はオープニング、2章以降は導入を生成（章立ては generateChapters で事前に保存済み）
 	if (chapterTurnCount() === 0) {
+		// 全論点を「未着手」として先に保存することで、ファシリテーター発言より先に「着」が表示されるのを防ぐ
+		await saveDiscussionPointStatuses(topicId, state);
 		if (chapterIndex === 0) {
 			const openingResult = await generateOpening(topicTitle, personas, chapter);
 			if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));

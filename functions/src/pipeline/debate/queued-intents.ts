@@ -29,7 +29,7 @@ export const expireQueuedIntents = async ({
 		writes.map(({ personaId, alive }) =>
 			db()
 				.doc(`topics/${topicId}/sessions/0/engagements/${personaId}`)
-				.set({ pendingIntents: alive }, { merge: true })
+				.set({ queuedIntents: alive }, { merge: true })
 		)
 	);
 };
@@ -60,7 +60,7 @@ export const addQueuedIntents = async ({
 		updates.map(({ personaId, updated }) =>
 			db()
 				.doc(`topics/${topicId}/sessions/0/engagements/${personaId}`)
-				.set({ pendingIntents: updated }, { merge: true })
+				.set({ queuedIntents: updated }, { merge: true })
 		)
 	);
 };
@@ -85,15 +85,15 @@ export const consumeQueuedIntent = async ({
 	}
 	await db()
 		.doc(`topics/${topicId}/sessions/0/engagements/${personaId}`)
-		.set({ pendingIntents: [...remaining] }, { merge: true });
+		.set({ queuedIntents: [...remaining] }, { merge: true });
 };
 
 export const loadQueuedIntents = async (topicId: string): Promise<Map<string, QueuedIntent[]>> => {
 	const snap = await db().collection(`topics/${topicId}/sessions/0/engagements`).get();
 	const result = new Map<string, QueuedIntent[]>();
 	for (const docSnap of snap.docs) {
-		const data = docSnap.data() as { pendingIntents?: QueuedIntent[] };
-		result.set(docSnap.id, data.pendingIntents ?? []);
+		const data = docSnap.data() as { queuedIntents?: QueuedIntent[] };
+		result.set(docSnap.id, data.queuedIntents ?? []);
 	}
 	return result;
 };

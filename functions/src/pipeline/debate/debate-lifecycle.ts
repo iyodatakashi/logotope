@@ -60,6 +60,7 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 		postDebateComments: [],
 		totalTurns: FieldValue.delete(),
 		completedAt: FieldValue.delete(),
+		discussionPointStatuses: FieldValue.delete(),
 	});
 
 	const personasSnap = await db().collection(`topics/${topicId}/personas`).get();
@@ -74,9 +75,9 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 		}
 	}
 
-	if (removedTurnIndexes.length > 0) {
-		const engSnap = await db().collection(`topics/${topicId}/sessions/0/engagements`).get();
-		const updates: Record<string, unknown> = {};
+	const engSnap = await db().collection(`topics/${topicId}/sessions/0/engagements`).get();
+	if (engSnap.size > 0) {
+		const updates: Record<string, unknown> = { queuedIntents: FieldValue.delete() };
 		for (const ti of removedTurnIndexes) {
 			updates[`history.${ti}`] = FieldValue.delete();
 		}
