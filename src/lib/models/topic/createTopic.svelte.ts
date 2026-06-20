@@ -10,7 +10,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
-import type { TopicDoc, StakeholderDoc, FetchedSourceContent } from './topic.types';
+import type { TopicDoc, FetchedSourceContent } from './topic.types';
 import type { PersonaData } from '../persona/persona.types';
 import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
 
@@ -22,7 +22,6 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 	let description: string | undefined = $state(topicDoc.description);
 	let sourceUrls: string[] | undefined = $state(topicDoc.sourceUrls);
 	let fetchedSourceContents: FetchedSourceContent[] | undefined = $state(topicDoc.fetchedSourceContents);
-	let stakeholders: StakeholderDoc[] = $state(topicDoc.stakeholders ?? []);
 	let personaCount: number = $state(topicDoc.personaCount ?? 0);
 	let createdAt: Date = topicDoc.createdAt.toDate();
 	let updatedAt: Date = topicDoc.updatedAt.toDate();
@@ -75,12 +74,9 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 	// --- 旧データのリセット（データ層ごと。各 reset はその層のデータだけを消す） ---
 	// 再生成では、各フェーズ画面の regenerate ハンドラが「自フェーズ＋下流ぶん」を合成して呼ぶ。
 
-	// ステークホルダー（トピックの stakeholders フィールド）を空に戻す。
+	// ステークホルダー（stakeholders/0 ドキュメント）を削除する。
 	const resetStakeholders = async (): Promise<void> => {
-		await updateDoc(doc(db, 'topics', id), {
-			stakeholders: [],
-			updatedAt: Timestamp.now()
-		});
+		await deleteDoc(doc(db, 'topics', id, 'stakeholders', '0'));
 	};
 
 	// ペルソナ（personas サブコレクション。取材記録・信念もペルソナ文書に含まれる）を全削除する。
@@ -134,13 +130,12 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 		await setPhaseStatus(1, 'running');
 		try {
 			const generateStakeholdersCallable = httpsCallable<
-				{ title: string },
-				{ stakeholders: StakeholderDoc[] }
+				{ topicId: string; title: string },
+				Record<string, never>
 			>(functions, 'generateStakeholders', { timeout: 310000 });
-			const { data } = await generateStakeholdersCallable({ title });
+			await generateStakeholdersCallable({ topicId: id, title });
 
 			await updateDoc(doc(db, 'topics', id), {
-				stakeholders: data.stakeholders,
 				phase: 1,
 				phaseStatus: 'generated',
 				updatedAt: Timestamp.now()
@@ -154,15 +149,13 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 	const generatePersonas = async (): Promise<void> => {
 		await setPhaseStatus(2, 'running');
 		try {
-			const stakeholderItems = stakeholders ?? [];
 			const generatePersonasCallable = httpsCallable<
-				{ topicId: string; title: string; stakeholders: StakeholderDoc[] },
+				{ topicId: string; title: string },
 				{ personas: Array<PersonaData & { id: string }> }
 			>(functions, 'generatePersonas', { timeout: 310000 });
 			const { data } = await generatePersonasCallable({
 				topicId: id,
-				title: title,
-				stakeholders: stakeholderItems
+				title: title
 			});
 
 			await Promise.all(
@@ -252,9 +245,6 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 		},
 		get personaCount() {
 			return personaCount;
-		},
-		get stakeholders() {
-			return stakeholders;
 		},
 		get description() {
 			return description;

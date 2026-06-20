@@ -21,7 +21,6 @@ export type TopicBase = {
 	sourceContentsFetchedAt?: Timestamp;
 	phase: Phase;
 	phaseStatus: PhaseStatus;
-	stakeholders?: StakeholderDoc[];
 	personaCount?: number;
 };
 
