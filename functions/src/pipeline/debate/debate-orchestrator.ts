@@ -37,7 +37,7 @@ import { pipelineErrorMessage, validPersonaId } from './utils.js';
 import type { SpeakerSelection, DebateState, DebateTurn, DebateOptions } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
-import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 
 const db = () => getFirestore();
 
