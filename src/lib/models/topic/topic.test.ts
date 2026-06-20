@@ -33,6 +33,14 @@ import { updateDoc, setDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestor
 import { createTopicStates } from './createTopic.svelte';
 
 const TOPIC_PATH = { path: 'topics/t1' };
+const mockTimestamp = { toDate: () => new Date() };
+const makeTopic = (extra: Record<string, unknown> = {}) =>
+	createTopicStates({
+		id: 't1',
+		createdAt: mockTimestamp,
+		updatedAt: mockTimestamp,
+		...extra
+	} as never);
 const updateCallsFor = (path: string) =>
 	vi.mocked(updateDoc).mock.calls.filter((c) => (c[0] as { path: string }).path === path);
 
@@ -45,7 +53,7 @@ describe('createTopicStates', () => {
 
 	describe('承認操作の2軸遷移 (task 3.1)', () => {
 		it('approveStakeholders は (2, not_started) へ前進しステークホルダーを承認する', async () => {
-			const store = createTopicStates({ id: 't1' } as never);
+			const store = makeTopic();
 			await store.approveStakeholders();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
@@ -57,7 +65,7 @@ describe('createTopicStates', () => {
 		});
 
 		it('approveInterviews は (4, not_started) へ前進する', async () => {
-			const store = createTopicStates({ id: 't1' } as never);
+			const store = makeTopic();
 			await store.approveInterviews();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
@@ -66,7 +74,7 @@ describe('createTopicStates', () => {
 		});
 
 		it('approveChapters は (5, not_started) へ前進する', async () => {
-			const store = createTopicStates({ id: 't1' } as never);
+			const store = makeTopic();
 			await store.approveChapters();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
@@ -75,7 +83,7 @@ describe('createTopicStates', () => {
 		});
 
 		it('承認操作は旧 status を書き込まない', async () => {
-			const store = createTopicStates({ id: 't1' } as never);
+			const store = makeTopic();
 			await store.approveChapters();
 			const call = vi.mocked(updateDoc).mock.calls.at(-1)?.[1] as unknown as Record<
 				string,
@@ -90,7 +98,7 @@ describe('createTopicStates', () => {
 			vi.mocked(httpsCallable).mockReturnValue(
 				vi.fn().mockResolvedValue({ data: { stakeholders: [{ role: 'A' }] } }) as never
 			);
-			const store = createTopicStates({ id: 't1', title: 'T' } as never);
+			const store = makeTopic({ title: 'T' });
 			await store.generateStakeholders();
 
 			const calls = updateCallsFor('topics/t1');
@@ -107,7 +115,7 @@ describe('createTopicStates', () => {
 			vi.mocked(httpsCallable).mockReturnValue(
 				vi.fn().mockResolvedValue({ data: { personas: [{ name: 'p' }] } }) as never
 			);
-			const store = createTopicStates({ id: 't1', title: 'T' } as never);
+			const store = makeTopic({ title: 'T' });
 			await store.generatePersonas();
 			const calls = updateCallsFor('topics/t1');
 			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 2, phaseStatus: 'running' }));
@@ -117,7 +125,7 @@ describe('createTopicStates', () => {
 		});
 
 		it('generateChapters は (4, running)→生成成功後に (4, generated)', async () => {
-			const store = createTopicStates({ id: 't1', title: 'T' } as never);
+			const store = makeTopic({ title: 'T' });
 			await store.generateChapters();
 			const calls = updateCallsFor('topics/t1');
 			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 4, phaseStatus: 'running' }));
@@ -129,7 +137,7 @@ describe('createTopicStates', () => {
 
 	describe('stopDebate (task 2.1)', () => {
 		it('トピックの phaseStatus を stopped にする（session には書かない）', async () => {
-			const store = createTopicStates({ id: 't1', title: 'T' } as never);
+			const store = makeTopic({ title: 'T' });
 			await store.stopDebate();
 
 			expect(updateDoc).toHaveBeenCalledWith(
@@ -144,7 +152,7 @@ describe('createTopicStates', () => {
 			vi.mocked(httpsCallable).mockReturnValue(
 				vi.fn().mockRejectedValue(new Error('生成失敗')) as never
 			);
-			const store = createTopicStates({ id: 't1', title: 'T' } as never);
+			const store = makeTopic({ title: 'T' });
 
 			await expect(store.generateStakeholders()).rejects.toThrow('生成失敗');
 			const calls = updateCallsFor('topics/t1');
@@ -156,7 +164,7 @@ describe('createTopicStates', () => {
 
 	describe('旧データのリセット（データ層ごと。名前＝役割範囲）', () => {
 		it('resetStakeholders は stakeholders を空に戻す', async () => {
-			const store = createTopicStates({ id: 't1' } as never);
+			const store = makeTopic();
 			await store.resetStakeholders();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
@@ -171,40 +179,57 @@ describe('createTopicStates', () => {
 			const ref2 = { path: 'topics/t1/personas/p2' };
 			vi.mocked(getDocs).mockResolvedValue({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never);
 
-			const store = createTopicStates({ id: 't1' } as never);
+			const store = makeTopic();
 			await store.resetPersonas();
 
 			expect(deleteDoc).toHaveBeenCalledWith(ref1);
 			expect(deleteDoc).toHaveBeenCalledWith(ref2);
 		});
 
-		it('resetChapters は session の chapters を消す（merge・章立て層のみ）', async () => {
-			const store = createTopicStates({ id: 't1' } as never);
+		it('resetChapters は chapters コレクションを全削除し chapterAnalysis/0 も削除する', async () => {
+			const ref1 = { path: 'topics/t1/chapters/c1' };
+			const ref2 = { path: 'topics/t1/chapters/c2' };
+			vi.mocked(getDocs).mockResolvedValue({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never);
+
+			const store = makeTopic();
 			await store.resetChapters();
-			expect(setDoc).toHaveBeenCalledWith(
-				{ path: 'topics/t1/sessions/0' },
-				expect.objectContaining({ chapters: 'DELETE_FIELD' }),
-				{ merge: true }
-			);
+
+			expect(deleteDoc).toHaveBeenCalledWith(ref1);
+			expect(deleteDoc).toHaveBeenCalledWith(ref2);
+			expect(deleteDoc).toHaveBeenCalledWith({ path: 'topics/t1/chapterAnalysis/0' });
 		});
 
-		it('resetDebate は session の turns を消し、章立て・status は触らない', async () => {
-			const store = createTopicStates({ id: 't1' } as never);
+		it('resetDebate は各チャプターの turns を消し、postDebateComments/0 を削除する', async () => {
+			const chapterRef = { path: 'topics/t1/chapters/c1' };
+			vi.mocked(getDocs)
+				.mockResolvedValueOnce({ docs: [] } as never) // engagements
+				.mockResolvedValueOnce({ docs: [{ ref: chapterRef }] } as never) // chapters
+				.mockResolvedValueOnce({ docs: [] } as never); // personas
+
+			const store = makeTopic();
 			await store.resetDebate();
-			const call = vi
+
+			expect(deleteDoc).toHaveBeenCalledWith({ path: 'topics/t1/postDebateComments/0' });
+			expect(updateDoc).toHaveBeenCalledWith(
+				chapterRef,
+				expect.objectContaining({ turns: [], status: 'pending' })
+			);
+			// sessions/0 には書かない
+			const sessionCall = vi
 				.mocked(setDoc)
-				.mock.calls.find((c) => (c[0] as { path: string }).path === 'topics/t1/sessions/0');
-			expect(call?.[1]).toEqual(expect.objectContaining({ turns: [], postDebateComments: [] }));
-			expect(call?.[1]).not.toHaveProperty('chapters');
-			expect(call?.[1]).not.toHaveProperty('status');
+				.mock.calls.find((c) => String((c[0] as { path: string }).path).includes('sessions'));
+			expect(sessionCall).toBeUndefined();
 		});
 
 		it('resetDebate は engagements 文書（古いペルソナidが残る）を全削除する', async () => {
-			const ref1 = { path: 'topics/t1/sessions/0/engagements/old-p1' };
-			const ref2 = { path: 'topics/t1/sessions/0/engagements/old-p2' };
-			vi.mocked(getDocs).mockResolvedValue({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never);
+			const ref1 = { path: 'topics/t1/engagements/old-p1' };
+			const ref2 = { path: 'topics/t1/engagements/old-p2' };
+			vi.mocked(getDocs)
+				.mockResolvedValueOnce({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never) // engagements
+				.mockResolvedValueOnce({ docs: [] } as never) // chapters
+				.mockResolvedValueOnce({ docs: [] } as never); // personas
 
-			const store = createTopicStates({ id: 't1' } as never);
+			const store = makeTopic();
 			await store.resetDebate();
 
 			expect(deleteDoc).toHaveBeenCalledWith(ref1);
@@ -213,7 +238,7 @@ describe('createTopicStates', () => {
 	});
 
 	it('旧 reset 名・バンドル操作は撲滅され、データ層ごとの reset へ統一されている', () => {
-		const store = createTopicStates({ id: 't1' } as never);
+		const store = makeTopic();
 		// 旧: フェーズ番号ベース／reset と生成を兼ねたバンドル操作は無い
 		expect('resetToPhase1' in store).toBe(false);
 		expect('resetToPhase2' in store).toBe(false);
