@@ -22,7 +22,6 @@ const makePersona = (id: string, name: string, specificRole: string, stakeholder
 
 const makeFacilitatorTurn = (content: string): DebateTurn => ({
 	id: 't1',
-	turnIndex: 0,
 	speakerType: 'facilitator',
 	content,
 	createdAt: '',
@@ -30,7 +29,6 @@ const makeFacilitatorTurn = (content: string): DebateTurn => ({
 
 const makePersonaTurn = (personaId: string, content: string): DebateTurn => ({
 	id: 't2',
-	turnIndex: 1,
 	speakerType: 'persona',
 	personaId,
 	content,

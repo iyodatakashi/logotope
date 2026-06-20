@@ -37,7 +37,6 @@ describe('debate.types - questionモード型定義', () => {
 	it('DebateTurn.speechMode に question が含まれる', () => {
 		const turn: DebateTurn = {
 			id: 'turn1',
-			turnIndex: 0,
 			speakerType: 'persona',
 			content: 'テスト発言',
 			createdAt: '2026-01-01T00:00:00Z',
@@ -88,8 +87,6 @@ describe('debate.types - 論点追跡型定義', () => {
 			speakCount: new Map(),
 			queuedIntents: new Map(),
 			pairConversationTurns: 0,
-			currentTurnIndex: 0,
-			lastFacilitatorTurnIndex: 0,
 			discussionPoints: [{ point: '論点1', status: 'introduced' }],
 		};
 		expect(state.discussionPoints).toHaveLength(1);
@@ -151,7 +148,6 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 	it('DebateTurn は chapterId なしで構築できる', () => {
 		const turn: DebateTurn = {
 			id: 'turn1',
-			turnIndex: 0,
 			speakerType: 'persona',
 			content: 'テスト発言',
 			createdAt: '2026-01-01T00:00:00Z',

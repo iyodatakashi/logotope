@@ -58,14 +58,14 @@ describe('createChaptersStore', () => {
 		expect(store.isLoaded).toBe(true);
 	});
 
-	it('turns が全チャプターの turns を turnIndex 順にフラット化する', () => {
+	it('turns が全チャプターの turns をチャプター順・配列順にフラット化する', () => {
 		const store = createChaptersStore('topic1');
 		const ch1Turns = [
-			{ id: 't1', turnIndex: 0, speakerType: 'facilitator' as const, content: '開幕', createdAt: Timestamp.now() },
-			{ id: 't3', turnIndex: 2, speakerType: 'persona' as const, content: '発言3', createdAt: Timestamp.now() },
+			{ id: 't1', speakerType: 'facilitator' as const, content: '開幕', createdAt: Timestamp.now() },
+			{ id: 't2', speakerType: 'persona' as const, content: '発言2', createdAt: Timestamp.now() },
 		];
 		const ch2Turns = [
-			{ id: 't2', turnIndex: 1, speakerType: 'persona' as const, content: '発言2', createdAt: Timestamp.now() },
+			{ id: 't3', speakerType: 'persona' as const, content: '発言3', createdAt: Timestamp.now() },
 		];
 
 		populate(store, [
@@ -75,7 +75,7 @@ describe('createChaptersStore', () => {
 
 		const turns = store.turns;
 		expect(turns).toHaveLength(3);
-		expect(turns.map((t) => t.turnIndex)).toEqual([0, 1, 2]);
+		expect(turns.map((t) => t.id)).toEqual(['t1', 't2', 't3']);
 	});
 
 	it('runningChapter が status=running のチャプターを返す', () => {

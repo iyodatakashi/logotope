@@ -24,7 +24,6 @@ const persona: PersonaSummaryForViewer = {
 const turns: PublishedTurn[] = [
 	{
 		id: 'turn-5',
-		turnIndex: 5,
 		speakerType: 'persona',
 		speakerName: '鈴木花子',
 		speakerRole: '消費者代表',

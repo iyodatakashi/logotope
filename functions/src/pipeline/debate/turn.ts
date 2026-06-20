@@ -34,7 +34,6 @@ export const isDebateActive = async (topicId: string): Promise<boolean> => {
 export const addTurn = async (params: {
 	topicId: string;
 	chapterId: string;
-	turnIndex: number;
 	speakerType: 'persona' | 'facilitator';
 	personaId?: string;
 	content: string;
@@ -49,7 +48,6 @@ export const addTurn = async (params: {
 	const id = nanoid();
 	const turn: Record<string, unknown> = {
 		id,
-		turnIndex: params.turnIndex,
 		speakerType: params.speakerType,
 		content: params.content,
 		createdAt: Timestamp.now()
@@ -138,11 +136,9 @@ export const generateFacilitatorTurn = async ({
 	targetPersonaId?: string;
 	chapterId: string;
 }): Promise<{ content: string; targetPersonaId?: string }> => {
-	const turnIndex = state.turns.length;
 	const { id: turnId } = await addTurn({
 		topicId,
 		chapterId,
-		turnIndex,
 		speakerType: 'facilitator',
 		content,
 		targetPersonaId,
@@ -150,7 +146,6 @@ export const generateFacilitatorTurn = async ({
 	});
 	state.turns.push({
 		id: turnId,
-		turnIndex,
 		speakerType: 'facilitator',
 		content,
 		createdAt: new Date().toISOString(),
@@ -194,7 +189,7 @@ export const generatePersonaTurn = async ({
 	const queuedEntries = state.queuedIntents.get(persona.id);
 	let queuedTrigger: { speakerName: string; content: string } | undefined;
 	if (queuedEntries && queuedEntries.length > 0) {
-		const triggerTurn = state.turns.find((t) => t.turnIndex === queuedEntries[0].triggerTurnIndex);
+		const triggerTurn = state.turns.find((t) => t.id === queuedEntries[0].triggerTurnId);
 		if (triggerTurn) {
 			const triggerPersona = triggerTurn.personaId
 				? personas.find((p) => p.id === triggerTurn.personaId)
@@ -244,11 +239,9 @@ export const generatePersonaTurn = async ({
 			? 'opinion'
 			: turnResult.value.speechMode;
 
-	const turnIndex = state.turns.length;
 	const { id: turnId } = await addTurn({
 		topicId,
 		chapterId: chapter.id,
-		turnIndex,
 		speakerType: 'persona',
 		personaId: persona.id,
 		content: turnResult.value.content,
@@ -262,7 +255,6 @@ export const generatePersonaTurn = async ({
 	});
 	state.turns.push({
 		id: turnId,
-		turnIndex,
 		speakerType: 'persona',
 		personaId: persona.id,
 		content: turnResult.value.content,
@@ -352,7 +344,6 @@ export const getDebateTurnsByTopicId = async (topicId: string): Promise<DebateTu
 		const data = chapterDoc.data() as {
 			turns?: Array<{
 				id: string;
-				turnIndex: number;
 				speakerType: string;
 				personaId?: string;
 				content: string;
@@ -363,7 +354,6 @@ export const getDebateTurnsByTopicId = async (topicId: string): Promise<DebateTu
 		};
 		const turns = (data.turns ?? []).map((t) => ({
 			id: t.id,
-			turnIndex: t.turnIndex,
 			speakerType: t.speakerType,
 			personaId: t.personaId ?? null,
 			content: t.content,
@@ -373,5 +363,5 @@ export const getDebateTurnsByTopicId = async (topicId: string): Promise<DebateTu
 		}));
 		allTurns.push(...turns);
 	}
-	return allTurns.sort((a, b) => a.turnIndex - b.turnIndex);
+	return allTurns;
 };

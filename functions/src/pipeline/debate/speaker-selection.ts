@@ -1,4 +1,4 @@
-import type { SpeakerSelection, Engagement, QueuedIntent, DebateState } from '../../types/debate.types.js';
+import type { SpeakerSelection, Engagement, QueuedIntent, DebateState, DebateTurn } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE, STALL_INTERVENTION_THRESHOLD_SCORE } from '../../constants/debate.constants.js';
 
@@ -35,7 +35,7 @@ export const selectSpeaker = ({
 		};
 	}
 	const personaIds = personas.map((p) => p.id);
-	return selectSpeakerByEngagement(engagements, state.queuedIntents, state.silenceMap, personaIds, state.lastSpeakerId);
+	return selectSpeakerByEngagement(engagements, state.queuedIntents, state.silenceMap, personaIds, state.turns, state.lastSpeakerId);
 };
 
 const modeRank = (mode: string): number =>
@@ -47,6 +47,7 @@ const selectSpeakerByEngagement = (
 	queuedIntents: ReadonlyMap<string, ReadonlyArray<QueuedIntent>>,
 	silenceMap: ReadonlyMap<string, number>,
 	personaIds: ReadonlyArray<string>,
+	turns: ReadonlyArray<DebateTurn>,
 	lastSpeakerId?: string
 ): SpeakerSelection => {
 	const filteredAssessments = engagements.filter((a) => personaIds.includes(a.personaId));
@@ -65,7 +66,10 @@ const selectSpeakerByEngagement = (
 		for (const [personaId, items] of queuedIntents.entries()) {
 			if (personaId === lastSpeakerId || !personaIds.includes(personaId) || items.length === 0)
 				continue;
-			const oldest = Math.min(...items.map((item) => item.triggerTurnIndex));
+			const oldest = Math.min(...items.map((item) => {
+				const idx = turns.findIndex((t) => t.id === item.triggerTurnId);
+				return idx === -1 ? Infinity : idx;
+			}));
 			if (oldest < oldestIdx) {
 				oldestIdx = oldest;
 				oldestPersonaId = personaId;
@@ -73,7 +77,11 @@ const selectSpeakerByEngagement = (
 		}
 		if (oldestPersonaId) {
 			const items = [...(queuedIntents.get(oldestPersonaId) ?? [])].sort(
-				(a, b) => a.triggerTurnIndex - b.triggerTurnIndex
+				(a, b) => {
+					const idxA = turns.findIndex((t) => t.id === a.triggerTurnId);
+					const idxB = turns.findIndex((t) => t.id === b.triggerTurnId);
+					return idxA - idxB;
+				}
 			);
 			return {
 				personaId: oldestPersonaId,

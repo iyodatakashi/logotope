@@ -25,6 +25,8 @@
 		| { type: 'turn'; key: string; turn: PublishedTurn }
 		| { type: 'chapter'; key: string; chapter: ChapterDoc; chapterIdx: number };
 
+	const turnIdxMap = $derived(new Map(debate.turns.map((t, i) => [t.id, i])));
+
 	const displayItems = $derived.by((): DisplayItem[] => {
 		const chapters = debate.chapters;
 		if (!chapters?.length) {
@@ -34,9 +36,10 @@
 		let lastChapterIdx = -1;
 		let chapterIdx = 0;
 		for (const turn of filteredTurns) {
+			const turnIdx = turnIdxMap.get(turn.id) ?? 0;
 			while (
 				chapterIdx + 1 < chapters.length &&
-				(chapters[chapterIdx + 1].startTurnIndex ?? Infinity) <= turn.turnIndex
+				(chapters[chapterIdx + 1].startTurnIdx ?? Infinity) <= turnIdx
 			) {
 				chapterIdx++;
 			}

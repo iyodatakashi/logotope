@@ -8,9 +8,7 @@ export const getDebateState = (
 	personas: ReadonlyArray<Persona>,
 	persistedQueuedIntents: ReadonlyMap<string, ReadonlyArray<QueuedIntent>>
 ): DebateState => {
-	const turns = [...inputTurns].sort((a, b) => a.turnIndex - b.turnIndex);
-
-	const currentTurnIndex = turns.length > 0 ? turns[turns.length - 1].turnIndex + 1 : 0;
+	const turns = [...inputTurns];
 
 	const speakCount = new Map<string, number>(personas.map((p) => [p.id, 0]));
 	for (const t of turns) {
@@ -29,22 +27,20 @@ export const getDebateState = (
 	}
 
 	let lastSpeakerId: string | undefined;
-	let lastFacilitatorTurnIndex = 0;
 	for (let i = turns.length - 1; i >= 0; i--) {
-		if (turns[i].speakerType === 'persona' && turns[i].personaId && !lastSpeakerId) {
+		if (turns[i].speakerType === 'persona' && turns[i].personaId) {
 			lastSpeakerId = turns[i].personaId ?? undefined;
+			break;
 		}
-		if (turns[i].speakerType === 'facilitator' && lastFacilitatorTurnIndex === 0) {
-			lastFacilitatorTurnIndex = turns[i].turnIndex;
-		}
-		if (lastSpeakerId !== undefined && lastFacilitatorTurnIndex !== 0) break;
 	}
 
 	const queuedIntents = new Map<string, QueuedIntent[]>();
 	for (const [personaId, items] of persistedQueuedIntents.entries()) {
-		const alive = items.filter(
-			(item) => currentTurnIndex - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS
-		);
+		const alive = items.filter((item) => {
+			const triggerIdx = turns.findIndex((t) => t.id === item.triggerTurnId);
+			if (triggerIdx === -1) return false;
+			return turns.length - triggerIdx <= INTENT_EXPIRY_TURNS;
+		});
 		if (alive.length > 0) {
 			queuedIntents.set(
 				personaId,
@@ -60,8 +56,6 @@ export const getDebateState = (
 		lastSpeakerId,
 		queuedIntents,
 		pairConversationTurns: 0,
-		currentTurnIndex,
-		lastFacilitatorTurnIndex,
 		discussionPoints: [],
 	};
 };

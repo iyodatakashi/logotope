@@ -27,9 +27,7 @@ export const createChaptersStore = (topicId: string) => {
 			return chapters;
 		},
 		get turns(): TurnDoc[] {
-			return chapters
-				.flatMap((c) => c.turns)
-				.sort((a, b) => a.turnIndex - b.turnIndex);
+			return chapters.flatMap((c) => c.turns);
 		},
 		get runningChapter(): ChapterWithId | null {
 			return chapters.find((c) => c.status === 'running') ?? null;

@@ -24,7 +24,6 @@ const debate: PublishedDebateDetail = {
 	turns: [
 		{
 			id: 'turn-0',
-			turnIndex: 0,
 			speakerType: 'facilitator',
 			speakerName: 'ファシリテーター',
 			speakerRole: '',
@@ -33,7 +32,6 @@ const debate: PublishedDebateDetail = {
 		},
 		{
 			id: 'turn-1',
-			turnIndex: 1,
 			speakerType: 'persona',
 			speakerName: '田中太郎',
 			speakerRole: '中小企業経営者',
@@ -42,7 +40,6 @@ const debate: PublishedDebateDetail = {
 		},
 		{
 			id: 'turn-2',
-			turnIndex: 2,
 			speakerType: 'persona',
 			speakerName: '鈴木花子',
 			speakerRole: '消費者代表',
@@ -56,13 +53,12 @@ const debate: PublishedDebateDetail = {
 const debateWithChapters: PublishedDebateDetail = {
 	...debate,
 	chapters: [
-		{ title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIndex: 0 },
-		{ title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIndex: 2 }
+		{ title: '導入', focusQuestion: 'この問題の核心は何か？', startTurnIdx: 0 },
+		{ title: '核心的対立', focusQuestion: '最も意見が分かれる点はどこか？', startTurnIdx: 2 }
 	],
 	turns: [
 		{
 			id: 'turn-0',
-			turnIndex: 0,
 			speakerType: 'facilitator',
 			speakerName: 'ファシリテーター',
 			speakerRole: '',
@@ -71,7 +67,6 @@ const debateWithChapters: PublishedDebateDetail = {
 		},
 		{
 			id: 'turn-1',
-			turnIndex: 1,
 			speakerType: 'persona',
 			speakerName: '田中太郎',
 			speakerRole: '中小企業経営者',
@@ -80,7 +75,6 @@ const debateWithChapters: PublishedDebateDetail = {
 		},
 		{
 			id: 'turn-2',
-			turnIndex: 2,
 			speakerType: 'persona',
 			speakerName: '鈴木花子',
 			speakerRole: '消費者代表',

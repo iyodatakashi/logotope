@@ -55,11 +55,9 @@ const makeChapter = (overrides: Partial<Chapter> = {}): Chapter => ({
 
 const makeTurn = (content: string, speakerType = 'persona'): DebateTurn => ({
 	id: 't1',
-	turnIndex: 0,
 	speakerType,
 	content,
 	createdAt: '2026-06-19T00:00:00Z',
-	chapterId: 'ch1',
 });
 
 const makeObjectResult = (obj: Record<string, unknown>) => ({ object: obj });

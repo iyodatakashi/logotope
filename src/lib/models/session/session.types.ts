@@ -7,12 +7,11 @@ export type ChapterDoc = {
 	title: string;
 	focusQuestion: string;
 	discussionPoints?: string[];
-	startTurnIndex?: number;
+	startTurnIdx?: number;
 };
 
 export type TurnDoc = {
 	id: string;
-	turnIndex: number;
 	speakerType: SpeakerType;
 	personaId?: string;
 	content: string;
@@ -60,7 +59,6 @@ export type PostDebateCommentsDoc = {
 
 export type PublishedTurn = {
 	id: string;
-	turnIndex: number;
 	speakerType: SpeakerType;
 	personaId?: string | null;
 	speakerName: string;

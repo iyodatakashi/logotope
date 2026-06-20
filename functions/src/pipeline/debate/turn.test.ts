@@ -77,13 +77,11 @@ const makeDebateState = () => ({
 	speakCount: new Map(),
 	queuedIntents: new Map(),
 	pairConversationTurns: 0,
-	currentTurnIndex: 0,
-	lastFacilitatorTurnIndex: -1,
+	discussionPoints: [],
 });
 
-const makeDebateTurn = (override: Partial<{ id: string; turnIndex: number; speakerType: string; personaId: string | null; content: string; createdAt: string }> = {}) => ({
+const makeDebateTurn = (override: Partial<{ id: string; speakerType: string; personaId: string | null; content: string; createdAt: string }> = {}) => ({
 	id: 't0',
-	turnIndex: 0,
 	speakerType: 'persona' as const,
 	personaId: 'p2',
 	content: '佐藤の発言',
@@ -266,8 +264,8 @@ describe('generatePersonaTurn', () => {
 		});
 
 		const state = makeDebateState();
-		state.turns.push(makeDebateTurn({ turnIndex: 0, personaId: 'p2' }));
-		state.queuedIntents.set('p1', [{ triggerTurnIndex: 0, intentSummary: '言いたいこと' }]);
+		state.turns.push(makeDebateTurn({ id: 't0', personaId: 'p2' }));
+		state.queuedIntents.set('p1', [{ triggerTurnId: 't0', intentSummary: '言いたいこと' }]);
 
 		await generatePersonaTurn({
 			topicId: 'topic1',
@@ -291,8 +289,8 @@ describe('generatePersonaTurn', () => {
 		});
 
 		const state = makeDebateState();
-		state.turns.push(makeDebateTurn({ turnIndex: 0, speakerType: 'facilitator', personaId: null }));
-		state.queuedIntents.set('p1', [{ triggerTurnIndex: 0, intentSummary: 'ファシリ発言への反応' }]);
+		state.turns.push(makeDebateTurn({ id: 'f0', speakerType: 'facilitator', personaId: null }));
+		state.queuedIntents.set('p1', [{ triggerTurnId: 'f0', intentSummary: 'ファシリ発言への反応' }]);
 
 		await generatePersonaTurn({
 			topicId: 'topic1',

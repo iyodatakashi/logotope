@@ -59,7 +59,6 @@
 			);
 			return {
 				id: t.id,
-				turnIndex: t.turnIndex,
 				speakerType: t.speakerType,
 				personaId: t.personaId ?? null,
 				speakerName: persona?.name ?? 'ファシリテーター',
@@ -69,16 +68,15 @@
 			};
 		});
 
-		// チャプターのターン数から startTurnIndex を計算する（Firestore に保存しない）
 		let cumulativeTurns = 0;
 		const chapters = chaptersStore.chapters.map((c) => {
-			const startTurnIndex = cumulativeTurns;
+			const startTurnIdx = cumulativeTurns;
 			cumulativeTurns += c.turns.length;
 			return {
 				title: c.title,
 				focusQuestion: c.focusQuestion,
 				discussionPoints: c.discussionPoints,
-				startTurnIndex
+				startTurnIdx
 			};
 		});
 

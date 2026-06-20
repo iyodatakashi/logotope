@@ -25,7 +25,6 @@ describe('session.types - チャプタードキュメント型定義', () => {
 	it('ChapterStateDoc は turns と discussionPointStatuses を保持する', () => {
 		const turn: TurnDoc = {
 			id: 't1',
-			turnIndex: 0,
 			speakerType: 'persona',
 			content: 'テスト発言',
 			createdAt: Timestamp.now(),

@@ -170,16 +170,14 @@ describe('Task 5.2: 介入経路で未完了論点が渡され着手へ更新さ
 		const { tryIntervention } = await import('../pipeline/debate/intervention.js');
 		const state = {
 			turns: [
-				{ id: 'f1', turnIndex: 0, speakerType: 'facilitator', content: '開幕', createdAt: '' },
-				{ id: 't1', turnIndex: 1, speakerType: 'persona', content: '発言1', createdAt: '' },
-				{ id: 't2', turnIndex: 2, speakerType: 'persona', content: '発言2', createdAt: '' },
+				{ id: 'f1', speakerType: 'facilitator', content: '開幕', createdAt: '' },
+				{ id: 't1', speakerType: 'persona', content: '発言1', createdAt: '' },
+				{ id: 't2', speakerType: 'persona', content: '発言2', createdAt: '' },
 			],
 			silenceMap: new Map<string, number>(),
 			speakCount: new Map<string, number>(),
 			queuedIntents: new Map(),
 			pairConversationTurns: 0,
-			currentTurnIndex: 3,
-			lastFacilitatorTurnIndex: 0,
 			discussionPoints: [
 				{ point: '未消化論点X', status: 'untouched' as const },
 				{ point: '未消化論点Y', status: 'untouched' as const },

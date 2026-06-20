@@ -45,8 +45,6 @@ export type DebateState = {
 	lastSpeakerId?: string;
 	queuedIntents: Map<string, QueuedIntent[]>;
 	pairConversationTurns: number;
-	currentTurnIndex: number;
-	lastFacilitatorTurnIndex: number;
 	discussionPoints: DiscussionPointState[];
 };
 
@@ -79,7 +77,7 @@ export type SpeakerSelection = {
 };
 
 export type QueuedIntent = {
-	triggerTurnIndex: number;
+	triggerTurnId: string;
 	intentSummary: string;
 };
 
@@ -93,7 +91,6 @@ export type TurnGenerationContext = {
 
 export type DebateTurn = {
 	id: string;
-	turnIndex: number;
 	speakerType: string;
 	personaId?: string | null;
 	content: string;
