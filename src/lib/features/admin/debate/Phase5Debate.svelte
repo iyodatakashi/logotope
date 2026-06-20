@@ -29,7 +29,7 @@
 	);
 
 	const turns = $derived(
-		(currentTopicStore.sessionStore.session?.turns ?? [])
+		currentTopicStore.chaptersStore.turns
 			.slice()
 			.sort((a, b) => a.turnIndex - b.turnIndex)
 			.map((t) => {
@@ -39,9 +39,9 @@
 					id: t.id,
 					turnIndex: t.turnIndex,
 					speakerType: t.speakerType,
-					speakerName: t.speakerName ?? persona?.name ?? 'ファシリテーター',
+					speakerName: persona?.name ?? 'ファシリテーター',
 					// 話者の役割は、このテーマにおける具体的な立場（specificRole）を表示する
-					speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? t.speakerRole ?? '',
+					speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
 					content: t.content,
 					speechMode: t.speechMode,
 					engagementScore: t.engagementScore,
@@ -62,18 +62,15 @@
 			})
 	);
 
-	const chapters = $derived(currentTopicStore.sessionStore.session?.chapters ?? null);
-	const currentChapterIndex = $derived(
-		currentTopicStore.sessionStore.session?.currentChapterIndex ?? null
+	const chapters = $derived(
+		currentTopicStore.chaptersStore.chapters.length
+			? currentTopicStore.chaptersStore.chapters
+			: null
 	);
-	const currentChapter = $derived(
-		chapters && currentChapterIndex !== null ? chapters[currentChapterIndex] : null
-	);
-	const discussionPointStatuses = $derived(
-		currentTopicStore.sessionStore.session?.discussionPointStatuses ?? null
-	);
+	const currentChapter = $derived(currentTopicStore.chaptersStore.runningChapter);
+	const currentChapterIndex = $derived(currentChapter?.chapterIndex ?? null);
+	const discussionPointStatuses = $derived(currentChapter?.discussionPointStatuses ?? null);
 	const completedTurns = $derived(turns.length);
-	const totalTurns = $derived(currentTopicStore.sessionStore.session?.totalTurns ?? 0);
 </script>
 
 <PhasePanel
@@ -100,8 +97,8 @@
 					第{(currentChapterIndex ?? 0) + 1}章「{currentChapter.title}」
 					{#if chapters}（第{(currentChapterIndex ?? 0) + 1}章 / 全{chapters.length}章）{/if}
 				</p>
-			{:else if totalTurns > 0}
-				<p class="chapter-progress">討論中...（ターン {completedTurns} / {totalTurns}）</p>
+			{:else if completedTurns > 0}
+				<p class="chapter-progress">討論中...（ターン {completedTurns}）</p>
 			{/if}
 		{/if}
 	{/snippet}

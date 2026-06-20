@@ -17,11 +17,7 @@
 
 	const filteredTurns = $derived(
 		selectedPersonaId
-			? debate.turns.filter(
-					(t) =>
-						t.speakerType === 'persona' &&
-						t.speakerName === debate.personas.find((p) => p.id === selectedPersonaId)?.name
-				)
+			? debate.turns.filter((t) => t.personaId === selectedPersonaId)
 			: debate.turns
 	);
 

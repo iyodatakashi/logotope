@@ -9,32 +9,47 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 		get topic() {
 			return { id: 'test-topic', phase: 5, phaseStatus: 'generated' };
 		},
-		get sessionStore() {
+		get chaptersStore() {
 			return {
-				get session() {
-					return {
-						turns: [
-							{
-								id: 't1',
-								turnIndex: 1,
-								speakerType: 'persona',
-								personaId: 'p1',
-								content: 'テスト発言内容',
-								createdAt: {},
-								speechMode: undefined
-							}
-						],
-						status: 'completed',
-						createdAt: {},
-						postDebateComments: [],
-						totalTurns: 2
-					};
+				get chapters() {
+					return [
+						{
+							id: 'ch1',
+							chapterIndex: 0,
+							title: 'テスト章',
+							focusQuestion: '問いかけ',
+							discussionPoints: [],
+							turns: [
+								{
+									id: 't1',
+									turnIndex: 1,
+									speakerType: 'persona',
+									personaId: 'p1',
+									content: 'テスト発言内容',
+									createdAt: {},
+									speechMode: undefined
+								}
+							],
+							status: 'completed'
+						}
+					];
 				},
-				get isLoaded() {
-					return true;
+				get turns() {
+					return [
+						{
+							id: 't1',
+							turnIndex: 1,
+							speakerType: 'persona',
+							personaId: 'p1',
+							content: 'テスト発言内容',
+							createdAt: {},
+							speechMode: undefined
+						}
+					];
 				},
-				start: vi.fn(),
-				stop: vi.fn()
+				get runningChapter() {
+					return null;
+				}
 			};
 		},
 		get personasStore() {

@@ -2,7 +2,6 @@ import {
 	doc,
 	updateDoc,
 	setDoc,
-	writeBatch,
 	Timestamp,
 	getDocs,
 	collection,
@@ -57,16 +56,11 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 		const personasSnap = await getDocs(collection(db, 'topics', id, 'personas'));
 		const personaCount = personasSnap.size;
 		const now = Timestamp.now();
-		const batch = writeBatch(db);
-		batch.update(doc(db, 'topics', id), {
+		await updateDoc(doc(db, 'topics', id), {
 			personaCount,
 			publishedAt: now,
 			updatedAt: now
 		});
-		batch.update(doc(db, 'topics', id, 'sessions', '0'), {
-			publishedAt: now
-		});
-		await batch.commit();
 	};
 
 	// フェーズ状態（実行中・生成完了・停止）をトピックに書く小さなヘルパー。
@@ -95,33 +89,30 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 		await Promise.all(personasSnap.docs.map((personaDoc) => deleteDoc(personaDoc.ref)));
 	};
 
-	// 章立て（セッションの chapters）を消す。session '0' 未作成でも安全なよう merge で書く。
+	// 章立て（chapters コレクションと chapterAnalysis/0）を消す。
 	const resetChapters = async (): Promise<void> => {
-		await setDoc(
-			doc(db, 'topics', id, 'sessions', '0'),
-			{ chapters: deleteField(), chapterIssues: deleteField() },
-			{ merge: true }
-		);
+		const chaptersSnap = await getDocs(collection(db, 'topics', id, 'chapters'));
+		await Promise.all(chaptersSnap.docs.map((chapterDoc) => deleteDoc(chapterDoc.ref)));
+		await deleteDoc(doc(db, 'topics', id, 'chapterAnalysis', '0'));
 	};
 
-	// 討論（セッションの turns・進行状態・発言意欲。章立ては残す）を消す。session '0' 未作成でも安全。
+	// 討論（chapters のターン・engagements・postDebateComments。章立ては残す）を消す。
 	const resetDebate = async (): Promise<void> => {
 		// engagements はペルソナidをキーにした討論時データ。古いペルソナidが残らないよう全削除する。
-		const engagementsSnap = await getDocs(
-			collection(db, 'topics', id, 'sessions', '0', 'engagements')
-		);
+		const engagementsSnap = await getDocs(collection(db, 'topics', id, 'engagements'));
 		await Promise.all(engagementsSnap.docs.map((engagementDoc) => deleteDoc(engagementDoc.ref)));
-		await setDoc(
-			doc(db, 'topics', id, 'sessions', '0'),
-			{
-				turns: [],
-				postDebateComments: [],
-				currentChapterIndex: deleteField(),
-				totalTurns: deleteField(),
-				completedAt: deleteField(),
-				discussionPointStatuses: deleteField()
-			},
-			{ merge: true }
+		// postDebateComments を空にする
+		await deleteDoc(doc(db, 'topics', id, 'postDebateComments', '0'));
+		// 各チャプターのターン・論点状態・進行ステータスをリセットする
+		const chaptersSnap = await getDocs(collection(db, 'topics', id, 'chapters'));
+		await Promise.all(
+			chaptersSnap.docs.map((chapterDoc) =>
+				updateDoc(chapterDoc.ref, {
+					turns: [],
+					status: 'pending',
+					discussionPointStatuses: deleteField()
+				})
+			)
 		);
 		// 討論中に蓄積したペルソナの信念変化（triggeredByTurnId 付き）を削除する
 		const personasSnap = await getDocs(collection(db, 'topics', id, 'personas'));

@@ -11,8 +11,10 @@
 			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
 			: 'not_started';
 	});
-	const chapters = $derived(currentTopicStore.sessionStore.session?.chapters ?? null);
-	const chapterIssues = $derived(currentTopicStore.sessionStore.session?.chapterIssues ?? null);
+	const chapters = $derived(
+		currentTopicStore.chaptersStore.chapters.length ? currentTopicStore.chaptersStore.chapters : null
+	);
+	const chapterIssues = $derived(currentTopicStore.chapterAnalysisStore.data);
 
 	const generate = () => currentTopicStore.topic?.generateChapters();
 

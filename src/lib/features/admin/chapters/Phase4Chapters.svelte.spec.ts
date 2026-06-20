@@ -9,13 +9,17 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 		get topic() {
 			return { id: 't1', title: 'テストテーマ', phase: 4, phaseStatus: 'generated' };
 		},
-		get sessionStore() {
+		get chaptersStore() {
 			return {
-				get session() {
-					return {
-						chapters: [{ title: 'はじめに', focusQuestion: '問題の本質は何か？' }],
-						chapterIssues: null
-					};
+				get chapters() {
+					return [{ id: 'ch1', chapterIndex: 0, title: 'はじめに', focusQuestion: '問題の本質は何か？', discussionPoints: [], turns: [], status: 'pending' }];
+				}
+			};
+		},
+		get chapterAnalysisStore() {
+			return {
+				get data() {
+					return null;
 				}
 			};
 		}
