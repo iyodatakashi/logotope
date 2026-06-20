@@ -15,8 +15,6 @@ export type TurnDoc = {
 	turnIndex: number;
 	speakerType: SpeakerType;
 	personaId?: string;
-	speakerName?: string;
-	speakerRole?: string;
 	content: string;
 	createdAt: Timestamp;
 	speechMode?: 'opinion' | 'fact';
@@ -32,7 +30,7 @@ export type PostDebateCommentDoc = {
 	sortOrder: number;
 };
 
-export type ChapterIssuesDoc = {
+export type ChapterAnalysisDoc = {
 	general: string[];
 	persona: string[];
 };
@@ -44,23 +42,27 @@ export type DiscussionPointStatusDoc = {
 	status: DiscussionPointStatus;
 };
 
-export type SessionDoc = {
-	totalTurns?: number;
-	createdAt: Timestamp;
-	completedAt?: Timestamp;
-	publishedAt?: Timestamp;
+export type ChapterProgressStatus = 'pending' | 'running' | 'completed';
+
+export type ChapterStateDoc = {
+	chapterIndex: number;
+	title: string;
+	focusQuestion: string;
+	discussionPoints: string[];
 	turns: TurnDoc[];
-	postDebateComments: PostDebateCommentDoc[];
-	chapters?: ChapterDoc[];
-	currentChapterIndex?: number;
-	chapterIssues?: ChapterIssuesDoc;
 	discussionPointStatuses?: DiscussionPointStatusDoc[];
+	status: ChapterProgressStatus;
+};
+
+export type PostDebateCommentsDoc = {
+	comments: PostDebateCommentDoc[];
 };
 
 export type PublishedTurn = {
 	id: string;
 	turnIndex: number;
 	speakerType: SpeakerType;
+	personaId?: string | null;
 	speakerName: string;
 	speakerRole: string;
 	content: string;

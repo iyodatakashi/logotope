@@ -23,7 +23,7 @@ export const createEngagementsStore = (topicId: string) => {
   let unsubscribe: (() => void) | null = null;
 
   const start = () => {
-    const ref = collection(db, 'topics', topicId, 'sessions', '0', 'engagements');
+    const ref = collection(db, 'topics', topicId, 'engagements');
     unsubscribe = onSnapshot(ref, (snap) => {
       const docs = snap.docs.map((d) => ({
         personaId: d.id,

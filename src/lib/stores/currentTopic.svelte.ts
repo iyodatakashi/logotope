@@ -1,11 +1,15 @@
 import { page } from '$app/state';
 import { topicsStore } from '$lib/stores/topics.svelte';
-import { createSessionStore } from '$lib/stores/session.svelte';
+import { createChaptersStore } from '$lib/stores/chapters.svelte';
+import { createChapterAnalysisStore } from '$lib/stores/chapterAnalysis.svelte';
+import { createPostDebateCommentsStore } from '$lib/stores/postDebateComments.svelte';
 import { createPersonasStore } from '$lib/stores/personas.svelte';
 import { createEngagementsStore } from '$lib/stores/engagements.svelte';
 
 const create = () => {
-	let sessionStore = $state(createSessionStore(''));
+	let chaptersStore = $state(createChaptersStore(''));
+	let chapterAnalysisStore = $state(createChapterAnalysisStore(''));
+	let postDebateCommentsStore = $state(createPostDebateCommentsStore(''));
 	let personasStore = $state(createPersonasStore(''));
 	let engagementsStore = $state(createEngagementsStore(''));
 
@@ -13,8 +17,14 @@ const create = () => {
 		get topic() {
 			return topicsStore.topics.find((t) => t.id === page.params.topicId);
 		},
-		get sessionStore() {
-			return sessionStore;
+		get chaptersStore() {
+			return chaptersStore;
+		},
+		get chapterAnalysisStore() {
+			return chapterAnalysisStore;
+		},
+		get postDebateCommentsStore() {
+			return postDebateCommentsStore;
 		},
 		get personasStore() {
 			return personasStore;
@@ -23,19 +33,27 @@ const create = () => {
 			return engagementsStore;
 		},
 		start(topicId: string) {
-			const s = createSessionStore(topicId);
-			const p = createPersonasStore(topicId);
-			const e = createEngagementsStore(topicId);
-			s.start();
-			p.start();
-			e.start();
-			sessionStore = s;
-			personasStore = p;
-			engagementsStore = e;
+			const chapters = createChaptersStore(topicId);
+			const analysis = createChapterAnalysisStore(topicId);
+			const comments = createPostDebateCommentsStore(topicId);
+			const personas = createPersonasStore(topicId);
+			const engagements = createEngagementsStore(topicId);
+			chapters.start();
+			analysis.start();
+			comments.start();
+			personas.start();
+			engagements.start();
+			chaptersStore = chapters;
+			chapterAnalysisStore = analysis;
+			postDebateCommentsStore = comments;
+			personasStore = personas;
+			engagementsStore = engagements;
 			return () => {
-				s.stop();
-				p.stop();
-				e.stop();
+				chapters.stop();
+				analysis.stop();
+				comments.stop();
+				personas.stop();
+				engagements.stop();
 			};
 		}
 	};
