@@ -1,6 +1,7 @@
 import { getTopicById } from '../topics/topics.js';
 import { getPersonasByTopicId } from '../personas/personas.js';
-import { getDebateSessionByTopicId } from './debate-lifecycle.js';
+import { getChaptersByTopicId } from './debate-lifecycle.js';
+import type { ChapterEntry } from './debate-lifecycle.js';
 import {
 	generateOpening,
 	generateChapterIntroduction,
@@ -36,7 +37,7 @@ import { pipelineErrorMessage, validPersonaId } from './utils.js';
 import type { SpeakerSelection, DebateState, DebateTurn, DebateOptions } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 
 const db = () => getFirestore();
 
@@ -55,13 +56,14 @@ export const executeChapterTask = async (
 	// 停止ゲート: トピックが討論かつ実行中でなければ何も生成・上書きしない
 	if (!(await isDebateActive(topicId))) return false;
 
-	const session = await getDebateSessionByTopicId(topicId);
-	if (!session) throw new Error('Session not found');
-	if (!session.chapters?.length) throw new Error('Chapters not found');
+	const chapters = await getChaptersByTopicId(topicId);
+	if (!chapters.length) throw new Error('Chapters not found');
 
-	// 冪等性: 処理済みの章はスキップする
-	if (session.currentChapterIndex !== undefined && session.currentChapterIndex > chapterIndex) {
-		return chapterIndex < (session.chapters?.length ?? 0) - 1;
+	// 冪等性: 完了済みの章はスキップする
+	const chapterDoc = chapters[chapterIndex];
+	if (!chapterDoc) throw new Error(`Chapter not found: ${chapterIndex}`);
+	if (chapterDoc.status === 'completed') {
+		return chapterIndex < chapters.length - 1;
 	}
 
 	const { personas, topicTitle } = await getTopicContext(topicId);
@@ -70,12 +72,15 @@ export const executeChapterTask = async (
 	const persistedQueuedIntents = await loadQueuedIntents(topicId);
 	const state = getDebateState(existingTurns, personas, persistedQueuedIntents);
 
-	const chapters: Chapter[] = session.chapters ?? [];
+	const chapter: Chapter = chapterDoc;
 
-	if (!chapters[chapterIndex]) throw new Error(`Chapter not found: ${chapterIndex}`);
-	await updateCurrentChapterIndex(topicId, chapterIndex);
+	// 章の既存ターン数を記録して章ターンカウント・チャプターターンスライスに使用する
+	const chapterTurnStartInState = existingTurns.length - chapterDoc.turns.length;
+	const getChapterTurns = (): DebateTurn[] => state.turns.slice(chapterTurnStartInState);
+	const chapterTurnCount = (): number => state.turns.length - chapterTurnStartInState;
 
-	const chapter = chapters[chapterIndex];
+	await updateChapterStatus(topicId, chapterDoc.id, 'running');
+
 	const { turnsPerChapter, maxTurns, interventionCooldown } = options;
 
 	// 論点ステータスを章の discussionPoints から初期化する（タスク再実行時も全 untouched でリセット）
@@ -87,36 +92,35 @@ export const executeChapterTask = async (
 	const hasPoints = state.discussionPoints.length > 0;
 	const cap = Math.ceil(turnsPerChapter * (hasPoints ? AGENDA_TURN_CAP_RATIO : TURN_CAP_RATIO));
 	let chapterEndCount = 0;
-	const chapterTurnCount = () => state.turns.filter((t) => t.chapterId === chapter.id).length;
 
 	// 章開始: 第1章はオープニング、2章以降は導入を生成（章立ては generateChapters で事前に保存済み）
 	if (chapterTurnCount() === 0) {
 		// 全論点を「未着手」として先に保存することで、ファシリテーター発言より先に「着」が表示されるのを防ぐ
-		await saveDiscussionPointStatuses(topicId, state);
+		await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
 		if (chapterIndex === 0) {
 			const openingResult = await generateOpening(topicTitle, personas, chapter);
 			if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
 			await generateFacilitatorTurn({
 				topicId,
 				state,
-				chapterId: chapter.id,
+				chapterId: chapterDoc.id,
 				content: openingResult.value.content ?? '',
 				targetPersonaId: validPersonaId(openingResult.value.targetPersonaId, personas)
 			});
 			markIntroduced(state, openingResult.value.selectedDiscussionPointIndex);
-			await saveDiscussionPointStatuses(topicId, state);
+			await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
 		} else {
 			const introResult = await generateChapterIntroduction(chapter, personas);
 			if (introResult.ok) {
 				await generateFacilitatorTurn({
 					topicId,
 					state,
-					chapterId: chapter.id,
+					chapterId: chapterDoc.id,
 					content: introResult.value.content ?? '',
 					targetPersonaId: validPersonaId(introResult.value.targetPersonaId, personas)
 				});
 				markIntroduced(state, introResult.value.selectedDiscussionPointIndex);
-				await saveDiscussionPointStatuses(topicId, state);
+				await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
 			}
 		}
 	}
@@ -127,7 +131,10 @@ export const executeChapterTask = async (
 			topicId,
 			personas,
 			chapter,
+			chapterId: chapterDoc.id,
 			state,
+			getChapterTurns,
+			chapterTurnStartInState,
 			interventionCooldown
 		});
 		if (shouldContinueChapter === null) return false;
@@ -139,15 +146,16 @@ export const executeChapterTask = async (
 			const incomplete = state.discussionPoints.filter((p) => p.status !== 'addressed');
 			if (incomplete.length > 0) {
 				const coverageResult = await evaluateDiscussionPointCoverage(
-					state.turns.filter((t) => t.chapterId === chapter.id),
-					incomplete.map((p) => p.point)
+					getChapterTurns(),
+					incomplete.map((p) => p.point),
+					personas
 				);
 				if (coverageResult.ok) {
 					for (const idx of coverageResult.value) {
 						const target = state.discussionPoints.find((p) => p.point === incomplete[idx]?.point);
 						if (target) target.status = 'addressed';
 					}
-					await saveDiscussionPointStatuses(topicId, state);
+					await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
 					if (state.discussionPoints.some((p) => p.status !== 'addressed')) {
 						chapterEndCount = 0;
 						continue;
@@ -184,7 +192,8 @@ export const executeChapterTask = async (
 			chapter,
 			state,
 			speakerSelection,
-			engagement
+			engagement,
+			chapterTurnStartIndex: chapterTurnStartInState
 		});
 		if (reply) {
 			updateSpeakerStats({ state, personas, personaId: reply.personaId });
@@ -201,16 +210,18 @@ export const executeChapterTask = async (
 					turnId: reply.turnId,
 					beliefChange: reply.beliefChange
 				});
-			// 章は終了するため、応答ターン由来の指名は引き継がない（ターン自体に targetedBy が記録済み）
 		}
 	}
 
+	await updateChapterStatus(topicId, chapterDoc.id, 'completed');
+	await deleteDiscussionPointStatuses(topicId, chapterDoc.id);
+
 	const isLastChapter = options.singleChapterMode || chapterIndex >= chapters.length - 1;
 	if (isLastChapter) {
-		await finalizeDebate({ topicId, personas, state });
+		await finalizeDebate({ topicId, personas, state, chapterId: chapterDoc.id });
 		return false;
 	}
-	await generateChapterTransition({ topicId, chapter, state });
+	await generateChapterTransition({ topicId, chapter, state, personas });
 	return true;
 };
 
@@ -231,13 +242,19 @@ const executeTurn = async ({
 	topicId,
 	personas,
 	chapter,
+	chapterId,
 	state,
+	getChapterTurns,
+	chapterTurnStartInState,
 	interventionCooldown
 }: {
 	topicId: string;
 	personas: Persona[];
 	chapter: Chapter;
+	chapterId: string;
 	state: DebateState;
+	getChapterTurns: () => DebateTurn[];
+	chapterTurnStartInState: number;
 	interventionCooldown: number;
 }): Promise<boolean | null> => {
 	// 1. 前ターン由来の指名を取り出す
@@ -259,10 +276,11 @@ const executeTurn = async ({
 			chapter,
 			state,
 			engagements,
-			interventionCooldown
+			interventionCooldown,
+			chapterTurns: getChapterTurns()
 		});
 		if (intervened) {
-			await saveDiscussionPointStatuses(topicId, state);
+			await saveDiscussionPointStatuses(topicId, chapterId, state);
 			return true;
 		}
 	}
@@ -304,7 +322,8 @@ const executeTurn = async ({
 		chapter,
 		state,
 		speakerSelection,
-		engagement
+		engagement,
+		chapterTurnStartIndex: chapterTurnStartInState
 	});
 	if (!reply) return null;
 
@@ -332,10 +351,16 @@ const executeTurn = async ({
 	return engagements.length === 0 || engagements.some((a) => a.score >= CONTINUE_CHAPTER_THRESHOLD);
 };
 
-const saveDiscussionPointStatuses = async (topicId: string, state: DebateState): Promise<void> => {
+const saveDiscussionPointStatuses = async (topicId: string, chapterId: string, state: DebateState): Promise<void> => {
 	if (state.discussionPoints.length === 0) return;
-	await db().doc(`topics/${topicId}/sessions/0`).update({
+	await db().doc(`topics/${topicId}/chapters/${chapterId}`).update({
 		discussionPointStatuses: state.discussionPoints.map((p) => ({ point: p.point, status: p.status }))
+	});
+};
+
+const deleteDiscussionPointStatuses = async (topicId: string, chapterId: string): Promise<void> => {
+	await db().doc(`topics/${topicId}/chapters/${chapterId}`).update({
+		discussionPointStatuses: FieldValue.delete()
 	});
 };
 
@@ -356,6 +381,10 @@ const getLastTargetPersona = (
 	return { personaId: last.targetPersonaId, targetedBy: last.targetedBy };
 };
 
-const updateCurrentChapterIndex = async (topicId: string, index: number): Promise<void> => {
-	await db().doc(`topics/${topicId}/sessions/0`).update({ currentChapterIndex: index });
+const updateChapterStatus = async (
+	topicId: string,
+	chapterId: string,
+	status: ChapterEntry['status']
+): Promise<void> => {
+	await db().doc(`topics/${topicId}/chapters/${chapterId}`).update({ status });
 };

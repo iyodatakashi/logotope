@@ -12,14 +12,16 @@ export const formatPersonas = (personas: Persona[]): string => {
 		.join('\n');
 };
 
-export const formatTurns = (turns: DebateTurn[]): string => {
+export const formatTurns = (turns: ReadonlyArray<DebateTurn>, personas: ReadonlyArray<Persona>): string => {
 	return turns
 		.map((t) => {
-			const name = t.speakerName ?? (t.personaId ? `Persona(${t.personaId})` : 'ファシリテーター');
-			const role = t.speakerRole ?? '';
-			return t.personaId
-				? `[${name}(${role})(ID:${t.personaId})]: ${t.content}`
-				: `[${name}(${role})]: ${t.content}`;
+			if (t.personaId) {
+				const persona = personas.find((p) => p.id === t.personaId);
+				const name = persona ? persona.name : `Persona(${t.personaId})`;
+				const role = persona ? (persona.specificRole || persona.stakeholderRole) : '';
+				return `[${name}(${role})(ID:${t.personaId})]: ${t.content}`;
+			}
+			return `[ファシリテーター()]: ${t.content}`;
 		})
 		.join('\n');
 };

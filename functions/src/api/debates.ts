@@ -2,7 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { getFunctions } from 'firebase-admin/functions';
 import { getTopicById } from '../pipeline/topics/topics.js';
-import { getDebateSessionByTopicId } from '../pipeline/debate/debate-lifecycle.js';
+import { getChaptersByTopicId } from '../pipeline/debate/debate-lifecycle.js';
 import { executeChapterTask, DEFAULT_OPTIONS } from '../pipeline/debate/debate-orchestrator.js';
 import { activateDebate, markDebateStopped, restartChapter } from '../pipeline/debate/debate-lifecycle.js';
 import { requireAuth } from '../utils/auth.js';
@@ -34,13 +34,13 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
   const topic = await getTopicById(topicId);
   if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
-  const session = await getDebateSessionByTopicId(topicId);
-  const chapterIndex = session?.currentChapterIndex ?? 0;
-  const chapterId = session?.chapters?.[chapterIndex]?.id;
-  if (!chapterId) throw new HttpsError('not-found', 'Chapter not found');
+  const chapters = await getChaptersByTopicId(topicId);
+  const runningChapter = chapters.find((c) => c.status === 'running');
+  const resumeChapter = runningChapter ?? chapters.find((c) => c.status === 'pending');
+  if (!resumeChapter) throw new HttpsError('not-found', 'No chapter to restart');
 
-  await restartChapter(topicId, chapterId);
-  await enqueueChapterTask(topicId, chapterIndex, singleChapterMode);
+  await restartChapter(topicId, resumeChapter.id);
+  await enqueueChapterTask(topicId, resumeChapter.chapterIndex, singleChapterMode);
 
   return { topicId };
 });

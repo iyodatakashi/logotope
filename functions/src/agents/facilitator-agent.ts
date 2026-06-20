@@ -55,7 +55,7 @@ const runInterventionCheck = async (
 			messages: [
 				{
 					role: 'user',
-					content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatTurns(turns.slice(-20))}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${criteriaSection}`
+					content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatTurns(turns.slice(-20), personas)}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${criteriaSection}`
 				}
 			]
 		});
@@ -153,7 +153,8 @@ export const evaluateStallIntervention = async (
 
 export const generateClosing = async (
 	turns: DebateTurn[],
-	finalBeliefs: Map<string, string>
+	finalBeliefs: Map<string, string>,
+	personas: ReadonlyArray<Persona> = []
 ): Promise<Result<string, PipelineError>> => {
 	try {
 		const beliefsSummary = Array.from(finalBeliefs.entries())
@@ -168,7 +169,7 @@ export const generateClosing = async (
 			messages: [
 				{
 					role: 'user',
-					content: `討論が終了しました。クロージング発言を3〜4文で作成してください（簡潔な締め括りのみ。長い総括は不要）。\n\n会話全体:\n${formatTurns(turns)}\n\n各参加者の最終信念:\n${beliefsSummary}`
+					content: `討論が終了しました。クロージング発言を3〜4文で作成してください（簡潔な締め括りのみ。長い総括は不要）。\n\n会話全体:\n${formatTurns(turns, personas)}\n\n各参加者の最終信念:\n${beliefsSummary}`
 				}
 			]
 		});
@@ -182,7 +183,8 @@ export const generateClosing = async (
 
 export const generateChapterSummary = async (
 	recentHistory: DebateTurn[],
-	currentChapter: Chapter
+	currentChapter: Chapter,
+	personas: ReadonlyArray<Persona> = []
 ): Promise<Result<string, PipelineError>> => {
 	try {
 		const result = await generateObject({
@@ -193,7 +195,7 @@ export const generateChapterSummary = async (
 			messages: [
 				{
 					role: 'user',
-					content: `章「${currentChapter.title}」の議論をまとめる発言を生成してください。次の章への言及は不要です。この章で出た主な意見・対立点を簡潔にまとめてください。\n\n直近の会話:\n${formatTurns(recentHistory.slice(-10))}`
+					content: `章「${currentChapter.title}」の議論をまとめる発言を生成してください。次の章への言及は不要です。この章で出た主な意見・対立点を簡潔にまとめてください。\n\n直近の会話:\n${formatTurns(recentHistory.slice(-10), personas)}`
 				}
 			]
 		});
@@ -241,7 +243,8 @@ export const generateChapterIntroduction = async (
 
 export const evaluateDiscussionPointCoverage = async (
 	chapterTurns: DebateTurn[],
-	incompletePoints: string[]
+	incompletePoints: string[],
+	personas: ReadonlyArray<Persona> = []
 ): Promise<Result<number[], PipelineError>> => {
 	try {
 		const pointsList = incompletePoints.map((p, i) => `${i}. ${p}`).join('\n');
@@ -254,7 +257,7 @@ export const evaluateDiscussionPointCoverage = async (
 			messages: [
 				{
 					role: 'user',
-					content: `以下の各論点について、チャプターのターンで実質的な議論が行われたか評価してください。\n\n【未完了論点リスト】\n${pointsList}\n\n【チャプターターン】\n${formatTurns(chapterTurns)}\n\n評価基準: 各論点について「その論点に関する具体的な意見・主張・事例が述べられている」場合のみ消化済みと判定してください。話題に触れただけでは不十分です。消化済みと判定した論点のインデックスを addressedIndices に含めてください。`
+					content: `以下の各論点について、チャプターのターンで実質的な議論が行われたか評価してください。\n\n【未完了論点リスト】\n${pointsList}\n\n【チャプターターン】\n${formatTurns(chapterTurns, personas)}\n\n評価基準: 各論点について「その論点に関する具体的な意見・主張・事例が述べられている」場合のみ消化済みと判定してください。話題に触れただけでは不十分です。消化済みと判定した論点のインデックスを addressedIndices に含めてください。`
 				}
 			]
 		});

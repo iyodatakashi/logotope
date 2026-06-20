@@ -16,7 +16,7 @@ const saveEngagements = async (params: {
 	}>;
 }): Promise<void> => {
 	for (const engagement of params.engagements) {
-		const ref = db().doc(`topics/${params.topicId}/sessions/0/engagements/${engagement.personaId}`);
+		const ref = db().doc(`topics/${params.topicId}/engagements/${engagement.personaId}`);
 		const entry: Record<string, unknown> = { score: engagement.score, mode: engagement.mode };
 		if (engagement.intentSummary !== undefined) entry.intentSummary = engagement.intentSummary;
 		await ref.set(
@@ -39,7 +39,7 @@ export const evaluateEngagements = async ({
 	const engagements = await Promise.all(
 		assessTargets.map((p) => {
 			const otherPersonaNames = personas.filter((q) => q.id !== p.id).map((q) => q.name);
-			return evaluateEngagement(p, state.turns, otherPersonaNames);
+			return evaluateEngagement(p, state.turns, otherPersonaNames, personas);
 		})
 	);
 	await saveEngagements({
@@ -72,5 +72,5 @@ export const evaluateEngagementWithFallback = async ({
 	const persona = personas.find((p) => p.id === personaId);
 	if (!persona) return { personaId, mode: 'opinion' as const, score: 2 };
 	const otherPersonaNames = personas.filter((p) => p.id !== personaId).map((p) => p.name);
-	return evaluateEngagement(persona, turns, otherPersonaNames);
+	return evaluateEngagement(persona, turns, otherPersonaNames, personas);
 };

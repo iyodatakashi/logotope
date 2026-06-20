@@ -8,6 +8,8 @@ import type {
 	DiscussionPointState,
 	DebateState,
 	FacilitatorReply,
+	ChapterStateData,
+	ChapterProgressStatus,
 } from './debate.types.js';
 import type { Chapter } from './chapter.types.js';
 
@@ -110,5 +112,50 @@ describe('debate.types - 論点追跡型定義', () => {
 			discussionPoints: ['論点A', '論点B', '論点C'],
 		};
 		expect(chapter.discussionPoints).toHaveLength(3);
+	});
+});
+
+describe('debate.types - チャプタードキュメント型定義', () => {
+	it('ChapterStateData は章メタ・ターン配列・進行ステータスを持つ', () => {
+		const chapter: ChapterStateData = {
+			chapterIndex: 0,
+			title: '導入',
+			focusQuestion: 'この問題の核心は何か？',
+			discussionPoints: ['論点A', '論点B'],
+			turns: [],
+			status: 'pending',
+		};
+		expect(chapter.chapterIndex).toBe(0);
+		expect(chapter.turns).toHaveLength(0);
+		expect(chapter.status).toBe('pending');
+	});
+
+	it('ChapterStateData は discussionPointStatuses を任意で持つ', () => {
+		const chapter: ChapterStateData = {
+			chapterIndex: 1,
+			title: '核心',
+			focusQuestion: '最も意見が分かれる点は？',
+			discussionPoints: ['論点A'],
+			turns: [],
+			discussionPointStatuses: [{ point: '論点A', status: 'introduced' }],
+			status: 'running',
+		};
+		expect(chapter.discussionPointStatuses).toHaveLength(1);
+	});
+
+	it('ChapterProgressStatus は3つの進行状態を表す', () => {
+		const statuses: ChapterProgressStatus[] = ['pending', 'running', 'completed'];
+		expect(statuses).toHaveLength(3);
+	});
+
+	it('DebateTurn は chapterId なしで構築できる', () => {
+		const turn: DebateTurn = {
+			id: 'turn1',
+			turnIndex: 0,
+			speakerType: 'persona',
+			content: 'テスト発言',
+			createdAt: '2026-01-01T00:00:00Z',
+		};
+		expect(turn).not.toHaveProperty('chapterId');
 	});
 });

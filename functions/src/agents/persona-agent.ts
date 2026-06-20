@@ -229,16 +229,17 @@ const buildFullTurnTools = (
 export const generateTurn = async (
 		persona: Persona,
 		context: TurnGenerationContext,
-		engagement: Engagement
+		engagement: Engagement,
+		personas: ReadonlyArray<Persona> = []
 	): Promise<Result<PersonaReply, PipelineError>> => {
 		try {
-			const { chapter, pendingTrigger, targetedBy } = context;
+			const { chapter, queuedTrigger, targetedBy } = context;
 			const recentTurns = context.chapterTurns.slice(-20);
 			const currentBelief = latestBeliefContent(persona);
 			const styleGuide = buildSpeechStyleGuide(persona);
 			const chapterContext = `\n\n【この章のフォーカス】「${chapter.title}」: ${chapter.focusQuestion}`;
-			const pendingNote = pendingTrigger
-				? `\n\n【持ち越しの言いたいこと】少し前に${pendingTrigger.speakerName}が「${pendingTrigger.content.slice(0, 80)}」と言ったのを聞いて、あなたはこれに何か言いたいと思っていました。会話の流れに沿って、適切であればこの話題に触れてください。`
+			const queuedNote = queuedTrigger
+				? `\n\n【持ち越しの言いたいこと】少し前に${queuedTrigger.speakerName}が「${queuedTrigger.content.slice(0, 80)}」と言ったのを聞いて、あなたはこれに何か言いたいと思っていました。会話の流れに沿って、適切であればこの話題に触れてください。`
 				: '';
 			const intentNote = engagement.intentSummary ? `\n\n【今回伝えたいこと】${engagement.intentSummary}` : '';
 			const facilitatorTargetNote = targetedBy === 'facilitator'
@@ -250,7 +251,12 @@ export const generateTurn = async (
 			const system = buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', currentBelief);
 			const llmType = persona.llmType ?? 'claude';
 
-			const lastSpeakerName = recentTurns[recentTurns.length - 1]?.speakerName;
+			const lastTurn = recentTurns[recentTurns.length - 1];
+			const lastSpeakerName = lastTurn
+				? (lastTurn.personaId
+					? (personas.find((p) => p.id === lastTurn.personaId)?.name ?? `Persona(${lastTurn.personaId})`)
+					: 'ファシリテーター')
+				: undefined;
 			const lastSpeakerNote = lastSpeakerName
 				? `\n\n直前の発言は${lastSpeakerName}によるものです。${lastSpeakerName}に反応する場合は冒頭で名前を呼ばず、それより前の別の人の発言を取り上げるときだけ「さっき○○さんが言っていた〜」と名前を添えること。`
 				: '';
@@ -264,7 +270,7 @@ export const generateTurn = async (
 				? `${persona.name}として、特定の参加者に直接質問してください（${lengthGuide}）。\n【今回の質問意図】${engagement.intentSummary}\n【参加者一覧（targetPersonaId に使用するID）】\n${otherPersonas.map((p) => `- ${p.name}: ${p.id}`).join('\n')}\n必ず targetPersonaId に質問相手のIDを指定すること。信念変化があれば beliefChangeType を指定。`
 				: '';
 			const instruction = isQuestion && questionInstruction ? questionInstruction : isFact ? factInstruction : opinionInstruction;
-			const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns)}${chapterContext}${lastSpeakerNote}${pendingNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}`;
+			const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterContext}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}`;
 			const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 				generateText({
 					model,
@@ -351,14 +357,15 @@ const engagementSchema = z.object({
 export const evaluateEngagement = async (
 	persona: Persona,
 	turns: DebateTurn[],
-	otherPersonaNames: string[] = []
+	otherPersonaNames: string[] = [],
+	personas: ReadonlyArray<Persona> = []
 ): Promise<Engagement> => {
 	try {
 		const recentTurns = turns.slice(-8);
 		const ownTurns = turns.filter((t) => t.personaId === persona.id).slice(-5);
 		const ownTurnsSection =
 			ownTurns.length > 0
-				? `\nあなた（${persona.name}）のこれまでの発言:\n${formatTurns(ownTurns)}\n`
+				? `\nあなた（${persona.name}）のこれまでの発言:\n${formatTurns(ownTurns, personas)}\n`
 				: '';
 		const otherPersonasNote =
 			otherPersonaNames.length > 0
@@ -373,7 +380,7 @@ export const evaluateEngagement = async (
 			messages: [
 				{
 					role: 'user',
-					content: `現在の会話:\n\n${formatTurns(recentTurns)}${ownTurnsSection}${otherPersonasNote}\n\n${persona.name}として、発言意欲（score）と発言形式（mode）を評価してください。\n\nまず上の会話を読んで、他の参加者の発言の中に「もっと聞きたい」「それは本当に？」「自分の経験では違う」「なぜそう思うのか確認したい」と感じるものがないか振り返ってください。そういう相手がいれば mode は question です（intentSummary に「誰の・どの発言について・何を聞きたいか」を書く）。\n\n次に、紹介すべき事実・データがあれば fact。それ以外は opinion。付け加えることがなければ score 1（none）。\n\nscore は mode ごとのスコアラベルに従って選んでください。発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まります。すでに同じ主張を述べており新たに付け加えることがなければ score 1 を選んでください。`
+					content: `現在の会話:\n\n${formatTurns(recentTurns, personas)}${ownTurnsSection}${otherPersonasNote}\n\n${persona.name}として、発言意欲（score）と発言形式（mode）を評価してください。\n\nまず上の会話を読んで、他の参加者の発言の中に「もっと聞きたい」「それは本当に？」「自分の経験では違う」「なぜそう思うのか確認したい」と感じるものがないか振り返ってください。そういう相手がいれば mode は question です（intentSummary に「誰の・どの発言について・何を聞きたいか」を書く）。\n\n次に、紹介すべき事実・データがあれば fact。それ以外は opinion。付け加えることがなければ score 1（none）。\n\nscore は mode ごとのスコアラベルに従って選んでください。発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まります。すでに同じ主張を述べており新たに付け加えることがなければ score 1 を選んでください。`
 				}
 			]
 		});
@@ -396,7 +403,8 @@ const postDebateCommentSchema = z.object({
 export const generatePostDebateComment = async (
 	persona: Persona,
 	finalBelief: string,
-	turns: DebateTurn[]
+	turns: DebateTurn[],
+	personas: ReadonlyArray<Persona> = []
 ): Promise<Result<PostDebateCommentResult, PipelineError>> => {
 	try {
 		const result = await generateObject({
@@ -407,7 +415,7 @@ export const generatePostDebateComment = async (
 			messages: [
 				{
 					role: 'user',
-					content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。\n\n討論全体:\n${formatTurns(turns)}`
+					content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。\n\n討論全体:\n${formatTurns(turns, personas)}`
 				}
 			]
 		});

@@ -44,8 +44,6 @@ export const persistInterventionTurn = async ({
 		topicId,
 		turnIndex,
 		speakerType: 'facilitator',
-		speakerName: 'ファシリテーター',
-		speakerRole: '',
 		content,
 		chapterId,
 		targetPersonaId,
@@ -55,11 +53,8 @@ export const persistInterventionTurn = async ({
 		id: turnId,
 		turnIndex,
 		speakerType: 'facilitator',
-		speakerName: 'ファシリテーター',
-		speakerRole: '',
 		content,
 		createdAt: new Date().toISOString(),
-		chapterId,
 		targetPersonaId,
 		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});
@@ -77,7 +72,8 @@ export const tryIntervention = async ({
 	chapter,
 	state,
 	engagements,
-	interventionCooldown
+	interventionCooldown,
+	chapterTurns
 }: {
 	topicId: string;
 	personas: Persona[];
@@ -85,17 +81,19 @@ export const tryIntervention = async ({
 	state: DebateState;
 	engagements: Engagement[];
 	interventionCooldown: number;
+	chapterTurns?: DebateTurn[];
 }): Promise<boolean> => {
+	const currentChapterTurns = chapterTurns ?? state.turns;
 	let intervention: { content: string; targetPersonaId?: string; selectedDiscussionPointIndex?: number } | undefined;
 
 	const unaddressedDiscussionPoints = state.discussionPoints
 		.filter((p) => p.status !== 'addressed')
 		.map((p) => p.point);
 
-	if (shouldEvaluateIntervention(countPersonaTurnsSinceFacilitator(state.turns), interventionCooldown)) {
-		intervention = await tryTopicDriftIntervention({ personas, chapter, state, unaddressedDiscussionPoints });
+	if (shouldEvaluateIntervention(countPersonaTurnsSinceFacilitator(currentChapterTurns), interventionCooldown)) {
+		intervention = await tryTopicDriftIntervention({ personas, chapter, chapterTurns: currentChapterTurns, state, unaddressedDiscussionPoints });
 		if (!intervention) {
-			intervention = await tryStallIntervention({ personas, chapter, state, engagements, unaddressedDiscussionPoints });
+			intervention = await tryStallIntervention({ personas, chapter, chapterTurns: currentChapterTurns, state, engagements, unaddressedDiscussionPoints });
 		}
 	}
 	if (!intervention) return false;
@@ -131,17 +129,18 @@ export const tryIntervention = async ({
 const tryTopicDriftIntervention = async ({
 	personas,
 	chapter,
+	chapterTurns,
 	state,
 	unaddressedDiscussionPoints
 }: {
 	personas: Persona[];
 	chapter: Chapter;
+	chapterTurns: DebateTurn[];
 	state: DebateState;
 	unaddressedDiscussionPoints: string[];
 }): Promise<{ content: string; targetPersonaId: string; selectedDiscussionPointIndex?: number } | undefined> => {
-	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
 	const result = await evaluateTopicDrift(
-		chapterTurns as DebateTurn[],
+		chapterTurns,
 		personas,
 		state.speakCount,
 		chapter,
@@ -158,20 +157,21 @@ const tryTopicDriftIntervention = async ({
 const tryStallIntervention = async ({
 	personas,
 	chapter,
+	chapterTurns,
 	state,
 	engagements,
 	unaddressedDiscussionPoints
 }: {
 	personas: Persona[];
 	chapter: Chapter;
+	chapterTurns: DebateTurn[];
 	state: DebateState;
 	engagements: Engagement[];
 	unaddressedDiscussionPoints: string[];
 }): Promise<{ content: string; targetPersonaId?: string; selectedDiscussionPointIndex?: number } | undefined> => {
 	if (hasHighEngagement(engagements)) return undefined;
-	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
 	const result = await evaluateStallIntervention(
-		chapterTurns as DebateTurn[],
+		chapterTurns,
 		personas,
 		state.speakCount,
 		chapter,

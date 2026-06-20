@@ -128,6 +128,14 @@ describe('persistInterventionTurn', () => {
     await persistInterventionTurn({ topicId: 'topic1', state, content: '介入', targetPersonaId: undefined, chapterId: 'ch-0' });
     expect(state.pairConversationTurns).toBe(0);
   });
+
+  it('state.turns に push されるターンに speakerName/speakerRole が含まれない', async () => {
+    const state = makeState();
+    await persistInterventionTurn({ topicId: 'topic1', state, content: '介入', targetPersonaId: 'p1', chapterId: 'ch-0' });
+    const pushedTurn = state.turns[0] as Record<string, unknown>;
+    expect(pushedTurn.speakerName).toBeUndefined();
+    expect(pushedTurn.speakerRole).toBeUndefined();
+  });
 });
 
 // --- tryIntervention 論点伝播テスト ---

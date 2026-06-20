@@ -81,6 +81,16 @@ const makeDebateState = () => ({
 	lastFacilitatorTurnIndex: -1,
 });
 
+const makeDebateTurn = (override: Partial<{ id: string; turnIndex: number; speakerType: string; personaId: string | null; content: string; createdAt: string }> = {}) => ({
+	id: 't0',
+	turnIndex: 0,
+	speakerType: 'persona' as const,
+	personaId: 'p2',
+	content: '佐藤の発言',
+	createdAt: '',
+	...override,
+});
+
 describe('generatePersonaTurn', () => {
 	const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子'), makePersona('p3', '鈴木次郎')];
 
@@ -199,5 +209,170 @@ describe('generatePersonaTurn', () => {
 		});
 		const savedTurn = (updateCall![0] as { turns: { speechMode?: string } }).turns;
 		expect(savedTurn.speechMode).toBe('opinion');
+	});
+
+	it('Firestoreに書き込むターンに speakerName/speakerRole が含まれない', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+		});
+
+		const state = makeDebateState();
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state,
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' }),
+		});
+
+		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
+			const arg = call[0] as { turns?: unknown };
+			return arg.turns !== undefined;
+		});
+		expect(updateCall).toBeDefined();
+		const savedTurn = updateCall![0] as { turns: Record<string, unknown> };
+		expect(savedTurn.turns.speakerName).toBeUndefined();
+		expect(savedTurn.turns.speakerRole).toBeUndefined();
+	});
+
+	it('state.turns に push されるターンに speakerName/speakerRole が含まれない', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+		});
+
+		const state = makeDebateState();
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state,
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' }),
+		});
+
+		expect(state.turns).toHaveLength(1);
+		const pushedTurn = state.turns[0] as Record<string, unknown>;
+		expect(pushedTurn.speakerName).toBeUndefined();
+		expect(pushedTurn.speakerRole).toBeUndefined();
+	});
+
+	it('queuedTrigger の speakerName は personas 配列から personaId で解決する', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+		});
+
+		const state = makeDebateState();
+		state.turns.push(makeDebateTurn({ turnIndex: 0, personaId: 'p2' }));
+		state.queuedIntents.set('p1', [{ triggerTurnIndex: 0, intentSummary: '言いたいこと' }]);
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state,
+			speakerSelection: makeSpeakerSelection({ personaId: 'p1' }),
+			engagement: makeEngagement({ personaId: 'p1', mode: 'opinion' }),
+		});
+
+		const callArgs = mockGenerateTurn.mock.calls[0];
+		const context = callArgs[1];
+		expect(context.queuedTrigger).toBeDefined();
+		expect(context.queuedTrigger.speakerName).toBe('佐藤花子');
+	});
+
+	it('queuedTrigger のトリガーターンが personaId を持たない場合 speakerName は ファシリテーター になる', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+		});
+
+		const state = makeDebateState();
+		state.turns.push(makeDebateTurn({ turnIndex: 0, speakerType: 'facilitator', personaId: null }));
+		state.queuedIntents.set('p1', [{ triggerTurnIndex: 0, intentSummary: 'ファシリ発言への反応' }]);
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state,
+			speakerSelection: makeSpeakerSelection({ personaId: 'p1' }),
+			engagement: makeEngagement({ personaId: 'p1', mode: 'opinion' }),
+		});
+
+		const callArgs = mockGenerateTurn.mock.calls[0];
+		const context = callArgs[1];
+		expect(context.queuedTrigger).toBeDefined();
+		expect(context.queuedTrigger.speakerName).toBe('ファシリテーター');
+	});
+
+	it('Firestoreへの書き込みは sessions/0 ではなく chapters/{chapterId} に行われる', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+		});
+
+		const state = makeDebateState();
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter, // id: 'ch1'
+			state,
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' }),
+		});
+
+		const docPaths = mockDoc.mock.calls.map((call: string[]) => call[0]);
+		expect(docPaths.some((p: string) => p.includes('chapters/ch1'))).toBe(true);
+		expect(docPaths.some((p: string) => p.includes('sessions'))).toBe(false);
+	});
+
+	it('Firestoreに保存されるターンオブジェクトに chapterId が含まれない', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+		});
+
+		const state = makeDebateState();
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state,
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' }),
+		});
+
+		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
+			const arg = call[0] as { turns?: unknown };
+			return arg.turns !== undefined;
+		});
+		expect(updateCall).toBeDefined();
+		const savedTurn = updateCall![0] as { turns: Record<string, unknown> };
+		expect(savedTurn.turns.chapterId).toBeUndefined();
+	});
+
+	it('state.turns に push されるターンに chapterId が含まれない', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+		});
+
+		const state = makeDebateState();
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state,
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' }),
+		});
+
+		expect(state.turns).toHaveLength(1);
+		const pushedTurn = state.turns[0] as Record<string, unknown>;
+		expect(pushedTurn.chapterId).toBeUndefined();
 	});
 });

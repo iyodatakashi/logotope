@@ -109,6 +109,23 @@ describe('evaluateEngagement', () => {
 		expect(userContent).toContain('佐藤花子');
 		expect(userContent).toContain('鈴木次郎');
 	});
+
+	it('evaluateEngagement が formatTurns に personas を渡す', async () => {
+		const formatMod = await import('../utils/prompt-formatters.js');
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: { score: 3, mode: 'opinion' },
+		} as never);
+
+		const { evaluateEngagement } = await import('./persona-agent.js');
+		const personas = [mockPersona];
+		await evaluateEngagement(mockPersona, mockTurns, [], personas);
+
+		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(
+			expect.any(Array),
+			personas
+		);
+	});
 });
 
 describe('generateTurn', () => {
@@ -239,5 +256,22 @@ describe('generateTurn', () => {
 		const userContent = callArgs.messages[0].content;
 		expect(userContent).toContain('佐藤花子');
 		expect(userContent).toContain('p2');
+	});
+
+	it('generateTurn が formatTurns に personas を渡す', async () => {
+		const formatMod = await import('../utils/prompt-formatters.js');
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateText).mockImplementationOnce(async () => ({
+			steps: [{ toolCalls: [{ toolName: 'submit_turn', args: { content: 'テスト' } }] }],
+		} as never));
+
+		const { generateTurn } = await import('./persona-agent.js');
+		const personas = [mockPersona];
+		await generateTurn(mockPersona, makeContext(), makeEngagement({ mode: 'opinion' }), personas);
+
+		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(
+			expect.any(Array),
+			personas
+		);
 	});
 });

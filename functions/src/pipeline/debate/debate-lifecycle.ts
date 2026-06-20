@@ -1,29 +1,60 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
-import type { DebateSession } from '../../types/debate.types.js';
+import type { DebateTurn } from '../../types/debate.types.js';
 
 const db = () => getFirestore();
 
-export const getDebateSessionByTopicId = async (topicId: string): Promise<DebateSession | null> => {
-	const snap = await db().doc(`topics/${topicId}/sessions/0`).get();
-	if (!snap.exists) return null;
-	const data = snap.data() as {
-		totalTurns?: number;
-		createdAt: Timestamp;
-		completedAt?: Timestamp;
-		publishedAt?: Timestamp;
-		chapters?: Array<{ id: string; title: string; focusQuestion: string; discussionPoints?: string[] }>;
-		currentChapterIndex?: number;
-	};
-	return {
-		id: topicId,
-		topicId,
-		totalTurns: data.totalTurns ?? null,
-		createdAt: data.createdAt?.toDate().toISOString() ?? '',
-		completedAt: data.completedAt?.toDate().toISOString() ?? null,
-		publishedAt: data.publishedAt?.toDate().toISOString() ?? null,
-		chapters: data.chapters?.map((c) => ({ ...c, discussionPoints: c.discussionPoints ?? [] })),
-		currentChapterIndex: data.currentChapterIndex,
-	};
+export type ChapterEntry = {
+	id: string;
+	chapterIndex: number;
+	title: string;
+	focusQuestion: string;
+	discussionPoints: string[];
+	turns: DebateTurn[];
+	status: 'pending' | 'running' | 'completed';
+};
+
+export const getChaptersByTopicId = async (topicId: string): Promise<ChapterEntry[]> => {
+	const snap = await db()
+		.collection(`topics/${topicId}/chapters`)
+		.orderBy('chapterIndex')
+		.get();
+	return snap.docs.map((docSnap) => {
+		const data = docSnap.data() as {
+			chapterIndex: number;
+			title: string;
+			focusQuestion: string;
+			discussionPoints?: string[];
+			turns?: Array<{
+				id: string;
+				turnIndex: number;
+				speakerType: string;
+				personaId?: string;
+				content: string;
+				createdAt: Timestamp;
+				fromQueue?: boolean;
+				targetPersonaId?: string;
+			}>;
+			status?: 'pending' | 'running' | 'completed';
+		};
+		return {
+			id: docSnap.id,
+			chapterIndex: data.chapterIndex,
+			title: data.title,
+			focusQuestion: data.focusQuestion,
+			discussionPoints: data.discussionPoints ?? [],
+			turns: (data.turns ?? []).map((t) => ({
+				id: t.id,
+				turnIndex: t.turnIndex,
+				speakerType: t.speakerType,
+				personaId: t.personaId ?? null,
+				content: t.content,
+				createdAt: t.createdAt?.toDate?.().toISOString() ?? '',
+				fromQueue: t.fromQueue,
+				targetPersonaId: t.targetPersonaId
+			})),
+			status: data.status ?? 'pending',
+		};
+	});
 };
 
 export const activateDebate = async (topicId: string): Promise<void> => {
@@ -35,33 +66,22 @@ export const markDebateStopped = async (topicId: string): Promise<void> => {
 };
 
 export const restartChapter = async (topicId: string, chapterId: string): Promise<void> => {
-	const sessionRef = db().doc(`topics/${topicId}/sessions/0`);
-	const snap = await sessionRef.get();
-	if (!snap.exists) return;
-	const data = snap.data() as {
-		turns?: Array<{ id: string; turnIndex: number; chapterId?: string }>;
-		chapters?: Array<{ id: string }>;
-	};
-	const turns = data.turns ?? [];
-	const chapters = data.chapters ?? [];
-
+	const chapters = await getChaptersByTopicId(topicId);
 	const targetIdx = chapters.findIndex((c) => c.id === chapterId);
-	const discardChapterIds = new Set(
-		chapters.slice(targetIdx >= 0 ? targetIdx : 0).map((c) => c.id)
-	);
-	const removed = turns.filter((t) => t.chapterId && discardChapterIds.has(t.chapterId));
-	const kept = turns.filter((t) => !t.chapterId || !discardChapterIds.has(t.chapterId));
-	const removedTurnIds = new Set(removed.map((t) => t.id));
-	const removedTurnIndexes = removed.map((t) => t.turnIndex);
+	const discardChapters = chapters.slice(targetIdx >= 0 ? targetIdx : 0);
+	const discardedTurns = discardChapters.flatMap((c) => c.turns);
+	const removedTurnIds = new Set(discardedTurns.map((t) => t.id));
+	const removedTurnIndexes = discardedTurns.map((t) => t.turnIndex);
 
-	await sessionRef.update({
-		turns: kept,
-		currentChapterIndex: targetIdx >= 0 ? targetIdx : 0,
-		postDebateComments: [],
-		totalTurns: FieldValue.delete(),
-		completedAt: FieldValue.delete(),
-		discussionPointStatuses: FieldValue.delete(),
-	});
+	for (const chapter of discardChapters) {
+		await db().doc(`topics/${topicId}/chapters/${chapter.id}`).update({
+			turns: [],
+			discussionPointStatuses: FieldValue.delete(),
+			status: 'pending',
+		});
+	}
+
+	await db().doc(`topics/${topicId}/postDebateComments/0`).set({ comments: [] });
 
 	const personasSnap = await db().collection(`topics/${topicId}/personas`).get();
 	for (const personaSnap of personasSnap.docs) {
@@ -75,14 +95,16 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 		}
 	}
 
-	const engSnap = await db().collection(`topics/${topicId}/sessions/0/engagements`).get();
-	if (engSnap.size > 0) {
-		const updates: Record<string, unknown> = { queuedIntents: FieldValue.delete() };
-		for (const ti of removedTurnIndexes) {
-			updates[`history.${ti}`] = FieldValue.delete();
-		}
-		for (const engDoc of engSnap.docs) {
-			await engDoc.ref.update(updates);
+	if (removedTurnIndexes.length > 0) {
+		const engSnap = await db().collection(`topics/${topicId}/engagements`).get();
+		if (engSnap.size > 0) {
+			const updates: Record<string, unknown> = { queuedIntents: FieldValue.delete() };
+			for (const ti of removedTurnIndexes) {
+				updates[`history.${ti}`] = FieldValue.delete();
+			}
+			for (const engDoc of engSnap.docs) {
+				await engDoc.ref.update(updates);
+			}
 		}
 	}
 

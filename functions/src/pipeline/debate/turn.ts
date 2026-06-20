@@ -33,13 +33,11 @@ export const isDebateActive = async (topicId: string): Promise<boolean> => {
 
 export const addTurn = async (params: {
 	topicId: string;
+	chapterId: string;
 	turnIndex: number;
 	speakerType: 'persona' | 'facilitator';
 	personaId?: string;
-	speakerName?: string;
-	speakerRole?: string;
 	content: string;
-	chapterId?: string;
 	speechMode?: 'opinion' | 'fact' | 'question';
 	engagementScore?: number;
 	fromQueue?: boolean;
@@ -57,18 +55,15 @@ export const addTurn = async (params: {
 		createdAt: Timestamp.now()
 	};
 	if (params.personaId !== undefined) turn.personaId = params.personaId;
-	if (params.speakerName !== undefined) turn.speakerName = params.speakerName;
-	if (params.speakerRole !== undefined) turn.speakerRole = params.speakerRole;
 	if (params.speechMode !== undefined) turn.speechMode = params.speechMode;
 	if (params.engagementScore !== undefined) turn.engagementScore = params.engagementScore;
 	if (params.fromQueue) turn.fromQueue = true;
-	if (params.chapterId !== undefined) turn.chapterId = params.chapterId;
 	if (params.targetPersonaId !== undefined) turn.targetPersonaId = params.targetPersonaId;
 	if (params.targetedBy !== undefined) turn.targetedBy = params.targetedBy;
 	if (params.searchUsed) turn.searchUsed = true;
 	if (params.searchQueries?.length) turn.searchQueries = params.searchQueries;
 	await db()
-		.doc(`topics/${params.topicId}/sessions/0`)
+		.doc(`topics/${params.topicId}/chapters/${params.chapterId}`)
 		.update({ turns: FieldValue.arrayUnion(turn) });
 	return { id };
 };
@@ -141,17 +136,15 @@ export const generateFacilitatorTurn = async ({
 	state: DebateState;
 	content: string;
 	targetPersonaId?: string;
-	chapterId?: string;
+	chapterId: string;
 }): Promise<{ content: string; targetPersonaId?: string }> => {
 	const turnIndex = state.turns.length;
 	const { id: turnId } = await addTurn({
 		topicId,
+		chapterId,
 		turnIndex,
 		speakerType: 'facilitator',
-		speakerName: 'ファシリテーター',
-		speakerRole: '',
 		content,
-		chapterId,
 		targetPersonaId,
 		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});
@@ -159,11 +152,8 @@ export const generateFacilitatorTurn = async ({
 		id: turnId,
 		turnIndex,
 		speakerType: 'facilitator',
-		speakerName: 'ファシリテーター',
-		speakerRole: '',
 		content,
 		createdAt: new Date().toISOString(),
-		chapterId,
 		targetPersonaId,
 		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});
@@ -179,7 +169,8 @@ export const generatePersonaTurn = async ({
 	chapter,
 	state,
 	speakerSelection,
-	engagement
+	engagement,
+	chapterTurnStartIndex = 0
 }: {
 	topicId: string;
 	personas: Persona[];
@@ -187,6 +178,7 @@ export const generatePersonaTurn = async ({
 	state: DebateState;
 	speakerSelection: SpeakerSelection;
 	engagement: Engagement;
+	chapterTurnStartIndex?: number;
 }): Promise<{
 	turnId: string;
 	personaId: string;
@@ -198,14 +190,20 @@ export const generatePersonaTurn = async ({
 	const persona = personas.find((p) => p.id === speakerSelection.personaId)!;
 	const fromQueue = speakerSelection.reason === 'queue';
 
-	const chapterTurns = state.turns.filter((t) => t.chapterId === chapter.id);
+	const chapterTurns = state.turns.slice(chapterTurnStartIndex);
 	const queuedEntries = state.queuedIntents.get(persona.id);
-	let pendingTrigger: { speakerName: string; content: string } | undefined;
+	let queuedTrigger: { speakerName: string; content: string } | undefined;
 	if (queuedEntries && queuedEntries.length > 0) {
 		const triggerTurn = state.turns.find((t) => t.turnIndex === queuedEntries[0].triggerTurnIndex);
-		pendingTrigger = triggerTurn
-			? { speakerName: triggerTurn.speakerName ?? '', content: triggerTurn.content }
-			: undefined;
+		if (triggerTurn) {
+			const triggerPersona = triggerTurn.personaId
+				? personas.find((p) => p.id === triggerTurn.personaId)
+				: undefined;
+			queuedTrigger = {
+				speakerName: triggerPersona ? triggerPersona.name : 'ファシリテーター',
+				content: triggerTurn.content
+			};
+		}
 	}
 
 	const otherPersonas = personas
@@ -217,7 +215,7 @@ export const generatePersonaTurn = async ({
 		{
 			chapterTurns,
 			chapter,
-			pendingTrigger,
+			queuedTrigger,
 			targetedBy:
 				speakerSelection.reason === 'targeted_by_facilitator' ||
 				speakerSelection.reason === 'targeted_by_persona'
@@ -227,7 +225,8 @@ export const generatePersonaTurn = async ({
 					: undefined,
 			otherPersonas
 		},
-		{ ...engagement, intentSummary: speakerSelection.intentSummary ?? engagement.intentSummary }
+		{ ...engagement, intentSummary: speakerSelection.intentSummary ?? engagement.intentSummary },
+		personas
 	);
 	if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
@@ -248,13 +247,11 @@ export const generatePersonaTurn = async ({
 	const turnIndex = state.turns.length;
 	const { id: turnId } = await addTurn({
 		topicId,
+		chapterId: chapter.id,
 		turnIndex,
 		speakerType: 'persona',
 		personaId: persona.id,
-		speakerName: persona.name,
-		speakerRole: persona.specificRole,
 		content: turnResult.value.content,
-		chapterId: chapter.id,
 		speechMode: effectiveSpeechMode,
 		engagementScore: engagement.score,
 		fromQueue: fromQueue || undefined,
@@ -268,11 +265,8 @@ export const generatePersonaTurn = async ({
 		turnIndex,
 		speakerType: 'persona',
 		personaId: persona.id,
-		speakerName: persona.name,
-		speakerRole: persona.specificRole,
 		content: turnResult.value.content,
 		createdAt: new Date().toISOString(),
-		chapterId: chapter.id,
 		fromQueue: fromQueue || undefined,
 		targetPersonaId,
 		targetedBy: targetPersonaId ? 'persona' : undefined
@@ -292,13 +286,15 @@ export const generatePersonaTurn = async ({
 export const generateChapterTransition = async ({
 	topicId,
 	chapter,
-	state
+	state,
+	personas
 }: {
 	topicId: string;
 	chapter: Chapter;
 	state: DebateState;
+	personas: Persona[];
 }): Promise<void> => {
-	const summaryResult = await generateChapterSummary(state.turns.slice(-10), chapter);
+	const summaryResult = await generateChapterSummary(state.turns.slice(-10), chapter, personas);
 	if (summaryResult.ok) {
 		await generateFacilitatorTurn({
 			topicId,
@@ -309,43 +305,35 @@ export const generateChapterTransition = async ({
 	}
 };
 
-/** 討論終端: クロージング → 事後コメント → セッション完了 */
+/** 討論終端: クロージング → 事後コメント → 完了 */
 export const finalizeDebate = async ({
 	topicId,
 	personas,
-	state
+	state,
+	chapterId
 }: {
 	topicId: string;
 	personas: Persona[];
 	state: DebateState;
+	chapterId: string;
 }): Promise<void> => {
 	const finalBeliefs = new Map(personas.map((p) => [p.id, getLatestBelief(p).content]));
-	const closingResult = await generateClosing(state.turns, finalBeliefs);
+	const closingResult = await generateClosing(state.turns, finalBeliefs, personas);
 	if (!closingResult.ok) throw new Error(pipelineErrorMessage(closingResult.error));
-	await generateFacilitatorTurn({ topicId, state, content: closingResult.value ?? '' });
+	await generateFacilitatorTurn({ topicId, state, chapterId, content: closingResult.value ?? '' });
 
+	const comments: Array<{ id: string; personaId: string; content: string; sortOrder: number }> = [];
 	for (let i = 0; i < personas.length; i++) {
 		const persona = personas[i];
 		const finalBelief = getLatestBelief(persona).content;
-		const commentResult = await generatePostDebateComment(persona, finalBelief, state.turns);
+		const commentResult = await generatePostDebateComment(persona, finalBelief, state.turns, personas);
 		if (commentResult.ok) {
 			const id = nanoid();
-			await db()
-				.doc(`topics/${topicId}/sessions/0`)
-				.update({
-					postDebateComments: FieldValue.arrayUnion({
-						id,
-						personaId: persona.id,
-						content: commentResult.value.content,
-						sortOrder: i
-					})
-				});
+			comments.push({ id, personaId: persona.id, content: commentResult.value.content, sortOrder: i });
 		}
 	}
 
-	await db()
-		.doc(`topics/${topicId}/sessions/0`)
-		.update({ totalTurns: state.turns.length, completedAt: Timestamp.now() });
+	await db().doc(`topics/${topicId}/postDebateComments/0`).set({ comments });
 
 	const ref = db().doc(`topics/${topicId}`);
 	await db().runTransaction(async (tx) => {
@@ -358,34 +346,32 @@ export const finalizeDebate = async ({
 };
 
 export const getDebateTurnsByTopicId = async (topicId: string): Promise<DebateTurn[]> => {
-	const snap = await db().doc(`topics/${topicId}/sessions/0`).get();
-	if (!snap.exists) return [];
-	const data = snap.data() as {
-		turns?: Array<{
-			id: string;
-			turnIndex: number;
-			speakerType: string;
-			personaId?: string;
-			speakerName?: string;
-			speakerRole?: string;
-			content: string;
-			createdAt: Timestamp;
-			chapterId?: string;
-			fromQueue?: boolean;
-			targetPersonaId?: string;
-		}>;
-	};
-	return (data.turns ?? []).map((t) => ({
-		id: t.id,
-		turnIndex: t.turnIndex,
-		speakerType: t.speakerType,
-		personaId: t.personaId ?? null,
-		speakerName: t.speakerName,
-		speakerRole: t.speakerRole,
-		content: t.content,
-		createdAt: t.createdAt?.toDate().toISOString() ?? '',
-		chapterId: t.chapterId,
-		fromQueue: t.fromQueue,
-		targetPersonaId: t.targetPersonaId
-	}));
+	const snap = await db().collection(`topics/${topicId}/chapters`).orderBy('chapterIndex').get();
+	const allTurns: DebateTurn[] = [];
+	for (const chapterDoc of snap.docs) {
+		const data = chapterDoc.data() as {
+			turns?: Array<{
+				id: string;
+				turnIndex: number;
+				speakerType: string;
+				personaId?: string;
+				content: string;
+				createdAt: Timestamp;
+				fromQueue?: boolean;
+				targetPersonaId?: string;
+			}>;
+		};
+		const turns = (data.turns ?? []).map((t) => ({
+			id: t.id,
+			turnIndex: t.turnIndex,
+			speakerType: t.speakerType,
+			personaId: t.personaId ?? null,
+			content: t.content,
+			createdAt: t.createdAt?.toDate?.().toISOString() ?? '',
+			fromQueue: t.fromQueue,
+			targetPersonaId: t.targetPersonaId
+		}));
+		allTurns.push(...turns);
+	}
+	return allTurns.sort((a, b) => a.turnIndex - b.turnIndex);
 };

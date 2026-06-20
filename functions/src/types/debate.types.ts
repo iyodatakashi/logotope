@@ -17,12 +17,6 @@ export type DebateOptions = {
 export type DebateSession = {
 	id: string;
 	topicId: string;
-	totalTurns?: number | null;
-	createdAt: string;
-	completedAt?: string | null;
-	publishedAt?: string | null;
-	chapters?: Chapter[];
-	currentChapterIndex?: number;
 };
 
 export type DiscussionPointStatus = 'untouched' | 'introduced' | 'addressed';
@@ -30,6 +24,18 @@ export type DiscussionPointStatus = 'untouched' | 'introduced' | 'addressed';
 export type DiscussionPointState = {
 	point: string;
 	status: DiscussionPointStatus;
+};
+
+export type ChapterProgressStatus = 'pending' | 'running' | 'completed';
+
+export type ChapterStateData = {
+	chapterIndex: number;
+	title: string;
+	focusQuestion: string;
+	discussionPoints: string[];
+	turns: DebateTurn[];
+	discussionPointStatuses?: DiscussionPointState[];
+	status: ChapterProgressStatus;
 };
 
 export type DebateState = {
@@ -80,7 +86,7 @@ export type QueuedIntent = {
 export type TurnGenerationContext = {
 	chapterTurns: ReadonlyArray<DebateTurn>;
 	chapter: Chapter;
-	pendingTrigger?: { speakerName: string; content: string };
+	queuedTrigger?: { speakerName: string; content: string };
 	targetedBy?: 'facilitator' | 'persona';
 	otherPersonas?: ReadonlyArray<{ id: string; name: string }>;
 };
@@ -90,11 +96,8 @@ export type DebateTurn = {
 	turnIndex: number;
 	speakerType: string;
 	personaId?: string | null;
-	speakerName?: string;
-	speakerRole?: string;
 	content: string;
 	createdAt: string;
-	chapterId?: string;
 	speechMode?: 'opinion' | 'fact' | 'question';
 	engagementScore?: number;
 	fromQueue?: boolean;
