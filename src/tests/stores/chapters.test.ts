@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { Timestamp } from 'firebase/firestore';
-import type { ChapterStateDoc } from '$lib/models/session/session.types';
+import type { ChapterDoc } from '$lib/models/chapter/chapter.types';
 
 let snapshotCb: ((snap: unknown) => void) | null = null;
 
@@ -13,14 +12,13 @@ vi.mock('firebase/firestore', () => ({
 	collection: vi.fn(),
 	query: vi.fn(),
 	orderBy: vi.fn(),
-	Timestamp: { now: vi.fn(() => 'NOW') },
 }));
 
 import { createChaptersStore } from '$lib/stores/chapters.svelte';
 
 const makeChapter = (
-	overrides: Partial<ChapterStateDoc> & { id?: string } = {}
-): ChapterStateDoc & { id: string } => ({
+	overrides: Partial<ChapterDoc> & { id?: string } = {}
+): ChapterDoc & { id: string } => ({
 	id: 'ch1',
 	chapterIndex: 0,
 	title: 'テスト章',
@@ -31,7 +29,7 @@ const makeChapter = (
 	...overrides,
 });
 
-const populate = (store: ReturnType<typeof createChaptersStore>, chapters: (ChapterStateDoc & { id: string })[]) => {
+const populate = (store: ReturnType<typeof createChaptersStore>, chapters: (ChapterDoc & { id: string })[]) => {
 	store.start();
 	snapshotCb?.({
 		docs: chapters.map((c) => ({
@@ -62,12 +60,13 @@ describe('createChaptersStore', () => {
 
 	it('turns が全チャプターの turns をチャプター順・配列順にフラット化する', () => {
 		const store = createChaptersStore('topic1');
+		const fakeTs = { toDate: () => new Date() };
 		const ch1Turns = [
-			{ id: 't1', speakerType: 'facilitator' as const, content: '開幕', createdAt: Timestamp.now() },
-			{ id: 't2', speakerType: 'persona' as const, content: '発言2', createdAt: Timestamp.now() },
+			{ id: 't1', speakerType: 'facilitator' as const, content: '開幕', createdAt: fakeTs },
+			{ id: 't2', speakerType: 'persona' as const, content: '発言2', createdAt: fakeTs },
 		];
 		const ch2Turns = [
-			{ id: 't3', speakerType: 'persona' as const, content: '発言3', createdAt: Timestamp.now() },
+			{ id: 't3', speakerType: 'persona' as const, content: '発言3', createdAt: fakeTs },
 		];
 
 		populate(store, [

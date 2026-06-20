@@ -1,6 +1,6 @@
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '$lib/firebase';
-import type { ChapterAnalysisDoc } from '$lib/models/session/session.types';
+import type { ChapterAnalysisDoc } from '$lib/models/chapter/chapter.types';
 
 export const createChapterAnalysisStore = (topicId: string) => {
 	let data = $state<ChapterAnalysisDoc | null>(null);

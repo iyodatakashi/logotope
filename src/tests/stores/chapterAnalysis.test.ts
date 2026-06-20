@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { ChapterAnalysisDoc } from '$lib/models/session/session.types';
+import type { ChapterAnalysisDoc } from '$lib/models/chapter/chapter.types';
 
 let snapshotCb: ((snap: unknown) => void) | null = null;
 

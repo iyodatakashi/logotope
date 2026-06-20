@@ -1,6 +1,6 @@
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '$lib/firebase';
-import type { PostDebateCommentDoc, PostDebateCommentsDoc } from '$lib/models/session/session.types';
+import type { PostDebateCommentDoc, PostDebateCommentsDoc } from '$lib/models/postDebateComment/postDebateComment.types';
 
 export const createPostDebateCommentsStore = (topicId: string) => {
 	let comments = $state<PostDebateCommentDoc[]>([]);
