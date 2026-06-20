@@ -50,15 +50,17 @@ const create = () => {
 	};
 
 	const deleteTopic = async (topicId: string): Promise<void> => {
-		const [personasSnap, chaptersSnap, engagementsSnap] = await Promise.all([
+		const [personasSnap, chaptersSnap] = await Promise.all([
 			getDocs(collection(db, 'topics', topicId, 'personas')),
-			getDocs(collection(db, 'topics', topicId, 'chapters')),
-			getDocs(collection(db, 'topics', topicId, 'engagements'))
+			getDocs(collection(db, 'topics', topicId, 'chapters'))
 		]);
+		const chapterEngagementSnaps = await Promise.all(
+			chaptersSnap.docs.map((d) => getDocs(collection(db, 'topics', topicId, 'chapters', d.id, 'engagements')))
+		);
 		const all = [
 			...personasSnap.docs.map((d) => d.ref),
 			...chaptersSnap.docs.map((d) => d.ref),
-			...engagementsSnap.docs.map((d) => d.ref),
+			...chapterEngagementSnaps.flatMap((snap) => snap.docs.map((d) => d.ref)),
 			doc(db, 'topics', topicId, 'chapterAnalysis', '0'),
 			doc(db, 'topics', topicId, 'postDebateComments', '0'),
 			doc(db, 'topics', topicId)

@@ -22,7 +22,6 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 							turns: [
 								{
 									id: 't1',
-									turnIndex: 1,
 									speakerType: 'persona',
 									personaId: 'p1',
 									content: 'テスト発言内容',
@@ -94,8 +93,9 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 		get engagementsStore() {
 			return {
 				get engagementsMap() {
-					return new Map([[1, [{ turnIndex: 1, score: 4, mode: 'opinion', personaId: 'p2' }]]]);
+					return new Map([['t1', [{ turnId: 't1', score: 4, mode: 'opinion', personaId: 'p2' }]]]);
 				},
+				setChapterId: vi.fn(),
 				start: vi.fn(),
 				stop: vi.fn()
 			};

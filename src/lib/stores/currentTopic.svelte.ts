@@ -15,6 +15,10 @@ const create = () => {
 	let engagementsStore = $state(createEngagementsStore(''));
 	let stakeholdersStore = $state(createStakeholdersStore(''));
 
+	$effect(() => {
+		engagementsStore.setChapterId(chaptersStore.runningChapter?.id ?? null);
+	});
+
 	return {
 		get topic() {
 			return topicsStore.topics.find((t) => t.id === page.params.topicId);

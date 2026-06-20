@@ -2,28 +2,33 @@ import { onSnapshot, collection } from 'firebase/firestore';
 import { db } from '$lib/firebase';
 import type { EngagementHistoryEntry } from '$lib/models/engagement/engagement.types';
 
-export type EngagementHistoryEntryWithPersona = EngagementHistoryEntry & { turnIndex: number; personaId: string };
+export type EngagementHistoryEntryWithPersona = EngagementHistoryEntry & { turnId: string; personaId: string };
 
 export const buildEngagementsMap = (
   rawDocs: Array<{ personaId: string; history: Record<string, EngagementHistoryEntry> }>
-): Map<number, EngagementHistoryEntryWithPersona[]> => {
-  const result = new Map<number, EngagementHistoryEntryWithPersona[]>();
+): Map<string, EngagementHistoryEntryWithPersona[]> => {
+  const result = new Map<string, EngagementHistoryEntryWithPersona[]>();
   for (const { personaId, history } of rawDocs) {
-    for (const [key, entry] of Object.entries(history)) {
-      const turnIndex = parseInt(key, 10);
-      const list = result.get(turnIndex) ?? [];
-      result.set(turnIndex, [...list, { ...entry, turnIndex, personaId }]);
+    for (const [turnId, entry] of Object.entries(history)) {
+      const list = result.get(turnId) ?? [];
+      result.set(turnId, [...list, { ...entry, turnId, personaId }]);
     }
   }
   return result;
 };
 
 export const createEngagementsStore = (topicId: string) => {
-  let engagementsMap = $state<Map<number, EngagementHistoryEntryWithPersona[]>>(new Map());
+  let engagementsMap = $state<Map<string, EngagementHistoryEntryWithPersona[]>>(new Map());
   let unsubscribe: (() => void) | null = null;
 
-  const start = () => {
-    const ref = collection(db, 'topics', topicId, 'engagements');
+  const setChapterId = (chapterId: string | null) => {
+    unsubscribe?.();
+    unsubscribe = null;
+    if (chapterId === null) {
+      engagementsMap = new Map();
+      return;
+    }
+    const ref = collection(db, 'topics', topicId, 'chapters', chapterId, 'engagements');
     unsubscribe = onSnapshot(ref, (snap) => {
       const docs = snap.docs.map((d) => ({
         personaId: d.id,
@@ -33,15 +38,19 @@ export const createEngagementsStore = (topicId: string) => {
     });
   };
 
+  const start = () => {
+    // 購読は setChapterId 経由で管理する（currentTopic.svelte.ts の $effect から呼ばれる）
+  };
+
   const stop = () => {
-    unsubscribe?.();
-    unsubscribe = null;
+    setChapterId(null);
   };
 
   return {
     get engagementsMap() {
       return engagementsMap;
     },
+    setChapterId,
     start,
     stop,
   };

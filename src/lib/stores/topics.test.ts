@@ -5,19 +5,25 @@ vi.mock('firebase/functions', () => ({
 	httpsCallable: vi.fn(() => vi.fn().mockResolvedValue({ data: {} }))
 }));
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'new-id') }));
+
+const mockBatchDelete = vi.fn();
+const mockBatchCommit = vi.fn().mockResolvedValue(undefined);
+const mockWriteBatch = vi.fn(() => ({ delete: mockBatchDelete, commit: mockBatchCommit }));
+type AnySnap = { docs: unknown[] };
+
 vi.mock('firebase/firestore', () => ({
 	onSnapshot: vi.fn(),
-	collection: vi.fn(),
+	collection: vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') })),
 	query: vi.fn(),
 	orderBy: vi.fn(),
 	doc: vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') })),
 	setDoc: vi.fn().mockResolvedValue(undefined),
-	writeBatch: vi.fn(),
+	writeBatch: () => mockWriteBatch(),
 	getDocs: vi.fn(),
 	Timestamp: { now: vi.fn(() => 'NOW') }
 }));
 
-import { setDoc } from 'firebase/firestore';
+import { setDoc, getDocs } from 'firebase/firestore';
 import { topicsStore } from './topics.svelte';
 
 describe('topicsStore.addTopic (task 3.3)', () => {
@@ -71,5 +77,75 @@ describe('topicsStore.addTopic (task 3.3)', () => {
 	it('topicIdを返す', async () => {
 		const id = await topicsStore.addTopic('題名');
 		expect(id).toBe('new-id');
+	});
+});
+
+describe('topicsStore.deleteTopic - チャプター engagements サブコレクション削除', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockBatchDelete.mockClear();
+		mockBatchCommit.mockResolvedValue(undefined);
+	});
+
+	it('topics/{topicId}/engagements は getDocs で取得しない', async () => {
+		vi.mocked(getDocs).mockImplementation(async (ref) => {
+			const path = (ref as unknown as { path: string }).path;
+			if (path === 'topics/topic1/chapters') return { docs: [] } as unknown as Awaited<ReturnType<typeof getDocs>>;
+			return { docs: [] } as unknown as Awaited<ReturnType<typeof getDocs>>;
+		});
+
+		await topicsStore.deleteTopic('topic1');
+
+		const getDocsPaths = vi.mocked(getDocs).mock.calls
+			.map((call) => (call[0] as unknown as { path: string }).path);
+		expect(getDocsPaths).not.toContain('topics/topic1/engagements');
+	});
+
+	it('各チャプターの engagements サブコレクションを getDocs で取得する', async () => {
+		vi.mocked(getDocs).mockImplementation(async (ref) => {
+			const path = (ref as unknown as { path: string }).path;
+			if (path === 'topics/topic1/personas') return { docs: [] } as unknown as Awaited<ReturnType<typeof getDocs>>;
+			if (path === 'topics/topic1/chapters') {
+				const snap: AnySnap = {
+					docs: [
+						{ ref: { path: 'topics/topic1/chapters/ch1' }, id: 'ch1' },
+						{ ref: { path: 'topics/topic1/chapters/ch2' }, id: 'ch2' },
+					],
+				};
+				return snap as unknown as Awaited<ReturnType<typeof getDocs>>;
+			}
+			if (path.includes('/engagements')) return { docs: [] } as unknown as Awaited<ReturnType<typeof getDocs>>;
+			return { docs: [] } as unknown as Awaited<ReturnType<typeof getDocs>>;
+		});
+
+		await topicsStore.deleteTopic('topic1');
+
+		const getDocsPaths = vi.mocked(getDocs).mock.calls
+			.map((call) => (call[0] as unknown as { path: string }).path);
+		expect(getDocsPaths).toContain('topics/topic1/chapters/ch1/engagements');
+		expect(getDocsPaths).toContain('topics/topic1/chapters/ch2/engagements');
+	});
+
+	it('chapter engagements のドキュメントをバッチ削除対象に追加する', async () => {
+		const engRef1 = { path: 'topics/topic1/chapters/ch1/engagements/p1' };
+		const engRef2 = { path: 'topics/topic1/chapters/ch1/engagements/p2' };
+
+		vi.mocked(getDocs).mockImplementation(async (ref) => {
+			const path = (ref as unknown as { path: string }).path;
+			if (path === 'topics/topic1/personas') return { docs: [] } as unknown as Awaited<ReturnType<typeof getDocs>>;
+			if (path === 'topics/topic1/chapters') {
+				return { docs: [{ ref: { path: 'topics/topic1/chapters/ch1' }, id: 'ch1' }] } as unknown as Awaited<ReturnType<typeof getDocs>>;
+			}
+			if (path === 'topics/topic1/chapters/ch1/engagements') {
+				return { docs: [{ ref: engRef1 }, { ref: engRef2 }] } as unknown as Awaited<ReturnType<typeof getDocs>>;
+			}
+			return { docs: [] } as unknown as Awaited<ReturnType<typeof getDocs>>;
+		});
+
+		await topicsStore.deleteTopic('topic1');
+
+		const deletedPaths = mockBatchDelete.mock.calls.map((c) => (c[0] as unknown as { path: string }).path);
+		expect(deletedPaths).toContain(engRef1.path);
+		expect(deletedPaths).toContain(engRef2.path);
 	});
 });

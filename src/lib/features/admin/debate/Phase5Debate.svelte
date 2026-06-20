@@ -30,14 +30,11 @@
 
 	const turns = $derived(
 		currentTopicStore.chaptersStore.turns
-			.slice()
-			.sort((a, b) => a.turnIndex - b.turnIndex)
 			.map((t) => {
 				const persona = t.personaId ? personaMap.get(t.personaId) : null;
 				const addressedPersona = t.targetPersonaId ? personaMap.get(t.targetPersonaId) : null;
 				return {
 					id: t.id,
-					turnIndex: t.turnIndex,
 					speakerType: t.speakerType,
 					speakerName: persona?.name ?? 'ファシリテーター',
 					// 話者の役割は、このテーマにおける具体的な立場（specificRole）を表示する
@@ -48,7 +45,7 @@
 					fromQueue: t.fromQueue,
 					personaId: t.personaId,
 					addressedPersonaName: addressedPersona?.name ?? null,
-					engagements: currentTopicStore.engagementsStore.engagementsMap.get(t.turnIndex) ?? [],
+					engagements: currentTopicStore.engagementsStore.engagementsMap.get(t.id) ?? [],
 					beliefChangesTriggered: currentTopicStore.personasStore.personas.flatMap((p) =>
 						(p.beliefs ?? [])
 							.filter((b) => b.triggeredByTurnId === t.id)
