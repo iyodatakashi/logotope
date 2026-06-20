@@ -1,4 +1,4 @@
-import { onSnapshot, collection } from 'firebase/firestore';
+import { onSnapshot, collection, getDocs } from 'firebase/firestore';
 import { db } from '$lib/firebase';
 import type { EngagementHistoryEntry } from '$lib/models/engagement/engagement.types';
 
@@ -17,17 +17,11 @@ export const buildEngagementsMap = (
   return result;
 };
 
-export const createEngagementsStore = (topicId: string) => {
+export const createEngagementStore = (topicId: string, chapterId: string) => {
   let engagementsMap = $state<Map<string, EngagementHistoryEntryWithPersona[]>>(new Map());
   let unsubscribe: (() => void) | null = null;
 
-  const setChapterId = (chapterId: string | null) => {
-    unsubscribe?.();
-    unsubscribe = null;
-    if (chapterId === null) {
-      engagementsMap = new Map();
-      return;
-    }
+  const start = () => {
     const ref = collection(db, 'topics', topicId, 'chapters', chapterId, 'engagements');
     unsubscribe = onSnapshot(ref, (snap) => {
       const docs = snap.docs.map((d) => ({
@@ -38,20 +32,57 @@ export const createEngagementsStore = (topicId: string) => {
     });
   };
 
-  const start = () => {
-    // 購読は setChapterId 経由で管理する（currentTopic.svelte.ts の $effect から呼ばれる）
-  };
-
   const stop = () => {
-    setChapterId(null);
+    unsubscribe?.();
+    unsubscribe = null;
   };
 
   return {
-    get engagementsMap() {
-      return engagementsMap;
-    },
-    setChapterId,
+    get chapterId() { return chapterId; },
+    get engagementsMap() { return engagementsMap; },
     start,
     stop,
   };
 };
+
+export type EngagementStore = ReturnType<typeof createEngagementStore>;
+
+export const createEngagementsStore = (topicId: string) => {
+  let engagements = $state<EngagementStore[]>([]);
+  const engagementsMap = $derived.by(() => {
+    const merged = new Map<string, EngagementHistoryEntryWithPersona[]>();
+    for (const store of engagements) {
+      for (const [turnId, entries] of store.engagementsMap) {
+        const existing = merged.get(turnId) ?? [];
+        merged.set(turnId, [...existing, ...entries]);
+      }
+    }
+    return merged;
+  });
+
+  const start = () => {
+    const chaptersRef = collection(db, 'topics', topicId, 'chapters');
+    getDocs(chaptersRef).then((snap) => {
+      const stores = snap.docs.map((doc) => {
+        const store = createEngagementStore(topicId, doc.id);
+        store.start();
+        return store;
+      });
+      engagements = stores;
+    });
+  };
+
+  const stop = () => {
+    engagements.forEach((store) => store.stop());
+    engagements = [];
+  };
+
+  return {
+    get engagements() { return engagements; },
+    get engagementsMap() { return engagementsMap; },
+    start,
+    stop,
+  };
+};
+
+export type EngagementsStore = ReturnType<typeof createEngagementsStore>;

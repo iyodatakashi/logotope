@@ -5,18 +5,17 @@
 	import EngagementList from './EngagementList.svelte';
 
 	const PHASE = 5;
-	// 討論は開始・再生成・停止・再開。承認フェーズは無い
 	const generate = () => currentTopicStore.topic?.startDebate();
 	const stop = () => currentTopicStore.topic?.stopDebate();
 	const restart = () => currentTopicStore.topic?.restartDebate();
 
-	// 再生成: 討論ターンのみ破棄（章立ては残す）して最初から討論し直す
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		await topic.resetDebate();
 		await topic.startDebate();
 	};
+
 	const logicalState = $derived.by(() => {
 		const topic = currentTopicStore.topic;
 		return topic
@@ -37,7 +36,6 @@
 					id: t.id,
 					speakerType: t.speakerType,
 					speakerName: persona?.name ?? 'ファシリテーター',
-					// 話者の役割は、このテーマにおける具体的な立場（specificRole）を表示する
 					speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
 					content: t.content,
 					speechMode: t.speechMode,
@@ -58,16 +56,6 @@
 				};
 			})
 	);
-
-	const chapters = $derived(
-		currentTopicStore.chaptersStore.chapters.length
-			? currentTopicStore.chaptersStore.chapters
-			: null
-	);
-	const currentChapter = $derived(currentTopicStore.chaptersStore.runningChapter);
-	const currentChapterIndex = $derived(currentChapter?.chapterIndex ?? null);
-	const discussionPointStatuses = $derived(currentChapter?.discussionPointStatuses ?? null);
-	const completedTurns = $derived(turns.length);
 </script>
 
 <PhasePanel
@@ -89,26 +77,26 @@
 >
 	{#snippet progress()}
 		{#if logicalState === 'running'}
-			{#if currentChapter}
+			{#if currentTopicStore.chaptersStore.currentChapter}
 				<p class="chapter-progress">
-					第{(currentChapterIndex ?? 0) + 1}章「{currentChapter.title}」
-					{#if chapters}（第{(currentChapterIndex ?? 0) + 1}章 / 全{chapters.length}章）{/if}
+					第{currentTopicStore.chaptersStore.currentChapter.chapterIndex + 1}章「{currentTopicStore.chaptersStore.currentChapter.title}」
+					{#if currentTopicStore.chaptersStore.chapters.length}（第{currentTopicStore.chaptersStore.currentChapter.chapterIndex + 1}章 / 全{currentTopicStore.chaptersStore.chapters.length}章）{/if}
 				</p>
-			{:else if completedTurns > 0}
-				<p class="chapter-progress">討論中...（ターン {completedTurns}）</p>
+			{:else if turns.length > 0}
+				<p class="chapter-progress">討論中...（ターン {turns.length}）</p>
 			{/if}
 		{/if}
 	{/snippet}
 	{#snippet content()}
-		{#if chapters}
+		{#if currentTopicStore.chaptersStore.chapters.length}
 			<ol class="chapters">
-				{#each chapters as chapter, i}
-					<li class:current={i === (currentChapterIndex ?? 0)}>
+				{#each currentTopicStore.chaptersStore.chapters as chapter}
+					<li class:current={chapter === currentTopicStore.chaptersStore.currentChapter}>
 						<strong>{chapter.title}</strong>
 						<span class="focus">{chapter.focusQuestion}</span>
-						{#if i === (currentChapterIndex ?? 0) && discussionPointStatuses?.length}
+						{#if chapter === currentTopicStore.chaptersStore.currentChapter && chapter.discussionPointStatuses?.length}
 							<ul class="points">
-								{#each discussionPointStatuses as dp}
+								{#each chapter.discussionPointStatuses as dp}
 									<li class="point" data-status={dp.status}>
 										<span class="status-badge">{dp.status === 'untouched' ? '未' : dp.status === 'introduced' ? '着' : '済'}</span>
 										{dp.point}
