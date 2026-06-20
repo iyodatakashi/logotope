@@ -69,7 +69,7 @@ export const executeChapterTask = async (
 	const { personas, topicTitle } = await getTopicContext(topicId);
 
 	const existingTurns = await getDebateTurnsByTopicId(topicId);
-	const persistedQueuedIntents = await loadQueuedIntents(topicId);
+	const persistedQueuedIntents = await loadQueuedIntents(topicId, chapterDoc.id);
 	const state = getDebateState(existingTurns, personas, persistedQueuedIntents);
 
 	const chapter: Chapter = chapterDoc;
@@ -179,11 +179,11 @@ export const executeChapterTask = async (
 			}
 		: undefined;
 	if (speakerSelection) {
-		const engagements = await evaluateEngagements({ topicId, personas, state });
+		const engagements = await evaluateEngagements({ topicId, chapterId: chapterDoc.id, personas, state, chapterTurns: getChapterTurns() });
 		const engagement = await evaluateEngagementWithFallback({
 			personaId: speakerSelection.personaId,
 			personas,
-			turns: state.turns,
+			chapterTurns: getChapterTurns(),
 			engagements
 		});
 		const reply = await generatePersonaTurn({
@@ -199,6 +199,7 @@ export const executeChapterTask = async (
 			updateSpeakerStats({ state, personas, personaId: reply.personaId });
 			await consumeQueuedIntent({
 				topicId,
+				chapterId: chapterDoc.id,
 				state,
 				personaId: reply.personaId,
 				queuedEntries: reply.queuedEntries
@@ -261,10 +262,10 @@ const executeTurn = async ({
 	const targetPersona = getLastTargetPersona(state.turns);
 
 	// 2. 失効した発言意図をキューから除去する
-	await expireQueuedIntents({ topicId, state });
+	await expireQueuedIntents({ topicId, chapterId, state });
 
 	// 3. 全員の発言意欲を評価する（直前話者を除く）
-	const engagements = await evaluateEngagements({ topicId, personas, state });
+	const engagements = await evaluateEngagements({ topicId, chapterId, personas, state, chapterTurns: getChapterTurns() });
 
 	// 4. ファシリテーター介入（介入した場合は早期終了）
 	const canContinuePairConversation = state.pairConversationTurns < MAX_PAIR_CONVERSATION_TURNS;
@@ -274,6 +275,7 @@ const executeTurn = async ({
 			topicId,
 			personas,
 			chapter,
+			chapterId,
 			state,
 			engagements,
 			interventionCooldown,
@@ -297,10 +299,11 @@ const executeTurn = async ({
 	// 6. 高意欲者の発言意図をキューに積む
 	await addQueuedIntents({
 		topicId,
+		chapterId,
 		state,
 		engagements,
 		speakerSelection,
-		triggerTurnIndex: Math.max(0, state.turns.length - 1)
+		triggerTurnId: state.turns[state.turns.length - 1]?.id ?? ''
 	});
 
 	// 7. ペア会話ターン数を更新する（ペルソナ間指名の連続回数を管理する）
@@ -311,7 +314,7 @@ const executeTurn = async ({
 	const engagement = await evaluateEngagementWithFallback({
 		personaId: speakerSelection.personaId,
 		personas,
-		turns: state.turns,
+		chapterTurns: getChapterTurns(),
 		engagements
 	});
 
@@ -330,6 +333,7 @@ const executeTurn = async ({
 	// 10. 消化した発言意図をキューから除去する
 	await consumeQueuedIntent({
 		topicId,
+		chapterId,
 		state,
 		personaId: reply.personaId,
 		queuedEntries: reply.queuedEntries

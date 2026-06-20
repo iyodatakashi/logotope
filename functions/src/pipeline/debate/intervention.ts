@@ -39,10 +39,8 @@ export const persistInterventionTurn = async ({
 	targetPersonaId: string | undefined;
 	chapterId: string;
 }): Promise<SpeakerSelection | undefined> => {
-	const turnIndex = state.turns.length;
 	const { id: turnId } = await addTurn({
 		topicId,
-		turnIndex,
 		speakerType: 'facilitator',
 		content,
 		chapterId,
@@ -51,7 +49,6 @@ export const persistInterventionTurn = async ({
 	});
 	state.turns.push({
 		id: turnId,
-		turnIndex,
 		speakerType: 'facilitator',
 		content,
 		createdAt: new Date().toISOString(),
@@ -70,6 +67,7 @@ export const tryIntervention = async ({
 	topicId,
 	personas,
 	chapter,
+	chapterId,
 	state,
 	engagements,
 	interventionCooldown,
@@ -78,6 +76,7 @@ export const tryIntervention = async ({
 	topicId: string;
 	personas: Persona[];
 	chapter: Chapter;
+	chapterId: string;
 	state: DebateState;
 	engagements: Engagement[];
 	interventionCooldown: number;
@@ -110,10 +109,11 @@ export const tryIntervention = async ({
 
 	await addQueuedIntents({
 		topicId,
+		chapterId,
 		state,
 		engagements,
 		speakerSelection: { personaId: '', reason: 'score' },
-		triggerTurnIndex: Math.max(0, state.turns.length - 1)
+		triggerTurnId: state.turns[state.turns.length - 1]?.id ?? ''
 	});
 	await persistInterventionTurn({
 		topicId,

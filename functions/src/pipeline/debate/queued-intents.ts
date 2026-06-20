@@ -7,16 +7,20 @@ const db = () => getFirestore();
 
 export const expireQueuedIntents = async ({
 	topicId,
+	chapterId,
 	state
 }: {
 	topicId: string;
+	chapterId: string;
 	state: DebateState;
 }): Promise<void> => {
 	const writes: Array<{ personaId: string; alive: QueuedIntent[] }> = [];
 	for (const [personaId, items] of state.queuedIntents.entries()) {
-		const alive = items.filter(
-			(item) => state.turns.length - item.triggerTurnIndex <= INTENT_EXPIRY_TURNS
-		);
+		const alive = items.filter((item) => {
+			const triggerIdx = state.turns.findIndex((t) => t.id === item.triggerTurnId);
+			if (triggerIdx === -1) return false;
+			return state.turns.length - triggerIdx <= INTENT_EXPIRY_TURNS;
+		});
 		if (alive.length === items.length) continue;
 		if (alive.length === 0) {
 			state.queuedIntents.delete(personaId);
@@ -28,7 +32,7 @@ export const expireQueuedIntents = async ({
 	await Promise.all(
 		writes.map(({ personaId, alive }) =>
 			db()
-				.doc(`topics/${topicId}/engagements/${personaId}`)
+				.doc(`topics/${topicId}/chapters/${chapterId}/engagements/${personaId}`)
 				.set({ queuedIntents: alive }, { merge: true })
 		)
 	);
@@ -37,29 +41,31 @@ export const expireQueuedIntents = async ({
 /** 高意欲かつ非選択ペルソナのインテントをキューに追加し Firestore に write-through する */
 export const addQueuedIntents = async ({
 	topicId,
+	chapterId,
 	state,
 	engagements,
 	speakerSelection,
-	triggerTurnIndex
+	triggerTurnId
 }: {
 	topicId: string;
+	chapterId: string;
 	state: DebateState;
 	engagements: readonly Engagement[];
 	speakerSelection: SpeakerSelection;
-	triggerTurnIndex: number;
+	triggerTurnId: string;
 }): Promise<void> => {
 	const updates = engagements
 		.filter((e) => shouldQueue(e) && e.personaId !== speakerSelection.personaId)
 		.map((e) => {
 			const existing = state.queuedIntents.get(e.personaId) ?? [];
-			const updated = [...existing, { triggerTurnIndex, intentSummary: e.intentSummary ?? '' }];
+			const updated = [...existing, { triggerTurnId, intentSummary: e.intentSummary ?? '' }];
 			state.queuedIntents.set(e.personaId, updated);
 			return { personaId: e.personaId, updated };
 		});
 	await Promise.all(
 		updates.map(({ personaId, updated }) =>
 			db()
-				.doc(`topics/${topicId}/engagements/${personaId}`)
+				.doc(`topics/${topicId}/chapters/${chapterId}/engagements/${personaId}`)
 				.set({ queuedIntents: updated }, { merge: true })
 		)
 	);
@@ -67,11 +73,13 @@ export const addQueuedIntents = async ({
 
 export const consumeQueuedIntent = async ({
 	topicId,
+	chapterId,
 	state,
 	personaId,
 	queuedEntries
 }: {
 	topicId: string;
+	chapterId: string;
 	state: DebateState;
 	personaId: string;
 	queuedEntries: QueuedIntent[] | undefined;
@@ -84,16 +92,18 @@ export const consumeQueuedIntent = async ({
 		state.queuedIntents.set(personaId, remaining);
 	}
 	await db()
-		.doc(`topics/${topicId}/engagements/${personaId}`)
+		.doc(`topics/${topicId}/chapters/${chapterId}/engagements/${personaId}`)
 		.set({ queuedIntents: [...remaining] }, { merge: true });
 };
 
-export const loadQueuedIntents = async (topicId: string): Promise<Map<string, QueuedIntent[]>> => {
-	const snap = await db().collection(`topics/${topicId}/engagements`).get();
+export const loadQueuedIntents = async (topicId: string, chapterId: string): Promise<Map<string, QueuedIntent[]>> => {
+	const snap = await db().collection(`topics/${topicId}/chapters/${chapterId}/engagements`).get();
 	const result = new Map<string, QueuedIntent[]>();
 	for (const docSnap of snap.docs) {
 		const data = docSnap.data() as { queuedIntents?: QueuedIntent[] };
-		result.set(docSnap.id, data.queuedIntents ?? []);
+		if (data.queuedIntents && data.queuedIntents.length > 0) {
+			result.set(docSnap.id, data.queuedIntents);
+		}
 	}
 	return result;
 };

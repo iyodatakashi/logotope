@@ -17,10 +17,8 @@ import {
   tryIntervention,
 } from './intervention.js';
 
-const makeTurn = (speakerType: 'persona' | 'facilitator', id: string, turnIndex = 0): DebateTurn => ({
+const makeTurn = (speakerType: 'persona' | 'facilitator', id: string): DebateTurn => ({
   id,
-  sessionId: 'topic1',
-  turnIndex,
   speakerType,
   content: 'test',
   createdAt: '',
@@ -33,8 +31,6 @@ const makeState = (turns: DebateTurn[] = [], discussionPoints: DebateState['disc
   speakCount: new Map(),
   queuedIntents: new Map(),
   pairConversationTurns: 0,
-  currentTurnIndex: turns.length,
-  lastFacilitatorTurnIndex: -1,
   discussionPoints,
 });
 
@@ -58,23 +54,23 @@ describe('shouldEvaluateIntervention', () => {
 
 describe('countPersonaTurnsSinceFacilitator', () => {
   it('ファシリテーターターンが存在しない場合は全ペルソナターン数を返す', () => {
-    const history = [makeTurn('persona', 't1', 0), makeTurn('persona', 't2', 1)];
+    const history = [makeTurn('persona', 't1'), makeTurn('persona', 't2')];
     expect(countPersonaTurnsSinceFacilitator(history)).toBe(2);
   });
 
   it('末尾がファシリテーターターンの場合は 0 を返す', () => {
-    const history = [makeTurn('persona', 't1', 0), makeTurn('facilitator', 't2', 1)];
+    const history = [makeTurn('persona', 't1'), makeTurn('facilitator', 't2')];
     expect(countPersonaTurnsSinceFacilitator(history)).toBe(0);
   });
 
   it('複数のファシリテーターターンがある場合は最後のもの以降のペルソナターン数を返す', () => {
     const history = [
-      makeTurn('persona', 't1', 0),
-      makeTurn('facilitator', 't2', 1),
-      makeTurn('persona', 't3', 2),
-      makeTurn('persona', 't4', 3),
-      makeTurn('facilitator', 't5', 4),
-      makeTurn('persona', 't6', 5),
+      makeTurn('persona', 't1'),
+      makeTurn('facilitator', 't2'),
+      makeTurn('persona', 't3'),
+      makeTurn('persona', 't4'),
+      makeTurn('facilitator', 't5'),
+      makeTurn('persona', 't6'),
     ];
     expect(countPersonaTurnsSinceFacilitator(history)).toBe(1);
   });

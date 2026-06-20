@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Persona } from '../../types/persona.types.js';
-import type { DebateState } from '../../types/debate.types.js';
+import type { DebateState, DebateTurn } from '../../types/debate.types.js';
 
 const mockUpdate = vi.fn().mockResolvedValue(undefined);
 const mockSet = vi.fn().mockResolvedValue(undefined);
@@ -43,9 +43,17 @@ const makeState = (overrides?: Partial<DebateState>): DebateState => ({
 	speakCount: new Map(),
 	queuedIntents: new Map(),
 	pairConversationTurns: 0,
-	currentTurnIndex: 0,
-	lastFacilitatorTurnIndex: -1,
+	discussionPoints: [],
 	...overrides,
+});
+
+const makeDebateTurn = (id: string): DebateTurn => ({
+	id,
+	speakerType: 'persona',
+	personaId: 'p1',
+	content: '発言内容',
+	speechMode: 'opinion',
+	createdAt: '',
 });
 
 describe('evaluateEngagements', () => {
@@ -61,8 +69,9 @@ describe('evaluateEngagements', () => {
 			makePersona('p3', '鈴木次郎'),
 		];
 		const state = makeState();
+		const chapterTurns: DebateTurn[] = [];
 
-		await evaluateEngagements({ topicId: 'topic1', personas, state });
+		await evaluateEngagements({ topicId: 'topic1', chapterId: 'ch1', personas, state, chapterTurns });
 
 		// p1 の評価には p2, p3 の名前が渡る
 		const p1Call = mockEvaluateEngagement.mock.calls.find(
@@ -84,14 +93,44 @@ describe('evaluateEngagements', () => {
 	it('lastSpeakerId のペルソナは評価対象から除外される', async () => {
 		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
 		const state = makeState({ lastSpeakerId: 'p1' });
+		const chapterTurns: DebateTurn[] = [];
 
-		await evaluateEngagements({ topicId: 'topic1', personas, state });
+		await evaluateEngagements({ topicId: 'topic1', chapterId: 'ch1', personas, state, chapterTurns });
 
 		const calledIds = mockEvaluateEngagement.mock.calls.map(
 			(call: unknown[]) => (call[0] as Persona).id
 		);
 		expect(calledIds).not.toContain('p1');
 		expect(calledIds).toContain('p2');
+	});
+
+	it('evaluateEngagement に state.turns ではなく chapterTurns を渡す', async () => {
+		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
+		const stateTurn = makeDebateTurn('state-turn');
+		const chapterTurn = makeDebateTurn('chapter-turn');
+		const state = makeState({ turns: [stateTurn] });
+		const chapterTurns: DebateTurn[] = [chapterTurn];
+
+		await evaluateEngagements({ topicId: 'topic1', chapterId: 'ch1', personas, state, chapterTurns });
+
+		const calls = mockEvaluateEngagement.mock.calls;
+		for (const call of calls) {
+			const turns = call[1] as DebateTurn[];
+			expect(turns).toContain(chapterTurn);
+			expect(turns).not.toContain(stateTurn);
+		}
+	});
+
+	it('saveEngagements の書き込み先が chapters/{chapterId}/engagements/{personaId} になる', async () => {
+		const personas = [makePersona('p1', '田中太郎')];
+		const state = makeState({ turns: [makeDebateTurn('t1')] });
+		const chapterTurns: DebateTurn[] = [makeDebateTurn('t1')];
+
+		await evaluateEngagements({ topicId: 'topic1', chapterId: 'ch1', personas, state, chapterTurns });
+
+		const docPaths = mockDoc.mock.calls.map((call: string[]) => call[0]);
+		expect(docPaths.some((p: string) => p === 'topics/topic1/chapters/ch1/engagements/p1')).toBe(true);
+		expect(docPaths.some((p: string) => p.includes('topics/topic1/engagements'))).toBe(false);
 	});
 });
 
@@ -115,7 +154,7 @@ describe('evaluateEngagementWithFallback', () => {
 		await evaluateEngagementWithFallback({
 			personaId: 'p1',
 			personas,
-			turns: [],
+			chapterTurns: [],
 			engagements: [],
 		});
 
@@ -132,7 +171,7 @@ describe('evaluateEngagementWithFallback', () => {
 		const result = await evaluateEngagementWithFallback({
 			personaId: 'p1',
 			personas,
-			turns: [],
+			chapterTurns: [],
 			engagements: [existingEngagement],
 		});
 

@@ -1,13 +1,14 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { evaluateEngagement } from '../../agents/persona-agent.js';
-import type { Engagement, DebateState } from '../../types/debate.types.js';
+import type { Engagement, DebateState, DebateTurn } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
 const db = () => getFirestore();
 
 const saveEngagements = async (params: {
 	topicId: string;
-	turnIndex: number;
+	chapterId: string;
+	turnId: string;
 	engagements: Array<{
 		personaId: string;
 		score: number;
@@ -16,35 +17,40 @@ const saveEngagements = async (params: {
 	}>;
 }): Promise<void> => {
 	for (const engagement of params.engagements) {
-		const ref = db().doc(`topics/${params.topicId}/engagements/${engagement.personaId}`);
+		const ref = db().doc(`topics/${params.topicId}/chapters/${params.chapterId}/engagements/${engagement.personaId}`);
 		const entry: Record<string, unknown> = { score: engagement.score, mode: engagement.mode };
 		if (engagement.intentSummary !== undefined) entry.intentSummary = engagement.intentSummary;
 		await ref.set(
-			{ history: { [String(params.turnIndex)]: entry } },
-			{ mergeFields: [`history.${params.turnIndex}`] }
+			{ history: { [params.turnId]: entry } },
+			{ mergeFields: [`history.${params.turnId}`] }
 		);
 	}
 };
 
 export const evaluateEngagements = async ({
 	topicId,
+	chapterId,
 	personas,
-	state
+	state,
+	chapterTurns
 }: {
 	topicId: string;
+	chapterId: string;
 	personas: Persona[];
 	state: DebateState;
+	chapterTurns: ReadonlyArray<DebateTurn>;
 }): Promise<Engagement[]> => {
 	const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
 	const engagements = await Promise.all(
 		assessTargets.map((p) => {
 			const otherPersonaNames = personas.filter((q) => q.id !== p.id).map((q) => q.name);
-			return evaluateEngagement(p, state.turns, otherPersonaNames, personas);
+			return evaluateEngagement(p, [...chapterTurns], otherPersonaNames, personas);
 		})
 	);
 	await saveEngagements({
 		topicId,
-		turnIndex: Math.max(0, state.turns.length - 1),
+		chapterId,
+		turnId: chapterTurns[chapterTurns.length - 1]?.id ?? '',
 		engagements: engagements.map((a) => ({
 			personaId: a.personaId,
 			score: a.score,
@@ -59,12 +65,12 @@ export const evaluateEngagements = async ({
 export const evaluateEngagementWithFallback = async ({
 	personaId,
 	personas,
-	turns,
+	chapterTurns,
 	engagements = []
 }: {
 	personaId: string;
 	personas: Persona[];
-	turns: DebateState['turns'];
+	chapterTurns: ReadonlyArray<DebateTurn>;
 	engagements?: Engagement[];
 }): Promise<Engagement> => {
 	const fromList = engagements.find((a) => a.personaId === personaId);
@@ -72,5 +78,5 @@ export const evaluateEngagementWithFallback = async ({
 	const persona = personas.find((p) => p.id === personaId);
 	if (!persona) return { personaId, mode: 'opinion' as const, score: 2 };
 	const otherPersonaNames = personas.filter((p) => p.id !== personaId).map((p) => p.name);
-	return evaluateEngagement(persona, turns, otherPersonaNames, personas);
+	return evaluateEngagement(persona, [...chapterTurns], otherPersonaNames, personas);
 };

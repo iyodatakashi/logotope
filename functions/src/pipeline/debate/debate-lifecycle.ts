@@ -26,7 +26,6 @@ export const getChaptersByTopicId = async (topicId: string): Promise<ChapterEntr
 			discussionPoints?: string[];
 			turns?: Array<{
 				id: string;
-				turnIndex: number;
 				speakerType: string;
 				personaId?: string;
 				content: string;
@@ -44,7 +43,6 @@ export const getChaptersByTopicId = async (topicId: string): Promise<ChapterEntr
 			discussionPoints: data.discussionPoints ?? [],
 			turns: (data.turns ?? []).map((t) => ({
 				id: t.id,
-				turnIndex: t.turnIndex,
 				speakerType: t.speakerType,
 				personaId: t.personaId ?? null,
 				content: t.content,
@@ -71,7 +69,6 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 	const discardChapters = chapters.slice(targetIdx >= 0 ? targetIdx : 0);
 	const discardedTurns = discardChapters.flatMap((c) => c.turns);
 	const removedTurnIds = new Set(discardedTurns.map((t) => t.id));
-	const removedTurnIndexes = discardedTurns.map((t) => t.turnIndex);
 
 	for (const chapter of discardChapters) {
 		await db().doc(`topics/${topicId}/chapters/${chapter.id}`).update({
@@ -95,16 +92,10 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 		}
 	}
 
-	if (removedTurnIndexes.length > 0) {
-		const engSnap = await db().collection(`topics/${topicId}/engagements`).get();
-		if (engSnap.size > 0) {
-			const updates: Record<string, unknown> = { queuedIntents: FieldValue.delete() };
-			for (const ti of removedTurnIndexes) {
-				updates[`history.${ti}`] = FieldValue.delete();
-			}
-			for (const engDoc of engSnap.docs) {
-				await engDoc.ref.update(updates);
-			}
+	for (const chapter of discardChapters) {
+		const engSnap = await db().collection(`topics/${topicId}/chapters/${chapter.id}/engagements`).get();
+		for (const engDoc of engSnap.docs) {
+			await engDoc.ref.delete();
 		}
 	}
 

@@ -91,8 +91,6 @@ const makeState = (discussionPoints: DebateState['discussionPoints'] = []): Deba
 	speakCount: new Map(),
 	queuedIntents: new Map(),
 	pairConversationTurns: 0,
-	currentTurnIndex: 0,
-	lastFacilitatorTurnIndex: 0,
 	discussionPoints,
 });
 
@@ -208,7 +206,6 @@ describe('executeChapterTask - ハードキャップ計算', () => {
 			callCount++;
 			state.turns.push({
 				id: `t${callCount}`,
-				turnIndex: callCount,
 				speakerType: 'persona',
 				content: '発言',
 				createdAt: '2026-06-19T00:00:00Z',
@@ -240,7 +237,6 @@ describe('executeChapterTask - ハードキャップ計算', () => {
 			callCount++;
 			state.turns.push({
 				id: `t${callCount}`,
-				turnIndex: callCount,
 				speakerType: 'persona',
 				content: '発言',
 				createdAt: '2026-06-19T00:00:00Z',
@@ -315,7 +311,6 @@ describe('executeChapterTask - 早期終了ロジック', () => {
 			turnCount++;
 			state.turns.push({
 				id: `t${turnCount}`,
-				turnIndex: turnCount,
 				speakerType: 'persona',
 				content: '発言',
 				createdAt: '',
@@ -351,7 +346,6 @@ describe('executeChapterTask - 早期終了ロジック', () => {
 			turnCount++;
 			state.turns.push({
 				id: `t${turnCount}`,
-				turnIndex: turnCount,
 				speakerType: 'persona',
 				content: '発言',
 				createdAt: '',
@@ -388,7 +382,6 @@ describe('executeChapterTask - 早期終了ロジック', () => {
 			turnCount++;
 			state.turns.push({
 				id: `t${turnCount}`,
-				turnIndex: turnCount,
 				speakerType: 'persona',
 				content: '発言',
 				createdAt: '',
@@ -401,5 +394,96 @@ describe('executeChapterTask - 早期終了ロジック', () => {
 		await executeChapterTask('topic1', 0, { turnsPerChapter: 15, maxTurns: 200, interventionCooldown: 3 });
 
 		expect(mockEvaluateDiscussionPointCoverage).not.toHaveBeenCalled();
+	});
+});
+
+describe('executeChapterTask - chapterId をダウンストリームに渡す', () => {
+	beforeEach(() => {
+		vi.resetModules();
+		vi.clearAllMocks();
+		mockGetDebateTurnsByTopicId.mockResolvedValue([]);
+		mockIsDebateActive.mockResolvedValue(true);
+	});
+
+	it('loadQueuedIntents が (topicId, chapterId) で呼ばれる', async () => {
+		const chapter = makeChapter({ id: 'ch1' });
+		const state = makeState();
+		mockGetDebateState.mockReturnValue(state);
+		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
+		mockGenerateOpening.mockResolvedValue({ ok: true, value: { content: '開幕', targetPersonaId: 'p1' } });
+		mockGeneratePersonaTurn.mockResolvedValue(null);
+
+		const { executeChapterTask } = await import('./debate-orchestrator.js');
+		const { loadQueuedIntents } = await import('./queued-intents.js');
+		await executeChapterTask('topic1', 0);
+
+		expect(loadQueuedIntents).toHaveBeenCalledWith('topic1', 'ch1');
+	});
+
+	it('expireQueuedIntents が chapterId を含むオブジェクトで呼ばれる', async () => {
+		const chapter = makeChapter({ id: 'ch1' });
+		const state = makeState();
+		mockGetDebateState.mockReturnValue(state);
+		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
+		mockGenerateOpening.mockResolvedValue({ ok: true, value: { content: '開幕', targetPersonaId: 'p1' } });
+		mockGeneratePersonaTurn.mockImplementation(async () => {
+			state.turns.push({ id: 't1', speakerType: 'persona', content: '', createdAt: '' });
+			return null;
+		});
+
+		const { executeChapterTask } = await import('./debate-orchestrator.js');
+		const { expireQueuedIntents } = await import('./queued-intents.js');
+		await executeChapterTask('topic1', 0);
+
+		expect(expireQueuedIntents).toHaveBeenCalledWith(expect.objectContaining({ topicId: 'topic1', chapterId: 'ch1' }));
+	});
+
+	it('evaluateEngagements が chapterId と chapterTurns を含むオブジェクトで呼ばれる', async () => {
+		const chapter = makeChapter({ id: 'ch1' });
+		const state = makeState();
+		mockGetDebateState.mockReturnValue(state);
+		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
+		mockGenerateOpening.mockResolvedValue({ ok: true, value: { content: '開幕', targetPersonaId: 'p1' } });
+		mockGeneratePersonaTurn.mockImplementation(async () => {
+			state.turns.push({ id: 't1', speakerType: 'persona', content: '', createdAt: '' });
+			return null;
+		});
+
+		const { executeChapterTask } = await import('./debate-orchestrator.js');
+		const { evaluateEngagements } = await import('./engagement.js');
+		await executeChapterTask('topic1', 0);
+
+		expect(evaluateEngagements).toHaveBeenCalledWith(
+			expect.objectContaining({ topicId: 'topic1', chapterId: 'ch1', chapterTurns: expect.any(Array) })
+		);
+	});
+
+	it('evaluateEngagements に state.turns 全体ではなくチャプター内ターンのみが渡される', async () => {
+		const chapter = makeChapter({ id: 'ch1' });
+		const priorTurn = { id: 'prior', speakerType: 'persona' as const, content: '前章', createdAt: '' };
+		const state = makeState();
+		mockGetDebateTurnsByTopicId.mockResolvedValue([priorTurn]);
+		// chapterDoc.turns = [] なので chapterTurnStartInState = 1 - 0 = 1
+		mockGetChaptersByTopicId.mockResolvedValue([{ ...makeChapterEntry(chapter), turns: [] }]);
+		mockGetDebateState.mockReturnValue({ ...state, turns: [priorTurn] });
+		mockGenerateOpening.mockResolvedValue({ ok: true, value: { content: '開幕', targetPersonaId: 'p1' } });
+		let callCount = 0;
+		mockGeneratePersonaTurn.mockImplementation(async () => {
+			callCount++;
+			const newTurn = { id: `t${callCount}`, speakerType: 'persona' as const, content: '', createdAt: '' };
+			state.turns.push(newTurn);
+			return null;
+		});
+
+		const { executeChapterTask } = await import('./debate-orchestrator.js');
+		const { evaluateEngagements } = await import('./engagement.js');
+		await executeChapterTask('topic1', 0);
+
+		const calls = vi.mocked(evaluateEngagements).mock.calls;
+		if (calls.length > 0) {
+			const chapterTurns = calls[0][0].chapterTurns as unknown[];
+			// 前章ターン（priorTurn）はチャプターターンに含まれない
+			expect(chapterTurns).not.toContainEqual(expect.objectContaining({ id: 'prior' }));
+		}
 	});
 });
