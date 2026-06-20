@@ -96,9 +96,9 @@ describe('createTopicStates', () => {
 	describe('生成の2軸遷移（生成のみ。旧データ削除は reset が担う）', () => {
 		it('generateStakeholders は (1, running)→生成成功で (1, generated)。削除はしない', async () => {
 			vi.mocked(httpsCallable).mockReturnValue(
-				vi.fn().mockResolvedValue({ data: { stakeholders: [{ role: 'A' }] } }) as never
+				vi.fn().mockResolvedValue({ data: {} }) as never
 			);
-			const store = makeTopic({ title: 'T' });
+			const store = makeTopic({ title: 'T', id: 't1' });
 			await store.generateStakeholders();
 
 			const calls = updateCallsFor('topics/t1');
@@ -163,15 +163,10 @@ describe('createTopicStates', () => {
 	});
 
 	describe('旧データのリセット（データ層ごと。名前＝役割範囲）', () => {
-		it('resetStakeholders は stakeholders を空に戻す', async () => {
+		it('resetStakeholders は stakeholders/0 ドキュメントを削除する', async () => {
 			const store = makeTopic();
 			await store.resetStakeholders();
-			expect(updateDoc).toHaveBeenCalledWith(
-				TOPIC_PATH,
-				expect.objectContaining({
-					stakeholders: []
-				})
-			);
+			expect(deleteDoc).toHaveBeenCalledWith({ path: 'topics/t1/stakeholders/0' });
 		});
 
 		it('resetPersonas は既存ペルソナ文書を全削除する', async () => {

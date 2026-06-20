@@ -11,7 +11,11 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				id: 't1',
 				title: 'テストテーマ',
 				phase: 1,
-				phaseStatus: 'generated',
+				phaseStatus: 'generated'
+			};
+		},
+		get stakeholdersStore() {
+			return {
 				stakeholders: [
 					{
 						role: '外科医師',
@@ -19,7 +23,8 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 						reason: '専門的見地',
 						engagementLevel: 'medium'
 					}
-				]
+				],
+				isLoaded: true
 			};
 		}
 	}
