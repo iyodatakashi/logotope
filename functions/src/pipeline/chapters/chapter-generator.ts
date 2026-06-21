@@ -13,7 +13,7 @@ const buildTopicContext = (topic: { description?: string; fetchedSourceContents?
 	return { description, sourceContents };
 };
 
-/** 章生成 → chapters コレクション書き込み → chapterAnalysis/0 書き込みを一貫して実行する */
+/** 章生成 → chapterAnalysis/0 段階的書き込み → chapters コレクション一括 set を実行する */
 export const planChapters = async (topicId: string): Promise<void> => {
 	const topic = await getTopicById(topicId);
 	if (!topic) throw new Error(`Topic not found: ${topicId}`);
@@ -21,28 +21,38 @@ export const planChapters = async (topicId: string): Promise<void> => {
 	const personas = (await getPersonasByTopicId(topicId)).filter((p) => p.approved);
 	const topicContext = buildTopicContext(topic);
 
-	const result = await generateChapters(topic.title, personas, topicContext);
+	const result = await generateChapters(
+		topic.title,
+		personas,
+		topicContext,
+		async (progress) => {
+			if (progress.step === 'issues_generated') {
+				await db().doc(`topics/${topicId}/chapterAnalysis/0`).set({ issues: progress.issues });
+			} else if (progress.step === 'issues_scored') {
+				await db().doc(`topics/${topicId}/chapterAnalysis/0`).update({ issues: progress.issues });
+			} else if (progress.step === 'issues_grouped') {
+				await db().doc(`topics/${topicId}/chapterAnalysis/0`).update({ issueGroups: progress.issueGroups });
+			}
+		}
+	);
+
 	if (!result.ok) {
 		const e = result.error;
 		throw new Error('message' in e ? e.message : e.code);
 	}
 
-	const { chapters, generalIssues, personaIssues } = result.value;
+	const chapters = result.value;
 
-	for (let i = 0; i < chapters.length; i++) {
-		const chapter = chapters[i];
-		await db().doc(`topics/${topicId}/chapters/${chapter.id}`).set({
-			chapterIndex: i,
-			title: chapter.title,
-			focusQuestion: chapter.focusQuestion,
-			discussionPoints: chapter.discussionPoints ?? [],
-			turns: [],
-			status: 'pending',
-		});
-	}
-
-	await db().doc(`topics/${topicId}/chapterAnalysis/0`).set({
-		general: generalIssues,
-		persona: personaIssues,
-	});
+	await Promise.all(
+		chapters.map((chapter, i) =>
+			db().doc(`topics/${topicId}/chapters/${chapter.id}`).set({
+				chapterIndex: i,
+				title: chapter.title,
+				focusQuestion: chapter.focusQuestion,
+				discussionPoints: chapter.discussionPoints ?? [],
+				turns: [],
+				status: 'pending',
+			})
+		)
+	);
 };

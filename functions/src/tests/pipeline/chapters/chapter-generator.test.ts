@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockSet = vi.fn().mockResolvedValue(undefined);
 const mockUpdate = vi.fn().mockResolvedValue(undefined);
-const mockDoc = vi.fn().mockReturnValue({ set: mockSet, update: mockUpdate });
+const mockDelete = vi.fn().mockResolvedValue(undefined);
+const mockDoc = vi.fn().mockReturnValue({ set: mockSet, update: mockUpdate, delete: mockDelete });
 
 vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: vi.fn(() => ({ doc: mockDoc })),
@@ -27,23 +28,58 @@ vi.mock('../../../agents/chapter-agent.js', () => ({
 import { planChapters } from '../../../pipeline/chapters/chapter-generator.js';
 import type { Topic } from '../../../types/topic.types.js';
 
+const mockChapters = [
+	{ id: 'c1', title: '第1章', focusQuestion: '問い1', discussionPoints: ['論点A'] },
+	{ id: 'c2', title: '第2章', focusQuestion: '問い2', discussionPoints: [] },
+];
+
 const mockChaptersResult = {
 	ok: true,
-	value: {
-		chapters: [
-			{ id: 'c1', title: '第1章', focusQuestion: '問い1', discussionPoints: ['論点A'] },
-			{ id: 'c2', title: '第2章', focusQuestion: '問い2', discussionPoints: [] },
-		],
-		generalIssues: ['general1'],
-		personaIssues: ['persona1'],
-	},
+	value: mockChapters,
 };
+
+const makeGenerateChaptersMock = () =>
+	vi.fn().mockImplementation(
+		async (
+			_title: unknown,
+			_personas: unknown,
+			_context: unknown,
+			onProgress?: (p: {
+				step: string;
+				issues?: Array<{ text: string; source: string; score?: number; reason?: string; selected?: boolean }>;
+				issueGroups?: Array<{ issueIndexes: number[] }>;
+			}) => Promise<void>
+		) => {
+			if (onProgress) {
+				await onProgress({
+					step: 'issues_generated',
+					issues: [
+						{ text: 'general1', source: 'general' },
+						{ text: 'persona1', source: 'persona' },
+					],
+				});
+				await onProgress({
+					step: 'issues_scored',
+					issues: [
+						{ text: 'general1', source: 'general', score: 8, reason: '良い', selected: true },
+						{ text: 'persona1', source: 'persona', score: 7, reason: '良い', selected: true },
+					],
+				});
+				await onProgress({
+					step: 'issues_grouped',
+					issueGroups: [{ issueIndexes: [0] }, { issueIndexes: [1] }],
+				});
+			}
+			return mockChaptersResult;
+		}
+	);
 
 describe('planChapters', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mockDoc.mockReturnValue({ set: mockSet, update: mockUpdate, delete: mockDelete });
 		mockGetPersonasByTopicId.mockResolvedValue([{ id: 'p1', approved: true }]);
-		mockGenerateChapters.mockResolvedValue(mockChaptersResult);
+		mockGenerateChapters.mockImplementation(makeGenerateChaptersMock());
 	});
 
 	it('トピックが存在しない場合はエラーをスローする', async () => {
@@ -51,26 +87,7 @@ describe('planChapters', () => {
 		await expect(planChapters('nonexistent')).rejects.toThrow('Topic not found');
 	});
 
-	it('各チャプターを chapters/{id} に status=pending・turns=[] で書き込む', async () => {
-		const topic: Topic = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
-		mockGetTopicById.mockResolvedValue(topic);
-
-		await planChapters('topic1');
-
-		expect(mockDoc).toHaveBeenCalledWith('topics/topic1/chapters/c1');
-		const c1SetCall = mockSet.mock.calls.find((call) =>
-			mockDoc.mock.calls.some((docCall, i) => docCall[0] === 'topics/topic1/chapters/c1' && mockSet === mockSet)
-		);
-		// chapterIndex, status=pending, turns=[] が含まれること
-		expect(mockSet).toHaveBeenCalledWith(
-			expect.objectContaining({ chapterIndex: 0, status: 'pending', turns: [] })
-		);
-		expect(mockSet).toHaveBeenCalledWith(
-			expect.objectContaining({ chapterIndex: 1, status: 'pending', turns: [] })
-		);
-	});
-
-	it('chapterAnalysis/0 に general・persona を書き込む', async () => {
+	it('issues_generated イベントで chapterAnalysis/0 に issues を set する', async () => {
 		const topic: Topic = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
 		mockGetTopicById.mockResolvedValue(topic);
 
@@ -78,7 +95,65 @@ describe('planChapters', () => {
 
 		expect(mockDoc).toHaveBeenCalledWith('topics/topic1/chapterAnalysis/0');
 		expect(mockSet).toHaveBeenCalledWith(
-			expect.objectContaining({ general: ['general1'], persona: ['persona1'] })
+			expect.objectContaining({
+				issues: expect.arrayContaining([
+					expect.objectContaining({ text: 'general1', source: 'general' }),
+					expect.objectContaining({ text: 'persona1', source: 'persona' }),
+				]),
+			})
+		);
+		// score は issues_generated 時点では含まれない
+		const setCallArgs = mockSet.mock.calls.find(
+			(call: unknown[]) =>
+				typeof call[0] === 'object' &&
+				call[0] !== null &&
+				'issues' in (call[0] as object) &&
+				!(call[0] as { issues: unknown[] }).issues.some(
+					(i: unknown) => (i as { score?: unknown }).score !== undefined
+				)
+		);
+		expect(setCallArgs).toBeDefined();
+	});
+
+	it('issues_scored イベントで chapterAnalysis/0 の issues を update する', async () => {
+		const topic: Topic = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		mockGetTopicById.mockResolvedValue(topic);
+
+		await planChapters('topic1');
+
+		expect(mockUpdate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				issues: expect.arrayContaining([
+					expect.objectContaining({ score: 8, reason: '良い', selected: true }),
+				]),
+			})
+		);
+	});
+
+	it('issues_grouped イベントで chapterAnalysis/0 の issueGroups を update する', async () => {
+		const topic: Topic = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		mockGetTopicById.mockResolvedValue(topic);
+
+		await planChapters('topic1');
+
+		expect(mockUpdate).toHaveBeenCalledWith({
+			issueGroups: [{ issueIndexes: [0] }, { issueIndexes: [1] }],
+		});
+	});
+
+	it('章生成完了後に chapters コレクションに各章を chapterIndex 付きで set する', async () => {
+		const topic: Topic = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		mockGetTopicById.mockResolvedValue(topic);
+
+		await planChapters('topic1');
+
+		expect(mockDoc).toHaveBeenCalledWith('topics/topic1/chapters/c1');
+		expect(mockDoc).toHaveBeenCalledWith('topics/topic1/chapters/c2');
+		expect(mockSet).toHaveBeenCalledWith(
+			expect.objectContaining({ chapterIndex: 0, title: '第1章', status: 'pending', turns: [] })
+		);
+		expect(mockSet).toHaveBeenCalledWith(
+			expect.objectContaining({ chapterIndex: 1, title: '第2章', status: 'pending', turns: [] })
 		);
 	});
 
@@ -100,7 +175,12 @@ describe('planChapters', () => {
 
 		await planChapters('topic1');
 
-		expect(mockGenerateChapters).toHaveBeenCalledWith('テーマ', expect.any(Array), undefined);
+		expect(mockGenerateChapters).toHaveBeenCalledWith(
+			'テーマ',
+			expect.any(Array),
+			undefined,
+			expect.any(Function)
+		);
 	});
 
 	it('descriptionがあればtopicContextを組み立ててgenerateChaptersに渡す', async () => {
@@ -118,7 +198,28 @@ describe('planChapters', () => {
 		expect(mockGenerateChapters).toHaveBeenCalledWith(
 			'テーマ',
 			expect.any(Array),
-			expect.objectContaining({ description: 'テーマの詳細説明' })
+			expect.objectContaining({ description: 'テーマの詳細説明' }),
+			expect.any(Function)
 		);
+	});
+
+	it('generateChapters 失敗時は error メッセージを throw する', async () => {
+		const topic: Topic = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		mockGetTopicById.mockResolvedValue(topic);
+		mockGenerateChapters.mockResolvedValue({
+			ok: false,
+			error: { code: 'AI_API_ERROR', message: 'AI失敗', retryable: true },
+		});
+
+		await expect(planChapters('topic1')).rejects.toThrow('AI失敗');
+	});
+
+	it('プレースホルダー削除・件数不一致フォールバックが廃止されている（delete が呼ばれない）', async () => {
+		const topic: Topic = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		mockGetTopicById.mockResolvedValue(topic);
+
+		await planChapters('topic1');
+
+		expect(mockDelete).not.toHaveBeenCalled();
 	});
 });
