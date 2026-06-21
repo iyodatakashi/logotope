@@ -109,7 +109,7 @@ const buildPersonaSystemPrompt = (
 	currentBelief: string
 ): string => {
 	const styleGuide = buildSpeechStyleGuide(persona);
-	return `あなたは以下のペルソナとして、グループインタビューに参加しています。これは討論ではなく、さまざまな立場の人が集まって、あるテーマについてそれぞれの経験や感じ方を話す場です。正しいことを言う必要はありません。自分の生活や仕事の経験から思うことを素直に話し、他の参加者の話を聞いて感じたことを返してください。
+	return `あなたは以下のペルソナとして、異なる立場の人々が集まるテーマ対話の場に参加しています。あなたが発言するのは、相手の意見に同意したり補完したりするためではなく、自分の経験・立場・実感から言いたいことを伝えるためです。他の参加者の発言は、自分の考えや記憶を引き出すきっかけになることはありますが、その内容に引っ張られる必要はありません。正しいことを言う必要はなく、自分の生活や仕事から感じていることを率直に話してください。
 
 ## 現在の日付
 本日は ${currentDateString()} です。時事的な話題に言及する際は、この日付を基準に時間感覚を持って発言してください。
@@ -120,7 +120,6 @@ ${styleGuide}
 - 発言は、自分の考え・意見を述べる／知っている事実・データを紹介する／直前の発言に短く反応する、のいずれかの形で行う。会話の流れに応じて自然に使い分けること。演説禁止。
 - **直前の発言に反応するときは、冒頭で相手の名前を呼ばない**（「○○さんのおっしゃる通り」「○○さんが言ったように」は不要）。ただし、直前ではなく少し前の発言や別の人の話を取り上げるときは、「さっき○○さんが言っていた〜だけど」のように、誰のどの話への反応かを冒頭で示すこと。
 - 自分の信念・立場に基づいて反論・疑問を呈することを恐れない。相手の意見に同意しない場合は、はっきりそう言う。同意一辺倒は不自然。
-- **前の発言への同意・共感を起点にしない**。自分が言いたいこと・感じること・引っかかることから発言を始めること。その後で前の発言との関係に触れるのはよい。前の話者の意見に同意であっても、自分の立場・経験から別の角度・疑問・ズレを必ず持ち込む。
 - **信念ドキュメントは内面の一貫性を保つための参照資料であり、発言で直接述べるものではない**。立場・価値観は、相手の発言の具体的な内容への反応として自然に滲み出すこと。「私の立場は〜」「私は〜と考えており」のような宣言的な表明は避ける。
 - **相手が知らない前提で情報を扱う**。専門的な事例・固有名詞を出す際は「〜って知ってますか？」「〜という話があって」など、相手の理解を確認しながら導入すること。いきなり知っていて当然のように使わない。
 - **会話は共通理解を積み上げるもの**。最初から高い専門知識ベースを前提にせず、相手の反応を見ながら話を展開すること。
@@ -251,22 +250,27 @@ export const generateTurn = async (
 			otherPersonas.length > 0
 				? `\n【参加者一覧（targetPersonaId に使用するID）】\n${otherPersonas.map((p) => `- ${p.name}: ${p.id}`).join('\n')}`
 				: '';
-		const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。特定の相手に話を向けたい場合（その人の立場・職業・経験がこの話題に関わるから聞きたい、または直接反論したい）は targetPersonaId を指定する。${personaList}`;
-		const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。特定の相手に直接反応を聞きたい（その人の立場・職業から特に関係があると思う）場合は targetPersonaId を指定する。${personaList}`;
+		const excludeNote = lastSpeakerName ? `（直前の発言者${lastSpeakerName}は除く）` : '';
+		const targetingGuide = `まず自分が何を言いたいか・何を聞きたいかを決めてから、その内容に立場・職業・経験から最も関係しそうな参加者${excludeNote}がいれば targetPersonaId を指定する。特定の参加者と直接関係しない話であれば targetPersonaId は指定しない。${personaList}`;
+		const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。${targetingGuide}`;
+		const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。${targetingGuide}`;
 		const questionInstruction =
 			isQuestion && engagement.intentSummary
 				? `${persona.name}として、特定の参加者に直接質問してください（${lengthGuide}）。\n【今回の質問意図】${engagement.intentSummary}${personaList}\n必ず targetPersonaId に質問相手のIDを指定すること。信念変化があれば beliefChangeType を指定。`
 				: '';
+		const antiSycophancyNote = `\n【重要】発言の書き出しは、前の話者への同意・共感ではなく、自分が言いたいこと・引っかかっていること・疑問から始めること。前の話者の意見に同意であっても、自分の立場・経験から別の角度・ズレを持ち込む。`;
 		const targetBiasNote =
 			targetedBy === 'persona' && lastSpeakerName
-				? `\n\n【targetPersonaId について】今回は${lastSpeakerName}にターゲットされての発言です。他の参加者の中でこの話題に反応してほしい人・聞いてみたい人がいれば、積極的にtargetPersonaIdを指定してください。特定の相手が思い浮かばない場合のみ全体への発言（targetPersonaId なし）にしてください。${lastSpeakerName}への再targetは、どうしても直接確認・反論が必要な場合のみです。`
+				? `\n\n【注意】今回は${lastSpeakerName}にターゲットされての発言です。${lastSpeakerName}への再targetは直接確認・反論が必要な場合のみです。`
 				: '';
 		const instruction =
 			(isQuestion && questionInstruction
 				? questionInstruction
 				: isFact
 					? factInstruction
-					: opinionInstruction) + targetBiasNote;
+					: opinionInstruction) +
+			antiSycophancyNote +
+			targetBiasNote;
 		const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterContext}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}`;
 		const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 			generateText({
