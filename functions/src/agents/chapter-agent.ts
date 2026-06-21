@@ -5,7 +5,7 @@ import { nanoid } from 'nanoid';
 import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
 import { formatPersonas } from '../utils/prompt-formatters.js';
 import { buildNeutralitySystemPrompt } from './facilitator-agent.js';
-import type { Chapter } from '../types/chapter.types.js';
+import type { Chapter, Issue, IssueGroup } from '../types/chapter.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 import type { TopicContext } from '../types/topic.types.js';
@@ -25,30 +25,279 @@ const buildTopicContextSection = (topicContext?: TopicContext): string => {
 	return parts.join('');
 };
 
-const issuesSchema = z.object({
-	issues: z.array(z.string())
-});
+const SCORE_THRESHOLD = 7;
 
-const chaptersSchema = z.object({
-	chapters: z.array(
+const scoringResultSchema = z.object({
+	scoredIssues: z.array(
 		z.object({
-			title: z.string(),
-			focusQuestion: z.string(),
-			discussionPoints: z.array(z.string()).nullish()
+			index: z.number().int(),
+			score: z.number().int().min(0).max(10),
+			reason: z.string()
 		})
 	)
 });
 
+const groupingResultSchema = z.object({
+	issueGroups: z.array(
+		z.object({
+			issueIndexes: z.array(z.number().int()),
+			issues: z.array(z.string()).optional()
+		})
+	)
+});
+
+const chapterResultSchema = z.object({
+	chapters: z.array(
+		z.object({
+			title: z.string(),
+			focusQuestion: z.string(),
+			discussionPoints: z.array(z.string())
+		})
+	)
+});
+
+const issuesSchema = z.object({
+	issues: z.array(z.string())
+});
+
+const scoreIssues = async (
+	topicTitle: string,
+	issues: Issue[],
+	topicContext?: TopicContext
+): Promise<Issue[]> => {
+	const result = await generateObject({
+		model: anthropic(AI_MODELS.SONNET),
+		maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
+		system: buildNeutralitySystemPrompt(),
+		schema: scoringResultSchema,
+		messages: [
+			{
+				role: 'user',
+				content: buildScoringPrompt(topicTitle, issues, topicContext)
+			}
+		]
+	});
+	return issues.map((issue, i) => {
+		const scored = result.object.scoredIssues.find((s) => s.index === i);
+		return {
+			...issue,
+			score: scored?.score ?? 0,
+			reason: scored?.reason ?? ''
+		};
+	});
+};
+
+const buildScoringPrompt = (
+	topicTitle: string,
+	issues: Issue[],
+	topicContext?: TopicContext
+): string => {
+	const contextSection = buildTopicContextSection(topicContext);
+	const issueList = issues
+		.map((issue, i) => `${i}. [${issue.source}] ${issue.text}`)
+		.join('\n');
+	return `テーマ「${topicTitle}」について、以下の論点をすべて相対評価し、各論点に0〜10のスコアと採点理由を付与してください。
+
+【論点一覧（index: 論点テキスト）】
+${issueList}
+
+【評価軸】
+- ペルソナ間の対立が生まれやすいか
+- 専門知識のない一般人が関心を持てるか
+- 討論を深める価値があるか
+
+【スコア分布の制約】
+- 全論点を高得点にしないこと
+- 必ず低スコア（5以下）の論点を含めること（全論点が高品質な場合を除く）
+- 論点同士を比較した相対評価でスコアを決定すること
+
+各論点の index（0始まり）、score（0〜10の整数）、reason（採点理由）を返してください。${contextSection}`;
+};
+
+const selectIssues = (issues: Issue[]): Issue[] => {
+	if (issues.length === 0) return [];
+
+	const aboveThreshold = issues.filter((issue) => (issue.score ?? 0) >= SCORE_THRESHOLD);
+	const selected = aboveThreshold.length > 0
+		? aboveThreshold
+		: [issues.reduce((best, issue) => (issue.score ?? 0) > (best.score ?? 0) ? issue : best)];
+
+	const hasGeneral = selected.some((issue) => issue.source === 'general');
+	if (!hasGeneral) {
+		const generalIssues = issues.filter((issue) => issue.source === 'general');
+		if (generalIssues.length > 0) {
+			const bestGeneral = generalIssues.reduce((best, issue) =>
+				(issue.score ?? 0) > (best.score ?? 0) ? issue : best
+			);
+			if (!selected.includes(bestGeneral)) {
+				return [...selected, bestGeneral];
+			}
+		}
+	}
+
+	return selected;
+};
+
+const groupIssues = async (
+	topicTitle: string,
+	issues: Issue[],
+	topicContext?: TopicContext
+): Promise<IssueGroup[]> => {
+	const selectedWithGlobalIdx = issues
+		.map((issue, globalIdx) => ({ issue, globalIdx }))
+		.filter(({ issue }) => issue.selected === true);
+
+	const result = await generateObject({
+		model: anthropic(AI_MODELS.SONNET),
+		maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_STRUCTURE,
+		system: buildNeutralitySystemPrompt(),
+		schema: groupingResultSchema,
+		messages: [
+			{
+				role: 'user',
+				content: buildGroupingPrompt(topicTitle, selectedWithGlobalIdx.map((x) => x.issue), topicContext)
+			}
+		]
+	});
+
+	const groups = result.object.issueGroups;
+
+	if (groups.length === 0) {
+		return [{ issueIndexes: selectedWithGlobalIdx.map((x) => x.globalIdx) }];
+	}
+
+	const assignedLocalIdxs = new Set<number>();
+	const issueGroups: IssueGroup[] = groups.map((group) => ({
+		issueIndexes: group.issueIndexes
+			.filter((localIdx) => localIdx >= 0 && localIdx < selectedWithGlobalIdx.length)
+			.map((localIdx) => {
+				assignedLocalIdxs.add(localIdx);
+				return selectedWithGlobalIdx[localIdx].globalIdx;
+			})
+	}));
+
+	const unassigned = selectedWithGlobalIdx
+		.filter((_, localIdx) => !assignedLocalIdxs.has(localIdx))
+		.map((x) => x.globalIdx);
+
+	if (unassigned.length > 0) {
+		issueGroups[issueGroups.length - 1].issueIndexes.push(...unassigned);
+	}
+
+	return issueGroups;
+};
+
+const buildGroupingPrompt = (
+	topicTitle: string,
+	selectedIssues: Issue[],
+	topicContext?: TopicContext
+): string => {
+	const contextSection = buildTopicContextSection(topicContext);
+	const issueList = selectedIssues
+		.map((issue, i) => `${i}. [${issue.source}] ${issue.text}`)
+		.join('\n');
+	return `テーマ「${topicTitle}」の採用論点を意味的な近さでグループ化してください。タイトル・フォーカス問いは生成しない。
+
+【採用論点（index: 論点テキスト）】
+${issueList}
+
+【グループ化のルール】
+- 意味的に近い論点を同じグループにまとめる
+- index の配列のみを返す。タイトル・フォーカス問いは不要
+- 採用論点が収束している場合、グループ数1を許容する
+
+各グループの issueIndexes（論点の index 配列）を返してください。全論点がいずれかのグループに割り当てられるよう漏れなく配置してください。${contextSection}`;
+};
+
+const buildChapters = async (
+	topicTitle: string,
+	issueGroups: IssueGroup[],
+	issues: Issue[],
+	topicContext?: TopicContext
+): Promise<Chapter[]> => {
+	const result = await generateObject({
+		model: anthropic(AI_MODELS.SONNET),
+		maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_STRUCTURE,
+		system: buildNeutralitySystemPrompt(),
+		schema: chapterResultSchema,
+		messages: [
+			{
+				role: 'user',
+				content: buildBuildingPrompt(topicTitle, issueGroups, issues, topicContext)
+			}
+		]
+	});
+
+	return issueGroups.map((group, i) => {
+		const authored = result.object.chapters[i];
+		const fallbackPoints = group.issueIndexes.map((idx) => issues[idx]?.text ?? '');
+		return {
+			id: nanoid(),
+			title: authored?.title ?? topicTitle,
+			focusQuestion: authored?.focusQuestion ?? '',
+			discussionPoints: authored?.discussionPoints ?? fallbackPoints
+		};
+	});
+};
+
+const buildBuildingPrompt = (
+	topicTitle: string,
+	issueGroups: IssueGroup[],
+	issues: Issue[],
+	topicContext?: TopicContext
+): string => {
+	const contextSection = buildTopicContextSection(topicContext);
+	const groupList = issueGroups
+		.map((group, i) => {
+			const issueTexts = group.issueIndexes
+				.map((idx) => `- ${issues[idx]?.text ?? ''}`)
+				.join('\n');
+			return `## グループ ${i + 1}\n${issueTexts}`;
+		})
+		.join('\n\n');
+	return `テーマ「${topicTitle}」の各グループについて、割り当て論点を素材に章タイトル・フォーカス問い・discussionPoints を生成してください。
+
+【グループと論点】
+${groupList}
+
+【再構成のルール】
+- 各グループに対応する章の title、focusQuestion、discussionPoints（3〜5件）を生成する
+- 意味的に重複する論点を1つに統合する
+- 第1章は専門知識のない一般の人々が日常感覚で理解できるタイトルとフォーカス問いにする
+- 特定のペルソナ名・発言を前提にしない汎用的な問いの形で生成する
+
+入力のグループ順のまま、各グループの title、focusQuestion、discussionPoints（文字列配列）を返してください。${contextSection}`;
+};
+
+export const sortChaptersByGeneralIssueCount = (
+	chapters: Chapter[],
+	issueGroups: IssueGroup[],
+	issues: Issue[]
+): Chapter[] => {
+	const indexed = chapters.map((chapter, i) => ({ chapter, groupIdx: i }));
+	indexed.sort((a, b) => {
+		const countA = issueGroups[a.groupIdx].issueIndexes.filter(
+			(idx) => issues[idx]?.source === 'general'
+		).length;
+		const countB = issueGroups[b.groupIdx].issueIndexes.filter(
+			(idx) => issues[idx]?.source === 'general'
+		).length;
+		return countB - countA;
+	});
+	return indexed.map((x) => x.chapter);
+};
+
+export type ChapterProgress =
+	| { step: 'issues_generated'; issues: Issue[] }
+	| { step: 'issues_scored'; issues: Issue[] }
+	| { step: 'issues_grouped'; issueGroups: IssueGroup[] };
+
 export const generateChapters = async (
 	topicTitle: string,
 	personas: Persona[],
-	topicContext?: TopicContext
-): Promise<
-	Result<
-		{ chapters: Chapter[]; generalIssues: string[]; personaIssues: string[] },
-		PipelineError
-	>
-> => {
+	topicContext?: TopicContext,
+	onProgress?: (progress: ChapterProgress) => void | Promise<void>
+): Promise<Result<Chapter[], PipelineError>> => {
 	try {
 		const contextSection = buildTopicContextSection(topicContext);
 		const [generalIssuesResult, personaIssuesResult] = await Promise.all([
@@ -78,30 +327,31 @@ export const generateChapters = async (
 			})
 		]);
 
-		const generalIssues = generalIssuesResult.object.issues;
-		const personaIssues = personaIssuesResult.object.issues;
+		const issues: Issue[] = [
+			...generalIssuesResult.object.issues.map((text) => ({ text, source: 'general' as const })),
+			...personaIssuesResult.object.issues.map((text) => ({ text, source: 'persona' as const }))
+		];
 
-		const chaptersResult = await generateObject({
-			model: anthropic(AI_MODELS.SONNET),
-			maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_STRUCTURE,
-			system: buildNeutralitySystemPrompt(),
-			schema: chaptersSchema,
-			messages: [
-				{
-					role: 'user',
-					content: `以下の2種類の切り口をもとに、討論の章立てを構成してください。\n\n【一般的な切り口（専門知識不要・日常感覚）】\n${generalIssues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n【参加者固有の切り口（専門的・立場に基づく論点）】\n${personaIssues.map((issue, i) => `${i + 1}. ${issue}`).join('\n')}\n\n各章に「章タイトル」「フォーカス問い」「discussionPoints（3〜5件の論点）」を設定してください。\n\n【章数の決め方（最重要）】\n- 基本は3〜4章。内容が明確に異なる場合のみ5章まで増やしてよい。6章は絶対に作らないこと。\n- 似たテーマ・重複する切り口は必ず1つの章に統合すること。無理に分けない。\n- 「章を増やす」より「章を深める」を優先すること。\n\n【discussionPoints の書き方】\n- 特定の参加者の名前・発言・主張を前提にした記述は禁止（例：「○○さんが指摘する〜」は不可）\n- 誰に向けても問いかけられる汎用的な問いの形で書く\n- 例：「〜という観点から、どのような課題が生じるか」「〜が失われた場合、社会はどう対処できるか」\n\n【構成の原則・厳守事項】\n- 第1章は必ず「一般的な切り口」から選ぶこと。固有名詞・専門用語・業界用語を第1章のタイトルとフォーカス問いに含めてはならない。\n- 第1章の discussionPoints は、専門知識のない人でも日常感覚で答えられる切り口にすること。固有名詞・専門用語は第2章以降の論点から導入してよい。\n- 章を追うごとに「参加者固有の切り口」を取り込み、専門性・対立の鋭さを段階的に増す。固有名詞や専門用語は第3章以降から自然に導入してよい。\n- 「誰でも感覚的に答えられる入口 → 具体的な事例・比較 → 深いジレンマ・価値観の対立」の順に進むこと。`
-				}
-			]
-		});
+		await onProgress?.({ step: 'issues_generated', issues });
 
-		const debateChapters: Chapter[] = chaptersResult.object.chapters.map((c) => ({
-			id: nanoid(),
-			title: c.title,
-			focusQuestion: c.focusQuestion,
-			discussionPoints: c.discussionPoints ?? []
+		const scoredIssues = await scoreIssues(topicTitle, issues, topicContext);
+		const selectedIssues = selectIssues(scoredIssues);
+
+		const issuesWithSelection: Issue[] = scoredIssues.map((issue) => ({
+			...issue,
+			selected: selectedIssues.includes(issue)
 		}));
 
-		return { ok: true, value: { chapters: debateChapters, generalIssues, personaIssues } };
+		await onProgress?.({ step: 'issues_scored', issues: issuesWithSelection });
+
+		const issueGroups = await groupIssues(topicTitle, issuesWithSelection, topicContext);
+
+		await onProgress?.({ step: 'issues_grouped', issueGroups });
+
+		const chapters = await buildChapters(topicTitle, issueGroups, issuesWithSelection, topicContext);
+		const sortedChapters = sortChaptersByGeneralIssueCount(chapters, issueGroups, issuesWithSelection);
+
+		return { ok: true, value: sortedChapters };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };

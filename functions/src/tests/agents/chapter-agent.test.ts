@@ -50,7 +50,14 @@ const mockPersona: Persona = {
 };
 
 const makeIssuesResult = (issues: string[]) => ({ object: { issues } });
-const makeChaptersResult = (chapters: unknown[] = [
+const makeScoringResult = (overrides: { index: number; score: number; reason: string }[] = [
+	{ index: 0, score: 8, reason: '良い論点' },
+	{ index: 1, score: 7, reason: '良い論点' },
+]) => ({ object: { scoredIssues: overrides } });
+const makeGroupingResult = (issueGroups: unknown[] = [
+	{ issueIndexes: [0] },
+]) => ({ object: { issueGroups } });
+const makeBuildResult = (chapters: unknown[] = [
 	{ title: '第1章', focusQuestion: '問い1', discussionPoints: ['論点A', '論点B', '論点C'] },
 ]) => ({ object: { chapters } });
 
@@ -67,7 +74,15 @@ describe('generateChapters - discussionPoints', () => {
 		generateObject
 			.mockResolvedValueOnce(makeIssuesResult(['issue1']))
 			.mockResolvedValueOnce(makeIssuesResult(['issue2']))
-			.mockResolvedValueOnce(makeChaptersResult([
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: '良い' },
+				{ index: 1, score: 7, reason: '良い' },
+			]))
+			.mockResolvedValueOnce(makeGroupingResult([
+				{ issueIndexes: [0] },
+				{ issueIndexes: [1] },
+			]))
+			.mockResolvedValueOnce(makeBuildResult([
 				{ title: '第1章', focusQuestion: '問い1', discussionPoints: ['論点A', '論点B', '論点C'] },
 				{ title: '第2章', focusQuestion: '問い2', discussionPoints: ['論点D', '論点E'] },
 			]));
@@ -77,16 +92,20 @@ describe('generateChapters - discussionPoints', () => {
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
-			expect(result.value.chapters[0].discussionPoints).toEqual(['論点A', '論点B', '論点C']);
-			expect(result.value.chapters[1].discussionPoints).toEqual(['論点D', '論点E']);
+			expect(result.value.some((c) => c.discussionPoints.includes('論点A'))).toBe(true);
+			expect(result.value.some((c) => c.discussionPoints.includes('論点D'))).toBe(true);
 		}
 	});
 
-	it('AI が discussionPoints を返さない場合は空配列でフォールバック', async () => {
+	it('AI が discussionPoints を返さない場合は欠落章の論点テキストでフォールバック', async () => {
 		generateObject
 			.mockResolvedValueOnce(makeIssuesResult(['issue1']))
 			.mockResolvedValueOnce(makeIssuesResult(['issue2']))
-			.mockResolvedValueOnce(makeChaptersResult([
+			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeGroupingResult([
+				{ issueIndexes: [0] },
+			]))
+			.mockResolvedValueOnce(makeBuildResult([
 				{ title: '第1章', focusQuestion: '問い1', discussionPoints: [] },
 			]));
 
@@ -95,35 +114,49 @@ describe('generateChapters - discussionPoints', () => {
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
-			expect(result.value.chapters[0].discussionPoints).toEqual([]);
+			expect(result.value[0].discussionPoints).toEqual([]);
 		}
 	});
 
-	it('章生成プロンプトに第1章の日常感覚制約が含まれる', async () => {
+	it('グループ化プロンプトにタイトル・フォーカス問い生成要求が含まれない', async () => {
 		const capturedArgs: unknown[] = [];
 		generateObject
 			.mockResolvedValueOnce(makeIssuesResult(['i1']))
 			.mockResolvedValueOnce(makeIssuesResult(['i2']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: '良い' },
+				{ index: 1, score: 7, reason: '良い' },
+			]))
 			.mockImplementationOnce(async (args: unknown) => {
 				capturedArgs.push(args);
-				return makeChaptersResult();
-			});
+				return makeGroupingResult();
+			})
+			.mockResolvedValueOnce(makeBuildResult());
 
 		const { generateChapters } = await import('../../agents/chapter-agent.js');
 		await generateChapters('テーマ', [mockPersona]);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		const content = callArgs.messages[0].content;
-		expect(content).toContain('第1章');
-		expect(content).toMatch(/日常感覚|専門知識のない/);
+		expect(content).not.toContain('focusQuestion');
+		expect(content).toContain('issueIndexes');
 	});
 });
 
 describe('generateChapters - topicContext対応', () => {
 	let generateObject: ReturnType<typeof vi.fn>;
 
-	const mockIssues = (issues: string[]) => makeIssuesResult(issues);
-	const mockChapters = () => makeChaptersResult();
+	const mockDefaultPipeline = () => {
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['i1']))
+			.mockResolvedValueOnce(makeIssuesResult(['i2']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: '良い' },
+				{ index: 1, score: 7, reason: '良い' },
+			]))
+			.mockResolvedValueOnce(makeGroupingResult())
+			.mockResolvedValueOnce(makeBuildResult());
+	};
 
 	beforeEach(async () => {
 		vi.resetModules();
@@ -136,10 +169,12 @@ describe('generateChapters - topicContext対応', () => {
 		generateObject
 			.mockImplementationOnce(async (args: { messages: unknown[] }) => {
 				capturedGeneralIssues.push(...args.messages);
-				return mockIssues(['i1']);
+				return makeIssuesResult(['i1']);
 			})
-			.mockResolvedValueOnce(mockIssues(['i2']))
-			.mockResolvedValueOnce(mockChapters());
+			.mockResolvedValueOnce(makeIssuesResult(['i2']))
+			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeGroupingResult())
+			.mockResolvedValueOnce(makeBuildResult());
 
 		const { generateChapters } = await import('../../agents/chapter-agent.js');
 		await generateChapters('テーマ', [mockPersona], { description: 'テーマの詳細説明テキスト' });
@@ -151,12 +186,14 @@ describe('generateChapters - topicContext対応', () => {
 	it('topicContext.descriptionをpersonaIssuesプロンプトに含める', async () => {
 		const capturedPersonaIssues: unknown[] = [];
 		generateObject
-			.mockResolvedValueOnce(mockIssues(['i1']))
+			.mockResolvedValueOnce(makeIssuesResult(['i1']))
 			.mockImplementationOnce(async (args: { messages: unknown[] }) => {
 				capturedPersonaIssues.push(...args.messages);
-				return mockIssues(['i2']);
+				return makeIssuesResult(['i2']);
 			})
-			.mockResolvedValueOnce(mockChapters());
+			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeGroupingResult())
+			.mockResolvedValueOnce(makeBuildResult());
 
 		const { generateChapters } = await import('../../agents/chapter-agent.js');
 		await generateChapters('テーマ', [mockPersona], { description: 'ペルソナ向け詳細説明' });
@@ -170,10 +207,12 @@ describe('generateChapters - topicContext対応', () => {
 		generateObject
 			.mockImplementationOnce(async (args: { messages: unknown[] }) => {
 				capturedGeneralIssues.push(...args.messages);
-				return mockIssues(['i1']);
+				return makeIssuesResult(['i1']);
 			})
-			.mockResolvedValueOnce(mockIssues(['i2']))
-			.mockResolvedValueOnce(mockChapters());
+			.mockResolvedValueOnce(makeIssuesResult(['i2']))
+			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeGroupingResult())
+			.mockResolvedValueOnce(makeBuildResult());
 
 		const { generateChapters } = await import('../../agents/chapter-agent.js');
 		await generateChapters('テーマ', [mockPersona], { sourceContents: ['参考記事のテキスト'] });
@@ -186,12 +225,16 @@ describe('generateChapters - topicContext対応', () => {
 		const capturedWith: unknown[] = [];
 		const capturedWithout: unknown[] = [];
 
-		generateObject.mockImplementation(async (args: { messages: unknown[] }) => {
-			capturedWithout.push(...args.messages);
-			const calls = generateObject.mock.calls.length;
-			if (calls <= 2) return mockIssues(['i']);
-			return mockChapters();
-		});
+		generateObject
+			.mockImplementationOnce(async (args: { messages: unknown[] }) => {
+				capturedWithout.push(...args.messages);
+				return makeIssuesResult(['i']);
+			})
+			.mockResolvedValueOnce(makeIssuesResult(['i']))
+			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeGroupingResult())
+			.mockResolvedValueOnce(makeBuildResult());
+
 		const { generateChapters } = await import('../../agents/chapter-agent.js');
 		await generateChapters('テーマ', [mockPersona]);
 		const contentWithout = (capturedWithout.find((m: unknown) => (m as { role: string }).role === 'user') as { content: string }).content;
@@ -199,12 +242,16 @@ describe('generateChapters - topicContext対応', () => {
 		vi.resetModules();
 		const aiMod2 = await import('ai');
 		const go2 = vi.mocked(aiMod2.generateObject);
-		go2.mockImplementation(async (args: { messages: unknown[] }) => {
-			capturedWith.push(...args.messages);
-			const calls = go2.mock.calls.length;
-			if (calls <= 2) return mockIssues(['i']);
-			return mockChapters();
-		});
+		go2
+			.mockImplementationOnce(async (args: { messages: unknown[] }) => {
+				capturedWith.push(...args.messages);
+				return makeIssuesResult(['i']);
+			})
+			.mockResolvedValueOnce(makeIssuesResult(['i']))
+			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeGroupingResult())
+			.mockResolvedValueOnce(makeBuildResult());
+
 		const { generateChapters: gc2 } = await import('../../agents/chapter-agent.js');
 		await gc2('テーマ', [mockPersona], undefined);
 		const contentWith = (capturedWith.find((m: unknown) => (m as { role: string }).role === 'user') as { content: string }).content;
@@ -212,20 +259,517 @@ describe('generateChapters - topicContext対応', () => {
 		expect(contentWithout).toBe(contentWith);
 	});
 
-	it('chaptersプロンプトにはtopicContextを含めない', async () => {
-		const capturedChapters: unknown[] = [];
+	it('スコアリングプロンプトにtopicContextを含める', async () => {
+		const capturedScoring: unknown[] = [];
 		generateObject
-			.mockResolvedValueOnce(mockIssues(['i1']))
-			.mockResolvedValueOnce(mockIssues(['i2']))
+			.mockResolvedValueOnce(makeIssuesResult(['i1']))
+			.mockResolvedValueOnce(makeIssuesResult(['i2']))
 			.mockImplementationOnce(async (args: { messages: unknown[] }) => {
-				capturedChapters.push(...args.messages);
-				return mockChapters();
+				capturedScoring.push(...args.messages);
+				return makeScoringResult([{ index: 0, score: 8, reason: '良い' }]);
+			})
+			.mockResolvedValueOnce(makeGroupingResult())
+			.mockResolvedValueOnce(makeBuildResult());
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona], { description: 'スコアリングに使う説明' });
+
+		const msg = capturedScoring.find((m: unknown) => (m as { role: string }).role === 'user') as { content: string };
+		expect(msg.content).toContain('スコアリングに使う説明');
+	});
+
+	it('AI呼び出し失敗時にAI_API_ERRORを返す', async () => {
+		mockDefaultPipeline();
+		generateObject.mockReset();
+		generateObject.mockRejectedValueOnce(new Error('API failure'));
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		const result = await generateChapters('テーマ', [mockPersona]);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error.code).toBe('AI_API_ERROR');
+			expect(result.error.retryable).toBe(true);
+		}
+	});
+
+	it('issues_generated イベントで論点が source 付きで通知される', async () => {
+		const progressEvents: Array<{ step: string; issues?: Array<{ text: string; source: string }> }> = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['一般論点1', '一般論点2']))
+			.mockResolvedValueOnce(makeIssuesResult(['ペルソナ論点1']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 3, reason: '低い' },
+				{ index: 1, score: 3, reason: '低い' },
+				{ index: 2, score: 3, reason: '低い' },
+			]))
+			.mockResolvedValueOnce(makeGroupingResult())
+			.mockResolvedValueOnce(makeBuildResult());
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		const result = await generateChapters('テーマ', [mockPersona], undefined, (p) => { progressEvents.push(p as never); });
+
+		expect(result.ok).toBe(true);
+		const genEvent = progressEvents.find((p) => p.step === 'issues_generated');
+		expect(genEvent?.issues?.filter((i) => i.source === 'general').map((i) => i.text))
+			.toEqual(['一般論点1', '一般論点2']);
+		expect(genEvent?.issues?.filter((i) => i.source === 'persona').map((i) => i.text))
+			.toEqual(['ペルソナ論点1']);
+	});
+});
+
+// ─── Task 7.1: scoreIssues ───────────────────────────────────────────────────
+
+describe('Task 7.1: scoreIssues - スコアリング', () => {
+	let generateObject: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		const aiMod = await import('ai');
+		generateObject = vi.mocked(aiMod.generateObject);
+	});
+
+	it('全論点が general/persona の source を保持してグループ化に渡る', async () => {
+		const capturedGrouping: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: 'general good' },
+				{ index: 1, score: 7, reason: 'persona good' },
+			]))
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedGrouping.push(args.messages[0].content);
+				return makeGroupingResult([{ issueIndexes: [0, 1] }]);
+			})
+			.mockResolvedValueOnce(makeBuildResult());
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona]);
+
+		expect(capturedGrouping[0]).toContain('[general] gen1');
+		expect(capturedGrouping[0]).toContain('[persona] per1');
+	});
+
+	it('index欠落の論点はスコア0として扱われ閾値未満で選別から除外される', async () => {
+		const capturedGrouping: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: 'good' },
+				// index 1 (per1) 欠落 → score=0
+			]))
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedGrouping.push(args.messages[0].content);
+				return makeGroupingResult([{ issueIndexes: [0] }]);
+			})
+			.mockResolvedValueOnce(makeBuildResult());
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona]);
+
+		// gen1 (score=8) は採用、per1 (score=0) は閾値未満で除外
+		expect(capturedGrouping[0]).toContain('[general] gen1');
+		expect(capturedGrouping[0]).not.toContain('[persona] per1');
+	});
+
+	it('スコアリングプロンプトに全論点が source ラベル付きで含まれる', async () => {
+		const capturedScoring: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen_issue']))
+			.mockResolvedValueOnce(makeIssuesResult(['per_issue']))
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedScoring.push(args.messages[0].content);
+				return makeScoringResult([
+					{ index: 0, score: 8, reason: 'good' },
+					{ index: 1, score: 7, reason: 'good' },
+				]);
+			})
+			.mockResolvedValueOnce(makeGroupingResult())
+			.mockResolvedValueOnce(makeBuildResult());
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona]);
+
+		expect(capturedScoring[0]).toContain('[general] gen_issue');
+		expect(capturedScoring[0]).toContain('[persona] per_issue');
+	});
+});
+
+// ─── Task 7.1: selectIssues ──────────────────────────────────────────────────
+
+describe('Task 7.1: selectIssues - 選別ルール', () => {
+	let generateObject: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		const aiMod = await import('ai');
+		generateObject = vi.mocked(aiMod.generateObject);
+	});
+
+	it('スコア7以上の論点のみがグループ化に渡る', async () => {
+		const capturedGrouping: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1', 'gen2']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: '閾値以上' },
+				{ index: 1, score: 4, reason: '閾値未満' },
+				{ index: 2, score: 3, reason: '閾値未満' },
+			]))
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedGrouping.push(args.messages[0].content);
+				return makeGroupingResult([{ issueIndexes: [0] }]);
+			})
+			.mockResolvedValueOnce(makeBuildResult());
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona]);
+
+		expect(capturedGrouping[0]).toContain('[general] gen1');
+		expect(capturedGrouping[0]).not.toContain('[general] gen2');
+		expect(capturedGrouping[0]).not.toContain('[persona] per1');
+	});
+
+	it('スコア7以上が0件のとき最上位スコア1件のみ採用される', async () => {
+		const capturedGrouping: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 5, reason: '全体最高だが閾値未満' },
+				{ index: 1, score: 3, reason: '低い' },
+			]))
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedGrouping.push(args.messages[0].content);
+				return makeGroupingResult([{ issueIndexes: [0] }]);
+			})
+			.mockResolvedValueOnce(makeBuildResult());
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona]);
+
+		// gen1 (score=5, 最高) のみ採用
+		expect(capturedGrouping[0]).toContain('[general] gen1');
+		expect(capturedGrouping[0]).not.toContain('[persona] per1');
+	});
+
+	it('general由来が採用に0件のとき最高スコアのgeneralを追加採用する', async () => {
+		const capturedGrouping: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1', 'per2']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 3, reason: '低い（general）' },
+				{ index: 1, score: 9, reason: '高い（persona）' },
+				{ index: 2, score: 8, reason: '高い（persona）' },
+			]))
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedGrouping.push(args.messages[0].content);
+				return makeGroupingResult([{ issueIndexes: [0, 1, 2] }]);
+			})
+			.mockResolvedValueOnce(makeBuildResult());
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona]);
+
+		// per1(9), per2(8) が閾値以上、しかしgeneralが0件 → gen1を追加採用
+		expect(capturedGrouping[0]).toContain('[general] gen1');
+		expect(capturedGrouping[0]).toContain('[persona] per1');
+		expect(capturedGrouping[0]).toContain('[persona] per2');
+	});
+
+	it('generalが既に採用済みであれば追加採用しない', async () => {
+		const capturedGrouping: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1', 'gen2']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: '高い（general）' },
+				{ index: 1, score: 3, reason: '低い（general）' },
+				{ index: 2, score: 7, reason: '閾値上（persona）' },
+			]))
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedGrouping.push(args.messages[0].content);
+				return makeGroupingResult([{ issueIndexes: [0, 1] }]);
+			})
+			.mockResolvedValueOnce(makeBuildResult());
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona]);
+
+		// gen1(8), per1(7) が閾値以上。generalは gen1 で満たされるため gen2 は不追加
+		expect(capturedGrouping[0]).toContain('[general] gen1');
+		expect(capturedGrouping[0]).toContain('[persona] per1');
+		expect(capturedGrouping[0]).not.toContain('[general] gen2');
+	});
+});
+
+// ─── Task 2.1: groupIssues ───────────────────────────────────────────────────
+
+describe('Task 2.1: groupIssues - グループ化フォールバック', () => {
+	let generateObject: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		const aiMod = await import('ai');
+		generateObject = vi.mocked(aiMod.generateObject);
+	});
+
+	it('グループ化が0グループを返した場合、全採用論点を1グループにまとめるフォールバック', async () => {
+		const capturedBuilding: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: '良い' },
+				{ index: 1, score: 7, reason: '良い' },
+			]))
+			.mockResolvedValueOnce(makeGroupingResult([]))  // 0グループ → フォールバック
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedBuilding.push(args.messages[0].content);
+				return makeBuildResult();
 			});
 
 		const { generateChapters } = await import('../../agents/chapter-agent.js');
-		await generateChapters('テーマ', [mockPersona], { description: 'この説明はchaptersプロンプトに含まない' });
+		const result = await generateChapters('テーマ', [mockPersona]);
 
-		const msg = capturedChapters.find((m: unknown) => (m as { role: string }).role === 'user') as { content: string };
-		expect(msg.content).not.toContain('この説明はchaptersプロンプトに含まない');
+		expect(result.ok).toBe(true);
+		// 1グループにまとめられ、両論点が含まれる
+		expect(capturedBuilding[0]).toContain('gen1');
+		expect(capturedBuilding[0]).toContain('per1');
+		// グループ数が1であること
+		const groupSections = capturedBuilding[0].split('## グループ');
+		expect(groupSections.length - 1).toBe(1);
+	});
+
+	it('割り当て漏れの論点は最終グループに追加される', async () => {
+		const capturedBuilding: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1', 'per2']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: '良い' },
+				{ index: 1, score: 8, reason: '良い' },
+				{ index: 2, score: 8, reason: '良い' },
+			]))
+			.mockResolvedValueOnce(makeGroupingResult([
+				{ issueIndexes: [0] },
+				{ issueIndexes: [1] },
+				// local idx 2 (per2) 未割り当て → 最終グループに追加
+			]))
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedBuilding.push(args.messages[0].content);
+				return makeBuildResult([
+					{ title: '章1', focusQuestion: '問い1', discussionPoints: ['dp1'] },
+					{ title: '章2', focusQuestion: '問い2', discussionPoints: ['dp2'] },
+				]);
+			});
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona]);
+
+		// グループ2のセクションに per2 が含まれること
+		const sections = capturedBuilding[0].split('## グループ');
+		const group2Section = sections[2] ?? '';
+		expect(group2Section).toContain('per2');
+	});
+
+	it('全採用論点が取りこぼしなくどこかのグループに属する', async () => {
+		const capturedBuilding: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1', 'gen2']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: '良い' },
+				{ index: 1, score: 8, reason: '良い' },
+				{ index: 2, score: 8, reason: '良い' },
+			]))
+			.mockResolvedValueOnce(makeGroupingResult([
+				{ issueIndexes: [0, 2] },
+				// gen2 (local idx 1) が未割り当て
+			]))
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedBuilding.push(args.messages[0].content);
+				return makeBuildResult();
+			});
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona]);
+
+		// gen2 が最終グループに寄せられ building prompt に含まれる
+		expect(capturedBuilding[0]).toContain('gen2');
+	});
+});
+
+// ─── Task 2.2: buildChapters ─────────────────────────────────────────────────
+
+describe('Task 2.2: buildChapters - 章生成', () => {
+	let generateObject: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		const aiMod = await import('ai');
+		generateObject = vi.mocked(aiMod.generateObject);
+	});
+
+	it('返却章数が入力より少ない場合、欠落章は論点テキストをdiscussionPointsにフォールバック', async () => {
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: '良い' },
+				{ index: 1, score: 7, reason: '良い' },
+			]))
+			.mockResolvedValueOnce(makeGroupingResult([
+				{ issueIndexes: [0] },
+				{ issueIndexes: [1] },
+			]))
+			.mockResolvedValueOnce(makeBuildResult([
+				{ title: '章1', focusQuestion: '問い1', discussionPoints: ['再構成1', '再構成2', '再構成3'] },
+				// 章2 欠落 → per1 (issues[1].text) をそのまま流用
+			]));
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		const result = await generateChapters('テーマ', [mockPersona]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toHaveLength(2);
+			// 章はsortされる可能性があるので、どちらかが再構成済みで、もう一方がフォールバック
+			const fallbackChapter = result.value.find((c) => c.discussionPoints.includes('per1'));
+			expect(fallbackChapter).toBeDefined();
+		}
+	});
+
+	it('各章に nanoid が付与され title/focusQuestion が生成される', async () => {
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: '良い' },
+				{ index: 1, score: 7, reason: '良い' },
+			]))
+			.mockResolvedValueOnce(makeGroupingResult([
+				{ issueIndexes: [0, 1] },
+			]))
+			.mockResolvedValueOnce(makeBuildResult([
+				{ title: '固有タイトル', focusQuestion: '固有フォーカス問い', discussionPoints: ['dp1', 'dp2', 'dp3'] },
+			]));
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		const result = await generateChapters('テーマ', [mockPersona]);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			const chapter = result.value[0];
+			expect(chapter.id).toBe('test-id');  // nanoid mock
+			expect(chapter.title).toBe('固有タイトル');
+			expect(chapter.focusQuestion).toBe('固有フォーカス問い');
+			expect(chapter.discussionPoints).toEqual(['dp1', 'dp2', 'dp3']);
+		}
+	});
+
+	it('章生成プロンプトに各グループの論点テキストが含まれる', async () => {
+		const capturedBuilding: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1']))
+			.mockResolvedValueOnce(makeScoringResult([
+				{ index: 0, score: 8, reason: '良い' },
+				{ index: 1, score: 7, reason: '良い' },
+			]))
+			.mockResolvedValueOnce(makeGroupingResult([
+				{ issueIndexes: [0, 1] },
+			]))
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedBuilding.push(args.messages[0].content);
+				return makeBuildResult();
+			});
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona]);
+
+		expect(capturedBuilding[0]).toContain('gen1');
+		expect(capturedBuilding[0]).toContain('per1');
+	});
+});
+
+// ─── Task 2.3: sortChaptersByGeneralIssueCount ───────────────────────────────
+
+describe('Task 2.3: sortChaptersByGeneralIssueCount - 並べ替え純粋関数', () => {
+	it('general由来論点数の多いグループの章を先頭に配置する', async () => {
+		vi.resetModules();
+		const { sortChaptersByGeneralIssueCount } = await import('../../agents/chapter-agent.js');
+
+		const issues = [
+			{ text: 'g1', source: 'general' as const },
+			{ text: 'g2', source: 'general' as const },
+			{ text: 'p1', source: 'persona' as const },
+		];
+		const issueGroups = [
+			{ issueIndexes: [2] },       // 0 general
+			{ issueIndexes: [0, 1, 2] }, // 2 general
+			{ issueIndexes: [0] },        // 1 general
+		];
+		const chapters = [
+			{ id: 'c0', title: '章0', focusQuestion: '?', discussionPoints: [] },
+			{ id: 'c1', title: '章1', focusQuestion: '?', discussionPoints: [] },
+			{ id: 'c2', title: '章2', focusQuestion: '?', discussionPoints: [] },
+		];
+
+		const sorted = sortChaptersByGeneralIssueCount(chapters, issueGroups, issues);
+
+		expect(sorted.map((c) => c.id)).toEqual(['c1', 'c2', 'c0']);
+	});
+
+	it('general数が同数のとき元のグループ順を維持する（安定ソート）', async () => {
+		vi.resetModules();
+		const { sortChaptersByGeneralIssueCount } = await import('../../agents/chapter-agent.js');
+
+		const issues = [
+			{ text: 'g1', source: 'general' as const },
+			{ text: 'p1', source: 'persona' as const },
+			{ text: 'p2', source: 'persona' as const },
+		];
+		const issueGroups = [
+			{ issueIndexes: [0, 1] }, // 1 general
+			{ issueIndexes: [0, 2] }, // 1 general (同数)
+		];
+		const chapters = [
+			{ id: 'c0', title: '章0', focusQuestion: '?', discussionPoints: [] },
+			{ id: 'c1', title: '章1', focusQuestion: '?', discussionPoints: [] },
+		];
+
+		const sorted = sortChaptersByGeneralIssueCount(chapters, issueGroups, issues);
+
+		// 同数なので元の順序を維持
+		expect(sorted.map((c) => c.id)).toEqual(['c0', 'c1']);
+	});
+
+	it('入力配列を変更しない（純粋関数）', async () => {
+		vi.resetModules();
+		const { sortChaptersByGeneralIssueCount } = await import('../../agents/chapter-agent.js');
+
+		const issues = [
+			{ text: 'g1', source: 'general' as const },
+			{ text: 'p1', source: 'persona' as const },
+		];
+		const issueGroups = [
+			{ issueIndexes: [1] }, // 0 general
+			{ issueIndexes: [0] }, // 1 general
+		];
+		const chapters = [
+			{ id: 'c0', title: '章0', focusQuestion: '?', discussionPoints: [] },
+			{ id: 'c1', title: '章1', focusQuestion: '?', discussionPoints: [] },
+		];
+		const originalChapters = [...chapters];
+		const originalGroups = [...issueGroups];
+
+		sortChaptersByGeneralIssueCount(chapters, issueGroups, issues);
+
+		expect(chapters).toEqual(originalChapters);
+		expect(issueGroups).toEqual(originalGroups);
 	});
 });

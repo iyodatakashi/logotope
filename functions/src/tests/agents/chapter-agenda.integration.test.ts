@@ -85,13 +85,21 @@ describe('Task 5.2: チャプター生成で discussionPoints が返される', 
 			.mockResolvedValueOnce({ object: { issues: ['専門論点1'] } } as never)
 			.mockResolvedValueOnce({
 				object: {
-					chapters: [
-						{
-							title: '第1章',
-							focusQuestion: '日常的な問いかけ？',
-							discussionPoints: ['論点A', '論点B', '論点C'],
-						},
+					scoredIssues: [
+						{ index: 0, score: 8, reason: '良い' },
+						{ index: 1, score: 7, reason: '良い' },
+						{ index: 2, score: 7, reason: '良い' },
 					],
+				},
+			} as never)
+			.mockResolvedValueOnce({
+				object: {
+					issueGroups: [{ issueIndexes: [0, 1, 2] }],
+				},
+			} as never)
+			.mockResolvedValueOnce({
+				object: {
+					chapters: [{ title: '第1章', focusQuestion: '日常的な問いかけ？', discussionPoints: ['論点A', '論点B', '論点C'] }],
 				},
 			} as never);
 
@@ -101,21 +109,30 @@ describe('Task 5.2: チャプター生成で discussionPoints が返される', 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 
-		expect(result.value.chapters[0].discussionPoints).toEqual(['論点A', '論点B', '論点C']);
+		expect(result.value[0].discussionPoints).toEqual(['論点A', '論点B', '論点C']);
 	});
 
-	it('第1章の discussionPoints には日常感覚の切り口制約がプロンプトに含まれる', async () => {
+	it('章生成プロンプトに第1章の日常感覚制約が含まれる（グループ化プロンプトではなく章生成プロンプト）', async () => {
 		const capturedArgs: unknown[] = [];
 		const { generateObject } = await import('ai');
 		vi.mocked(generateObject)
 			.mockResolvedValueOnce({ object: { issues: ['issue1'] } } as never)
 			.mockResolvedValueOnce({ object: { issues: ['issue2'] } } as never)
+			.mockResolvedValueOnce({
+				object: {
+					scoredIssues: [
+						{ index: 0, score: 8, reason: '良い' },
+						{ index: 1, score: 7, reason: '良い' },
+					],
+				},
+			} as never)
+			.mockResolvedValueOnce({
+				object: { issueGroups: [{ issueIndexes: [0] }] },
+			} as never)
 			.mockImplementationOnce(async (args) => {
 				capturedArgs.push(args);
 				return {
-					object: {
-						chapters: [{ title: '第1章', focusQuestion: '問い', discussionPoints: ['論点1'] }],
-					},
+					object: { chapters: [{ title: '第1章', focusQuestion: '問い', discussionPoints: ['論点1'] }] },
 				} as never;
 			});
 
