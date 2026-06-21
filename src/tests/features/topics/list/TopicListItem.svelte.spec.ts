@@ -2,6 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import TopicListItem from '$lib/features/topics/list/TopicListItem.svelte';
+import type { Topic } from '$lib/models/topic/createTopic.svelte';
 
 const topic = {
 	id: 'debate-1',
@@ -12,7 +13,7 @@ const topic = {
 	publishedAt: new Date('2026-06-01T00:00:00.000Z'),
 	createdAt: new Date('2026-01-01T00:00:00.000Z'),
 	updatedAt: new Date('2026-06-01T00:00:00.000Z')
-};
+} as unknown as Topic;
 
 describe('TopicListItem.svelte', () => {
 	it('テーマ名を表示する', async () => {

@@ -107,7 +107,7 @@
 					placeholder="https://"
 					fullWidth
 				/>
-				<Button type="button" variant="text" onclick={() => removeUrl(i)}>削除</Button>
+				<Button type="button" variant="ghost" onclick={() => removeUrl(i)}>削除</Button>
 			</div>
 			{#if urlErrors[i]}
 				<p role="alert">{urlErrors[i]}</p>

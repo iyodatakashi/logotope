@@ -9,8 +9,8 @@
 			.filter((topic) => topic.publishedAt != null)
 			.sort(
 				(a, b) =>
-					(b.publishedAt?.seconds ?? b.updatedAt.seconds) -
-					(a.publishedAt?.seconds ?? a.updatedAt.seconds)
+					(b.publishedAt?.getTime() ?? b.updatedAt.getTime()) -
+					(a.publishedAt?.getTime() ?? a.updatedAt.getTime())
 			)
 	);
 	const loaded = $derived(topicsStore.isLoaded);
