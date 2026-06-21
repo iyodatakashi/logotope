@@ -1,9 +1,9 @@
 {
 	"feature_name": "test-error-cleanup",
 	"created_at": "2026-06-21T06:05:35Z",
-	"updated_at": "2026-06-21T06:45:00Z",
+	"updated_at": "2026-06-21T08:50:00Z",
 	"language": "ja",
-	"phase": "design-generated",
+	"phase": "completed",
 	"approvals": {
 		"requirements": {
 			"generated": true,
@@ -14,9 +14,10 @@
 			"approved": true
 		},
 		"tasks": {
-			"generated": false,
-			"approved": false
+			"generated": true,
+			"approved": true
 		}
 	},
-	"ready_for_implementation": false
+	"ready_for_implementation": false,
+	"notes": "実装は commit 94ae14c で完了済み。svelte-check 型エラー3件（TopicListPage.seconds, TopicForm variant, TopicListItem spec mock）は 2026-06-21 に別途修正。"
 }

@@ -1,22 +1,22 @@
 {
-  "feature_name": "chapter-type-unification",
-  "created_at": "2026-06-21T04:56:00Z",
-  "updated_at": "2026-06-21T04:56:00Z",
-  "language": "ja",
-  "phase": "initialized",
-  "approvals": {
-    "requirements": {
-      "generated": false,
-      "approved": false
-    },
-    "design": {
-      "generated": false,
-      "approved": false
-    },
-    "tasks": {
-      "generated": false,
-      "approved": false
-    }
-  },
-  "ready_for_implementation": false
+	"feature_name": "chapter-type-unification",
+	"created_at": "2026-06-21T04:56:00Z",
+	"updated_at": "2026-06-21T09:00:00Z",
+	"language": "ja",
+	"phase": "completed",
+	"approvals": {
+		"requirements": {
+			"generated": true,
+			"approved": true
+		},
+		"design": {
+			"generated": true,
+			"approved": true
+		},
+		"tasks": {
+			"generated": true,
+			"approved": true
+		}
+	},
+	"ready_for_implementation": false
 }
