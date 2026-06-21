@@ -47,7 +47,7 @@ describe('interview-agent.runInterview', () => {
 		generateText = vi.mocked(aiMod.generateText);
 		generateText.mockResolvedValue(
 			makeGenerateTextResult({
-				researchSummary: 'summary',
+				researchItems: [],
 				interviewRecord: 'record',
 				initialBelief: 'belief'
 			})
@@ -57,7 +57,7 @@ describe('interview-agent.runInterview', () => {
 	it('topicContextなしでrunInterviewが成功する（後方互換）', async () => {
 		const { runInterview } = await import('../../agents/interview-agent.js');
 		const result = await runInterview('AIと社会', mockPersona);
-		expect(result.researchSummary).toBe('summary');
+		expect(result.interviewRecord).toBe('record');
 		expect(result.initialBelief).toBe('belief');
 	});
 
@@ -66,7 +66,7 @@ describe('interview-agent.runInterview', () => {
 		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
 			capturedMessages.push(...args.messages);
 			return makeGenerateTextResult({
-				researchSummary: 's',
+				researchItems: [],
 				interviewRecord: 'r',
 				initialBelief: 'b'
 			});
@@ -87,7 +87,7 @@ describe('interview-agent.runInterview', () => {
 		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
 			capturedMessages.push(...args.messages);
 			return makeGenerateTextResult({
-				researchSummary: 's',
+				researchItems: [],
 				interviewRecord: 'r',
 				initialBelief: 'b'
 			});
@@ -109,7 +109,7 @@ describe('interview-agent.runInterview', () => {
 		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
 			capturedMessages.push(...args.messages);
 			return makeGenerateTextResult({
-				researchSummary: 's',
+				researchItems: [],
 				interviewRecord: 'r',
 				initialBelief: 'b'
 			});
@@ -134,7 +134,7 @@ describe('interview-agent.runInterview', () => {
 		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
 			capturedWithout.push(...args.messages);
 			return makeGenerateTextResult({
-				researchSummary: 's',
+				researchItems: [],
 				interviewRecord: 'r',
 				initialBelief: 'b'
 			});
@@ -153,7 +153,7 @@ describe('interview-agent.runInterview', () => {
 		gt2.mockImplementation(async (args: { messages: unknown[] }) => {
 			capturedWith.push(...args.messages);
 			return makeGenerateTextResult({
-				researchSummary: 's',
+				researchItems: [],
 				interviewRecord: 'r',
 				initialBelief: 'b'
 			});
