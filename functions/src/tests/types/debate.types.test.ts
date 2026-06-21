@@ -8,7 +8,7 @@ import type {
 	DiscussionPointState,
 	DebateState,
 	FacilitatorReply,
-	ChapterStateData,
+	ChapterForFirestore,
 	ChapterProgressStatus,
 } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
@@ -113,8 +113,8 @@ describe('debate.types - 論点追跡型定義', () => {
 });
 
 describe('debate.types - チャプタードキュメント型定義', () => {
-	it('ChapterStateData は章メタ・ターン配列・進行ステータスを持つ', () => {
-		const chapter: ChapterStateData = {
+	it('ChapterForFirestore は章メタ・ターン配列・進行ステータスを持つ', () => {
+		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
 			focusQuestion: 'この問題の核心は何か？',
@@ -127,8 +127,8 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 		expect(chapter.status).toBe('pending');
 	});
 
-	it('ChapterStateData は discussionPointStatuses を任意で持つ', () => {
-		const chapter: ChapterStateData = {
+	it('ChapterForFirestore は discussionPointStatuses を任意で持つ', () => {
+		const chapter: ChapterForFirestore = {
 			chapterIndex: 1,
 			title: '核心',
 			focusQuestion: '最も意見が分かれる点は？',

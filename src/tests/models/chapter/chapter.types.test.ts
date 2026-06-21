@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { Timestamp } from 'firebase/firestore';
-import type { ChapterDoc, ChapterAnalysisDoc, Issue, IssueGroup } from '$lib/models/chapter/chapter.types';
-import type { TurnDoc } from '$lib/models/turn/turn.types';
+import type { ChapterForFirestore, ChapterAnalysisForFirestore, Issue, IssueGroup } from '$lib/models/chapter/chapter.types';
+import type { TurnForFirestore } from '$lib/models/turn/turn.types';
 
 describe('chapter.types - チャプタードキュメント型定義', () => {
-	it('ChapterDoc は章メタ・ターン配列・進行ステータスを持つ', () => {
-		const chapter: ChapterDoc = {
+	it('ChapterForFirestore は章メタ・ターン配列・進行ステータスを持つ', () => {
+		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
 			focusQuestion: 'この問題の核心は何か？',
@@ -17,14 +17,14 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 		expect(chapter.status).toBe('pending');
 	});
 
-	it('ChapterDoc は turns と discussionPointStatuses を保持する', () => {
-		const turn: TurnDoc = {
+	it('ChapterForFirestore は turns と discussionPointStatuses を保持する', () => {
+		const turn: TurnForFirestore = {
 			id: 't1',
 			speakerType: 'persona',
 			content: 'テスト発言',
 			createdAt: Timestamp.fromDate(new Date()),
 		};
-		const chapter: ChapterDoc = {
+		const chapter: ChapterForFirestore = {
 			chapterIndex: 1,
 			title: '核心',
 			focusQuestion: '最も意見が分かれる点は？',
@@ -59,8 +59,8 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 		expect(group.issueIndexes).toEqual([0, 2]);
 	});
 
-	it('ChapterAnalysisDoc は issues 配列と任意の issueGroups を持つ', () => {
-		const analysis: ChapterAnalysisDoc = {
+	it('ChapterAnalysisForFirestore は issues 配列と任意の issueGroups を持つ', () => {
+		const analysis: ChapterAnalysisForFirestore = {
 			issues: [
 				{ text: '一般的切り口', source: 'general' },
 				{ text: 'ペルソナ別切り口', source: 'persona' },

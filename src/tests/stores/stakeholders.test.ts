@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { StakeholderDoc } from '$lib/models/topic/topic.types';
+import type { StakeholderForFirestore } from '$lib/models/topic/topic.types';
 
 let snapshotCb: ((snap: unknown) => void) | null = null;
 
@@ -14,7 +14,7 @@ vi.mock('firebase/firestore', () => ({
 
 import { createStakeholdersStore } from '$lib/stores/stakeholders.svelte';
 
-const fire = (stakeholders: StakeholderDoc[] | null) => {
+const fire = (stakeholders: StakeholderForFirestore[] | null) => {
 	snapshotCb?.({
 		exists: () => stakeholders !== null,
 		data: () => (stakeholders !== null ? { stakeholders } : undefined)

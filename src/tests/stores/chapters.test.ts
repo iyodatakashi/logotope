@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { ChapterDoc } from '$lib/models/chapter/chapter.types';
+import type { ChapterForFirestore } from '$lib/models/chapter/chapter.types';
 
 let snapshotCb: ((snap: unknown) => void) | null = null;
 
@@ -17,8 +17,8 @@ vi.mock('firebase/firestore', () => ({
 import { createChaptersStore } from '$lib/stores/chapters.svelte';
 
 const makeChapter = (
-	overrides: Partial<ChapterDoc> & { id?: string } = {}
-): ChapterDoc & { id: string } => ({
+	overrides: Partial<ChapterForFirestore> & { id?: string } = {}
+): ChapterForFirestore & { id: string } => ({
 	id: 'ch1',
 	chapterIndex: 0,
 	title: 'テスト章',
@@ -29,7 +29,7 @@ const makeChapter = (
 	...overrides,
 });
 
-const populate = (store: ReturnType<typeof createChaptersStore>, chapters: (ChapterDoc & { id: string })[]) => {
+const populate = (store: ReturnType<typeof createChaptersStore>, chapters: (ChapterForFirestore & { id: string })[]) => {
 	store.start();
 	snapshotCb?.({
 		docs: chapters.map((c) => ({

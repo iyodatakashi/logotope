@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { ChapterAnalysisDoc } from '$lib/models/chapter/chapter.types';
+import type { ChapterAnalysisForFirestore } from '$lib/models/chapter/chapter.types';
 
 let snapshotCb: ((snap: unknown) => void) | null = null;
 
@@ -14,7 +14,7 @@ vi.mock('firebase/firestore', () => ({
 
 import { createChapterAnalysisStore } from '$lib/stores/chapterAnalysis.svelte';
 
-const fire = (data: ChapterAnalysisDoc | null) => {
+const fire = (data: ChapterAnalysisForFirestore | null) => {
 	snapshotCb?.({ exists: () => data !== null, data: () => data });
 };
 

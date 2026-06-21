@@ -40,6 +40,67 @@ const populate = (store: ReturnType<typeof createPersonasStore>, ids: string[]) 
 	snapshotCb?.({ docs: ids.map((id) => ({ id, data: () => ({ name: id, beliefs: [], approved: true }) })) });
 };
 
+describe('Timestamp→Date 変換', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		snapshotCb = null;
+	});
+
+	it('beliefs[].createdAt が Date に変換される', () => {
+		const store = createPersonasStore('t1');
+		store.start();
+		const fakeDate = new Date('2026-01-01');
+		snapshotCb?.({
+			docs: [{
+				id: 'p1',
+				data: () => ({
+					name: 'テスト',
+					beliefs: [{ id: 'b1', version: 1, content: '信念', createdAt: { toDate: () => fakeDate } }],
+					approved: true
+				})
+			}]
+		});
+		expect(store.personas[0].beliefs[0].createdAt).toBeInstanceOf(Date);
+		expect(store.personas[0].beliefs[0].createdAt).toBe(fakeDate);
+	});
+
+	it('interview.completedAt が Date に変換される', () => {
+		const store = createPersonasStore('t1');
+		store.start();
+		const fakeDate = new Date('2026-06-01');
+		snapshotCb?.({
+			docs: [{
+				id: 'p1',
+				data: () => ({
+					name: 'テスト',
+					beliefs: [],
+					approved: true,
+					interview: { status: 'completed', completedAt: { toDate: () => fakeDate } }
+				})
+			}]
+		});
+		expect(store.personas[0].interview?.completedAt).toBeInstanceOf(Date);
+		expect(store.personas[0].interview?.completedAt).toBe(fakeDate);
+	});
+
+	it('interview.completedAt が undefined のとき undefined のまま', () => {
+		const store = createPersonasStore('t1');
+		store.start();
+		snapshotCb?.({
+			docs: [{
+				id: 'p1',
+				data: () => ({
+					name: 'テスト',
+					beliefs: [],
+					approved: true,
+					interview: { status: 'completed' }
+				})
+			}]
+		});
+		expect(store.personas[0].interview?.completedAt).toBeUndefined();
+	});
+});
+
 describe('createPersonasStore', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
