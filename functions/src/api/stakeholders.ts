@@ -20,6 +20,7 @@ export const generateStakeholders = onCall(
 			await db().doc(`topics/${topicId}/stakeholders/0`).set({ stakeholders });
 			return {};
 		} catch (err) {
+			console.error('[generateStakeholders] error', { topicId, title }, err);
 			throw new HttpsError('internal', err instanceof Error ? err.message : String(err));
 		}
 	}

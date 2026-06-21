@@ -33,13 +33,20 @@ export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 		singleChapterMode?: boolean;
 	};
 
-	const topic = await getTopicById(topicId);
-	if (!topic) throw new HttpsError('not-found', 'Topic not found');
+	try {
+		const topic = await getTopicById(topicId);
+		if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
-	const runId = await activateDebate(topicId);
-	await enqueueChapterTask(topicId, 0, runId, singleChapterMode);
+		const runId = await activateDebate(topicId);
+		await enqueueChapterTask(topicId, 0, runId, singleChapterMode);
 
-	return { topicId };
+		return { topicId };
+	} catch (err) {
+		console.error('[startDebate] error', { topicId }, err);
+		throw err instanceof HttpsError
+			? err
+			: new HttpsError('internal', err instanceof Error ? err.message : String(err));
+	}
 });
 
 export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
@@ -49,18 +56,25 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 		singleChapterMode?: boolean;
 	};
 
-	const topic = await getTopicById(topicId);
-	if (!topic) throw new HttpsError('not-found', 'Topic not found');
+	try {
+		const topic = await getTopicById(topicId);
+		if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
-	const chapters = await getChaptersByTopicId(topicId);
-	const runningChapter = chapters.find((c) => c.status === 'running');
-	const resumeChapter = runningChapter ?? chapters.find((c) => c.status === 'pending');
-	if (!resumeChapter) throw new HttpsError('not-found', 'No chapter to restart');
+		const chapters = await getChaptersByTopicId(topicId);
+		const runningChapter = chapters.find((c) => c.status === 'running');
+		const resumeChapter = runningChapter ?? chapters.find((c) => c.status === 'pending');
+		if (!resumeChapter) throw new HttpsError('not-found', 'No chapter to restart');
 
-	const runId = await restartChapter(topicId, resumeChapter.id);
-	await enqueueChapterTask(topicId, resumeChapter.chapterIndex, runId, singleChapterMode);
+		const runId = await restartChapter(topicId, resumeChapter.id);
+		await enqueueChapterTask(topicId, resumeChapter.chapterIndex, runId, singleChapterMode);
 
-	return { topicId };
+		return { topicId };
+	} catch (err) {
+		console.error('[restartDebate] error', { topicId }, err);
+		throw err instanceof HttpsError
+			? err
+			: new HttpsError('internal', err instanceof Error ? err.message : String(err));
+	}
 });
 
 const MAX_ATTEMPTS = 3;
@@ -91,6 +105,11 @@ export const runChapter = onTaskDispatched(
 				await enqueueChapterTask(topicId, chapterIndex + 1, runId ?? '', singleChapterMode);
 			}
 		} catch (err) {
+			console.error(
+				'[runChapter] error',
+				{ topicId, chapterIndex, retryCount: req.retryCount },
+				err
+			);
 			if ((req.retryCount ?? 0) >= MAX_ATTEMPTS - 1) {
 				await markDebateStopped(topicId);
 			}

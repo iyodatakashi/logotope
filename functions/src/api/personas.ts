@@ -23,6 +23,7 @@ export const generatePersonas = onCall(
 		try {
 			return await runPersonaGeneration(title, stakeholders, topicId);
 		} catch (err) {
+			console.error('[generatePersonas] error', { topicId, title }, err);
 			throw new HttpsError('internal', err instanceof Error ? err.message : String(err));
 		}
 	}

@@ -19,6 +19,7 @@ export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, as
 	try {
 		return await runInterviewAgent(topicTitle, persona, topicContext);
 	} catch (err) {
+		console.error('[runInterview] error', err);
 		throw new HttpsError('internal', err instanceof Error ? err.message : String(err));
 	}
 });

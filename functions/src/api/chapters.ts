@@ -14,6 +14,7 @@ export const generateChapters = onCall(
 		try {
 			await planChapters(topicId);
 		} catch (err) {
+			console.error('[generateChapters] error', { topicId }, err);
 			throw new HttpsError('internal', err instanceof Error ? err.message : String(err));
 		}
 
