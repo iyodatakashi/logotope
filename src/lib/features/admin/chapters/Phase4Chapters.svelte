@@ -111,12 +111,11 @@
 					{#each chapterIssues.issueGroups as group, i (i)}
 						<li class="group">
 							<span class="group-label">グループ {i + 1}</span>
-							<span class="group-issues">
-								{#each group.issueIndexes as idx, j (j)}
-									<span class="group-issue">{chapterIssues.issues[idx]?.text ?? ''}</span
-									>{#if j < group.issueIndexes.length - 1}<span class="sep">, </span>{/if}
+							<ul class="group-issues">
+								{#each group.issueIndexes as idx (idx)}
+									<li class="group-issue">{chapterIssues.issues[idx]?.text ?? ''}</li>
 								{/each}
-							</span>
+							</ul>
 						</li>
 					{/each}
 				</ul>
@@ -213,21 +212,26 @@
 	}
 	.group {
 		display: flex;
-		gap: 12px;
+		flex-direction: column;
+		gap: 4px;
 		font-size: 0.8rem;
 		line-height: 1.6;
 	}
 	.group-label {
-		flex-shrink: 0;
 		font-weight: 700;
 		color: #1565c0;
-		min-width: 5rem;
 	}
 	.group-issues {
+		margin: 0;
+		padding-left: 16px;
+		list-style: disc;
 		color: #333;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
 	}
-	.sep {
-		color: #999;
+	.group-issue {
+		line-height: 1.5;
 	}
 	.scored-issues {
 		list-style: none;
