@@ -11,7 +11,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '$lib/firebase';
 import { nanoid } from 'nanoid';
-import type { TopicForFirestore } from '$lib/models/topic/topic.types';
+import { topicFromFirestore, type TopicForFirestore } from '$lib/models/topic/topic.types';
 import { createTopicStates, type Topic } from '$lib/models/topic/createTopic.svelte';
 
 const create = () => {
@@ -24,7 +24,7 @@ const create = () => {
 		const q = query(collection(db, 'topics'), orderBy('createdAt', 'desc'));
 		unsubscribe = onSnapshot(q, (snap) => {
 			topics = snap.docs.map((d) =>
-				createTopicStates({ ...d.data(), id: d.id } as TopicForFirestore)
+				createTopicStates(topicFromFirestore({ ...d.data(), id: d.id } as TopicForFirestore))
 			);
 			isLoaded = true;
 		});

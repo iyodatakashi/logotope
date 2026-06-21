@@ -10,31 +10,22 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
-import type {
-	TopicForFirestore,
-	FetchedSourceContentForFirestore,
-	FetchedSourceContent
-} from './topic.types';
+import type { TopicInput } from './topic.types';
 import type { PersonaData } from '../persona/persona.types';
 import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
 
-export const createTopicStates = (topicDoc: TopicForFirestore) => {
+export const createTopicStates = (topicDoc: TopicInput) => {
 	const id: string = $state(topicDoc.id);
 	const title: string = $state(topicDoc.title);
 	const phase: Phase = $state(topicDoc.phase);
 	const phaseStatus: PhaseStatus = $state(topicDoc.phaseStatus);
 	const description: string | undefined = $state(topicDoc.description);
 	const sourceUrls: string[] | undefined = $state(topicDoc.sourceUrls);
-	const fetchedSourceContents: FetchedSourceContent[] | undefined = $state(
-		topicDoc.fetchedSourceContents?.map((s: FetchedSourceContentForFirestore) => ({
-			...s,
-			fetchedAt: s.fetchedAt.toDate()
-		}))
-	);
+	const fetchedSourceContents = $state(topicDoc.fetchedSourceContents);
 	const personaCount: number = $state(topicDoc.personaCount ?? 0);
-	const createdAt: Date = topicDoc.createdAt.toDate();
-	const updatedAt: Date = topicDoc.updatedAt.toDate();
-	const publishedAt: Date | undefined = topicDoc.publishedAt?.toDate();
+	const createdAt: Date = topicDoc.createdAt;
+	const updatedAt: Date = topicDoc.updatedAt;
+	const publishedAt: Date | undefined = topicDoc.publishedAt;
 
 	const approveStakeholders = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', id), {

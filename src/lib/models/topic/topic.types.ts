@@ -7,7 +7,9 @@ export type FetchedSourceContentForFirestore = {
 	fetchedAt: Timestamp;
 };
 
-export type FetchedSourceContent = Omit<FetchedSourceContentForFirestore, 'fetchedAt'> & {
+export type FetchedSourceContent = {
+	url: string;
+	content: string;
 	fetchedAt: Date;
 };
 
@@ -33,6 +35,30 @@ export type TopicForFirestore = TopicBaseForFirestore & {
 	updatedAt: Timestamp;
 	publishedAt?: Timestamp;
 };
+
+// Firestoreから読み込んだ後のアプリ層型（Timestamp → Date 変換済み）
+export type TopicInput = Omit<
+	TopicBaseForFirestore,
+	'fetchedSourceContents' | 'sourceContentsFetchedAt'
+> & {
+	fetchedSourceContents?: FetchedSourceContent[];
+	sourceContentsFetchedAt?: Date;
+	createdAt: Date;
+	updatedAt: Date;
+	publishedAt?: Date;
+};
+
+export const topicFromFirestore = (doc: TopicForFirestore): TopicInput => ({
+	...doc,
+	fetchedSourceContents: doc.fetchedSourceContents?.map((s) => ({
+		...s,
+		fetchedAt: s.fetchedAt.toDate()
+	})),
+	sourceContentsFetchedAt: doc.sourceContentsFetchedAt?.toDate(),
+	createdAt: doc.createdAt.toDate(),
+	updatedAt: doc.updatedAt.toDate(),
+	publishedAt: doc.publishedAt?.toDate()
+});
 
 export type EngagementLevel = 'high' | 'medium' | 'low';
 
