@@ -5,7 +5,7 @@ import { planChapters } from '../pipeline/chapters/chapter-generator.js';
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
 
 export const generateChapters = onCall(
-	{ timeoutSeconds: 120, secrets: SECRETS },
+	{ timeoutSeconds: 540, secrets: SECRETS },
 	async (request) => {
 		requireAuth(request);
 		const { topicId } = request.data as { topicId: string };

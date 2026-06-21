@@ -190,7 +190,7 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 			const generateChaptersCallable = httpsCallable<{ topicId: string }, unknown>(
 				functions,
 				'generateChapters',
-				{ timeout: 300000 }
+				{ timeout: 540000 }
 			);
 			await generateChaptersCallable({ topicId: id });
 
