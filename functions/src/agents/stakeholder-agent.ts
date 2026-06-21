@@ -1,7 +1,6 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { getPipelineModel } from '../llm/models.js';
-import { MAX_TOKENS } from '../constants/ai.constants.js';
 import type { Stakeholder } from '../types/stakeholder.types.js';
 
 const stakeholdersSchema = z.object({
@@ -23,11 +22,7 @@ export const generateStakeholders = async (
 ): Promise<{ stakeholders: Stakeholder[] }> => {
 	const result = await generateObject({
 		model: getPipelineModel('stakeholderAnalyzer'),
-		maxTokens: MAX_TOKENS.STAKEHOLDER,
 		schema: stakeholdersSchema,
-		providerOptions: {
-			google: { thinkingConfig: { thinkingBudget: 0 } }
-		},
 		messages: [
 			{
 				role: 'user',

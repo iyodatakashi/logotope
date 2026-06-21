@@ -2,7 +2,6 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { getPipelineModel } from '../llm/models.js';
-import { MAX_TOKENS } from '../constants/ai.constants.js';
 import type { Stakeholder } from '../types/stakeholder.types.js';
 import type { Persona } from '../types/persona.types.js';
 
@@ -39,7 +38,6 @@ export const generatePersonas = async (
 
 	const result = await generateObject({
 		model: getPipelineModel('personaGenerator'),
-		maxTokens: MAX_TOKENS.PERSONA,
 		schema: personasSchema(stakeholders.length),
 		messages: [
 			{

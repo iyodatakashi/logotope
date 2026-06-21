@@ -1,7 +1,7 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic';
-import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
+import { AI_MODELS } from '../constants/ai.constants.js';
 import { formatTurns, formatPersonas, currentDateString } from '../utils/prompt-formatters.js';
 import type { DebateTurn } from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
@@ -48,7 +48,6 @@ const runInterventionCheck = async (
 
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
-			maxTokens: MAX_TOKENS.FACILITATOR_INTERVENTION,
 			system: buildNeutralitySystemPrompt(),
 			schema: interventionSchema,
 			messages: [
@@ -84,7 +83,6 @@ export const generateOpening = async (
 
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
-			maxTokens: MAX_TOKENS.FACILITATOR_OPENING,
 			system: buildNeutralitySystemPrompt(),
 			schema: facilitatorReplyWithTargetSchema,
 			messages: [
@@ -163,7 +161,6 @@ export const generateClosing = async (
 
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
-			maxTokens: MAX_TOKENS.FACILITATOR_CLOSING,
 			system: buildNeutralitySystemPrompt(),
 			schema: contentOnlySchema,
 			messages: [
@@ -189,7 +186,6 @@ export const generateChapterSummary = async (
 	try {
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
-			maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
 			system: buildNeutralitySystemPrompt(),
 			schema: contentOnlySchema,
 			messages: [
@@ -219,7 +215,6 @@ export const generateChapterIntroduction = async (
 
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
-			maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_TRANSITION,
 			system: buildNeutralitySystemPrompt(),
 			schema: facilitatorReplyWithTargetSchema,
 			messages: [
@@ -251,7 +246,6 @@ export const evaluateDiscussionPointCoverage = async (
 
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
-			maxTokens: MAX_TOKENS.FACILITATOR_COVERAGE,
 			system: buildNeutralitySystemPrompt(),
 			schema: coverageSchema,
 			messages: [

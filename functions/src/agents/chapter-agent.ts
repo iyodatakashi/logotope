@@ -2,7 +2,7 @@ import { generateObject } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { AI_MODELS, MAX_TOKENS } from '../constants/ai.constants.js';
+import { AI_MODELS } from '../constants/ai.constants.js';
 import { formatPersonas } from '../utils/prompt-formatters.js';
 import { buildNeutralitySystemPrompt } from './facilitator-agent.js';
 import type { Chapter, Issue, IssueGroup } from '../types/chapter.types.js';
@@ -67,7 +67,6 @@ const scoreIssues = async (
 ): Promise<Issue[]> => {
 	const result = await generateObject({
 		model: anthropic(AI_MODELS.SONNET),
-		maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
 		system: buildNeutralitySystemPrompt(),
 		schema: scoringResultSchema,
 		messages: [
@@ -148,7 +147,6 @@ const groupIssues = async (
 
 	const result = await generateObject({
 		model: anthropic(AI_MODELS.SONNET),
-		maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_STRUCTURE,
 		system: buildNeutralitySystemPrompt(),
 		schema: groupingResultSchema,
 		messages: [
@@ -220,7 +218,6 @@ const buildChapters = async (
 ): Promise<Chapter[]> => {
 	const result = await generateObject({
 		model: anthropic(AI_MODELS.SONNET),
-		maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_STRUCTURE,
 		system: buildNeutralitySystemPrompt(),
 		schema: chapterResultSchema,
 		messages: [
@@ -304,7 +301,6 @@ export const generateChapters = async (
 		const [generalIssuesResult, personaIssuesResult] = await Promise.all([
 			generateObject({
 				model: anthropic(AI_MODELS.SONNET),
-				maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
 				system: buildNeutralitySystemPrompt(),
 				schema: issuesSchema,
 				messages: [
@@ -316,7 +312,6 @@ export const generateChapters = async (
 			}),
 			generateObject({
 				model: anthropic(AI_MODELS.SONNET),
-				maxTokens: MAX_TOKENS.FACILITATOR_CHAPTER_ISSUES,
 				system: buildNeutralitySystemPrompt(),
 				schema: issuesSchema,
 				messages: [
