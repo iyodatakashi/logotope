@@ -1,11 +1,23 @@
 import { onSnapshot, collection, query, orderBy, doc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
-import type { PersonaDoc, PersonaForInterview } from '$lib/models/persona/persona.types';
+import type { PersonaForFirestore, Persona, PersonaForInterview } from '$lib/models/persona/persona.types';
 import type { TopicContext } from '$lib/models/topic/topic.types';
 
+const toPersona = (id: string, raw: PersonaForFirestore): Persona => ({
+	...raw,
+	id,
+	beliefs: raw.beliefs.map((b) => ({ ...b, createdAt: b.createdAt.toDate() })),
+	interview: raw.interview
+		? {
+				...raw.interview,
+				completedAt: raw.interview.completedAt?.toDate()
+			}
+		: undefined
+});
+
 export const createPersonasStore = (topicId: string) => {
-	let personas = $state<PersonaDoc[]>([]);
+	let personas = $state<Persona[]>([]);
 	let isLoaded = $state(false);
 	let unsubscribe: (() => void) | null = null;
 
@@ -15,7 +27,7 @@ export const createPersonasStore = (topicId: string) => {
 			orderBy('sortOrder', 'asc')
 		);
 		unsubscribe = onSnapshot(q, (snap) => {
-			personas = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as PersonaDoc);
+			personas = snap.docs.map((d) => toPersona(d.id, d.data() as PersonaForFirestore));
 			isLoaded = true;
 		});
 	};

@@ -1,15 +1,15 @@
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '$lib/firebase';
-import type { PostDebateCommentDoc, PostDebateCommentsDoc } from '$lib/models/postDebateComment/postDebateComment.types';
+import type { PostDebateCommentForFirestore, PostDebateCommentsForFirestore } from '$lib/models/postDebateComment/postDebateComment.types';
 
 export const createPostDebateCommentsStore = (topicId: string) => {
-	let comments = $state<PostDebateCommentDoc[]>([]);
+	let comments = $state<PostDebateCommentForFirestore[]>([]);
 	let isLoaded = $state(false);
 	let unsubscribe: (() => void) | null = null;
 
 	const start = () => {
 		unsubscribe = onSnapshot(doc(db, 'topics', topicId, 'postDebateComments', '0'), (snap) => {
-			const data = snap.exists() ? (snap.data() as PostDebateCommentsDoc) : null;
+			const data = snap.exists() ? (snap.data() as PostDebateCommentsForFirestore) : null;
 			comments = data?.comments ?? [];
 			isLoaded = true;
 		});

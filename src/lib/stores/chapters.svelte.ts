@@ -1,7 +1,7 @@
 import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '$lib/firebase';
-import type { Turn, TurnDoc } from '$lib/models/turn/turn.types';
-import type { ChapterDoc, Chapter } from '$lib/models/chapter/chapter.types';
+import type { Turn, TurnForFirestore } from '$lib/models/turn/turn.types';
+import type { ChapterForFirestore, Chapter } from '$lib/models/chapter/chapter.types';
 
 export type { Chapter };
 
@@ -17,10 +17,8 @@ export const createChaptersStore = (topicId: string) => {
 		const q = query(collection(db, 'topics', topicId, 'chapters'), orderBy('chapterIndex'));
 		unsubscribe = onSnapshot(q, (snap) => {
 			chapters = snap.docs.map((d) => {
-				type RawTurn = Omit<TurnDoc, 'createdAt'> & { createdAt: { toDate: () => Date } };
-				type RawChapter = Omit<ChapterDoc, 'turns'> & { turns: RawTurn[] };
-				const raw = d.data() as RawChapter;
-				const turns: Turn[] = raw.turns.map((t) => ({ ...t, createdAt: t.createdAt.toDate() }));
+				const raw = d.data() as ChapterForFirestore;
+				const turns: Turn[] = raw.turns.map((t: TurnForFirestore) => ({ ...t, createdAt: t.createdAt.toDate() }));
 				return { id: d.id, ...raw, turns };
 			});
 			currentChapterId = chapters.find((c) => c.status === 'running')?.id ?? null;
