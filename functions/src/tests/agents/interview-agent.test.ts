@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('ai', () => ({
 	generateText: vi.fn(),
 	jsonSchema: (schema: unknown) => schema,
-	stepCountIs: vi.fn((n: number) => n)
+	stepCountIs: vi.fn((n: number) => n),
+	Output: { object: vi.fn(() => ({})) }
 }));
 
 vi.mock('@tavily/core', () => ({
@@ -12,10 +13,6 @@ vi.mock('@tavily/core', () => ({
 
 vi.mock('../../llm/models.js', () => ({
 	getPipelineModel: vi.fn(() => 'mock-model')
-}));
-
-vi.mock('../../constants/ai.constants.js', () => ({
-	MAX_TOKENS: { INTERVIEW: 4096 }
 }));
 
 import type { Persona } from '../../types/persona.types.js';
@@ -39,9 +36,7 @@ const mockPersona: Persona = {
 	interviewRecord: ''
 };
 
-const makeGenerateTextResult = (input: unknown) => ({
-	toolCalls: [{ toolName: 'submit_research', input }]
-});
+const makeGenerateTextResult = (output: unknown) => ({ output });
 
 describe('interview-agent.runInterview', () => {
 	let generateText: ReturnType<typeof vi.fn>;

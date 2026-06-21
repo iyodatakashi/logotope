@@ -1,4 +1,5 @@
-import { generateText, jsonSchema, stepCountIs } from 'ai';
+import { generateText, jsonSchema, Output, stepCountIs } from 'ai';
+import { z } from 'zod';
 import { tavily } from '@tavily/core';
 import { getPipelineModel } from '../llm/models.js';
 import type { Persona } from '../types/persona.types.js';
@@ -11,6 +12,12 @@ export type InterviewOutput = {
 	interviewRecord: string;
 	initialBelief: string;
 };
+
+const interviewOutputSchema = z.object({
+	researchSummary: z.string(),
+	interviewRecord: z.string(),
+	initialBelief: z.string()
+});
 
 const buildTools = () => {
 	const tavilyClient = tavily();
@@ -44,31 +51,6 @@ const buildTools = () => {
 					return `検索失敗: ${e}`;
 				}
 			}
-		},
-		submit_research: {
-			description:
-				'ウェブリサーチと仮想インタビューが完了したら呼び出す。リサーチサマリー・取材記録・初期信念ドキュメントを提出する。',
-			inputSchema: jsonSchema({
-				type: 'object' as const,
-				additionalProperties: false as const,
-				properties: {
-					researchSummary: {
-						type: 'string' as const,
-						description: '実施した検索クエリと収集した主な情報のサマリー（500字程度）'
-					},
-					interviewRecord: {
-						type: 'string' as const,
-						description:
-							'ペルソナへの仮想取材の質疑応答記録（1000字以上推奨）。生活・仕事への具体的な影響、不安・期待、価値観を深掘りした内容にすること'
-					},
-					initialBelief: {
-						type: 'string' as const,
-						description:
-							'初期信念ドキュメント（Markdown形式。以下の6項目を含むこと: 立場と根拠, 核心的主張, 懸念事項, 価値観, 妥協点, 変化の可能性）'
-					}
-				},
-				required: ['researchSummary', 'interviewRecord', 'initialBelief']
-			})
 		}
 	} as const;
 };
@@ -98,6 +80,7 @@ export const runInterview = async (
 		model: getPipelineModel('personaInterview'),
 		stopWhen: stepCountIs(10),
 		tools: buildTools(),
+		output: Output.object({ schema: interviewOutputSchema }),
 		messages: [
 			{
 				role: 'user',
@@ -111,8 +94,11 @@ export const runInterview = async (
 リサーチで得た情報を踏まえ、このペルソナに記者がインタビューする形式で取材記録を作成してください。
 生活・仕事への具体的な影響、不安・期待、価値観を深掘りし、1000字以上の質疑応答記録にまとめてください。
 
-【ステップ3: 提出】
-十分な情報が集まったら submit_research を呼び出してください。
+【ステップ3: 出力】
+リサーチと取材が完了したら、以下の3項目を出力してください。
+- researchSummary: 実施した検索クエリと収集した主な情報のサマリー（500字程度）
+- interviewRecord: 仮想取材の質疑応答記録（1000字以上）
+- initialBelief: 初期信念ドキュメント（Markdown形式。立場と根拠・核心的主張・懸念事項・価値観・妥協点・変化の可能性の6項目を含む）
 
 【ペルソナ情報】
 氏名: ${persona.name}
@@ -125,8 +111,5 @@ export const runInterview = async (
 		]
 	});
 
-	const submitCall = result.toolCalls.find((c) => c.toolName === 'submit_research');
-	if (!submitCall) throw new Error('submit_research was not called');
-
-	return submitCall.input as InterviewOutput;
+	return result.output;
 };
