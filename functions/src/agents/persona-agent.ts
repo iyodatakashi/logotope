@@ -120,7 +120,7 @@ ${styleGuide}
 - 発言は、自分の考え・意見を述べる／知っている事実・データを紹介する／直前の発言に短く反応する、のいずれかの形で行う。会話の流れに応じて自然に使い分けること。演説禁止。
 - **直前の発言に反応するときは、冒頭で相手の名前を呼ばない**（「○○さんのおっしゃる通り」「○○さんが言ったように」は不要）。ただし、直前ではなく少し前の発言や別の人の話を取り上げるときは、「さっき○○さんが言っていた〜だけど」のように、誰のどの話への反応かを冒頭で示すこと。
 - 自分の信念・立場に基づいて反論・疑問を呈することを恐れない。相手の意見に同意しない場合は、はっきりそう言う。同意一辺倒は不自然。
-- **「そうですね」「わかります」「まさにそれで」から始まり、前の発言を繰り返したり延長するだけの迎合的な発言は避ける**。共感したとしても、自分の立場・経験から別の軸・疑問・ズレを持ち込むこと。前の話者が言い残したことを補完するのではなく、自分が言いたいことを言う。
+- **前の発言への同意・共感を起点にしない**。自分が言いたいこと・感じること・引っかかることから発言を始めること。その後で前の発言との関係に触れるのはよい。前の話者の意見に同意であっても、自分の立場・経験から別の角度・疑問・ズレを必ず持ち込む。
 - **信念ドキュメントは内面の一貫性を保つための参照資料であり、発言で直接述べるものではない**。立場・価値観は、相手の発言の具体的な内容への反応として自然に滲み出すこと。「私の立場は〜」「私は〜と考えており」のような宣言的な表明は避ける。
 - **相手が知らない前提で情報を扱う**。専門的な事例・固有名詞を出す際は「〜って知ってますか？」「〜という話があって」など、相手の理解を確認しながら導入すること。いきなり知っていて当然のように使わない。
 - **会話は共通理解を積み上げるもの**。最初から高い専門知識ベースを前提にせず、相手の反応を見ながら話を展開すること。
@@ -257,7 +257,6 @@ export const generateTurn = async (
 			isQuestion && engagement.intentSummary
 				? `${persona.name}として、特定の参加者に直接質問してください（${lengthGuide}）。\n【今回の質問意図】${engagement.intentSummary}${personaList}\n必ず targetPersonaId に質問相手のIDを指定すること。信念変化があれば beliefChangeType を指定。`
 				: '';
-		const antiSycophancyNote = `\n前の発言に共感できても、それを言い換えて延長するだけにしないこと。自分の経験・立場から別の角度・疑問・ズレを持ち込むこと。`;
 		const targetBiasNote =
 			targetedBy === 'persona' && lastSpeakerName
 				? `\n\n【targetPersonaId について】今回は${lastSpeakerName}にターゲットされての発言です。他の参加者の中でこの話題に反応してほしい人・聞いてみたい人がいれば、積極的にtargetPersonaIdを指定してください。特定の相手が思い浮かばない場合のみ全体への発言（targetPersonaId なし）にしてください。${lastSpeakerName}への再targetは、どうしても直接確認・反論が必要な場合のみです。`
@@ -267,9 +266,7 @@ export const generateTurn = async (
 				? questionInstruction
 				: isFact
 					? factInstruction
-					: opinionInstruction) +
-			antiSycophancyNote +
-			targetBiasNote;
+					: opinionInstruction) + targetBiasNote;
 		const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterContext}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}`;
 		const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 			generateText({
@@ -371,7 +368,7 @@ export const evaluateEngagement = async (
 			messages: [
 				{
 					role: 'user',
-					content: `現在の会話:\n\n${formatTurns(recentTurns, personas)}${ownTurnsSection}${otherPersonasNote}\n\n${persona.name}として、発言意欲（score）と発言形式（mode）を評価してください。\n\nまず上の会話を読んで、他の参加者の発言の中に「もっと聞きたい」「それは本当に？」「自分の経験では違う」「なぜそう思うのか確認したい」と感じるものがないか振り返ってください。そういう相手がいれば mode は question です（intentSummary に「誰の・どの発言について・何を聞きたいか」を書く）。\n\n次に、紹介すべき事実・データがあれば fact。それ以外は opinion。付け加えることがなければ score 1（none）。\n\nscore は mode ごとのスコアラベルに従って選んでください。発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まります。すでに同じ主張を述べており新たに付け加えることがなければ score 1 を選んでください。\n\n重要：前の発言に「そうですね」と同意するだけで終わる発言しか浮かばないなら score を下げてください（同意を表明したいだけ → score 2 以下）。高い score は「自分にしかない別の角度・疑問・経験を加えたい」ときに使います。`
+					content: `現在の会話:\n\n${formatTurns(recentTurns, personas)}${ownTurnsSection}${otherPersonasNote}\n\n${persona.name}として、発言意欲（score）と発言形式（mode）を評価してください。\n\nまず上の会話を読んで、他の参加者の発言の中に「もっと聞きたい」「それは本当に？」「自分の経験では違う」「なぜそう思うのか確認したい」と感じるものがないか振り返ってください。そういう相手がいれば mode は question です（intentSummary に「誰の・どの発言について・何を聞きたいか」を書く）。\n\n次に、紹介すべき事実・データがあれば fact。それ以外は opinion。付け加えることがなければ score 1（none）。\n\nscore は mode ごとの基準で選んでください。\n\n【opinion / fact のスコア基準】\n- 1: 付け加えることがない\n- 2: 同意・補足程度（自分の角度はほぼない）\n- 3: 話したいことはあるが急かすほどでない\n- 4: 自分の立場・経験から別の角度を出せる\n- 5: 今すぐ言わないと議論が進まない\n\n【question のスコア基準】\n- 1: 特に聞きたいことはない\n- 2: なんとなく気になる程度\n- 3: 聞いてみたいが急かすほどでない\n- 4: 相手の発言や立場に引っかかりがあり、素直に聞いてみたい\n- 5: 今この人に確認しないと議論が進まない\n\n発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まります。すでに同じ主張を述べており新たに付け加えることがなければ score 1 を選んでください。\n\n重要：前の発言に「そうですね」と同意するだけで終わる発言しか浮かばないなら score を下げてください（同意を表明したいだけ → score 2 以下）。高い score は「自分にしかない別の角度・疑問・経験を加えたい」ときに使います。`
 				}
 			]
 		});
