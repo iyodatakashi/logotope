@@ -22,7 +22,7 @@ export const getTopicById = async (id: string): Promise<Topic | null> => {
 		...(data.fetchedSourceContents !== undefined && {
 			fetchedSourceContents: data.fetchedSourceContents
 		}),
-		createdAt: data.createdAt?.toDate().toISOString() ?? '',
-		updatedAt: data.updatedAt?.toDate().toISOString() ?? ''
+		createdAt: data.createdAt,
+		updatedAt: data.updatedAt
 	};
 };

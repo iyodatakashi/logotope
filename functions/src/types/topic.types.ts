@@ -1,7 +1,9 @@
+import type { Timestamp } from 'firebase-admin/firestore';
+
 export type FetchedSourceContent = {
 	url: string;
 	content: string;
-	fetchedAt: string;
+	fetchedAt: Timestamp;
 };
 
 export type TopicContext = {
@@ -15,6 +17,6 @@ export type Topic = {
 	description?: string;
 	sourceUrls?: string[];
 	fetchedSourceContents?: FetchedSourceContent[];
-	createdAt: string;
-	updatedAt: string;
+	createdAt: Timestamp;
+	updatedAt: Timestamp;
 };

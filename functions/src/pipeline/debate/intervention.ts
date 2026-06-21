@@ -1,3 +1,4 @@
+import { Timestamp } from 'firebase-admin/firestore';
 import { evaluateTopicDrift, evaluateStallIntervention } from '../../agents/facilitator-agent.js';
 import { hasHighEngagement } from './speaker-selection.js';
 import { addQueuedIntents } from './queued-intents.js';
@@ -53,7 +54,7 @@ export const persistInterventionTurn = async ({
 		id: turnId,
 		speakerType: 'facilitator',
 		content,
-		createdAt: new Date().toISOString(),
+		createdAt: Timestamp.now(),
 		targetPersonaId,
 		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});

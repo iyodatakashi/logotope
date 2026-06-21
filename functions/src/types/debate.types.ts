@@ -1,3 +1,4 @@
+import type { Timestamp } from 'firebase-admin/firestore';
 import type { Chapter } from './chapter.types.js';
 
 export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
@@ -94,7 +95,7 @@ export type DebateTurn = {
 	speakerType: string;
 	personaId?: string | null;
 	content: string;
-	createdAt: string;
+	createdAt: Timestamp;
 	speechMode?: 'opinion' | 'fact' | 'question';
 	engagementScore?: number;
 	fromQueue?: boolean;

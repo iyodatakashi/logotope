@@ -20,11 +20,13 @@ export type Persona = {
 	interviewRecord?: string;
 };
 
+import type { Timestamp } from 'firebase-admin/firestore';
+
 export type Belief = {
 	id: string;
 	version: number;
 	content: string;
-	createdAt: string;
+	createdAt: Timestamp;
 	changeType?: string | null;
 	changeSummary?: string | null;
 	triggeredByTurnId?: string | null;

@@ -118,7 +118,7 @@ export const applyBeliefChange = async ({
 			changeType: beliefChange.type,
 			changeSummary: beliefChange.summary,
 			triggeredByTurnId: turnId,
-			createdAt: new Date().toISOString()
+			createdAt: Timestamp.now()
 		}
 	];
 };
@@ -149,7 +149,7 @@ export const generateFacilitatorTurn = async ({
 		id: turnId,
 		speakerType: 'facilitator',
 		content,
-		createdAt: new Date().toISOString(),
+		createdAt: Timestamp.now(),
 		targetPersonaId,
 		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});
@@ -259,7 +259,7 @@ export const generatePersonaTurn = async ({
 		speakerType: 'persona',
 		personaId: persona.id,
 		content: turnResult.value.content,
-		createdAt: new Date().toISOString(),
+		createdAt: Timestamp.now(),
 		fromQueue: fromQueue || undefined,
 		targetPersonaId,
 		targetedBy: targetPersonaId ? 'persona' : undefined
@@ -368,7 +368,7 @@ export const getDebateTurnsByTopicId = async (topicId: string): Promise<DebateTu
 			speakerType: t.speakerType,
 			personaId: t.personaId ?? null,
 			content: t.content,
-			createdAt: t.createdAt?.toDate?.().toISOString() ?? '',
+			createdAt: t.createdAt,
 			fromQueue: t.fromQueue,
 			targetPersonaId: t.targetPersonaId
 		}));

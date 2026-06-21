@@ -43,7 +43,7 @@ export const getChaptersByTopicId = async (topicId: string): Promise<ChapterEntr
 				speakerType: t.speakerType,
 				personaId: t.personaId ?? null,
 				content: t.content,
-				createdAt: t.createdAt?.toDate?.().toISOString() ?? '',
+				createdAt: t.createdAt,
 				fromQueue: t.fromQueue,
 				targetPersonaId: t.targetPersonaId
 			})),
