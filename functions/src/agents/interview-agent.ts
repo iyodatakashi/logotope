@@ -7,10 +7,14 @@ import type { TopicContext } from '../types/topic.types.js';
 
 const MAX_SOURCE_CHARS = 3_000;
 
+export type SearchResult = { title: string; url: string };
+export type SearchSource = { query: string; results: SearchResult[] };
+
 export type InterviewOutput = {
 	researchSummary: string;
 	interviewRecord: string;
 	initialBelief: string;
+	sources: SearchSource[];
 };
 
 const interviewOutputSchema = z.object({
@@ -19,7 +23,7 @@ const interviewOutputSchema = z.object({
 	initialBelief: z.string()
 });
 
-const buildTools = () => {
+const buildTools = (searchLog: SearchSource[]) => {
 	const tavilyClient = tavily();
 
 	return {
@@ -46,7 +50,11 @@ const buildTools = () => {
 						...(mode === 'news' ? { topic: 'news' } : {})
 					});
 					if (res.results.length === 0) return '検索結果なし';
-					return res.results.map((r) => `[${r.title}]\n${r.content}`).join('\n\n');
+					searchLog.push({
+						query,
+						results: res.results.map((r) => ({ title: r.title, url: r.url }))
+					});
+					return res.results.map((r) => `[${r.title}](${r.url})\n${r.content}`).join('\n\n');
 				} catch (e) {
 					return `検索失敗: ${e}`;
 				}
@@ -76,10 +84,11 @@ export const runInterview = async (
 	topicContext?: TopicContext
 ): Promise<InterviewOutput> => {
 	const contextSection = buildTopicContextSection(topicContext);
+	const searchLog: SearchSource[] = [];
 	const result = await generateText({
 		model: getPipelineModel('personaInterview'),
 		stopWhen: stepCountIs(10),
-		tools: buildTools(),
+		tools: buildTools(searchLog),
 		output: Output.object({ schema: interviewOutputSchema }),
 		messages: [
 			{
@@ -111,5 +120,5 @@ export const runInterview = async (
 		]
 	});
 
-	return result.output;
+	return { ...result.output, sources: searchLog };
 };

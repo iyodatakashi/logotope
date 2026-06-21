@@ -30,6 +30,7 @@
 			role: p.specificRole ?? p.stakeholderRole,
 			researchSummary: p.interview?.researchSummary ?? '',
 			interviewRecord: p.interview?.interviewRecord ?? '',
+			sources: p.interview?.sources ?? [],
 			initialBelief: p.beliefs[0]?.content ?? '',
 			status: p.interview?.status ?? 'pending'
 		}))
@@ -158,6 +159,25 @@
 									<div class="section">
 										<p class="section-label">リサーチ内容</p>
 										<pre class="record research">{iv.researchSummary}</pre>
+										{#if iv.sources.length > 0}
+											<div class="sources">
+												<p class="sources-label">参照ページ（Tavily取得）</p>
+												{#each iv.sources as source (source.query)}
+													<div class="source-query">
+														<p class="source-query-text">「{source.query}」</p>
+														<ul>
+															{#each source.results as result (result.url)}
+																<li>
+																	<a href={result.url} target="_blank" rel="noopener noreferrer"
+																		>{result.title}</a
+																	>
+																</li>
+															{/each}
+														</ul>
+													</div>
+												{/each}
+											</div>
+										{/if}
 									</div>
 								{/if}
 								{#if iv.interviewRecord}
@@ -307,5 +327,42 @@
 	}
 	.belief {
 		color: #1a237e;
+	}
+	.sources {
+		margin-top: 10px;
+		padding-top: 10px;
+		border-top: 1px dashed #e0e0e0;
+	}
+	.sources-label {
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: #9e9e9e;
+		margin: 0 0 6px;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+	}
+	.source-query {
+		margin-bottom: 8px;
+	}
+	.source-query-text {
+		font-size: 0.8rem;
+		color: #555;
+		margin: 0 0 4px;
+		font-weight: 500;
+	}
+	.source-query ul {
+		margin: 0;
+		padding-left: 16px;
+	}
+	.source-query li {
+		font-size: 0.8rem;
+		margin-bottom: 2px;
+	}
+	.source-query a {
+		color: #1565c0;
+		text-decoration: none;
+	}
+	.source-query a:hover {
+		text-decoration: underline;
 	}
 </style>

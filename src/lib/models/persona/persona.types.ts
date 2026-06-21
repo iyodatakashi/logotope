@@ -14,9 +14,13 @@ export type BeliefForFirestore = {
 
 export type Belief = Omit<BeliefForFirestore, 'createdAt'> & { createdAt: Date };
 
+export type SearchResult = { title: string; url: string };
+export type SearchSource = { query: string; results: SearchResult[] };
+
 export type InterviewForFirestore = {
 	researchSummary?: string;
 	interviewRecord?: string;
+	sources?: SearchSource[];
 	status: 'queued' | 'in_progress' | 'completed' | 'error';
 	errorMessage?: string;
 	completedAt?: Timestamp;
