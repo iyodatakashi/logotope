@@ -434,6 +434,7 @@ export const generatePostDebateComment = async (
 			maxTokens: MAX_TOKENS.PERSONA_POST_DEBATE,
 			system: buildPersonaSystemPrompt(persona, '', finalBelief),
 			schema: postDebateCommentSchema,
+			providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
 			messages: [
 				{
 					role: 'user',

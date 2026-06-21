@@ -100,6 +100,7 @@ export const runInterview = async (
 		maxTokens: MAX_TOKENS.INTERVIEW,
 		maxSteps: 10,
 		tools: buildTools(),
+		providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
 		messages: [
 			{
 				role: 'user',

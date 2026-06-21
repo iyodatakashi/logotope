@@ -25,6 +25,9 @@ export const generateStakeholders = async (
 		model: getPipelineModel('stakeholderAnalyzer'),
 		maxTokens: MAX_TOKENS.STAKEHOLDER,
 		schema: stakeholdersSchema,
+		providerOptions: {
+			google: { thinkingConfig: { thinkingBudget: 0 } }
+		},
 		messages: [
 			{
 				role: 'user',
