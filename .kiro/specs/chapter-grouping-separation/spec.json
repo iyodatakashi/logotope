@@ -1,0 +1,22 @@
+{
+	"feature_name": "chapter-grouping-separation",
+	"created_at": "2026-06-21T03:54:48Z",
+	"updated_at": "2026-06-21T05:05:00Z",
+	"language": "ja",
+	"phase": "tasks-generated",
+	"approvals": {
+		"requirements": {
+			"generated": true,
+			"approved": true
+		},
+		"design": {
+			"generated": true,
+			"approved": true
+		},
+		"tasks": {
+			"generated": true,
+			"approved": true
+		}
+	},
+	"ready_for_implementation": true
+}
