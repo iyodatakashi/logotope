@@ -16,6 +16,14 @@
 	);
 	const chapterIssues = $derived(currentTopicStore.chapterAnalysisStore.data);
 
+	const generalIssues = $derived(chapterIssues?.issues?.filter((i) => i.source === 'general') ?? []);
+	const personaIssues = $derived(chapterIssues?.issues?.filter((i) => i.source === 'persona') ?? []);
+	const scoredIssues = $derived(
+		chapterIssues?.issues
+			?.filter((i) => i.score !== undefined)
+			.toSorted((a, b) => (b.score ?? 0) - (a.score ?? 0)) ?? []
+	);
+
 	const generate = () => currentTopicStore.topic?.generateChapters();
 
 	// 再生成: 章立てと下流（討論）を破棄してから作り直す
@@ -52,45 +60,79 @@
 	onRegenerate={regenerate}
 >
 	{#snippet content()}
-		{#if chapters?.length}
-			<ol class="chapters">
-				{#each chapters as chapter}
-					<li>
-						<strong>{chapter.title}</strong>
-						<span class="focus">{chapter.focusQuestion}</span>
-						{#if chapter.discussionPoints?.length}
-							<ul class="points">
-								{#each chapter.discussionPoints as point}
-									<li>{point}</li>
-								{/each}
-							</ul>
-						{/if}
-					</li>
-				{/each}
-			</ol>
-			{#if chapterIssues}
-				<section class="issues">
-					<h3>Step 1 で生成した切り口</h3>
-					<div class="issues-grid">
-						<div class="issues-col">
-							<h4>一般的な切り口（ペルソナなし）</h4>
-							<ol>
-								{#each chapterIssues.general as issue}
-									<li>{issue}</li>
-								{/each}
-							</ol>
-						</div>
-						<div class="issues-col">
-							<h4>ペルソナ固有の切り口</h4>
-							<ol>
-								{#each chapterIssues.persona as issue}
-									<li>{issue}</li>
-								{/each}
-							</ol>
-						</div>
+		{#if chapterIssues?.issues?.length}
+			<section class="issues">
+				<h3>Step 1: 生成した切り口</h3>
+				<div class="issues-grid">
+					<div class="issues-col">
+						<h4>一般的な切り口（ペルソナなし）</h4>
+						<ol>
+							{#each generalIssues as issue}
+								<li>{issue.text}</li>
+							{/each}
+						</ol>
 					</div>
-				</section>
-			{/if}
+					<div class="issues-col">
+						<h4>ペルソナ固有の切り口</h4>
+						<ol>
+							{#each personaIssues as issue}
+								<li>{issue.text}</li>
+							{/each}
+						</ol>
+					</div>
+				</div>
+			</section>
+		{/if}
+		{#if scoredIssues.length}
+			<section class="issues">
+				<h3>Step 2: 論点スコアリング結果</h3>
+				<ul class="scored-issues">
+					{#each scoredIssues as issue}
+						<li class:selected={issue.selected} class:rejected={!issue.selected}>
+							<span class="score">{issue.score}</span>
+							<span class="issue-source">{issue.source === 'general' ? '一般' : 'ペルソナ'}</span>
+							<span class="issue-text">{issue.text}</span>
+							<span class="reason">{issue.reason}</span>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+		{#if chapterIssues?.issueGroups?.length}
+			<section class="issues">
+				<h3>Step 3: グループ化結果</h3>
+				<ul class="grouping">
+					{#each chapterIssues.issueGroups as group, i}
+						<li class="group">
+							<span class="group-label">グループ {i + 1}</span>
+							<span class="group-issues">
+								{#each group.issueIndexes as idx, j}
+									<span class="group-issue">{chapterIssues.issues[idx]?.text ?? ''}</span>{#if j < group.issueIndexes.length - 1}<span class="sep">, </span>{/if}
+								{/each}
+							</span>
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+		{#if chapters}
+			<section class="issues">
+				<h3>Step 4: 論点精査結果</h3>
+				<ol class="chapters">
+					{#each chapters as chapter}
+						<li>
+							<strong>{chapter.title}</strong>
+							{#if chapter.discussionPoints?.length}
+								<ul class="points">
+									{#each chapter.discussionPoints as point}
+										<li>{point}</li>
+									{/each}
+								</ul>
+							{/if}
+						</li>
+					{/each}
+				</ol>
+			</section>
 		{/if}
 	{/snippet}
 </PhasePanel>
@@ -105,12 +147,6 @@
 	}
 	.chapters li {
 		line-height: 1.5;
-	}
-	.focus {
-		display: block;
-		color: #757575;
-		font-size: 0.875rem;
-		margin-top: 2px;
 	}
 	.points {
 		margin: 6px 0 0;
@@ -159,5 +195,79 @@
 		font-size: 0.8rem;
 		color: #444;
 		line-height: 1.5;
+	}
+	.grouping {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.group {
+		display: flex;
+		gap: 12px;
+		font-size: 0.8rem;
+		line-height: 1.6;
+	}
+	.group-label {
+		flex-shrink: 0;
+		font-weight: 700;
+		color: #1565c0;
+		min-width: 5rem;
+	}
+	.group-issues {
+		color: #333;
+	}
+	.sep {
+		color: #999;
+	}
+	.scored-issues {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.scored-issues li {
+		display: grid;
+		grid-template-columns: 2rem 3.5rem 1fr;
+		grid-template-rows: auto auto;
+		gap: 0 8px;
+		padding: 6px 8px;
+		border-radius: 4px;
+		font-size: 0.8rem;
+		line-height: 1.5;
+	}
+	.scored-issues li.selected {
+		background: #e8f5e9;
+	}
+	.scored-issues li.rejected {
+		background: #fafafa;
+		opacity: 0.6;
+	}
+	.score {
+		grid-row: 1 / 3;
+		align-self: center;
+		font-size: 1.1rem;
+		font-weight: 700;
+		text-align: center;
+	}
+	.selected .score { color: #2e7d32; }
+	.rejected .score { color: #9e9e9e; }
+	.issue-source {
+		font-size: 0.7rem;
+		color: #757575;
+		align-self: end;
+	}
+	.issue-text {
+		font-weight: 600;
+		color: #212121;
+	}
+	.reason {
+		grid-column: 3;
+		font-size: 0.75rem;
+		color: #616161;
 	}
 </style>
