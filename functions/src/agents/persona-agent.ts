@@ -1,4 +1,4 @@
-import { generateText, generateObject, jsonSchema, stepCountIs } from 'ai';
+import { generateText, generateObject, jsonSchema, Output, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { getPersonaModel } from '../llm/models.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
@@ -7,7 +7,6 @@ import type {
 	DebateTurn,
 	PersonaReply,
 	BeliefChangeEvent,
-	BeliefChangeType,
 	PostDebateCommentResult,
 	Engagement,
 	TurnGenerationContext
@@ -166,53 +165,30 @@ const speechLengthGuide = (score?: number): string => {
 	}
 };
 
+const turnOutputSchema = z.object({
+	content: z.string(),
+	beliefChangeType: z.enum(['opinion_change', 'partial_acceptance']).optional(),
+	beliefChangeSummary: z.string().optional(),
+	beliefChangeUpdatedBelief: z.string().optional(),
+	targetPersonaId: z.string().optional()
+});
+
+type TurnOutput = z.infer<typeof turnOutputSchema>;
+
 type AnyTool = {
 	description: string;
 	inputSchema: ReturnType<typeof jsonSchema>;
 	execute?: (input: { [key: string]: unknown }) => Promise<string>;
 };
 
-const buildFullTurnTools = (styleGuide: string, lengthGuide: string): Record<string, AnyTool> => {
-	const styleSummary = styleGuide.split('\n')[0];
-	const tools: Record<string, AnyTool> = {
-		submit_turn: {
-			description: 'ペルソナとして1ターン分の発言を提出する',
-			inputSchema: jsonSchema({
-				type: 'object' as const,
-				additionalProperties: false as const,
-				properties: {
-					content: {
-						type: 'string' as const,
-						description: `発言内容を自分の言葉で話す（${lengthGuide}）。語り口: ${styleSummary}`
-					},
-					beliefChangeType: {
-						type: 'string' as const,
-						enum: ['opinion_change', 'partial_acceptance'],
-						description:
-							'信念変化タイプ: opinion_change=立場・結論が完全に変わる場合、partial_acceptance=他の意見の一部を受け入れる場合。変化なしの場合は省略する'
-					},
-					beliefChangeSummary: {
-						type: 'string' as const,
-						description: '信念変化の理由・概要（beliefChangeTypeを指定した場合のみ記入）'
-					},
-					beliefChangeUpdatedBelief: {
-						type: 'string' as const,
-						description:
-							'変化後の信念ドキュメント（Markdown形式。beliefChangeTypeを指定した場合のみ記入）'
-					},
-					targetPersonaId: {
-						type: 'string' as const,
-						description:
-							'特定の人物への質問・反論など、明確に向け先がある発言の場合にそのペルソナのIDを指定する。漠然と会話全体に向けた発言では省略する。'
-					}
-				},
-				required: ['content']
-			})
-		}
-	};
+const buildFullTurnTools = (
+	_styleGuide: string,
+	_lengthGuide: string
+): Record<string, AnyTool> | undefined => {
+	if (!isSearchAvailable()) return undefined;
 
-	if (isSearchAvailable()) {
-		tools['web_search'] = {
+	return {
+		web_search: {
 			description:
 				'数値・統計・最新情報など正確性が必要な情報を検索する。1〜2回以内で使用すること。',
 			inputSchema: jsonSchema({
@@ -224,10 +200,8 @@ const buildFullTurnTools = (styleGuide: string, lengthGuide: string): Record<str
 				const result = await executeSearch(args['query'] as string);
 				return result.ok ? result.value : '検索結果を取得できませんでした。';
 			}
-		};
-	}
-
-	return tools;
+		}
+	};
 };
 
 export const generateTurn = async (
@@ -270,7 +244,7 @@ export const generateTurn = async (
 			: '';
 
 		const lengthGuide = speechLengthGuide(engagement.score);
-		const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
+		const tools = buildFullTurnTools(styleGuide, lengthGuide);
 		const otherPersonas = context.otherPersonas ?? [];
 		const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。特定の相手への質問・反論がある場合のみ targetPersonaId を指定する。`;
 		const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。特定の相手に直接問いかける場合のみ targetPersonaId を指定する。`;
@@ -289,19 +263,15 @@ export const generateTurn = async (
 			generateText({
 				model,
 				system,
-				tools: fullTools,
-				toolChoice: 'required' as const,
-				stopWhen: stepCountIs(4),
+				output: Output.object({ schema: turnOutputSchema }),
+				...(tools && { tools, stopWhen: stepCountIs(4) }),
 				messages: [{ role: 'user', content: userContent }]
 			});
 		let fullResult;
 		try {
 			fullResult = await callFull(getPersonaModel(llmType));
-			const hasSubmitTurn = fullResult.steps
-				.flatMap((s) => s.toolCalls)
-				.some((c) => c.toolName === 'submit_turn');
-			if (!hasSubmitTurn && llmType !== 'claude') {
-				console.error(`[llm] no submit_turn: ${llmType}, falling back to claude`);
+			if (!fullResult.output?.content && llmType !== 'claude') {
+				console.error(`[llm] no output content: ${llmType}, falling back to claude`);
 				fullResult = await callFull(getPersonaModel('claude'));
 			}
 		} catch (err) {
@@ -309,17 +279,20 @@ export const generateTurn = async (
 			fullResult = await callFull(getPersonaModel('claude'));
 		}
 
-		const allToolCalls = fullResult.steps.flatMap((s) => s.toolCalls);
-		const toolCall = allToolCalls.find((c) => c.toolName === 'submit_turn');
-		if (!toolCall) {
+		if (!fullResult.output?.content) {
 			return {
 				ok: false,
-				error: { code: 'AI_API_ERROR', message: 'No tool call in response', retryable: true }
+				error: { code: 'AI_API_ERROR', message: 'No output content in response', retryable: true }
 			};
 		}
 
-		const searchCalls = allToolCalls.filter((c) => c.toolName === 'web_search');
-		const searchQueries = searchCalls.map((c) => (c.input as { query: string }).query);
+		const allToolCalls = fullResult.steps.flatMap((s: { toolCalls: unknown[] }) => s.toolCalls);
+		const searchCalls = allToolCalls.filter(
+			(c: unknown) => (c as { toolName: string }).toolName === 'web_search'
+		);
+		const searchQueries = searchCalls.map(
+			(c: unknown) => (c as { input: { query: string } }).input.query
+		);
 
 		const {
 			content,
@@ -327,13 +300,7 @@ export const generateTurn = async (
 			beliefChangeSummary,
 			beliefChangeUpdatedBelief,
 			targetPersonaId
-		} = toolCall.input as {
-			content: string;
-			beliefChangeType?: BeliefChangeType;
-			beliefChangeSummary?: string;
-			beliefChangeUpdatedBelief?: string;
-			targetPersonaId?: string;
-		};
+		} = fullResult.output as TurnOutput;
 		const beliefChange: BeliefChangeEvent | null = beliefChangeType
 			? {
 					type: beliefChangeType,

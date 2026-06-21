@@ -7,7 +7,8 @@ vi.mock('ai', () => ({
 	generateText: vi.fn(),
 	generateObject: vi.fn(),
 	jsonSchema: (schema: unknown) => schema,
-	stepCountIs: vi.fn((n: number) => n)
+	stepCountIs: vi.fn((n: number) => n),
+	Output: { object: vi.fn(() => ({})) }
 }));
 
 vi.mock('../../llm/models.js', () => ({
@@ -50,6 +51,8 @@ const mockChapter: Chapter = {
 };
 
 const mockTurns: DebateTurn[] = [];
+
+const makeGenerateTextResult = (output: unknown) => ({ output, steps: [] });
 
 describe('evaluateEngagement', () => {
 	beforeEach(async () => {
@@ -154,18 +157,7 @@ describe('generateTurn', () => {
 		const capturedArgs: unknown[] = [];
 		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
 			capturedArgs.push(args);
-			return {
-				steps: [
-					{
-						toolCalls: [
-							{
-								toolName: 'submit_turn',
-								input: { content: '佐藤さん、なぜそう思うんですか？' }
-							}
-						]
-					}
-				]
-			} as never;
+			return makeGenerateTextResult({ content: '佐藤さん、なぜそう思うんですか？' }) as never;
 		});
 
 		const { generateTurn } = await import('../../agents/persona-agent.js');
@@ -180,18 +172,12 @@ describe('generateTurn', () => {
 
 	it('question モードのとき speechMode: question を返す', async () => {
 		const aiMod = await import('ai');
-		vi.mocked(aiMod.generateText).mockResolvedValue({
-			steps: [
-				{
-					toolCalls: [
-						{
-							toolName: 'submit_turn',
-							input: { content: '佐藤さん、なぜそう思うんですか？', targetPersonaId: 'p2' }
-						}
-					]
-				}
-			]
-		} as never);
+		vi.mocked(aiMod.generateText).mockResolvedValue(
+			makeGenerateTextResult({
+				content: '佐藤さん、なぜそう思うんですか？',
+				targetPersonaId: 'p2'
+			}) as never
+		);
 
 		const { generateTurn } = await import('../../agents/persona-agent.js');
 		const result = await generateTurn(mockPersona, makeContext(), makeEngagement());
@@ -207,13 +193,7 @@ describe('generateTurn', () => {
 		const capturedArgs: unknown[] = [];
 		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
 			capturedArgs.push(args);
-			return {
-				steps: [
-					{
-						toolCalls: [{ toolName: 'submit_turn', input: { content: 'テスト発言' } }]
-					}
-				]
-			} as never;
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
 		});
 
 		const { generateTurn } = await import('../../agents/persona-agent.js');
@@ -233,18 +213,7 @@ describe('generateTurn', () => {
 		const capturedArgs: unknown[] = [];
 		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
 			capturedArgs.push(args);
-			return {
-				steps: [
-					{
-						toolCalls: [
-							{
-								toolName: 'submit_turn',
-								input: { content: 'テスト', targetPersonaId: 'p2' }
-							}
-						]
-					}
-				]
-			} as never;
+			return makeGenerateTextResult({ content: 'テスト', targetPersonaId: 'p2' }) as never;
 		});
 
 		const { generateTurn } = await import('../../agents/persona-agent.js');
@@ -260,10 +229,7 @@ describe('generateTurn', () => {
 		const formatMod = await import('../../utils/prompt-formatters.js');
 		const aiMod = await import('ai');
 		vi.mocked(aiMod.generateText).mockImplementationOnce(
-			async () =>
-				({
-					steps: [{ toolCalls: [{ toolName: 'submit_turn', input: { content: 'テスト' } }] }]
-				}) as never
+			async () => makeGenerateTextResult({ content: 'テスト' }) as never
 		);
 
 		const { generateTurn } = await import('../../agents/persona-agent.js');
