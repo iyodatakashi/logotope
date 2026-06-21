@@ -168,6 +168,20 @@ describe('persistInterventionTurn', () => {
 		expect(pushedTurn.speakerName).toBeUndefined();
 		expect(pushedTurn.speakerRole).toBeUndefined();
 	});
+
+	it('addTurn が null を返した場合は undefined を返し state.turns に追加しない', async () => {
+		mockAddTurnFn.mockResolvedValueOnce(null);
+		const state = makeState();
+		const result = await persistInterventionTurn({
+			topicId: 'topic1',
+			state,
+			content: '介入メッセージ',
+			targetPersonaId: 'p1',
+			chapterId: 'ch-0'
+		});
+		expect(result).toBeUndefined();
+		expect(state.turns).toHaveLength(0);
+	});
 });
 
 // --- tryIntervention 論点伝播テスト ---
@@ -181,8 +195,9 @@ vi.mock('../../../pipeline/debate/speaker-selection.js', () => ({
 vi.mock('../../../pipeline/debate/queued-intents.js', () => ({
 	addQueuedIntents: vi.fn().mockResolvedValue(undefined)
 }));
+const mockAddTurnFn = vi.fn().mockResolvedValue({ id: 'turn-new' });
 vi.mock('../../../pipeline/debate/turn.js', () => ({
-	addTurn: vi.fn().mockResolvedValue({ id: 'turn-new' })
+	addTurn: (...args: unknown[]) => mockAddTurnFn(...args)
 }));
 vi.mock('../../../pipeline/debate/utils.js', () => ({
 	pipelineErrorMessage: vi.fn((e: { message: string }) => e.message),
