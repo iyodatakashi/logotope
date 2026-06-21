@@ -24,7 +24,21 @@ export type Chapter = Omit<ChapterDoc, 'turns'> & {
 	turns: Turn[];
 };
 
+export type IssueSource = 'general' | 'persona';
+
+export type Issue = {
+	text: string;
+	source: IssueSource;
+	score?: number;
+	reason?: string;
+	selected?: boolean;
+};
+
+export type IssueGroup = {
+	issueIndexes: number[];
+};
+
 export type ChapterAnalysisDoc = {
-	general: string[];
-	persona: string[];
+	issues: Issue[];
+	issueGroups?: IssueGroup[];
 };

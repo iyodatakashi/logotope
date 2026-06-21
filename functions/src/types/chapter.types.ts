@@ -4,3 +4,22 @@ export type Chapter = {
 	focusQuestion: string;
 	discussionPoints: string[];
 };
+
+export type IssueSource = 'general' | 'persona';
+
+export type Issue = {
+	text: string;
+	source: IssueSource;
+	score?: number;
+	reason?: string;
+	selected?: boolean;
+};
+
+export type IssueGroup = {
+	issueIndexes: number[];
+};
+
+export type ChapterAnalysisDoc = {
+	issues: Issue[];
+	issueGroups?: IssueGroup[];
+};
