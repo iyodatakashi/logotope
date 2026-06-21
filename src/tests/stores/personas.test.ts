@@ -105,7 +105,7 @@ describe('createPersonasStore', () => {
 
 	it('runInterview は topicContext を Cloud Function ペイロードに含める', async () => {
 		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
-		vi.mocked(httpsCallable).mockReturnValue(mockFn as ReturnType<typeof httpsCallable>);
+		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
 
 		const store = createPersonasStore('t1');
 		populate(store, ['p1']);
@@ -119,7 +119,7 @@ describe('createPersonasStore', () => {
 
 	it('runInterview は topicContext が undefined のとき ペイロードに含めない（後方互換）', async () => {
 		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
-		vi.mocked(httpsCallable).mockReturnValue(mockFn as ReturnType<typeof httpsCallable>);
+		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
 
 		const store = createPersonasStore('t1');
 		populate(store, ['p1']);
@@ -132,7 +132,7 @@ describe('createPersonasStore', () => {
 
 	it('runInterviews は topicContext を runInterview に転送する', async () => {
 		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
-		vi.mocked(httpsCallable).mockReturnValue(mockFn as ReturnType<typeof httpsCallable>);
+		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
 
 		const store = createPersonasStore('t1');
 		populate(store, ['p1']);
@@ -146,7 +146,7 @@ describe('createPersonasStore', () => {
 
 	it('runInterviews の all=true で全ペルソナを取材する', async () => {
 		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
-		vi.mocked(httpsCallable).mockReturnValue(mockFn as ReturnType<typeof httpsCallable>);
+		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
 
 		const store = createPersonasStore('t1');
 		populate(store, ['p1', 'p2']);

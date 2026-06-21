@@ -60,7 +60,7 @@ describe('createChaptersStore', () => {
 
 	it('turns が全チャプターの turns をチャプター順・配列順にフラット化する', () => {
 		const store = createChaptersStore('topic1');
-		const fakeTs = { toDate: () => new Date() };
+		const fakeTs = { toDate: () => new Date() } as unknown as import('firebase/firestore').Timestamp;
 		const ch1Turns = [
 			{ id: 't1', speakerType: 'facilitator' as const, content: '開幕', createdAt: fakeTs },
 			{ id: 't2', speakerType: 'persona' as const, content: '発言2', createdAt: fakeTs },

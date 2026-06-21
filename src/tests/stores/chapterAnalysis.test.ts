@@ -29,8 +29,8 @@ describe('createChapterAnalysisStore', () => {
 	it('ドキュメントが存在する場合 data に値がセットされる', () => {
 		const store = createChapterAnalysisStore('topic1');
 		store.start();
-		fire({ general: ['切り口A'], persona: ['切り口B'] });
-		expect(store.data).toEqual({ general: ['切り口A'], persona: ['切り口B'] });
+		fire({ issues: [{ text: '切り口A', source: 'general' }] });
+		expect(store.data).toEqual({ issues: [{ text: '切り口A', source: 'general' }] });
 	});
 
 	it('isLoaded がスナップショット受信前は false', () => {

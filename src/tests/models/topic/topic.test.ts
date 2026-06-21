@@ -197,8 +197,8 @@ describe('createTopicStates', () => {
 		it('resetDebate は各チャプターの turns を消し、postDebateComments/0 を削除する', async () => {
 			const chapterRef = { path: 'topics/t1/chapters/c1' };
 			vi.mocked(getDocs)
-				.mockResolvedValueOnce({ docs: [] } as never) // engagements
-				.mockResolvedValueOnce({ docs: [{ ref: chapterRef }] } as never) // chapters
+				.mockResolvedValueOnce({ docs: [{ id: 'c1', ref: chapterRef }] } as never) // chapters
+				.mockResolvedValueOnce({ docs: [] } as never) // chapter c1 の engagements
 				.mockResolvedValueOnce({ docs: [] } as never); // personas
 
 			const store = makeTopic();
@@ -216,12 +216,13 @@ describe('createTopicStates', () => {
 			expect(sessionCall).toBeUndefined();
 		});
 
-		it('resetDebate は engagements 文書（古いペルソナidが残る）を全削除する', async () => {
-			const ref1 = { path: 'topics/t1/engagements/old-p1' };
-			const ref2 = { path: 'topics/t1/engagements/old-p2' };
+		it('resetDebate は engagements 文書（各チャプター配下）を全削除する', async () => {
+			const chapterRef = { path: 'topics/t1/chapters/c1' };
+			const ref1 = { path: 'topics/t1/chapters/c1/engagements/old-p1' };
+			const ref2 = { path: 'topics/t1/chapters/c1/engagements/old-p2' };
 			vi.mocked(getDocs)
-				.mockResolvedValueOnce({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never) // engagements
-				.mockResolvedValueOnce({ docs: [] } as never) // chapters
+				.mockResolvedValueOnce({ docs: [{ id: 'c1', ref: chapterRef }] } as never) // chapters
+				.mockResolvedValueOnce({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never) // chapter c1 の engagements
 				.mockResolvedValueOnce({ docs: [] } as never); // personas
 
 			const store = makeTopic();
