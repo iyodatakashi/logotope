@@ -45,7 +45,17 @@ export const addTurn = async (params: {
 	targetedBy?: 'facilitator' | 'persona';
 	searchUsed?: boolean;
 	searchQueries?: string[];
-}): Promise<{ id: string }> => {
+	runId?: string;
+}): Promise<{ id: string } | null> => {
+	if (params.runId) {
+		try {
+			const topicSnap = await db().doc(`topics/${params.topicId}`).get();
+			const topicData = topicSnap.data() as { runId?: string } | undefined;
+			if (topicData?.runId && topicData.runId !== params.runId) return null;
+		} catch {
+			return null;
+		}
+	}
 	const id = nanoid();
 	const turn: Record<string, unknown> = {
 		id,
@@ -123,7 +133,7 @@ export const applyBeliefChange = async ({
 	];
 };
 
-/** ファシリテーター発言を保存し、state.turns を更新して発言内容を返す */
+/** ファシリテーター発言を保存し、state.turns を更新して発言内容を返す。世代ミスマッチ時は null を返す */
 export const generateFacilitatorTurn = async ({
 	topicId,
 	state,
@@ -136,15 +146,18 @@ export const generateFacilitatorTurn = async ({
 	content: string;
 	targetPersonaId?: string;
 	chapterId: string;
-}): Promise<{ content: string; targetPersonaId?: string }> => {
-	const { id: turnId } = await addTurn({
+}): Promise<{ content: string; targetPersonaId?: string } | null> => {
+	const result = await addTurn({
 		topicId,
 		chapterId,
 		speakerType: 'facilitator',
 		content,
 		targetPersonaId,
-		targetedBy: targetPersonaId ? 'facilitator' : undefined
+		targetedBy: targetPersonaId ? 'facilitator' : undefined,
+		runId: state.runId
 	});
+	if (!result) return null;
+	const { id: turnId } = result;
 	state.turns.push({
 		id: turnId,
 		speakerType: 'facilitator',
@@ -239,7 +252,7 @@ export const generatePersonaTurn = async ({
 			? 'opinion'
 			: turnResult.value.speechMode;
 
-	const { id: turnId } = await addTurn({
+	const addTurnResult = await addTurn({
 		topicId,
 		chapterId: chapter.id,
 		speakerType: 'persona',
@@ -251,8 +264,11 @@ export const generatePersonaTurn = async ({
 		targetPersonaId,
 		targetedBy: targetPersonaId ? 'persona' : undefined,
 		searchUsed: turnResult.value.searchUsed,
-		searchQueries: turnResult.value.searchQueries
+		searchQueries: turnResult.value.searchQueries,
+		runId: state.runId
 	});
+	if (!addTurnResult) return null;
+	const { id: turnId } = addTurnResult;
 	state.turns.push({
 		id: turnId,
 		speakerType: 'persona',

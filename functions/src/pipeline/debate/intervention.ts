@@ -28,7 +28,7 @@ export const countPersonaTurnsSinceFacilitator = (history: readonly DebateTurn[]
 	return history.slice(lastFacilitatorIdx + 1).filter((t) => t.speakerType === 'persona').length;
 };
 
-/** ファシリテーター介入ターンを保存し、ターゲットがあれば SpeakerSelection を返す */
+/** ファシリテーター介入ターンを保存し、ターゲットがあれば SpeakerSelection を返す。世代ミスマッチ時は undefined を返す */
 export const persistInterventionTurn = async ({
 	topicId,
 	state,
@@ -42,14 +42,17 @@ export const persistInterventionTurn = async ({
 	targetPersonaId: string | undefined;
 	chapterId: string;
 }): Promise<SpeakerSelection | undefined> => {
-	const { id: turnId } = await addTurn({
+	const result = await addTurn({
 		topicId,
 		speakerType: 'facilitator',
 		content,
 		chapterId,
 		targetPersonaId,
-		targetedBy: targetPersonaId ? 'facilitator' : undefined
+		targetedBy: targetPersonaId ? 'facilitator' : undefined,
+		runId: state.runId
 	});
+	if (!result) return undefined;
+	const { id: turnId } = result;
 	state.turns.push({
 		id: turnId,
 		speakerType: 'facilitator',
