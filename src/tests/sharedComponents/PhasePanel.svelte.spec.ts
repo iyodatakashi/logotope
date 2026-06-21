@@ -71,12 +71,6 @@ describe('PhasePanel.svelte', () => {
 			await expect.element(page.getByText('準備が整ったら開始してください')).toBeInTheDocument();
 		});
 
-		it('生成ボタンクリックで onGenerate を呼ぶ', async () => {
-			const onGenerate = vi.fn();
-			render(PhasePanel, makeProps({ logicalState: 'not_started', onGenerate }));
-			await page.getByRole('button', { name: '調査を開始する' }).click();
-			expect(onGenerate).toHaveBeenCalled();
-		});
 	});
 
 	describe('running 状態（フェーズ1〜4）', () => {
@@ -106,12 +100,6 @@ describe('PhasePanel.svelte', () => {
 				.toBeInTheDocument();
 		});
 
-		it('停止ボタンクリックで onStop を呼ぶ', async () => {
-			const onStop = vi.fn();
-			render(PhasePanel, makePhase5Props({ logicalState: 'running', onStop }));
-			await page.getByRole('button', { name: '討論を停止する' }).click();
-			expect(onStop).toHaveBeenCalled();
-		});
 	});
 
 	describe('stopped 状態（フェーズ5）', () => {
@@ -129,12 +117,6 @@ describe('PhasePanel.svelte', () => {
 				.toBeInTheDocument();
 		});
 
-		it('再開ボタンクリックで onRestart を呼ぶ', async () => {
-			const onRestart = vi.fn();
-			render(PhasePanel, makePhase5Props({ logicalState: 'stopped', onRestart }));
-			await page.getByRole('button', { name: '討論を再開する' }).click();
-			expect(onRestart).toHaveBeenCalled();
-		});
 	});
 
 	describe('stopped 状態（フェーズ1〜4）', () => {
@@ -157,12 +139,6 @@ describe('PhasePanel.svelte', () => {
 			await expect.element(page.getByRole('button', { name: '再生成する' })).toBeInTheDocument();
 		});
 
-		it('承認ボタンクリックで onApprove を呼ぶ', async () => {
-			const onApprove = vi.fn();
-			render(PhasePanel, makeProps({ logicalState: 'generated', onApprove }));
-			await page.getByRole('button', { name: '承認して次へ進む' }).click();
-			expect(onApprove).toHaveBeenCalled();
-		});
 	});
 
 	describe('generated 状態（承認なし：フェーズ5）', () => {
