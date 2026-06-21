@@ -23,6 +23,7 @@ ${output}"
 
 check "pnpm check (svelte-check)" pnpm check
 check "pnpm test (vitest)" pnpm test
+check "functions vitest" bash -c "cd functions && node_modules/.bin/vitest run"
 check "pnpm lint (prettier + eslint)" pnpm lint
 
 if [ "$FAILED" -eq 1 ]; then
