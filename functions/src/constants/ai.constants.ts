@@ -6,12 +6,12 @@ export const AI_MODELS = {
 export const PIPELINE_MODELS = {
 	stakeholderAnalyzer: 'gemini-2.5-pro',
 	personaGenerator: 'gpt-5.5',
-	personaInterview: 'gemini-2.5-pro'
+	personaInterview: 'gemini-3.5-flash'
 } as const;
 
 export const PERSONA_MODELS = {
 	claude: 'claude-sonnet-4-6',
-	gemini: 'gemini-2.5-pro',
+	gemini: 'claude-sonnet-4-6',
 	gpt: 'gpt-5.5'
 } as const satisfies Record<import('../types/common.types.js').LLMType, string>;
 
