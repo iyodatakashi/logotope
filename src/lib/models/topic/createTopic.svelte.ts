@@ -94,13 +94,19 @@ export const createTopicStates = (topicDoc: TopicDoc) => {
 
 	// 討論（chapters のターン・engagements・postDebateComments。章立ては残す）を消す。
 	const resetDebate = async (): Promise<void> => {
-		// engagements はペルソナidをキーにした討論時データ。古いペルソナidが残らないよう全削除する。
-		const engagementsSnap = await getDocs(collection(db, 'topics', id, 'engagements'));
-		await Promise.all(engagementsSnap.docs.map((engagementDoc) => deleteDoc(engagementDoc.ref)));
+		const chaptersSnap = await getDocs(collection(db, 'topics', id, 'chapters'));
+		// engagements はペルソナidをキーにした討論時データ。各チャプター配下から全削除する。
+		await Promise.all(
+			chaptersSnap.docs.map(async (chapterDoc) => {
+				const engagementsSnap = await getDocs(
+					collection(db, 'topics', id, 'chapters', chapterDoc.id, 'engagements')
+				);
+				await Promise.all(engagementsSnap.docs.map((engagementDoc) => deleteDoc(engagementDoc.ref)));
+			})
+		);
 		// postDebateComments を空にする
 		await deleteDoc(doc(db, 'topics', id, 'postDebateComments', '0'));
 		// 各チャプターのターン・論点状態・進行ステータスをリセットする
-		const chaptersSnap = await getDocs(collection(db, 'topics', id, 'chapters'));
 		await Promise.all(
 			chaptersSnap.docs.map((chapterDoc) =>
 				updateDoc(chapterDoc.ref, {
