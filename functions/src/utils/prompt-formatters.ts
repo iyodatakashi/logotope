@@ -12,13 +12,16 @@ export const formatPersonas = (personas: Persona[]): string => {
 		.join('\n');
 };
 
-export const formatTurns = (turns: ReadonlyArray<DebateTurn>, personas: ReadonlyArray<Persona>): string => {
+export const formatTurns = (
+	turns: ReadonlyArray<DebateTurn>,
+	personas: ReadonlyArray<Persona>
+): string => {
 	return turns
 		.map((t) => {
 			if (t.personaId) {
 				const persona = personas.find((p) => p.id === t.personaId);
 				const name = persona ? persona.name : `Persona(${t.personaId})`;
-				const role = persona ? (persona.specificRole || persona.stakeholderRole) : '';
+				const role = persona ? persona.specificRole || persona.stakeholderRole : '';
 				return `[${name}(${role})(ID:${t.personaId})]: ${t.content}`;
 			}
 			return `[ファシリテーター()]: ${t.content}`;

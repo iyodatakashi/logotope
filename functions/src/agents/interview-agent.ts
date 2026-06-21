@@ -89,7 +89,11 @@ const buildTopicContextSection = (topicContext?: TopicContext): string => {
 	return parts.join('\n');
 };
 
-export const runInterview = async (topicTitle: string, persona: Persona, topicContext?: TopicContext): Promise<InterviewOutput> => {
+export const runInterview = async (
+	topicTitle: string,
+	persona: Persona,
+	topicContext?: TopicContext
+): Promise<InterviewOutput> => {
 	const contextSection = buildTopicContextSection(topicContext);
 	const result = await generateText({
 		model: getPipelineModel('personaInterview'),

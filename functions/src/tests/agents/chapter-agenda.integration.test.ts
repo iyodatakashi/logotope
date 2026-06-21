@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('ai', () => ({
 	generateObject: vi.fn(),
 	tool: vi.fn((def: unknown) => def),
-	jsonSchema: (schema: unknown) => schema,
+	jsonSchema: (schema: unknown) => schema
 }));
 vi.mock('@ai-sdk/anthropic', () => ({ anthropic: vi.fn(() => 'mock-model') }));
 vi.mock('../../constants/ai.constants.js', () => ({
@@ -19,18 +19,18 @@ vi.mock('../../constants/ai.constants.js', () => ({
 		FACILITATOR_OPENING: 512,
 		FACILITATOR_INTERVENTION: 512,
 		FACILITATOR_COVERAGE: 512,
-		FACILITATOR_CHAPTER_TRANSITION: 512,
-	},
+		FACILITATOR_CHAPTER_TRANSITION: 512
+	}
 }));
 vi.mock('../../utils/prompt-formatters.js', () => ({
 	formatPersonas: vi.fn(() => '- p1: テスト'),
 	formatTurns: vi.fn(() => ''),
-	currentDateString: vi.fn(() => '2026-06-19'),
+	currentDateString: vi.fn(() => '2026-06-19')
 }));
 vi.mock('../../agents/facilitator-agent.js', () => ({
 	buildNeutralitySystemPrompt: vi.fn(() => 'system'),
 	evaluateTopicDrift: vi.fn(),
-	generateOpening: vi.fn(),
+	generateOpening: vi.fn()
 }));
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'test-chapter-id') }));
 vi.mock('firebase-admin/firestore', async () => {
@@ -41,13 +41,13 @@ vi.mock('firebase-admin/firestore', async () => {
 			doc: vi.fn(() => ({
 				update: vi.fn().mockResolvedValue(undefined),
 				set: vi.fn().mockResolvedValue(undefined),
-				delete: vi.fn().mockResolvedValue(undefined),
+				delete: vi.fn().mockResolvedValue(undefined)
 			})),
 			collection: vi.fn(() => ({
-				get: vi.fn().mockResolvedValue({ docs: [] }),
-			})),
+				get: vi.fn().mockResolvedValue({ docs: [] })
+			}))
 		})),
-		FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args), delete: vi.fn(() => 'DELETE') },
+		FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args), delete: vi.fn(() => 'DELETE') }
 	};
 });
 
@@ -68,7 +68,7 @@ const mockPersona: Persona = {
 	llmType: 'claude',
 	approved: true,
 	sortOrder: 0,
-	interviewRecord: '',
+	interviewRecord: ''
 };
 
 const TOPIC_ID = 'topic-agenda-integration-test';
@@ -88,19 +88,25 @@ describe('Task 5.2: チャプター生成で discussionPoints が返される', 
 					scoredIssues: [
 						{ index: 0, score: 8, reason: '良い' },
 						{ index: 1, score: 7, reason: '良い' },
-						{ index: 2, score: 7, reason: '良い' },
-					],
-				},
+						{ index: 2, score: 7, reason: '良い' }
+					]
+				}
 			} as never)
 			.mockResolvedValueOnce({
 				object: {
-					issueGroups: [{ issueIndexes: [0, 1, 2] }],
-				},
+					issueGroups: [{ issueIndexes: [0, 1, 2] }]
+				}
 			} as never)
 			.mockResolvedValueOnce({
 				object: {
-					chapters: [{ title: '第1章', focusQuestion: '日常的な問いかけ？', discussionPoints: ['論点A', '論点B', '論点C'] }],
-				},
+					chapters: [
+						{
+							title: '第1章',
+							focusQuestion: '日常的な問いかけ？',
+							discussionPoints: ['論点A', '論点B', '論点C']
+						}
+					]
+				}
 			} as never);
 
 		const { generateChapters } = await import('../../agents/chapter-agent.js');
@@ -122,17 +128,19 @@ describe('Task 5.2: チャプター生成で discussionPoints が返される', 
 				object: {
 					scoredIssues: [
 						{ index: 0, score: 8, reason: '良い' },
-						{ index: 1, score: 7, reason: '良い' },
-					],
-				},
+						{ index: 1, score: 7, reason: '良い' }
+					]
+				}
 			} as never)
 			.mockResolvedValueOnce({
-				object: { issueGroups: [{ issueIndexes: [0] }] },
+				object: { issueGroups: [{ issueIndexes: [0] }] }
 			} as never)
 			.mockImplementationOnce(async (args) => {
 				capturedArgs.push(args);
 				return {
-					object: { chapters: [{ title: '第1章', focusQuestion: '問い', discussionPoints: ['論点1'] }] },
+					object: {
+						chapters: [{ title: '第1章', focusQuestion: '問い', discussionPoints: ['論点1'] }]
+					}
 				} as never;
 			});
 
@@ -152,7 +160,7 @@ describe('Task 5.2: 開幕発言に論点1が反映される（論点あり章�
 		vi.mocked(generateObject).mockImplementationOnce(async (args) => {
 			capturedArgs.push(args);
 			return {
-				object: { content: '開幕', targetPersonaId: 'p1' },
+				object: { content: '開幕', targetPersonaId: 'p1' }
 			} as never;
 		});
 
@@ -161,14 +169,17 @@ describe('Task 5.2: 開幕発言に論点1が反映される（論点あり章�
 		vi.mocked(generateOpening).mockImplementationOnce(async (_title, _personas, chapter) => {
 			const promptText = `${chapter.discussionPoints?.join(' ')}`;
 			capturedArgs.push({ system: promptText });
-			return { ok: true, value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 } };
+			return {
+				ok: true,
+				value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
+			};
 		});
 
 		await generateOpening('統合テストテーマ', [mockPersona], {
 			id: 'ch1',
 			title: '第1章',
 			focusQuestion: 'テスト？',
-			discussionPoints: ['日常感覚の問い', '具体的な論点'],
+			discussionPoints: ['日常感覚の問い', '具体的な論点']
 		});
 
 		const callArgs = capturedArgs[0] as { system: string };
@@ -181,7 +192,7 @@ describe('Task 5.2: 介入経路で未完了論点が渡され着手へ更新さ
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
 		const driftSpy = vi.mocked(evaluateTopicDrift).mockResolvedValueOnce({
 			ok: true,
-			value: { content: '論点を投入', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 },
+			value: { content: '論点を投入', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
 		});
 
 		const { tryIntervention } = await import('../../pipeline/debate/intervention.js');
@@ -189,7 +200,7 @@ describe('Task 5.2: 介入経路で未完了論点が渡され着手へ更新さ
 			turns: [
 				{ id: 'f1', speakerType: 'facilitator', content: '開幕', createdAt: '' },
 				{ id: 't1', speakerType: 'persona', content: '発言1', createdAt: '' },
-				{ id: 't2', speakerType: 'persona', content: '発言2', createdAt: '' },
+				{ id: 't2', speakerType: 'persona', content: '発言2', createdAt: '' }
 			],
 			silenceMap: new Map<string, number>(),
 			speakCount: new Map<string, number>(),
@@ -197,17 +208,22 @@ describe('Task 5.2: 介入経路で未完了論点が渡され着手へ更新さ
 			pairConversationTurns: 0,
 			discussionPoints: [
 				{ point: '未消化論点X', status: 'untouched' as const },
-				{ point: '未消化論点Y', status: 'untouched' as const },
-			],
+				{ point: '未消化論点Y', status: 'untouched' as const }
+			]
 		};
 
 		await tryIntervention({
 			topicId: TOPIC_ID,
 			personas: [mockPersona],
-			chapter: { id: 'ch1', title: '章', focusQuestion: '?', discussionPoints: ['未消化論点X', '未消化論点Y'] },
+			chapter: {
+				id: 'ch1',
+				title: '章',
+				focusQuestion: '?',
+				discussionPoints: ['未消化論点X', '未消化論点Y']
+			},
 			state,
 			engagements: [],
-			interventionCooldown: 2,
+			interventionCooldown: 2
 		});
 
 		expect(driftSpy).toHaveBeenCalledWith(

@@ -33,14 +33,25 @@
 
 <div class="login-container">
 	<h1>管理者ログイン</h1>
-	<form onsubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+	<form
+		onsubmit={(e) => {
+			e.preventDefault();
+			handleLogin();
+		}}
+	>
 		<div class="field">
 			<label for="email">メールアドレス</label>
 			<Input id="email" type="email" value={email} oninput={(v) => (email = String(v))} fullWidth />
 		</div>
 		<div class="field">
 			<label for="password">パスワード</label>
-			<Input id="password" type="password" value={password} oninput={(v) => (password = String(v))} fullWidth />
+			<Input
+				id="password"
+				type="password"
+				value={password}
+				oninput={(v) => (password = String(v))}
+				fullWidth
+			/>
 		</div>
 		{#if error}
 			<p class="error" role="alert">{error}</p>

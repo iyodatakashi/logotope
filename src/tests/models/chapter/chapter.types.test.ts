@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { Timestamp } from 'firebase/firestore';
-import type { ChapterForFirestore, ChapterAnalysisForFirestore, Issue, IssueGroup } from '$lib/models/chapter/chapter.types';
+import type {
+	ChapterForFirestore,
+	ChapterAnalysisForFirestore,
+	Issue,
+	IssueGroup
+} from '$lib/models/chapter/chapter.types';
 import type { TurnForFirestore } from '$lib/models/turn/turn.types';
 
 describe('chapter.types - チャプタードキュメント型定義', () => {
@@ -11,7 +16,7 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 			focusQuestion: 'この問題の核心は何か？',
 			discussionPoints: ['論点A', '論点B'],
 			turns: [],
-			status: 'pending',
+			status: 'pending'
 		};
 		expect(chapter.chapterIndex).toBe(0);
 		expect(chapter.status).toBe('pending');
@@ -22,7 +27,7 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 			id: 't1',
 			speakerType: 'persona',
 			content: 'テスト発言',
-			createdAt: Timestamp.fromDate(new Date()),
+			createdAt: Timestamp.fromDate(new Date())
 		};
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 1,
@@ -31,7 +36,7 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 			discussionPoints: ['論点A'],
 			turns: [turn],
 			discussionPointStatuses: [{ point: '論点A', status: 'introduced' }],
-			status: 'running',
+			status: 'running'
 		};
 		expect(chapter.turns).toHaveLength(1);
 		expect(chapter.discussionPointStatuses).toHaveLength(1);
@@ -43,7 +48,7 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 			source: 'general',
 			score: 8,
 			reason: '中心的な論点',
-			selected: true,
+			selected: true
 		};
 		expect(issue.source).toBe('general');
 		expect(issue.selected).toBe(true);
@@ -63,9 +68,9 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 		const analysis: ChapterAnalysisForFirestore = {
 			issues: [
 				{ text: '一般的切り口', source: 'general' },
-				{ text: 'ペルソナ別切り口', source: 'persona' },
+				{ text: 'ペルソナ別切り口', source: 'persona' }
 			],
-			issueGroups: [{ issueIndexes: [0, 1] }],
+			issueGroups: [{ issueIndexes: [0, 1] }]
 		};
 		expect(analysis.issues).toHaveLength(2);
 		expect(analysis.issueGroups?.[0].issueIndexes).toEqual([0, 1]);

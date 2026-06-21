@@ -11,7 +11,7 @@ const mockPersonasGet = vi.fn();
 const mockEngagementsGet = vi.fn();
 
 const mockCollection = vi.fn((path: string) => {
-	if (path.match(/topics\/[^/]+\/chapters$/) ) {
+	if (path.match(/topics\/[^/]+\/chapters$/)) {
 		return { orderBy: vi.fn().mockReturnValue({ get: mockChaptersGet }) };
 	}
 	if (path.endsWith('/personas')) {
@@ -28,8 +28,8 @@ vi.mock('firebase-admin/firestore', () => ({
 	Timestamp: { now: vi.fn(() => 'mock-ts') },
 	FieldValue: {
 		delete: vi.fn(() => 'DELETE_SENTINEL'),
-		arrayUnion: vi.fn((...args: unknown[]) => args),
-	},
+		arrayUnion: vi.fn((...args: unknown[]) => args)
+	}
 }));
 
 import { restartChapter } from '../../../pipeline/debate/debate-lifecycle.js';
@@ -41,14 +41,14 @@ const makeChapterDoc = (id: string, turns: { id: string }[] = []) => ({
 		title: 'テスト章',
 		focusQuestion: 'テスト？',
 		turns,
-		status: 'running',
-	}),
+		status: 'running'
+	})
 });
 
 const makeEngagementDoc = (id: string) => ({
 	id,
 	ref: { delete: mockDelete },
-	data: () => ({ history: {}, queuedIntents: [] }),
+	data: () => ({ history: {}, queuedIntents: [] })
 });
 
 describe('restartChapter - チャプタースコープ engagements 削除', () => {
@@ -59,10 +59,7 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 
 	it('廃棄チャプターの chapters/{chapterId}/engagements サブコレクションを参照する', async () => {
 		mockChaptersGet.mockResolvedValue({
-			docs: [
-				makeChapterDoc('ch1', [{ id: 't1' }]),
-				makeChapterDoc('ch2', [{ id: 't2' }]),
-			],
+			docs: [makeChapterDoc('ch1', [{ id: 't1' }]), makeChapterDoc('ch2', [{ id: 't2' }])]
 		});
 		mockEngagementsGet.mockResolvedValue({ docs: [] });
 
@@ -79,10 +76,10 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 
 	it('engagements ドキュメントが削除される', async () => {
 		mockChaptersGet.mockResolvedValue({
-			docs: [makeChapterDoc('ch1', [{ id: 't1' }])],
+			docs: [makeChapterDoc('ch1', [{ id: 't1' }])]
 		});
 		mockEngagementsGet.mockResolvedValue({
-			docs: [makeEngagementDoc('persona1'), makeEngagementDoc('persona2')],
+			docs: [makeEngagementDoc('persona1'), makeEngagementDoc('persona2')]
 		});
 
 		await restartChapter('topic1', 'ch1');
@@ -92,7 +89,7 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 
 	it('engagements ドキュメントが存在しない場合は delete を呼ばない', async () => {
 		mockChaptersGet.mockResolvedValue({
-			docs: [makeChapterDoc('ch1', [])],
+			docs: [makeChapterDoc('ch1', [])]
 		});
 		mockEngagementsGet.mockResolvedValue({ docs: [] });
 
@@ -103,7 +100,7 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 
 	it('旧パス topics/{topicId}/engagements コレクションを参照しない', async () => {
 		mockChaptersGet.mockResolvedValue({
-			docs: [makeChapterDoc('ch1', [{ id: 't1' }])],
+			docs: [makeChapterDoc('ch1', [{ id: 't1' }])]
 		});
 		mockEngagementsGet.mockResolvedValue({ docs: [] });
 
@@ -118,8 +115,8 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 			docs: [
 				makeChapterDoc('ch1', [{ id: 't1' }]),
 				makeChapterDoc('ch2', [{ id: 't2' }]),
-				makeChapterDoc('ch3', [{ id: 't3' }]),
-			],
+				makeChapterDoc('ch3', [{ id: 't3' }])
+			]
 		});
 		// ch2 以降を廃棄（ch2 から restartChapter）
 		mockEngagementsGet.mockResolvedValue({ docs: [makeEngagementDoc('p1')] });

@@ -5,7 +5,7 @@ import type { Chapter } from '../../../types/chapter.types.js';
 
 const mockGet = vi.fn().mockResolvedValue({
 	exists: true,
-	data: () => ({ phase: 5, phaseStatus: 'running' }),
+	data: () => ({ phase: 5, phaseStatus: 'running' })
 });
 const mockUpdate = vi.fn().mockResolvedValue(undefined);
 const mockDoc = vi.fn().mockReturnValue({ get: mockGet, update: mockUpdate });
@@ -13,7 +13,7 @@ const mockDoc = vi.fn().mockReturnValue({ get: mockGet, update: mockUpdate });
 vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: vi.fn(() => ({ doc: mockDoc })),
 	Timestamp: { now: vi.fn(() => 'mock-timestamp') },
-	FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args[0]) },
+	FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args[0]) }
 }));
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-turn-id') }));
@@ -21,18 +21,18 @@ vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-turn-id') }));
 const mockGenerateTurn = vi.fn();
 vi.mock('../../../agents/persona-agent.js', () => ({
 	generateTurn: (...args: unknown[]) => mockGenerateTurn(...args),
-	generatePostDebateComment: vi.fn(),
+	generatePostDebateComment: vi.fn()
 }));
 
 vi.mock('../../../agents/facilitator-agent.js', () => ({
 	generateChapterSummary: vi.fn(),
-	generateClosing: vi.fn(),
+	generateClosing: vi.fn()
 }));
 
 const mockValidPersonaId = vi.fn((id: string | undefined) => id);
 vi.mock('../../../pipeline/debate/utils.js', () => ({
 	pipelineErrorMessage: vi.fn((e: unknown) => String(e)),
-	validPersonaId: (id: string | undefined, _personas: unknown[]) => mockValidPersonaId(id),
+	validPersonaId: (id: string | undefined, _personas: unknown[]) => mockValidPersonaId(id)
 }));
 
 import { generatePersonaTurn } from '../../../pipeline/debate/turn.js';
@@ -51,7 +51,7 @@ const makePersona = (id: string, name: string): Persona => ({
 	engagementLevel: 'moderate',
 	llmType: 'claude',
 	approved: true,
-	sortOrder: 0,
+	sortOrder: 0
 });
 
 const makeEngagement = (override?: Partial<Engagement>): Engagement => ({
@@ -59,13 +59,13 @@ const makeEngagement = (override?: Partial<Engagement>): Engagement => ({
 	score: 4,
 	mode: 'question',
 	intentSummary: '佐藤さんの意見を聞きたい',
-	...override,
+	...override
 });
 
 const makeSpeakerSelection = (override?: Partial<SpeakerSelection>): SpeakerSelection => ({
 	personaId: 'p1',
 	reason: 'score',
-	...override,
+	...override
 });
 
 const mockChapter: Chapter = { id: 'ch1', title: 'テスト章', focusQuestion: 'テスト？' };
@@ -77,26 +77,38 @@ const makeDebateState = () => ({
 	speakCount: new Map(),
 	queuedIntents: new Map(),
 	pairConversationTurns: 0,
-	discussionPoints: [],
+	discussionPoints: []
 });
 
-const makeDebateTurn = (override: Partial<{ id: string; speakerType: string; personaId: string | null; content: string; createdAt: string }> = {}) => ({
+const makeDebateTurn = (
+	override: Partial<{
+		id: string;
+		speakerType: string;
+		personaId: string | null;
+		content: string;
+		createdAt: string;
+	}> = {}
+) => ({
 	id: 't0',
 	speakerType: 'persona' as const,
 	personaId: 'p2',
 	content: '佐藤の発言',
 	createdAt: '',
-	...override,
+	...override
 });
 
 describe('generatePersonaTurn', () => {
-	const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子'), makePersona('p3', '鈴木次郎')];
+	const personas = [
+		makePersona('p1', '田中太郎'),
+		makePersona('p2', '佐藤花子'),
+		makePersona('p3', '鈴木次郎')
+	];
 
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockGet.mockResolvedValue({
 			exists: true,
-			data: () => ({ phase: 5, phaseStatus: 'running' }),
+			data: () => ({ phase: 5, phaseStatus: 'running' })
 		});
 		mockUpdate.mockResolvedValue(undefined);
 		mockDoc.mockReturnValue({ get: mockGet, update: mockUpdate });
@@ -106,7 +118,7 @@ describe('generatePersonaTurn', () => {
 	it('generateTurn に otherPersonas（発言者を除く）を渡す', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
-			value: { content: 'テスト発言', speechMode: 'opinion', beliefChange: null },
+			value: { content: 'テスト発言', speechMode: 'opinion', beliefChange: null }
 		});
 
 		await generatePersonaTurn({
@@ -115,7 +127,7 @@ describe('generatePersonaTurn', () => {
 			chapter: mockChapter,
 			state: makeDebateState(),
 			speakerSelection: makeSpeakerSelection(),
-			engagement: makeEngagement({ mode: 'opinion', intentSummary: '意見' }),
+			engagement: makeEngagement({ mode: 'opinion', intentSummary: '意見' })
 		});
 
 		expect(mockGenerateTurn).toHaveBeenCalledOnce();
@@ -126,7 +138,7 @@ describe('generatePersonaTurn', () => {
 		expect(context.otherPersonas).toEqual(
 			expect.arrayContaining([
 				{ id: 'p2', name: '佐藤花子' },
-				{ id: 'p3', name: '鈴木次郎' },
+				{ id: 'p3', name: '鈴木次郎' }
 			])
 		);
 		// 発言者自身は含まれない
@@ -136,7 +148,12 @@ describe('generatePersonaTurn', () => {
 	it('question モードかつ targetPersonaId が設定された場合、speechMode: question でターンを保存する', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
-			value: { content: '質問発言', speechMode: 'question', beliefChange: null, targetPersonaId: 'p2' },
+			value: {
+				content: '質問発言',
+				speechMode: 'question',
+				beliefChange: null,
+				targetPersonaId: 'p2'
+			}
 		});
 		mockValidPersonaId.mockReturnValue('p2');
 
@@ -147,7 +164,7 @@ describe('generatePersonaTurn', () => {
 			chapter: mockChapter,
 			state,
 			speakerSelection: makeSpeakerSelection(),
-			engagement: makeEngagement(),
+			engagement: makeEngagement()
 		});
 
 		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
@@ -162,7 +179,12 @@ describe('generatePersonaTurn', () => {
 	it('question モードかつ targetPersonaId が未設定の場合、speechMode: opinion にフォールバックして保存する', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
-			value: { content: '質問発言', speechMode: 'question', beliefChange: null, targetPersonaId: undefined },
+			value: {
+				content: '質問発言',
+				speechMode: 'question',
+				beliefChange: null,
+				targetPersonaId: undefined
+			}
 		});
 		mockValidPersonaId.mockReturnValue(undefined);
 
@@ -173,7 +195,7 @@ describe('generatePersonaTurn', () => {
 			chapter: mockChapter,
 			state,
 			speakerSelection: makeSpeakerSelection(),
-			engagement: makeEngagement(),
+			engagement: makeEngagement()
 		});
 
 		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
@@ -188,7 +210,7 @@ describe('generatePersonaTurn', () => {
 	it('opinion モードは speechMode: opinion のままターンを保存する', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
-			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
 		const state = makeDebateState();
@@ -198,7 +220,7 @@ describe('generatePersonaTurn', () => {
 			chapter: mockChapter,
 			state,
 			speakerSelection: makeSpeakerSelection(),
-			engagement: makeEngagement({ mode: 'opinion', intentSummary: '意見' }),
+			engagement: makeEngagement({ mode: 'opinion', intentSummary: '意見' })
 		});
 
 		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
@@ -212,7 +234,7 @@ describe('generatePersonaTurn', () => {
 	it('Firestoreに書き込むターンに speakerName/speakerRole が含まれない', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
-			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
 		const state = makeDebateState();
@@ -222,7 +244,7 @@ describe('generatePersonaTurn', () => {
 			chapter: mockChapter,
 			state,
 			speakerSelection: makeSpeakerSelection(),
-			engagement: makeEngagement({ mode: 'opinion' }),
+			engagement: makeEngagement({ mode: 'opinion' })
 		});
 
 		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
@@ -238,7 +260,7 @@ describe('generatePersonaTurn', () => {
 	it('state.turns に push されるターンに speakerName/speakerRole が含まれない', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
-			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
 		const state = makeDebateState();
@@ -248,7 +270,7 @@ describe('generatePersonaTurn', () => {
 			chapter: mockChapter,
 			state,
 			speakerSelection: makeSpeakerSelection(),
-			engagement: makeEngagement({ mode: 'opinion' }),
+			engagement: makeEngagement({ mode: 'opinion' })
 		});
 
 		expect(state.turns).toHaveLength(1);
@@ -260,7 +282,7 @@ describe('generatePersonaTurn', () => {
 	it('queuedTrigger の speakerName は personas 配列から personaId で解決する', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
-			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
 		const state = makeDebateState();
@@ -273,7 +295,7 @@ describe('generatePersonaTurn', () => {
 			chapter: mockChapter,
 			state,
 			speakerSelection: makeSpeakerSelection({ personaId: 'p1' }),
-			engagement: makeEngagement({ personaId: 'p1', mode: 'opinion' }),
+			engagement: makeEngagement({ personaId: 'p1', mode: 'opinion' })
 		});
 
 		const callArgs = mockGenerateTurn.mock.calls[0];
@@ -285,7 +307,7 @@ describe('generatePersonaTurn', () => {
 	it('queuedTrigger のトリガーターンが personaId を持たない場合 speakerName は ファシリテーター になる', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
-			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
 		const state = makeDebateState();
@@ -298,7 +320,7 @@ describe('generatePersonaTurn', () => {
 			chapter: mockChapter,
 			state,
 			speakerSelection: makeSpeakerSelection({ personaId: 'p1' }),
-			engagement: makeEngagement({ personaId: 'p1', mode: 'opinion' }),
+			engagement: makeEngagement({ personaId: 'p1', mode: 'opinion' })
 		});
 
 		const callArgs = mockGenerateTurn.mock.calls[0];
@@ -310,7 +332,7 @@ describe('generatePersonaTurn', () => {
 	it('Firestoreへの書き込みは sessions/0 ではなく chapters/{chapterId} に行われる', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
-			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
 		const state = makeDebateState();
@@ -320,7 +342,7 @@ describe('generatePersonaTurn', () => {
 			chapter: mockChapter, // id: 'ch1'
 			state,
 			speakerSelection: makeSpeakerSelection(),
-			engagement: makeEngagement({ mode: 'opinion' }),
+			engagement: makeEngagement({ mode: 'opinion' })
 		});
 
 		const docPaths = mockDoc.mock.calls.map((call: string[]) => call[0]);
@@ -331,7 +353,7 @@ describe('generatePersonaTurn', () => {
 	it('Firestoreに保存されるターンオブジェクトに chapterId が含まれない', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
-			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
 		const state = makeDebateState();
@@ -341,7 +363,7 @@ describe('generatePersonaTurn', () => {
 			chapter: mockChapter,
 			state,
 			speakerSelection: makeSpeakerSelection(),
-			engagement: makeEngagement({ mode: 'opinion' }),
+			engagement: makeEngagement({ mode: 'opinion' })
 		});
 
 		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
@@ -356,7 +378,7 @@ describe('generatePersonaTurn', () => {
 	it('state.turns に push されるターンに chapterId が含まれない', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
-			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null },
+			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
 		const state = makeDebateState();
@@ -366,7 +388,7 @@ describe('generatePersonaTurn', () => {
 			chapter: mockChapter,
 			state,
 			speakerSelection: makeSpeakerSelection(),
-			engagement: makeEngagement({ mode: 'opinion' }),
+			engagement: makeEngagement({ mode: 'opinion' })
 		});
 
 		expect(state.turns).toHaveLength(1);

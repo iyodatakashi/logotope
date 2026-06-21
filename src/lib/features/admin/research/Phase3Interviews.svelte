@@ -44,7 +44,10 @@
 	const pendingCount = $derived(personasStore.personas.filter((p) => p.interview == null).length);
 	const totalCount = $derived(personasStore.personas.length);
 
-	const buildTopicContext = (topic: { description?: string; fetchedSourceContents?: { content: string }[] }): TopicContext | undefined => {
+	const buildTopicContext = (topic: {
+		description?: string;
+		fetchedSourceContents?: { content: string }[];
+	}): TopicContext | undefined => {
 		const description = topic.description;
 		const sourceContents = topic.fetchedSourceContents?.map((fc) => fc.content);
 		if (!description && !sourceContents?.length) return undefined;

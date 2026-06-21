@@ -6,7 +6,10 @@ import type { TopicContext } from '../../types/topic.types.js';
 
 const db = () => getFirestore();
 
-const buildTopicContext = (topic: { description?: string; fetchedSourceContents?: { content: string }[] }): TopicContext | undefined => {
+const buildTopicContext = (topic: {
+	description?: string;
+	fetchedSourceContents?: { content: string }[];
+}): TopicContext | undefined => {
 	const description = topic.description;
 	const sourceContents = topic.fetchedSourceContents?.map((fc) => fc.content);
 	if (!description && !sourceContents?.length) return undefined;
@@ -21,20 +24,17 @@ export const planChapters = async (topicId: string): Promise<void> => {
 	const personas = (await getPersonasByTopicId(topicId)).filter((p) => p.approved);
 	const topicContext = buildTopicContext(topic);
 
-	const result = await generateChapters(
-		topic.title,
-		personas,
-		topicContext,
-		async (progress) => {
-			if (progress.step === 'issues_generated') {
-				await db().doc(`topics/${topicId}/chapterAnalysis/0`).set({ issues: progress.issues });
-			} else if (progress.step === 'issues_scored') {
-				await db().doc(`topics/${topicId}/chapterAnalysis/0`).update({ issues: progress.issues });
-			} else if (progress.step === 'issues_grouped') {
-				await db().doc(`topics/${topicId}/chapterAnalysis/0`).update({ issueGroups: progress.issueGroups });
-			}
+	const result = await generateChapters(topic.title, personas, topicContext, async (progress) => {
+		if (progress.step === 'issues_generated') {
+			await db().doc(`topics/${topicId}/chapterAnalysis/0`).set({ issues: progress.issues });
+		} else if (progress.step === 'issues_scored') {
+			await db().doc(`topics/${topicId}/chapterAnalysis/0`).update({ issues: progress.issues });
+		} else if (progress.step === 'issues_grouped') {
+			await db()
+				.doc(`topics/${topicId}/chapterAnalysis/0`)
+				.update({ issueGroups: progress.issueGroups });
 		}
-	);
+	});
 
 	if (!result.ok) {
 		const e = result.error;
@@ -45,14 +45,16 @@ export const planChapters = async (topicId: string): Promise<void> => {
 
 	await Promise.all(
 		chapters.map((chapter, i) =>
-			db().doc(`topics/${topicId}/chapters/${chapter.id}`).set({
-				chapterIndex: i,
-				title: chapter.title,
-				focusQuestion: chapter.focusQuestion,
-				discussionPoints: chapter.discussionPoints ?? [],
-				turns: [],
-				status: 'pending',
-			})
+			db()
+				.doc(`topics/${topicId}/chapters/${chapter.id}`)
+				.set({
+					chapterIndex: i,
+					title: chapter.title,
+					focusQuestion: chapter.focusQuestion,
+					discussionPoints: chapter.discussionPoints ?? [],
+					turns: [],
+					status: 'pending'
+				})
 		)
 	);
 };

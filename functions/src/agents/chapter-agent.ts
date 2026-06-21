@@ -93,9 +93,7 @@ const buildScoringPrompt = (
 	topicContext?: TopicContext
 ): string => {
 	const contextSection = buildTopicContextSection(topicContext);
-	const issueList = issues
-		.map((issue, i) => `${i}. [${issue.source}] ${issue.text}`)
-		.join('\n');
+	const issueList = issues.map((issue, i) => `${i}. [${issue.source}] ${issue.text}`).join('\n');
 	return `テーマ「${topicTitle}」について、以下の論点をすべて相対評価し、各論点に0〜10のスコアと採点理由を付与してください。
 
 【論点一覧（index: 論点テキスト）】
@@ -118,9 +116,10 @@ const selectIssues = (issues: Issue[]): Issue[] => {
 	if (issues.length === 0) return [];
 
 	const aboveThreshold = issues.filter((issue) => (issue.score ?? 0) >= SCORE_THRESHOLD);
-	const selected = aboveThreshold.length > 0
-		? aboveThreshold
-		: [issues.reduce((best, issue) => (issue.score ?? 0) > (best.score ?? 0) ? issue : best)];
+	const selected =
+		aboveThreshold.length > 0
+			? aboveThreshold
+			: [issues.reduce((best, issue) => ((issue.score ?? 0) > (best.score ?? 0) ? issue : best))];
 
 	const hasGeneral = selected.some((issue) => issue.source === 'general');
 	if (!hasGeneral) {
@@ -155,7 +154,11 @@ const groupIssues = async (
 		messages: [
 			{
 				role: 'user',
-				content: buildGroupingPrompt(topicTitle, selectedWithGlobalIdx.map((x) => x.issue), topicContext)
+				content: buildGroupingPrompt(
+					topicTitle,
+					selectedWithGlobalIdx.map((x) => x.issue),
+					topicContext
+				)
 			}
 		]
 	});
@@ -249,9 +252,7 @@ const buildBuildingPrompt = (
 	const contextSection = buildTopicContextSection(topicContext);
 	const groupList = issueGroups
 		.map((group, i) => {
-			const issueTexts = group.issueIndexes
-				.map((idx) => `- ${issues[idx]?.text ?? ''}`)
-				.join('\n');
+			const issueTexts = group.issueIndexes.map((idx) => `- ${issues[idx]?.text ?? ''}`).join('\n');
 			return `## グループ ${i + 1}\n${issueTexts}`;
 		})
 		.join('\n\n');
@@ -348,8 +349,17 @@ export const generateChapters = async (
 
 		await onProgress?.({ step: 'issues_grouped', issueGroups });
 
-		const chapters = await buildChapters(topicTitle, issueGroups, issuesWithSelection, topicContext);
-		const sortedChapters = sortChaptersByGeneralIssueCount(chapters, issueGroups, issuesWithSelection);
+		const chapters = await buildChapters(
+			topicTitle,
+			issueGroups,
+			issuesWithSelection,
+			topicContext
+		);
+		const sortedChapters = sortChaptersByGeneralIssueCount(
+			chapters,
+			issueGroups,
+			issuesWithSelection
+		);
 
 		return { ok: true, value: sortedChapters };
 	} catch (err) {

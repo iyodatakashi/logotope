@@ -29,4 +29,3 @@ export type Belief = {
 	changeSummary?: string | null;
 	triggeredByTurnId?: string | null;
 };
-

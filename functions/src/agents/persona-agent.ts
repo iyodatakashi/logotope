@@ -4,14 +4,22 @@ import { getPersonaModel } from '../llm/models.js';
 import { MAX_TOKENS } from '../constants/ai.constants.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
 import { formatTurns, currentDateString } from '../utils/prompt-formatters.js';
-import type { DebateTurn, PersonaReply, BeliefChangeEvent, BeliefChangeType, PostDebateCommentResult, Engagement, TurnGenerationContext } from '../types/debate.types.js';
+import type {
+	DebateTurn,
+	PersonaReply,
+	BeliefChangeEvent,
+	BeliefChangeType,
+	PostDebateCommentResult,
+	Engagement,
+	TurnGenerationContext
+} from '../types/debate.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 
 const latestBeliefContent = (persona: Persona): string => {
 	const beliefs = persona.beliefs ?? [];
 	if (beliefs.length === 0) return '';
-	return beliefs.reduce((best, b) => b.version > best.version ? b : best).content;
+	return beliefs.reduce((best, b) => (b.version > best.version ? b : best)).content;
 };
 
 type ExperienceLevel = 'young' | 'mid' | 'veteran';
@@ -165,10 +173,7 @@ type AnyTool = {
 	execute?: (args: { [key: string]: unknown }) => Promise<string>;
 };
 
-const buildFullTurnTools = (
-	styleGuide: string,
-	lengthGuide: string
-): Record<string, AnyTool> => {
+const buildFullTurnTools = (styleGuide: string, lengthGuide: string): Record<string, AnyTool> => {
 	const styleSummary = styleGuide.split('\n')[0];
 	const tools: Record<string, AnyTool> = {
 		submit_turn: {
@@ -198,7 +203,8 @@ const buildFullTurnTools = (
 					},
 					targetPersonaId: {
 						type: 'string' as const,
-						description: '特定の人物への質問・反論など、明確に向け先がある発言の場合にそのペルソナのIDを指定する。漠然と会話全体に向けた発言では省略する。'
+						description:
+							'特定の人物への質問・反論など、明確に向け先がある発言の場合にそのペルソナのIDを指定する。漠然と会話全体に向けた発言では省略する。'
 					}
 				},
 				required: ['content']
@@ -225,127 +231,136 @@ const buildFullTurnTools = (
 	return tools;
 };
 
-
 export const generateTurn = async (
-		persona: Persona,
-		context: TurnGenerationContext,
-		engagement: Engagement,
-		personas: ReadonlyArray<Persona> = []
-	): Promise<Result<PersonaReply, PipelineError>> => {
-		try {
-			const { chapter, queuedTrigger, targetedBy } = context;
-			const recentTurns = context.chapterTurns.slice(-20);
-			const currentBelief = latestBeliefContent(persona);
-			const styleGuide = buildSpeechStyleGuide(persona);
-			const chapterContext = `\n\n【この章のフォーカス】「${chapter.title}」: ${chapter.focusQuestion}`;
-			const queuedNote = queuedTrigger
-				? `\n\n【持ち越しの言いたいこと】少し前に${queuedTrigger.speakerName}が「${queuedTrigger.content.slice(0, 80)}」と言ったのを聞いて、あなたはこれに何か言いたいと思っていました。会話の流れに沿って、適切であればこの話題に触れてください。`
-				: '';
-			const intentNote = engagement.intentSummary ? `\n\n【今回伝えたいこと】${engagement.intentSummary}` : '';
-			const facilitatorTargetNote = targetedBy === 'facilitator'
+	persona: Persona,
+	context: TurnGenerationContext,
+	engagement: Engagement,
+	personas: ReadonlyArray<Persona> = []
+): Promise<Result<PersonaReply, PipelineError>> => {
+	try {
+		const { chapter, queuedTrigger, targetedBy } = context;
+		const recentTurns = context.chapterTurns.slice(-20);
+		const currentBelief = latestBeliefContent(persona);
+		const styleGuide = buildSpeechStyleGuide(persona);
+		const chapterContext = `\n\n【この章のフォーカス】「${chapter.title}」: ${chapter.focusQuestion}`;
+		const queuedNote = queuedTrigger
+			? `\n\n【持ち越しの言いたいこと】少し前に${queuedTrigger.speakerName}が「${queuedTrigger.content.slice(0, 80)}」と言ったのを聞いて、あなたはこれに何か言いたいと思っていました。会話の流れに沿って、適切であればこの話題に触れてください。`
+			: '';
+		const intentNote = engagement.intentSummary
+			? `\n\n【今回伝えたいこと】${engagement.intentSummary}`
+			: '';
+		const facilitatorTargetNote =
+			targetedBy === 'facilitator'
 				? '\n\n【指名】ファシリテーターが直接あなたに話を向けました。この問いかけに対して、自分の立場・生活・仕事の経験から具体的に答えてください。'
 				: '';
 
-			const isFact = engagement.mode === 'fact';
-			const isQuestion = engagement.mode === 'question';
-			const system = buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', currentBelief);
-			const llmType = persona.llmType ?? 'claude';
+		const isFact = engagement.mode === 'fact';
+		const isQuestion = engagement.mode === 'question';
+		const system = buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', currentBelief);
+		const llmType = persona.llmType ?? 'claude';
 
-			const lastTurn = recentTurns[recentTurns.length - 1];
-			const lastSpeakerName = lastTurn
-				? (lastTurn.personaId
-					? (personas.find((p) => p.id === lastTurn.personaId)?.name ?? `Persona(${lastTurn.personaId})`)
-					: 'ファシリテーター')
-				: undefined;
-			const lastSpeakerNote = lastSpeakerName
-				? `\n\n直前の発言は${lastSpeakerName}によるものです。${lastSpeakerName}に反応する場合は冒頭で名前を呼ばず、それより前の別の人の発言を取り上げるときだけ「さっき○○さんが言っていた〜」と名前を添えること。`
-				: '';
+		const lastTurn = recentTurns[recentTurns.length - 1];
+		const lastSpeakerName = lastTurn
+			? lastTurn.personaId
+				? (personas.find((p) => p.id === lastTurn.personaId)?.name ??
+					`Persona(${lastTurn.personaId})`)
+				: 'ファシリテーター'
+			: undefined;
+		const lastSpeakerNote = lastSpeakerName
+			? `\n\n直前の発言は${lastSpeakerName}によるものです。${lastSpeakerName}に反応する場合は冒頭で名前を呼ばず、それより前の別の人の発言を取り上げるときだけ「さっき○○さんが言っていた〜」と名前を添えること。`
+			: '';
 
-			const lengthGuide = speechLengthGuide(engagement.score);
-			const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
-			const otherPersonas = context.otherPersonas ?? [];
-			const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。特定の相手への質問・反論がある場合のみ targetPersonaId を指定する。`;
-			const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。特定の相手に直接問いかける場合のみ targetPersonaId を指定する。`;
-			const questionInstruction = isQuestion && engagement.intentSummary
+		const lengthGuide = speechLengthGuide(engagement.score);
+		const fullTools = buildFullTurnTools(styleGuide, lengthGuide);
+		const otherPersonas = context.otherPersonas ?? [];
+		const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。特定の相手への質問・反論がある場合のみ targetPersonaId を指定する。`;
+		const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。特定の相手に直接問いかける場合のみ targetPersonaId を指定する。`;
+		const questionInstruction =
+			isQuestion && engagement.intentSummary
 				? `${persona.name}として、特定の参加者に直接質問してください（${lengthGuide}）。\n【今回の質問意図】${engagement.intentSummary}\n【参加者一覧（targetPersonaId に使用するID）】\n${otherPersonas.map((p) => `- ${p.name}: ${p.id}`).join('\n')}\n必ず targetPersonaId に質問相手のIDを指定すること。信念変化があれば beliefChangeType を指定。`
 				: '';
-			const instruction = isQuestion && questionInstruction ? questionInstruction : isFact ? factInstruction : opinionInstruction;
-			const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterContext}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}`;
-			const callFull = (model: ReturnType<typeof getPersonaModel>) =>
-				generateText({
-					model,
-					maxTokens: MAX_TOKENS.PERSONA_TURN,
-					system,
-					tools: fullTools,
-					toolChoice: 'required' as const,
-					maxSteps: 4,
-					messages: [{ role: 'user', content: userContent }],
-					providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } }
-				});
-			let fullResult;
-			try {
-				fullResult = await callFull(getPersonaModel(llmType));
-				const hasSubmitTurn = fullResult.steps
-					.flatMap((s) => s.toolCalls)
-					.some((c) => c.toolName === 'submit_turn');
-				if (!hasSubmitTurn && llmType !== 'claude') {
-					console.error(`[llm] no submit_turn: ${llmType}, falling back to claude`);
-					fullResult = await callFull(getPersonaModel('claude'));
-				}
-			} catch (err) {
-				console.error(`[llm] provider error: ${llmType} - ${err}`);
+		const instruction =
+			isQuestion && questionInstruction
+				? questionInstruction
+				: isFact
+					? factInstruction
+					: opinionInstruction;
+		const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterContext}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}`;
+		const callFull = (model: ReturnType<typeof getPersonaModel>) =>
+			generateText({
+				model,
+				maxTokens: MAX_TOKENS.PERSONA_TURN,
+				system,
+				tools: fullTools,
+				toolChoice: 'required' as const,
+				maxSteps: 4,
+				messages: [{ role: 'user', content: userContent }],
+				providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } }
+			});
+		let fullResult;
+		try {
+			fullResult = await callFull(getPersonaModel(llmType));
+			const hasSubmitTurn = fullResult.steps
+				.flatMap((s) => s.toolCalls)
+				.some((c) => c.toolName === 'submit_turn');
+			if (!hasSubmitTurn && llmType !== 'claude') {
+				console.error(`[llm] no submit_turn: ${llmType}, falling back to claude`);
 				fullResult = await callFull(getPersonaModel('claude'));
 			}
-
-			const allToolCalls = fullResult.steps.flatMap((s) => s.toolCalls);
-			const toolCall = allToolCalls.find((c) => c.toolName === 'submit_turn');
-			if (!toolCall) {
-				return {
-					ok: false,
-					error: { code: 'AI_API_ERROR', message: 'No tool call in response', retryable: true }
-				};
-			}
-
-			const searchCalls = allToolCalls.filter((c) => c.toolName === 'web_search');
-			const searchQueries = searchCalls.map((c) => (c.args as { query: string }).query);
-
-			const {
-				content,
-				beliefChangeType,
-				beliefChangeSummary,
-				beliefChangeUpdatedBelief,
-				targetPersonaId
-			} = toolCall.args as {
-				content: string;
-				beliefChangeType?: BeliefChangeType;
-				beliefChangeSummary?: string;
-				beliefChangeUpdatedBelief?: string;
-				targetPersonaId?: string;
-			};
-			const beliefChange: BeliefChangeEvent | null = beliefChangeType
-				? {
-						type: beliefChangeType,
-						summary: beliefChangeSummary ?? '',
-						updatedBelief: beliefChangeUpdatedBelief ?? ''
-					}
-				: null;
-			return {
-				ok: true,
-				value: {
-					content,
-					speechMode: isQuestion ? 'question' : isFact ? 'fact' : 'opinion',
-					beliefChange,
-					targetPersonaId,
-					...(searchQueries.length > 0 && {
-						searchUsed: true,
-						searchQueries
-					})
-				}
-			};
 		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
-			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+			console.error(`[llm] provider error: ${llmType} - ${err}`);
+			fullResult = await callFull(getPersonaModel('claude'));
 		}
+
+		const allToolCalls = fullResult.steps.flatMap((s) => s.toolCalls);
+		const toolCall = allToolCalls.find((c) => c.toolName === 'submit_turn');
+		if (!toolCall) {
+			return {
+				ok: false,
+				error: { code: 'AI_API_ERROR', message: 'No tool call in response', retryable: true }
+			};
+		}
+
+		const searchCalls = allToolCalls.filter((c) => c.toolName === 'web_search');
+		const searchQueries = searchCalls.map((c) => (c.args as { query: string }).query);
+
+		const {
+			content,
+			beliefChangeType,
+			beliefChangeSummary,
+			beliefChangeUpdatedBelief,
+			targetPersonaId
+		} = toolCall.args as {
+			content: string;
+			beliefChangeType?: BeliefChangeType;
+			beliefChangeSummary?: string;
+			beliefChangeUpdatedBelief?: string;
+			targetPersonaId?: string;
+		};
+		const beliefChange: BeliefChangeEvent | null = beliefChangeType
+			? {
+					type: beliefChangeType,
+					summary: beliefChangeSummary ?? '',
+					updatedBelief: beliefChangeUpdatedBelief ?? ''
+				}
+			: null;
+		return {
+			ok: true,
+			value: {
+				content,
+				speechMode: isQuestion ? 'question' : isFact ? 'fact' : 'opinion',
+				beliefChange,
+				targetPersonaId,
+				...(searchQueries.length > 0 && {
+					searchUsed: true,
+					searchQueries
+				})
+			}
+		};
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+	}
 };
 
 const engagementSchema = z.object({
@@ -368,13 +383,15 @@ export const evaluateEngagement = async (
 				? `\nあなた（${persona.name}）のこれまでの発言:\n${formatTurns(ownTurns, personas)}\n`
 				: '';
 		const otherPersonasNote =
-			otherPersonaNames.length > 0
-				? `\n他の参加者: ${otherPersonaNames.join('、')}`
-				: '';
+			otherPersonaNames.length > 0 ? `\n他の参加者: ${otherPersonaNames.join('、')}` : '';
 		const result = await generateObject({
 			model: getPersonaModel(persona.llmType ?? 'claude'),
 			maxTokens: MAX_TOKENS.PERSONA_ENGAGEMENT,
-			system: buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', latestBeliefContent(persona)),
+			system: buildPersonaSystemPrompt(
+				persona,
+				persona.interviewRecord ?? '',
+				latestBeliefContent(persona)
+			),
 			schema: engagementSchema,
 			providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
 			messages: [
@@ -390,7 +407,12 @@ export const evaluateEngagement = async (
 		let resolvedMode: 'opinion' | 'fact' | 'none' | 'question' = clampedScore === 1 ? 'none' : mode;
 		if (resolvedMode === 'question' && !intentSummary) resolvedMode = 'opinion';
 		const resolvedIntentSummary = resolvedMode === 'none' ? undefined : intentSummary;
-		return { personaId: persona.id, score: clampedScore, mode: resolvedMode, intentSummary: resolvedIntentSummary };
+		return {
+			personaId: persona.id,
+			score: clampedScore,
+			mode: resolvedMode,
+			intentSummary: resolvedIntentSummary
+		};
 	} catch {
 		return { personaId: persona.id, score: 1, mode: 'none' };
 	}

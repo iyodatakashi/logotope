@@ -9,7 +9,7 @@ vi.mock('firebase/firestore', () => ({
 		snapshotCb = cb;
 		return () => {};
 	}),
-	doc: vi.fn(),
+	doc: vi.fn()
 }));
 
 import { createStakeholdersStore } from '$lib/stores/stakeholders.svelte';

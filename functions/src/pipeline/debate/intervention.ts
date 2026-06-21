@@ -1,12 +1,14 @@
-import {
-	evaluateTopicDrift,
-	evaluateStallIntervention
-} from '../../agents/facilitator-agent.js';
+import { evaluateTopicDrift, evaluateStallIntervention } from '../../agents/facilitator-agent.js';
 import { hasHighEngagement } from './speaker-selection.js';
 import { addQueuedIntents } from './queued-intents.js';
 import { addTurn } from './turn.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
-import type { DebateState, SpeakerSelection, Engagement, DebateTurn } from '../../types/debate.types.js';
+import type {
+	DebateState,
+	SpeakerSelection,
+	Engagement,
+	DebateTurn
+} from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
@@ -83,16 +85,36 @@ export const tryIntervention = async ({
 	chapterTurns?: DebateTurn[];
 }): Promise<boolean> => {
 	const currentChapterTurns = chapterTurns ?? state.turns;
-	let intervention: { content: string; targetPersonaId?: string; selectedDiscussionPointIndex?: number } | undefined;
+	let intervention:
+		| { content: string; targetPersonaId?: string; selectedDiscussionPointIndex?: number }
+		| undefined;
 
 	const unaddressedDiscussionPoints = state.discussionPoints
 		.filter((p) => p.status !== 'addressed')
 		.map((p) => p.point);
 
-	if (shouldEvaluateIntervention(countPersonaTurnsSinceFacilitator(currentChapterTurns), interventionCooldown)) {
-		intervention = await tryTopicDriftIntervention({ personas, chapter, chapterTurns: currentChapterTurns, state, unaddressedDiscussionPoints });
+	if (
+		shouldEvaluateIntervention(
+			countPersonaTurnsSinceFacilitator(currentChapterTurns),
+			interventionCooldown
+		)
+	) {
+		intervention = await tryTopicDriftIntervention({
+			personas,
+			chapter,
+			chapterTurns: currentChapterTurns,
+			state,
+			unaddressedDiscussionPoints
+		});
 		if (!intervention) {
-			intervention = await tryStallIntervention({ personas, chapter, chapterTurns: currentChapterTurns, state, engagements, unaddressedDiscussionPoints });
+			intervention = await tryStallIntervention({
+				personas,
+				chapter,
+				chapterTurns: currentChapterTurns,
+				state,
+				engagements,
+				unaddressedDiscussionPoints
+			});
 		}
 	}
 	if (!intervention) return false;
@@ -138,7 +160,9 @@ const tryTopicDriftIntervention = async ({
 	chapterTurns: DebateTurn[];
 	state: DebateState;
 	unaddressedDiscussionPoints: string[];
-}): Promise<{ content: string; targetPersonaId: string; selectedDiscussionPointIndex?: number } | undefined> => {
+}): Promise<
+	{ content: string; targetPersonaId: string; selectedDiscussionPointIndex?: number } | undefined
+> => {
 	const result = await evaluateTopicDrift(
 		chapterTurns,
 		personas,
@@ -150,7 +174,11 @@ const tryTopicDriftIntervention = async ({
 	if (!result.value.content) return undefined;
 	const targetId = validPersonaId(result.value.targetPersonaId, personas);
 	if (!targetId) return undefined;
-	return { content: result.value.content, targetPersonaId: targetId, selectedDiscussionPointIndex: result.value.selectedDiscussionPointIndex };
+	return {
+		content: result.value.content,
+		targetPersonaId: targetId,
+		selectedDiscussionPointIndex: result.value.selectedDiscussionPointIndex
+	};
 };
 
 /** 出尽くし介入: 高意欲者（>= QUEUE_THRESHOLD_SCORE）がいない場合のみ発火する。ドリフト介入と同じクールダウンを共有する */
@@ -168,7 +196,9 @@ const tryStallIntervention = async ({
 	state: DebateState;
 	engagements: Engagement[];
 	unaddressedDiscussionPoints: string[];
-}): Promise<{ content: string; targetPersonaId?: string; selectedDiscussionPointIndex?: number } | undefined> => {
+}): Promise<
+	{ content: string; targetPersonaId?: string; selectedDiscussionPointIndex?: number } | undefined
+> => {
 	if (hasHighEngagement(engagements)) return undefined;
 	const result = await evaluateStallIntervention(
 		chapterTurns,
@@ -180,5 +210,9 @@ const tryStallIntervention = async ({
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 	if (!result.value.content) return undefined;
 	const targetId = validPersonaId(result.value.targetPersonaId, personas);
-	return { content: result.value.content, targetPersonaId: targetId ?? undefined, selectedDiscussionPointIndex: result.value.selectedDiscussionPointIndex };
+	return {
+		content: result.value.content,
+		targetPersonaId: targetId ?? undefined,
+		selectedDiscussionPointIndex: result.value.selectedDiscussionPointIndex
+	};
 };

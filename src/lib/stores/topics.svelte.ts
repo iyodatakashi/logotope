@@ -23,7 +23,9 @@ const create = () => {
 		if (unsubscribe) return;
 		const q = query(collection(db, 'topics'), orderBy('createdAt', 'desc'));
 		unsubscribe = onSnapshot(q, (snap) => {
-			topics = snap.docs.map((d) => createTopicStates({ ...d.data(), id: d.id } as TopicForFirestore));
+			topics = snap.docs.map((d) =>
+				createTopicStates({ ...d.data(), id: d.id } as TopicForFirestore)
+			);
 			isLoaded = true;
 		});
 	};
@@ -33,7 +35,11 @@ const create = () => {
 		unsubscribe = null;
 	};
 
-	const addTopic = async (title: string, description?: string, sourceUrls?: string[]): Promise<string> => {
+	const addTopic = async (
+		title: string,
+		description?: string,
+		sourceUrls?: string[]
+	): Promise<string> => {
 		const id = nanoid();
 		const now = Timestamp.now();
 		await setDoc(doc(db, 'topics', id), {
@@ -55,7 +61,9 @@ const create = () => {
 			getDocs(collection(db, 'topics', topicId, 'chapters'))
 		]);
 		const chapterEngagementSnaps = await Promise.all(
-			chaptersSnap.docs.map((d) => getDocs(collection(db, 'topics', topicId, 'chapters', d.id, 'engagements')))
+			chaptersSnap.docs.map((d) =>
+				getDocs(collection(db, 'topics', topicId, 'chapters', d.id, 'engagements'))
+			)
 		);
 		const all = [
 			...personasSnap.docs.map((d) => d.ref),

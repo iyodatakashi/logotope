@@ -9,15 +9,18 @@ const mockDoc = vi.fn().mockReturnValue({ update: mockUpdate, set: mockSet });
 vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: vi.fn(() => ({ doc: mockDoc })),
 	Timestamp: { now: vi.fn(() => ({ toDate: () => new Date() })) },
-	FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args) },
+	FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args) }
 }));
 
 const mockEvaluateEngagement = vi.fn();
 vi.mock('../../../agents/persona-agent.js', () => ({
-	evaluateEngagement: (...args: unknown[]) => mockEvaluateEngagement(...args),
+	evaluateEngagement: (...args: unknown[]) => mockEvaluateEngagement(...args)
 }));
 
-import { evaluateEngagements, evaluateEngagementWithFallback } from '../../../pipeline/debate/engagement.js';
+import {
+	evaluateEngagements,
+	evaluateEngagementWithFallback
+} from '../../../pipeline/debate/engagement.js';
 
 const makePersona = (id: string, name: string): Persona => ({
 	id,
@@ -33,7 +36,7 @@ const makePersona = (id: string, name: string): Persona => ({
 	engagementLevel: 'moderate',
 	llmType: 'claude',
 	approved: true,
-	sortOrder: 0,
+	sortOrder: 0
 });
 
 const makeState = (overrides?: Partial<DebateState>): DebateState => ({
@@ -44,7 +47,7 @@ const makeState = (overrides?: Partial<DebateState>): DebateState => ({
 	queuedIntents: new Map(),
 	pairConversationTurns: 0,
 	discussionPoints: [],
-	...overrides,
+	...overrides
 });
 
 const makeDebateTurn = (id: string): DebateTurn => ({
@@ -53,7 +56,7 @@ const makeDebateTurn = (id: string): DebateTurn => ({
 	personaId: 'p1',
 	content: '発言内容',
 	speechMode: 'opinion',
-	createdAt: '',
+	createdAt: ''
 });
 
 describe('evaluateEngagements', () => {
@@ -66,12 +69,18 @@ describe('evaluateEngagements', () => {
 		const personas = [
 			makePersona('p1', '田中太郎'),
 			makePersona('p2', '佐藤花子'),
-			makePersona('p3', '鈴木次郎'),
+			makePersona('p3', '鈴木次郎')
 		];
 		const state = makeState();
 		const chapterTurns: DebateTurn[] = [];
 
-		await evaluateEngagements({ topicId: 'topic1', chapterId: 'ch1', personas, state, chapterTurns });
+		await evaluateEngagements({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			personas,
+			state,
+			chapterTurns
+		});
 
 		// p1 の評価には p2, p3 の名前が渡る
 		const p1Call = mockEvaluateEngagement.mock.calls.find(
@@ -95,7 +104,13 @@ describe('evaluateEngagements', () => {
 		const state = makeState({ lastSpeakerId: 'p1' });
 		const chapterTurns: DebateTurn[] = [];
 
-		await evaluateEngagements({ topicId: 'topic1', chapterId: 'ch1', personas, state, chapterTurns });
+		await evaluateEngagements({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			personas,
+			state,
+			chapterTurns
+		});
 
 		const calledIds = mockEvaluateEngagement.mock.calls.map(
 			(call: unknown[]) => (call[0] as Persona).id
@@ -111,7 +126,13 @@ describe('evaluateEngagements', () => {
 		const state = makeState({ turns: [stateTurn] });
 		const chapterTurns: DebateTurn[] = [chapterTurn];
 
-		await evaluateEngagements({ topicId: 'topic1', chapterId: 'ch1', personas, state, chapterTurns });
+		await evaluateEngagements({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			personas,
+			state,
+			chapterTurns
+		});
 
 		const calls = mockEvaluateEngagement.mock.calls;
 		for (const call of calls) {
@@ -126,10 +147,18 @@ describe('evaluateEngagements', () => {
 		const state = makeState({ turns: [makeDebateTurn('t1')] });
 		const chapterTurns: DebateTurn[] = [makeDebateTurn('t1')];
 
-		await evaluateEngagements({ topicId: 'topic1', chapterId: 'ch1', personas, state, chapterTurns });
+		await evaluateEngagements({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			personas,
+			state,
+			chapterTurns
+		});
 
 		const docPaths = mockDoc.mock.calls.map((call: string[]) => call[0]);
-		expect(docPaths.some((p: string) => p === 'topics/topic1/chapters/ch1/engagements/p1')).toBe(true);
+		expect(docPaths.some((p: string) => p === 'topics/topic1/chapters/ch1/engagements/p1')).toBe(
+			true
+		);
 		expect(docPaths.some((p: string) => p.includes('topics/topic1/engagements'))).toBe(false);
 	});
 });
@@ -143,19 +172,19 @@ describe('evaluateEngagementWithFallback', () => {
 		mockEvaluateEngagement.mockResolvedValue({
 			personaId: 'p1',
 			score: 3,
-			mode: 'opinion',
+			mode: 'opinion'
 		});
 		const personas = [
 			makePersona('p1', '田中太郎'),
 			makePersona('p2', '佐藤花子'),
-			makePersona('p3', '鈴木次郎'),
+			makePersona('p3', '鈴木次郎')
 		];
 
 		await evaluateEngagementWithFallback({
 			personaId: 'p1',
 			personas,
 			chapterTurns: [],
-			engagements: [],
+			engagements: []
 		});
 
 		expect(mockEvaluateEngagement).toHaveBeenCalledOnce();
@@ -166,13 +195,18 @@ describe('evaluateEngagementWithFallback', () => {
 
 	it('engagement リストにある場合は evaluateEngagement を呼ばずにそのまま返す', async () => {
 		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
-		const existingEngagement = { personaId: 'p1', score: 4, mode: 'question' as const, intentSummary: '聞きたい' };
+		const existingEngagement = {
+			personaId: 'p1',
+			score: 4,
+			mode: 'question' as const,
+			intentSummary: '聞きたい'
+		};
 
 		const result = await evaluateEngagementWithFallback({
 			personaId: 'p1',
 			personas,
 			chapterTurns: [],
-			engagements: [existingEngagement],
+			engagements: [existingEngagement]
 		});
 
 		expect(mockEvaluateEngagement).not.toHaveBeenCalled();

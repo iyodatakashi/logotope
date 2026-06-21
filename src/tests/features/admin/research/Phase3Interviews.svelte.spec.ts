@@ -24,7 +24,11 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 							interests: '',
 							approved: true,
 							beliefs: [{ version: 0, content: '初期信念の内容', createdAt: {} }],
-							interview: { interviewRecord: '取材記録の内容', status: 'completed', completedAt: {} },
+							interview: {
+								interviewRecord: '取材記録の内容',
+								status: 'completed',
+								completedAt: {}
+							},
 							sortOrder: 0
 						}
 					];
@@ -50,6 +54,8 @@ describe('Phase3Interviews.svelte', () => {
 
 	it('全員完了時は承認ボタンを表示する（PhasePanel経由、generated状態）', async () => {
 		render(Phase3Interviews);
-		await expect.element(page.getByRole('button', { name: '承認して次へ進む' })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: '承認して次へ進む' }))
+			.toBeInTheDocument();
 	});
 });

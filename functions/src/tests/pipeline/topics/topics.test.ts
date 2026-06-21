@@ -6,8 +6,8 @@ const mockDoc = vi.fn().mockReturnValue({ get: mockGet });
 vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: vi.fn(() => ({ doc: mockDoc })),
 	Timestamp: {
-		now: vi.fn(() => ({ toDate: () => new Date('2026-01-01') })),
-	},
+		now: vi.fn(() => ({ toDate: () => new Date('2026-01-01') }))
+	}
 }));
 
 import { getTopicById } from '../../../pipeline/topics/topics.js';
@@ -30,14 +30,14 @@ describe('getTopicById', () => {
 			data: () => ({
 				title: 'テストトピック',
 				createdAt: { toDate: () => new Date('2026-01-01') },
-				updatedAt: { toDate: () => new Date('2026-01-02') },
-			}),
+				updatedAt: { toDate: () => new Date('2026-01-02') }
+			})
 		});
 
 		const result = await getTopicById('topic1');
 		expect(result).toMatchObject({
 			id: 'topic1',
-			title: 'テストトピック',
+			title: 'テストトピック'
 		});
 	});
 
@@ -49,8 +49,8 @@ describe('getTopicById', () => {
 				title: 'テストトピック',
 				description: 'テストの説明文',
 				createdAt: { toDate: () => new Date('2026-01-01') },
-				updatedAt: { toDate: () => new Date('2026-01-02') },
-			}),
+				updatedAt: { toDate: () => new Date('2026-01-02') }
+			})
 		});
 
 		const result = await getTopicById('topic1');
@@ -65,8 +65,8 @@ describe('getTopicById', () => {
 				title: 'テストトピック',
 				sourceUrls: ['https://example.com/1', 'https://example.com/2'],
 				createdAt: { toDate: () => new Date('2026-01-01') },
-				updatedAt: { toDate: () => new Date('2026-01-02') },
-			}),
+				updatedAt: { toDate: () => new Date('2026-01-02') }
+			})
 		});
 
 		const result = await getTopicById('topic1');
@@ -75,7 +75,11 @@ describe('getTopicById', () => {
 
 	it('fetchedSourceContentsフィールドを返す', async () => {
 		const mockContents = [
-			{ url: 'https://example.com/1', content: 'コンテンツ1', fetchedAt: '2026-01-01T00:00:00.000Z' },
+			{
+				url: 'https://example.com/1',
+				content: 'コンテンツ1',
+				fetchedAt: '2026-01-01T00:00:00.000Z'
+			}
 		];
 		mockGet.mockResolvedValue({
 			exists: true,
@@ -84,8 +88,8 @@ describe('getTopicById', () => {
 				title: 'テストトピック',
 				fetchedSourceContents: mockContents,
 				createdAt: { toDate: () => new Date('2026-01-01') },
-				updatedAt: { toDate: () => new Date('2026-01-02') },
-			}),
+				updatedAt: { toDate: () => new Date('2026-01-02') }
+			})
 		});
 
 		const result = await getTopicById('topic1');
@@ -99,8 +103,8 @@ describe('getTopicById', () => {
 			data: () => ({
 				title: 'テストトピック',
 				createdAt: { toDate: () => new Date('2026-01-01') },
-				updatedAt: { toDate: () => new Date('2026-01-02') },
-			}),
+				updatedAt: { toDate: () => new Date('2026-01-02') }
+			})
 		});
 
 		const result = await getTopicById('topic1');

@@ -6,21 +6,21 @@ import type { Chapter } from '../../types/chapter.types.js';
 vi.mock('ai', () => ({
 	generateText: vi.fn(),
 	generateObject: vi.fn(),
-	jsonSchema: (schema: unknown) => schema,
+	jsonSchema: (schema: unknown) => schema
 }));
 
 vi.mock('../../llm/models.js', () => ({
-	getPersonaModel: vi.fn(() => 'mock-model'),
+	getPersonaModel: vi.fn(() => 'mock-model')
 }));
 
 vi.mock('../../search/search-service.js', () => ({
 	isSearchAvailable: vi.fn(() => false),
-	executeSearch: vi.fn(),
+	executeSearch: vi.fn()
 }));
 
 vi.mock('../../utils/prompt-formatters.js', () => ({
 	formatTurns: vi.fn(() => '【過去の発言なし】'),
-	currentDateString: vi.fn(() => '2026-06-19'),
+	currentDateString: vi.fn(() => '2026-06-19')
 }));
 
 const mockPersona: Persona = {
@@ -38,14 +38,14 @@ const mockPersona: Persona = {
 	llmType: 'claude',
 	approved: true,
 	sortOrder: 0,
-	interviewRecord: 'テスト取材記録',
+	interviewRecord: 'テスト取材記録'
 };
 
 const mockChapter: Chapter = {
 	id: 'ch1',
 	title: 'テスト章',
 	focusQuestion: 'テスト質問？',
-	discussionPoints: [],
+	discussionPoints: []
 };
 
 const mockTurns: DebateTurn[] = [];
@@ -58,7 +58,7 @@ describe('evaluateEngagement', () => {
 	it('mode: question かつ intentSummary が空の場合、mode: opinion に正規化して返す', async () => {
 		const aiMod = await import('ai');
 		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
-			object: { score: 4, mode: 'question', intentSummary: '' },
+			object: { score: 4, mode: 'question', intentSummary: '' }
 		} as never);
 
 		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
@@ -71,7 +71,7 @@ describe('evaluateEngagement', () => {
 	it('mode: question かつ intentSummary が未設定の場合、mode: opinion に正規化して返す', async () => {
 		const aiMod = await import('ai');
 		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
-			object: { score: 3, mode: 'question' },
+			object: { score: 3, mode: 'question' }
 		} as never);
 
 		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
@@ -83,7 +83,7 @@ describe('evaluateEngagement', () => {
 	it('mode: question かつ intentSummary が非空の場合、そのまま mode: question を返す', async () => {
 		const aiMod = await import('ai');
 		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
-			object: { score: 4, mode: 'question', intentSummary: '佐藤さんの根拠を聞きたい' },
+			object: { score: 4, mode: 'question', intentSummary: '佐藤さんの根拠を聞きたい' }
 		} as never);
 
 		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
@@ -114,17 +114,14 @@ describe('evaluateEngagement', () => {
 		const formatMod = await import('../../utils/prompt-formatters.js');
 		const aiMod = await import('ai');
 		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
-			object: { score: 3, mode: 'opinion' },
+			object: { score: 3, mode: 'opinion' }
 		} as never);
 
 		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
 		const personas = [mockPersona];
 		await evaluateEngagement(mockPersona, mockTurns, [], personas);
 
-		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(
-			expect.any(Array),
-			personas
-		);
+		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(expect.any(Array), personas);
 	});
 });
 
@@ -138,9 +135,9 @@ describe('generateTurn', () => {
 		chapter: mockChapter,
 		otherPersonas: [
 			{ id: 'p2', name: '佐藤花子' },
-			{ id: 'p3', name: '鈴木次郎' },
+			{ id: 'p3', name: '鈴木次郎' }
 		],
-		...extras,
+		...extras
 	});
 
 	const makeEngagement = (override?: Partial<Engagement>): Engagement => ({
@@ -148,7 +145,7 @@ describe('generateTurn', () => {
 		score: 4,
 		mode: 'question',
 		intentSummary: '佐藤さんの意見の根拠を確認したい',
-		...override,
+		...override
 	});
 
 	it('question モードのとき questionInstruction がプロンプトに含まれる', async () => {
@@ -162,11 +159,11 @@ describe('generateTurn', () => {
 						toolCalls: [
 							{
 								toolName: 'submit_turn',
-								args: { content: '佐藤さん、なぜそう思うんですか？' },
-							},
-						],
-					},
-				],
+								args: { content: '佐藤さん、なぜそう思うんですか？' }
+							}
+						]
+					}
+				]
 			} as never;
 		});
 
@@ -188,11 +185,11 @@ describe('generateTurn', () => {
 					toolCalls: [
 						{
 							toolName: 'submit_turn',
-							args: { content: '佐藤さん、なぜそう思うんですか？', targetPersonaId: 'p2' },
-						},
-					],
-				},
-			],
+							args: { content: '佐藤さん、なぜそう思うんですか？', targetPersonaId: 'p2' }
+						}
+					]
+				}
+			]
 		} as never);
 
 		const { generateTurn } = await import('../../agents/persona-agent.js');
@@ -212,9 +209,9 @@ describe('generateTurn', () => {
 			return {
 				steps: [
 					{
-						toolCalls: [{ toolName: 'submit_turn', args: { content: 'テスト発言' } }],
-					},
-				],
+						toolCalls: [{ toolName: 'submit_turn', args: { content: 'テスト発言' } }]
+					}
+				]
 			} as never;
 		});
 
@@ -241,11 +238,11 @@ describe('generateTurn', () => {
 						toolCalls: [
 							{
 								toolName: 'submit_turn',
-								args: { content: 'テスト', targetPersonaId: 'p2' },
-							},
-						],
-					},
-				],
+								args: { content: 'テスト', targetPersonaId: 'p2' }
+							}
+						]
+					}
+				]
 			} as never;
 		});
 
@@ -261,17 +258,17 @@ describe('generateTurn', () => {
 	it('generateTurn が formatTurns に personas を渡す', async () => {
 		const formatMod = await import('../../utils/prompt-formatters.js');
 		const aiMod = await import('ai');
-		vi.mocked(aiMod.generateText).mockImplementationOnce(async () => ({
-			steps: [{ toolCalls: [{ toolName: 'submit_turn', args: { content: 'テスト' } }] }],
-		} as never));
+		vi.mocked(aiMod.generateText).mockImplementationOnce(
+			async () =>
+				({
+					steps: [{ toolCalls: [{ toolName: 'submit_turn', args: { content: 'テスト' } }] }]
+				}) as never
+		);
 
 		const { generateTurn } = await import('../../agents/persona-agent.js');
 		const personas = [mockPersona];
 		await generateTurn(mockPersona, makeContext(), makeEngagement({ mode: 'opinion' }), personas);
 
-		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(
-			expect.any(Array),
-			personas
-		);
+		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(expect.any(Array), personas);
 	});
 });

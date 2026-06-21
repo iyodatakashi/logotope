@@ -1,6 +1,16 @@
-import type { SpeakerSelection, Engagement, QueuedIntent, DebateState, DebateTurn } from '../../types/debate.types.js';
+import type {
+	SpeakerSelection,
+	Engagement,
+	QueuedIntent,
+	DebateState,
+	DebateTurn
+} from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
-import { QUEUE_THRESHOLD_SCORE, SPEAK_THRESHOLD_SCORE, STALL_INTERVENTION_THRESHOLD_SCORE } from '../../constants/debate.constants.js';
+import {
+	QUEUE_THRESHOLD_SCORE,
+	SPEAK_THRESHOLD_SCORE,
+	STALL_INTERVENTION_THRESHOLD_SCORE
+} from '../../constants/debate.constants.js';
 
 /** 単一ペルソナの発言意図をキューに積むべきか（>= QUEUE_THRESHOLD_SCORE） */
 export const shouldQueue = (engagement: { score: number }): boolean =>
@@ -28,18 +38,30 @@ export const selectSpeaker = ({
 	state: DebateState;
 	personas: ReadonlyArray<Persona>;
 }): SpeakerSelection => {
-	if (targetPersona && (targetPersona.targetedBy === 'facilitator' || canContinuePairConversation)) {
+	if (
+		targetPersona &&
+		(targetPersona.targetedBy === 'facilitator' || canContinuePairConversation)
+	) {
 		return {
 			personaId: targetPersona.personaId,
-			reason: targetPersona.targetedBy === 'facilitator' ? 'targeted_by_facilitator' : 'targeted_by_persona'
+			reason:
+				targetPersona.targetedBy === 'facilitator'
+					? 'targeted_by_facilitator'
+					: 'targeted_by_persona'
 		};
 	}
 	const personaIds = personas.map((p) => p.id);
-	return selectSpeakerByEngagement(engagements, state.queuedIntents, state.silenceMap, personaIds, state.turns, state.lastSpeakerId);
+	return selectSpeakerByEngagement(
+		engagements,
+		state.queuedIntents,
+		state.silenceMap,
+		personaIds,
+		state.turns,
+		state.lastSpeakerId
+	);
 };
 
-const modeRank = (mode: string): number =>
-	mode === 'fact' ? 2 : mode === 'question' ? 1 : 0;
+const modeRank = (mode: string): number => (mode === 'fact' ? 2 : mode === 'question' ? 1 : 0);
 
 /** キュー > スコアの2段で話者を決定する */
 const selectSpeakerByEngagement = (
@@ -66,23 +88,23 @@ const selectSpeakerByEngagement = (
 		for (const [personaId, items] of queuedIntents.entries()) {
 			if (personaId === lastSpeakerId || !personaIds.includes(personaId) || items.length === 0)
 				continue;
-			const oldest = Math.min(...items.map((item) => {
-				const idx = turns.findIndex((t) => t.id === item.triggerTurnId);
-				return idx === -1 ? Infinity : idx;
-			}));
+			const oldest = Math.min(
+				...items.map((item) => {
+					const idx = turns.findIndex((t) => t.id === item.triggerTurnId);
+					return idx === -1 ? Infinity : idx;
+				})
+			);
 			if (oldest < oldestIdx) {
 				oldestIdx = oldest;
 				oldestPersonaId = personaId;
 			}
 		}
 		if (oldestPersonaId) {
-			const items = [...(queuedIntents.get(oldestPersonaId) ?? [])].sort(
-				(a, b) => {
-					const idxA = turns.findIndex((t) => t.id === a.triggerTurnId);
-					const idxB = turns.findIndex((t) => t.id === b.triggerTurnId);
-					return idxA - idxB;
-				}
-			);
+			const items = [...(queuedIntents.get(oldestPersonaId) ?? [])].sort((a, b) => {
+				const idxA = turns.findIndex((t) => t.id === a.triggerTurnId);
+				const idxB = turns.findIndex((t) => t.id === b.triggerTurnId);
+				return idxA - idxB;
+			});
 			return {
 				personaId: oldestPersonaId,
 				reason: 'queue',

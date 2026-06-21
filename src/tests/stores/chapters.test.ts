@@ -11,7 +11,7 @@ vi.mock('firebase/firestore', () => ({
 	}),
 	collection: vi.fn(),
 	query: vi.fn(),
-	orderBy: vi.fn(),
+	orderBy: vi.fn()
 }));
 
 import { createChaptersStore } from '$lib/stores/chapters.svelte';
@@ -26,16 +26,19 @@ const makeChapter = (
 	discussionPoints: [],
 	turns: [],
 	status: 'pending',
-	...overrides,
+	...overrides
 });
 
-const populate = (store: ReturnType<typeof createChaptersStore>, chapters: (ChapterForFirestore & { id: string })[]) => {
+const populate = (
+	store: ReturnType<typeof createChaptersStore>,
+	chapters: (ChapterForFirestore & { id: string })[]
+) => {
 	store.start();
 	snapshotCb?.({
 		docs: chapters.map((c) => ({
 			id: c.id,
-			data: () => c,
-		})),
+			data: () => c
+		}))
 	});
 };
 
@@ -44,7 +47,10 @@ describe('createChaptersStore', () => {
 		const store = createChaptersStore('topic1');
 		expect(store.chapters).toHaveLength(0);
 
-		populate(store, [makeChapter({ id: 'ch1', chapterIndex: 0 }), makeChapter({ id: 'ch2', chapterIndex: 1 })]);
+		populate(store, [
+			makeChapter({ id: 'ch1', chapterIndex: 0 }),
+			makeChapter({ id: 'ch2', chapterIndex: 1 })
+		]);
 		expect(store.chapters).toHaveLength(2);
 		expect(store.chapters[0].id).toBe('ch1');
 		expect(store.chapters[1].id).toBe('ch2');
@@ -60,18 +66,20 @@ describe('createChaptersStore', () => {
 
 	it('turns が全チャプターの turns をチャプター順・配列順にフラット化する', () => {
 		const store = createChaptersStore('topic1');
-		const fakeTs = { toDate: () => new Date() } as unknown as import('firebase/firestore').Timestamp;
+		const fakeTs = {
+			toDate: () => new Date()
+		} as unknown as import('firebase/firestore').Timestamp;
 		const ch1Turns = [
 			{ id: 't1', speakerType: 'facilitator' as const, content: '開幕', createdAt: fakeTs },
-			{ id: 't2', speakerType: 'persona' as const, content: '発言2', createdAt: fakeTs },
+			{ id: 't2', speakerType: 'persona' as const, content: '発言2', createdAt: fakeTs }
 		];
 		const ch2Turns = [
-			{ id: 't3', speakerType: 'persona' as const, content: '発言3', createdAt: fakeTs },
+			{ id: 't3', speakerType: 'persona' as const, content: '発言3', createdAt: fakeTs }
 		];
 
 		populate(store, [
 			makeChapter({ id: 'ch1', chapterIndex: 0, turns: ch1Turns }),
-			makeChapter({ id: 'ch2', chapterIndex: 1, turns: ch2Turns }),
+			makeChapter({ id: 'ch2', chapterIndex: 1, turns: ch2Turns })
 		]);
 
 		const turns = store.turns;
@@ -83,7 +91,7 @@ describe('createChaptersStore', () => {
 		const store = createChaptersStore('topic1');
 		populate(store, [
 			makeChapter({ id: 'ch1', chapterIndex: 0, status: 'completed' }),
-			makeChapter({ id: 'ch2', chapterIndex: 1, status: 'running' }),
+			makeChapter({ id: 'ch2', chapterIndex: 1, status: 'running' })
 		]);
 
 		expect(store.currentChapterId).toBe('ch2');
@@ -91,9 +99,7 @@ describe('createChaptersStore', () => {
 
 	it('currentChapterId が running なしの場合 null になる', () => {
 		const store = createChaptersStore('topic1');
-		populate(store, [
-			makeChapter({ id: 'ch1', chapterIndex: 0, status: 'completed' }),
-		]);
+		populate(store, [makeChapter({ id: 'ch1', chapterIndex: 0, status: 'completed' })]);
 
 		expect(store.currentChapterId).toBeNull();
 	});
@@ -102,7 +108,7 @@ describe('createChaptersStore', () => {
 		const store = createChaptersStore('topic1');
 		populate(store, [
 			makeChapter({ id: 'ch1', chapterIndex: 0, status: 'completed' }),
-			makeChapter({ id: 'ch2', chapterIndex: 1, status: 'running' }),
+			makeChapter({ id: 'ch2', chapterIndex: 1, status: 'running' })
 		]);
 
 		expect(store.currentChapter).not.toBeNull();
@@ -112,9 +118,7 @@ describe('createChaptersStore', () => {
 
 	it('currentChapter が running なしの場合 null を返す', () => {
 		const store = createChaptersStore('topic1');
-		populate(store, [
-			makeChapter({ id: 'ch1', chapterIndex: 0, status: 'completed' }),
-		]);
+		populate(store, [makeChapter({ id: 'ch1', chapterIndex: 0, status: 'completed' })]);
 
 		expect(store.currentChapter).toBeNull();
 	});

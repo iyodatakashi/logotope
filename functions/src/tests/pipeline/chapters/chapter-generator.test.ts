@@ -7,22 +7,22 @@ const mockDoc = vi.fn().mockReturnValue({ set: mockSet, update: mockUpdate, dele
 
 vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: vi.fn(() => ({ doc: mockDoc })),
-	Timestamp: { now: vi.fn(() => 'mock-ts') },
+	Timestamp: { now: vi.fn(() => 'mock-ts') }
 }));
 
 const mockGetTopicById = vi.fn();
 vi.mock('../../../pipeline/topics/topics.js', () => ({
-	getTopicById: (...args: unknown[]) => mockGetTopicById(...args),
+	getTopicById: (...args: unknown[]) => mockGetTopicById(...args)
 }));
 
 const mockGetPersonasByTopicId = vi.fn();
 vi.mock('../../../pipeline/personas/personas.js', () => ({
-	getPersonasByTopicId: (...args: unknown[]) => mockGetPersonasByTopicId(...args),
+	getPersonasByTopicId: (...args: unknown[]) => mockGetPersonasByTopicId(...args)
 }));
 
 const mockGenerateChapters = vi.fn();
 vi.mock('../../../agents/chapter-agent.js', () => ({
-	generateChapters: (...args: unknown[]) => mockGenerateChapters(...args),
+	generateChapters: (...args: unknown[]) => mockGenerateChapters(...args)
 }));
 
 import { planChapters } from '../../../pipeline/chapters/chapter-generator.js';
@@ -30,12 +30,12 @@ import type { Topic } from '../../../types/topic.types.js';
 
 const mockChapters = [
 	{ id: 'c1', title: '第1章', focusQuestion: '問い1', discussionPoints: ['論点A'] },
-	{ id: 'c2', title: '第2章', focusQuestion: '問い2', discussionPoints: [] },
+	{ id: 'c2', title: '第2章', focusQuestion: '問い2', discussionPoints: [] }
 ];
 
 const mockChaptersResult = {
 	ok: true,
-	value: mockChapters,
+	value: mockChapters
 };
 
 const makeGenerateChaptersMock = () =>
@@ -46,7 +46,13 @@ const makeGenerateChaptersMock = () =>
 			_context: unknown,
 			onProgress?: (p: {
 				step: string;
-				issues?: Array<{ text: string; source: string; score?: number; reason?: string; selected?: boolean }>;
+				issues?: Array<{
+					text: string;
+					source: string;
+					score?: number;
+					reason?: string;
+					selected?: boolean;
+				}>;
 				issueGroups?: Array<{ issueIndexes: number[] }>;
 			}) => Promise<void>
 		) => {
@@ -55,19 +61,19 @@ const makeGenerateChaptersMock = () =>
 					step: 'issues_generated',
 					issues: [
 						{ text: 'general1', source: 'general' },
-						{ text: 'persona1', source: 'persona' },
-					],
+						{ text: 'persona1', source: 'persona' }
+					]
 				});
 				await onProgress({
 					step: 'issues_scored',
 					issues: [
 						{ text: 'general1', source: 'general', score: 8, reason: '良い', selected: true },
-						{ text: 'persona1', source: 'persona', score: 7, reason: '良い', selected: true },
-					],
+						{ text: 'persona1', source: 'persona', score: 7, reason: '良い', selected: true }
+					]
 				});
 				await onProgress({
 					step: 'issues_grouped',
-					issueGroups: [{ issueIndexes: [0] }, { issueIndexes: [1] }],
+					issueGroups: [{ issueIndexes: [0] }, { issueIndexes: [1] }]
 				});
 			}
 			return mockChaptersResult;
@@ -98,8 +104,8 @@ describe('planChapters', () => {
 			expect.objectContaining({
 				issues: expect.arrayContaining([
 					expect.objectContaining({ text: 'general1', source: 'general' }),
-					expect.objectContaining({ text: 'persona1', source: 'persona' }),
-				]),
+					expect.objectContaining({ text: 'persona1', source: 'persona' })
+				])
 			})
 		);
 		// score は issues_generated 時点では含まれない
@@ -124,8 +130,8 @@ describe('planChapters', () => {
 		expect(mockUpdate).toHaveBeenCalledWith(
 			expect.objectContaining({
 				issues: expect.arrayContaining([
-					expect.objectContaining({ score: 8, reason: '良い', selected: true }),
-				]),
+					expect.objectContaining({ score: 8, reason: '良い', selected: true })
+				])
 			})
 		);
 	});
@@ -137,7 +143,7 @@ describe('planChapters', () => {
 		await planChapters('topic1');
 
 		expect(mockUpdate).toHaveBeenCalledWith({
-			issueGroups: [{ issueIndexes: [0] }, { issueIndexes: [1] }],
+			issueGroups: [{ issueIndexes: [0] }, { issueIndexes: [1] }]
 		});
 	});
 
@@ -189,7 +195,7 @@ describe('planChapters', () => {
 			title: 'テーマ',
 			description: 'テーマの詳細説明',
 			createdAt: '',
-			updatedAt: '',
+			updatedAt: ''
 		};
 		mockGetTopicById.mockResolvedValue(topic);
 
@@ -208,7 +214,7 @@ describe('planChapters', () => {
 		mockGetTopicById.mockResolvedValue(topic);
 		mockGenerateChapters.mockResolvedValue({
 			ok: false,
-			error: { code: 'AI_API_ERROR', message: 'AI失敗', retryable: true },
+			error: { code: 'AI_API_ERROR', message: 'AI失敗', retryable: true }
 		});
 
 		await expect(planChapters('topic1')).rejects.toThrow('AI失敗');

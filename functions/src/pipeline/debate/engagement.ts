@@ -17,7 +17,9 @@ const saveEngagements = async (params: {
 	}>;
 }): Promise<void> => {
 	for (const engagement of params.engagements) {
-		const ref = db().doc(`topics/${params.topicId}/chapters/${params.chapterId}/engagements/${engagement.personaId}`);
+		const ref = db().doc(
+			`topics/${params.topicId}/chapters/${params.chapterId}/engagements/${engagement.personaId}`
+		);
 		const entry: Record<string, unknown> = { score: engagement.score, mode: engagement.mode };
 		if (engagement.intentSummary !== undefined) entry.intentSummary = engagement.intentSummary;
 		await ref.set(

@@ -8,7 +8,7 @@ import { fetchAndExtractText } from '../../../pipeline/topics/source-fetcher.js'
 const makeResponse = (body: string, ok = true, status = 200) => ({
 	ok,
 	status,
-	text: () => Promise.resolve(body),
+	text: () => Promise.resolve(body)
 });
 
 describe('fetchAndExtractText', () => {

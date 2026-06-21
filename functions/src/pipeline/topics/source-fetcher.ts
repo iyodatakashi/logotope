@@ -1,7 +1,10 @@
 const TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_CHARS = 10_000;
 
-export const fetchAndExtractText = async (url: string, maxChars = DEFAULT_MAX_CHARS): Promise<string | null> => {
+export const fetchAndExtractText = async (
+	url: string,
+	maxChars = DEFAULT_MAX_CHARS
+): Promise<string | null> => {
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 

@@ -5,18 +5,22 @@ import { MAX_TOKENS } from '../constants/ai.constants.js';
 import type { Stakeholder } from '../types/stakeholder.types.js';
 
 const stakeholdersSchema = z.object({
-	stakeholders: z.array(
-		z.object({
-			role: z.string(),
-			reason: z.string(),
-			mainInterests: z.array(z.string()),
-			minorityLevel: z.enum(['high', 'medium', 'low']),
-			engagementLevel: z.enum(['high', 'medium', 'low'])
-		})
-	).min(5)
+	stakeholders: z
+		.array(
+			z.object({
+				role: z.string(),
+				reason: z.string(),
+				mainInterests: z.array(z.string()),
+				minorityLevel: z.enum(['high', 'medium', 'low']),
+				engagementLevel: z.enum(['high', 'medium', 'low'])
+			})
+		)
+		.min(5)
 });
 
-export const generateStakeholders = async (title: string): Promise<{ stakeholders: Stakeholder[] }> => {
+export const generateStakeholders = async (
+	title: string
+): Promise<{ stakeholders: Stakeholder[] }> => {
 	const result = await generateObject({
 		model: getPipelineModel('stakeholderAnalyzer'),
 		maxTokens: MAX_TOKENS.STAKEHOLDER,

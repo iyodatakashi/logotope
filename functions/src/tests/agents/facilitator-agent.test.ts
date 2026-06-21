@@ -4,11 +4,11 @@ import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
 vi.mock('ai', () => ({
-	generateObject: vi.fn(),
+	generateObject: vi.fn()
 }));
 
 vi.mock('@ai-sdk/anthropic', () => ({
-	anthropic: vi.fn(() => 'mock-model'),
+	anthropic: vi.fn(() => 'mock-model')
 }));
 
 vi.mock('../../constants/ai.constants.js', () => ({
@@ -17,14 +17,14 @@ vi.mock('../../constants/ai.constants.js', () => ({
 		FACILITATOR_OPENING: 512,
 		FACILITATOR_CHAPTER_TRANSITION: 512,
 		FACILITATOR_INTERVENTION: 512,
-		FACILITATOR_COVERAGE: 512,
-	},
+		FACILITATOR_COVERAGE: 512
+	}
 }));
 
 vi.mock('../../utils/prompt-formatters.js', () => ({
 	formatTurns: vi.fn(() => '【ターン履歴】'),
 	formatPersonas: vi.fn(() => '- p1: テスト'),
-	currentDateString: vi.fn(() => '2026-06-19'),
+	currentDateString: vi.fn(() => '2026-06-19')
 }));
 
 const mockPersona: Persona = {
@@ -42,7 +42,7 @@ const mockPersona: Persona = {
 	llmType: 'claude',
 	approved: true,
 	sortOrder: 0,
-	interviewRecord: '',
+	interviewRecord: ''
 };
 
 const makeChapter = (overrides: Partial<Chapter> = {}): Chapter => ({
@@ -50,14 +50,14 @@ const makeChapter = (overrides: Partial<Chapter> = {}): Chapter => ({
 	title: 'テスト章',
 	focusQuestion: 'テスト問い？',
 	discussionPoints: [],
-	...overrides,
+	...overrides
 });
 
 const makeTurn = (content: string, speakerType = 'persona'): DebateTurn => ({
 	id: 't1',
 	speakerType,
 	content,
-	createdAt: '2026-06-19T00:00:00Z',
+	createdAt: '2026-06-19T00:00:00Z'
 });
 
 const makeObjectResult = (obj: Record<string, unknown>) => ({ object: obj });
@@ -174,13 +174,10 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 		});
 
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
-		await evaluateTopicDrift(
-			[makeTurn('発言')],
-			[mockPersona],
-			new Map(),
-			makeChapter(),
-			['未消化論点A', '未消化論点B']
-		);
+		await evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), [
+			'未消化論点A',
+			'未消化論点B'
+		]);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		expect(callArgs.messages[0].content).toContain('未消化論点A');
@@ -194,13 +191,9 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 		});
 
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
-		await evaluateTopicDrift(
-			[makeTurn('発言')],
-			[mockPersona],
-			new Map(),
-			makeChapter(),
-			['論点1']
-		);
+		await evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), [
+			'論点1'
+		]);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		const content = callArgs.messages[0].content;
@@ -209,7 +202,11 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 
 	it('selectedDiscussionPointIndex をそのまま返す', async () => {
 		generateObject.mockResolvedValueOnce(
-			makeObjectResult({ targetPersonaId: 'p1', content: '論点投入', selectedDiscussionPointIndex: 1 })
+			makeObjectResult({
+				targetPersonaId: 'p1',
+				content: '論点投入',
+				selectedDiscussionPointIndex: 1
+			})
 		);
 
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
@@ -259,13 +256,9 @@ describe('evaluateStallIntervention - 未完了論点対応', () => {
 		});
 
 		const { evaluateStallIntervention } = await import('../../agents/facilitator-agent.js');
-		await evaluateStallIntervention(
-			[makeTurn('発言')],
-			[mockPersona],
-			new Map(),
-			makeChapter(),
-			['未消化論点']
-		);
+		await evaluateStallIntervention([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), [
+			'未消化論点'
+		]);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		const content = callArgs.messages[0].content;
@@ -275,7 +268,11 @@ describe('evaluateStallIntervention - 未完了論点対応', () => {
 
 	it('selectedDiscussionPointIndex をそのまま返す', async () => {
 		generateObject.mockResolvedValueOnce(
-			makeObjectResult({ targetPersonaId: 'p1', content: '論点投入', selectedDiscussionPointIndex: 0 })
+			makeObjectResult({
+				targetPersonaId: 'p1',
+				content: '論点投入',
+				selectedDiscussionPointIndex: 0
+			})
 		);
 
 		const { evaluateStallIntervention } = await import('../../agents/facilitator-agent.js');
@@ -348,7 +345,11 @@ describe('evaluateDiscussionPointCoverage', () => {
 		});
 
 		const { evaluateDiscussionPointCoverage } = await import('../../agents/facilitator-agent.js');
-		await evaluateDiscussionPointCoverage([makeTurn('テスト発言A')], ['チェックする論点X'], [mockPersona]);
+		await evaluateDiscussionPointCoverage(
+			[makeTurn('テスト発言A')],
+			['チェックする論点X'],
+			[mockPersona]
+		);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		expect(callArgs.messages[0].content).toContain('チェックする論点X');
@@ -363,15 +364,14 @@ describe('generateClosing - personas 引き渡し', () => {
 	it('formatTurns に personas を渡す', async () => {
 		const formatMod = await import('../../utils/prompt-formatters.js');
 		const aiMod = await import('ai');
-		vi.mocked(aiMod.generateObject).mockResolvedValueOnce(makeObjectResult({ content: 'クロージング' }));
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce(
+			makeObjectResult({ content: 'クロージング' })
+		);
 
 		const { generateClosing } = await import('../../agents/facilitator-agent.js');
 		const personas = [mockPersona];
 		await generateClosing([makeTurn('test')], new Map(), personas);
 
-		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(
-			expect.any(Array),
-			personas
-		);
+		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(expect.any(Array), personas);
 	});
 });

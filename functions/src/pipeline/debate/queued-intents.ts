@@ -1,7 +1,12 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { shouldQueue } from './speaker-selection.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/debate.constants.js';
-import type { DebateState, QueuedIntent, SpeakerSelection, Engagement } from '../../types/debate.types.js';
+import type {
+	DebateState,
+	QueuedIntent,
+	SpeakerSelection,
+	Engagement
+} from '../../types/debate.types.js';
 
 const db = () => getFirestore();
 
@@ -96,7 +101,10 @@ export const consumeQueuedIntent = async ({
 		.set({ queuedIntents: [...remaining] }, { merge: true });
 };
 
-export const loadQueuedIntents = async (topicId: string, chapterId: string): Promise<Map<string, QueuedIntent[]>> => {
+export const loadQueuedIntents = async (
+	topicId: string,
+	chapterId: string
+): Promise<Map<string, QueuedIntent[]>> => {
 	const snap = await db().collection(`topics/${topicId}/chapters/${chapterId}/engagements`).get();
 	const result = new Map<string, QueuedIntent[]>();
 	for (const docSnap of snap.docs) {

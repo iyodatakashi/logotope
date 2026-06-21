@@ -3,7 +3,12 @@ import { formatTurns } from '../../utils/prompt-formatters.js';
 import type { DebateTurn } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
-const makePersona = (id: string, name: string, specificRole: string, stakeholderRole = ''): Persona => ({
+const makePersona = (
+	id: string,
+	name: string,
+	specificRole: string,
+	stakeholderRole = ''
+): Persona => ({
 	id,
 	topicId: 'topic1',
 	name,
@@ -17,14 +22,14 @@ const makePersona = (id: string, name: string, specificRole: string, stakeholder
 	engagementLevel: 'moderate',
 	llmType: 'claude',
 	approved: true,
-	sortOrder: 0,
+	sortOrder: 0
 });
 
 const makeFacilitatorTurn = (content: string): DebateTurn => ({
 	id: 't1',
 	speakerType: 'facilitator',
 	content,
-	createdAt: '',
+	createdAt: ''
 });
 
 const makePersonaTurn = (personaId: string, content: string): DebateTurn => ({
@@ -32,7 +37,7 @@ const makePersonaTurn = (personaId: string, content: string): DebateTurn => ({
 	speakerType: 'persona',
 	personaId,
 	content,
-	createdAt: '',
+	createdAt: ''
 });
 
 describe('formatTurns', () => {
@@ -69,10 +74,7 @@ describe('formatTurns', () => {
 
 	it('複数のターンを改行で結合する', () => {
 		const personas = [makePersona('p1', '田中太郎', '医師')];
-		const turns = [
-			makeFacilitatorTurn('開会します。'),
-			makePersonaTurn('p1', '賛成です。'),
-		];
+		const turns = [makeFacilitatorTurn('開会します。'), makePersonaTurn('p1', '賛成です。')];
 		expect(formatTurns(turns, personas)).toBe(
 			'[ファシリテーター()]: 開会します。\n[田中太郎(医師)(ID:p1)]: 賛成です。'
 		);

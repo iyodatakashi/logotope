@@ -95,9 +95,7 @@ describe('createTopicStates', () => {
 
 	describe('生成の2軸遷移（生成のみ。旧データ削除は reset が担う）', () => {
 		it('generateStakeholders は (1, running)→生成成功で (1, generated)。削除はしない', async () => {
-			vi.mocked(httpsCallable).mockReturnValue(
-				vi.fn().mockResolvedValue({ data: {} }) as never
-			);
+			vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: {} }) as never);
 			const store = makeTopic({ title: 'T', id: 't1' });
 			await store.generateStakeholders();
 

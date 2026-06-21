@@ -11,17 +11,30 @@ const mockDoc = vi.fn().mockReturnValue({ update: mockUpdate, set: mockSet });
 vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: vi.fn(() => ({ doc: mockDoc })),
 	Timestamp: { now: vi.fn(() => ({ toDate: () => new Date() })) },
-	FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args), delete: vi.fn(() => 'delete-sentinel') },
+	FieldValue: {
+		arrayUnion: vi.fn((...args: unknown[]) => args),
+		delete: vi.fn(() => 'delete-sentinel')
+	}
 }));
 
 // 各モジュールのスタブ
-const mockGetTopicById = vi.fn().mockResolvedValue({ title: 'テストテーマ', phase: 5, phaseStatus: 'running' });
-const mockGetPersonasByTopicId = vi.fn().mockResolvedValue([{ id: 'p1', name: 'テスト', approved: true }]);
-vi.mock('../../../pipeline/topics/topics.js', () => ({ getTopicById: (...args: unknown[]) => mockGetTopicById(...args) }));
-vi.mock('../../../pipeline/personas/personas.js', () => ({ getPersonasByTopicId: (...args: unknown[]) => mockGetPersonasByTopicId(...args) }));
+const mockGetTopicById = vi
+	.fn()
+	.mockResolvedValue({ title: 'テストテーマ', phase: 5, phaseStatus: 'running' });
+const mockGetPersonasByTopicId = vi
+	.fn()
+	.mockResolvedValue([{ id: 'p1', name: 'テスト', approved: true }]);
+vi.mock('../../../pipeline/topics/topics.js', () => ({
+	getTopicById: (...args: unknown[]) => mockGetTopicById(...args)
+}));
+vi.mock('../../../pipeline/personas/personas.js', () => ({
+	getPersonasByTopicId: (...args: unknown[]) => mockGetPersonasByTopicId(...args)
+}));
 
 const mockGetChaptersByTopicId = vi.fn();
-vi.mock('../../../pipeline/debate/debate-lifecycle.js', () => ({ getChaptersByTopicId: (...args: unknown[]) => mockGetChaptersByTopicId(...args) }));
+vi.mock('../../../pipeline/debate/debate-lifecycle.js', () => ({
+	getChaptersByTopicId: (...args: unknown[]) => mockGetChaptersByTopicId(...args)
+}));
 
 const mockGenerateOpening = vi.fn();
 const mockGenerateChapterIntroduction = vi.fn();
@@ -29,14 +42,19 @@ const mockEvaluateDiscussionPointCoverage = vi.fn();
 vi.mock('../../../agents/facilitator-agent.js', () => ({
 	generateOpening: (...args: unknown[]) => mockGenerateOpening(...args),
 	generateChapterIntroduction: (...args: unknown[]) => mockGenerateChapterIntroduction(...args),
-	evaluateDiscussionPointCoverage: (...args: unknown[]) => mockEvaluateDiscussionPointCoverage(...args),
+	evaluateDiscussionPointCoverage: (...args: unknown[]) =>
+		mockEvaluateDiscussionPointCoverage(...args)
 }));
 
 const mockGetDebateState = vi.fn();
-vi.mock('../../../pipeline/debate/debate-state.js', () => ({ getDebateState: (...args: unknown[]) => mockGetDebateState(...args) }));
+vi.mock('../../../pipeline/debate/debate-state.js', () => ({
+	getDebateState: (...args: unknown[]) => mockGetDebateState(...args)
+}));
 
 const mockTryIntervention = vi.fn().mockResolvedValue(false);
-vi.mock('../../../pipeline/debate/intervention.js', () => ({ tryIntervention: (...args: unknown[]) => mockTryIntervention(...args) }));
+vi.mock('../../../pipeline/debate/intervention.js', () => ({
+	tryIntervention: (...args: unknown[]) => mockTryIntervention(...args)
+}));
 
 const mockIsDebateActive = vi.fn().mockResolvedValue(true);
 const mockGenerateFacilitatorTurn = vi.fn().mockResolvedValue(undefined);
@@ -54,23 +72,27 @@ vi.mock('../../../pipeline/debate/turn.js', () => ({
 	finalizeDebate: (...args: unknown[]) => mockFinalizeDebate(...args),
 	updateSpeakerStats: (...args: unknown[]) => mockUpdateSpeakerStats(...args),
 	applyBeliefChange: (...args: unknown[]) => mockApplyBeliefChange(...args),
-	getDebateTurnsByTopicId: (...args: unknown[]) => mockGetDebateTurnsByTopicId(...args),
+	getDebateTurnsByTopicId: (...args: unknown[]) => mockGetDebateTurnsByTopicId(...args)
 }));
 
-vi.mock('../../../pipeline/debate/speaker-selection.js', () => ({ selectSpeaker: vi.fn().mockReturnValue({ personaId: 'p1', reason: 'score' }) }));
+vi.mock('../../../pipeline/debate/speaker-selection.js', () => ({
+	selectSpeaker: vi.fn().mockReturnValue({ personaId: 'p1', reason: 'score' })
+}));
 vi.mock('../../../pipeline/debate/engagement.js', () => ({
 	evaluateEngagements: vi.fn().mockResolvedValue([]),
-	evaluateEngagementWithFallback: vi.fn().mockResolvedValue({ personaId: 'p1', score: 5, mode: 'opinion' }),
+	evaluateEngagementWithFallback: vi
+		.fn()
+		.mockResolvedValue({ personaId: 'p1', score: 5, mode: 'opinion' })
 }));
 vi.mock('../../../pipeline/debate/queued-intents.js', () => ({
 	expireQueuedIntents: vi.fn().mockResolvedValue(undefined),
 	addQueuedIntents: vi.fn().mockResolvedValue(undefined),
 	consumeQueuedIntent: vi.fn().mockResolvedValue(undefined),
-	loadQueuedIntents: vi.fn().mockResolvedValue(new Map()),
+	loadQueuedIntents: vi.fn().mockResolvedValue(new Map())
 }));
 vi.mock('../../../pipeline/debate/utils.js', () => ({
 	pipelineErrorMessage: vi.fn((e: { message: string }) => e.message),
-	validPersonaId: vi.fn((id: string | undefined) => id),
+	validPersonaId: vi.fn((id: string | undefined) => id)
 }));
 
 import type { DebateState } from '../../../types/debate.types.js';
@@ -82,7 +104,7 @@ const makeChapter = (overrides: Partial<Chapter> = {}): Chapter => ({
 	title: 'テスト章',
 	focusQuestion: 'テスト？',
 	discussionPoints: [],
-	...overrides,
+	...overrides
 });
 
 const makeState = (discussionPoints: DebateState['discussionPoints'] = []): DebateState => ({
@@ -91,17 +113,20 @@ const makeState = (discussionPoints: DebateState['discussionPoints'] = []): Deba
 	speakCount: new Map(),
 	queuedIntents: new Map(),
 	pairConversationTurns: 0,
-	discussionPoints,
+	discussionPoints
 });
 
-const makeChapterEntry = (chapter: Chapter, status: ChapterEntry['status'] = 'pending'): ChapterEntry => ({
+const makeChapterEntry = (
+	chapter: Chapter,
+	status: ChapterEntry['status'] = 'pending'
+): ChapterEntry => ({
 	id: chapter.id,
 	chapterIndex: 0,
 	title: chapter.title,
 	focusQuestion: chapter.focusQuestion,
 	discussionPoints: chapter.discussionPoints ?? [],
 	turns: [],
-	status,
+	status
 });
 
 describe('executeChapterTask - 論点ステータス初期化', () => {
@@ -117,7 +142,7 @@ describe('executeChapterTask - 論点ステータス初期化', () => {
 		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
 		mockGenerateOpening.mockResolvedValue({
 			ok: true,
-			value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 },
+			value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
 		});
 		// ループ外に出るため generatePersonaTurn が null を返す
 		mockGeneratePersonaTurn.mockResolvedValue(null);
@@ -138,7 +163,7 @@ describe('executeChapterTask - 論点ステータス初期化', () => {
 		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
 		mockGenerateOpening.mockResolvedValue({
 			ok: true,
-			value: { content: '開幕', targetPersonaId: 'p1' },
+			value: { content: '開幕', targetPersonaId: 'p1' }
 		});
 		mockGeneratePersonaTurn.mockResolvedValue(null);
 
@@ -160,7 +185,10 @@ describe('executeChapterTask - 冪等性チェック（status=completed）', () 
 	it('対象チャプターが completed の場合はスキップして次章があれば true を返す', async () => {
 		const chapter = makeChapter();
 		const completedEntry = makeChapterEntry(chapter, 'completed');
-		const nextEntry: ChapterEntry = { ...makeChapterEntry(makeChapter({ id: 'ch2' })), chapterIndex: 1 };
+		const nextEntry: ChapterEntry = {
+			...makeChapterEntry(makeChapter({ id: 'ch2' })),
+			chapterIndex: 1
+		};
 		mockGetChaptersByTopicId.mockResolvedValue([completedEntry, nextEntry]);
 
 		const { executeChapterTask } = await import('../../../pipeline/debate/debate-orchestrator.js');
@@ -197,7 +225,7 @@ describe('executeChapterTask - ハードキャップ計算', () => {
 		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
 		mockGenerateOpening.mockResolvedValue({
 			ok: true,
-			value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 },
+			value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
 		});
 
 		// ターンを 23 回（TURN_CAP_RATIO での cap=22 超え）生成できるかチェック
@@ -208,7 +236,7 @@ describe('executeChapterTask - ハードキャップ計算', () => {
 				id: `t${callCount}`,
 				speakerType: 'persona',
 				content: '発言',
-				createdAt: '2026-06-19T00:00:00Z',
+				createdAt: '2026-06-19T00:00:00Z'
 			});
 			// 25ターン目で null を返してループを抜ける
 			if (callCount >= 25) return null;
@@ -229,7 +257,7 @@ describe('executeChapterTask - ハードキャップ計算', () => {
 		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
 		mockGenerateOpening.mockResolvedValue({
 			ok: true,
-			value: { content: '開幕', targetPersonaId: 'p1' },
+			value: { content: '開幕', targetPersonaId: 'p1' }
 		});
 
 		let callCount = 0;
@@ -239,13 +267,17 @@ describe('executeChapterTask - ハードキャップ計算', () => {
 				id: `t${callCount}`,
 				speakerType: 'persona',
 				content: '発言',
-				createdAt: '2026-06-19T00:00:00Z',
+				createdAt: '2026-06-19T00:00:00Z'
 			});
 			return { personaId: 'p1', turnId: `t${callCount}`, queuedEntries: [], beliefChange: null };
 		});
 
 		const { executeChapterTask } = await import('../../../pipeline/debate/debate-orchestrator.js');
-		await executeChapterTask('topic1', 0, { turnsPerChapter: 15, maxTurns: 200, interventionCooldown: 3 });
+		await executeChapterTask('topic1', 0, {
+			turnsPerChapter: 15,
+			maxTurns: 200,
+			interventionCooldown: 3
+		});
 
 		// TURN_CAP_RATIO(1.5) → cap = ceil(15 * 1.5) = 23
 		expect(callCount).toBeLessThanOrEqual(23);
@@ -265,7 +297,7 @@ describe('executeChapterTask - 開幕で論点1を introduced にマーク', () 
 		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
 		mockGenerateOpening.mockResolvedValue({
 			ok: true,
-			value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 },
+			value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
 		});
 		mockGeneratePersonaTurn.mockResolvedValue(null);
 
@@ -287,13 +319,13 @@ describe('executeChapterTask - 早期終了ロジック', () => {
 		const chapter = makeChapter({ id: 'ch1', discussionPoints: ['論点A', '論点B'] });
 		const state = makeState([
 			{ point: '論点A', status: 'introduced' },
-			{ point: '論点B', status: 'untouched' },
+			{ point: '論点B', status: 'untouched' }
 		]);
 		mockGetDebateState.mockReturnValue(state);
 		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
 		mockGenerateOpening.mockResolvedValue({
 			ok: true,
-			value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 },
+			value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
 		});
 
 		// coverage 評価で全論点消化 → 以降は break
@@ -302,7 +334,7 @@ describe('executeChapterTask - 早期終了ロジック', () => {
 		// engagements に低スコアを返して chapterEndCount を増やす
 		const { evaluateEngagements } = await import('../../../pipeline/debate/engagement.js');
 		vi.mocked(evaluateEngagements).mockResolvedValue([
-			{ personaId: 'p1', score: 2, mode: 'opinion' as const },
+			{ personaId: 'p1', score: 2, mode: 'opinion' as const }
 		]);
 
 		// EARLY_END_PROGRESS_RATIO(0.75)×15=12ターン + CHAPTER_END_COUNT_LIMIT=5 回 false
@@ -313,7 +345,7 @@ describe('executeChapterTask - 早期終了ロジック', () => {
 				id: `t${turnCount}`,
 				speakerType: 'persona',
 				content: '発言',
-				createdAt: '',
+				createdAt: ''
 			});
 			if (turnCount > 30) return null; // 安全ガード
 			return { personaId: 'p1', turnId: `t${turnCount}`, queuedEntries: [], beliefChange: null };
@@ -332,13 +364,13 @@ describe('executeChapterTask - 早期終了ロジック', () => {
 		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
 		mockGenerateOpening.mockResolvedValue({
 			ok: true,
-			value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 },
+			value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
 		});
 		mockEvaluateDiscussionPointCoverage.mockResolvedValue({ ok: true, value: [0] });
 
 		const { evaluateEngagements } = await import('../../../pipeline/debate/engagement.js');
 		vi.mocked(evaluateEngagements).mockResolvedValue([
-			{ personaId: 'p1', score: 2, mode: 'opinion' as const },
+			{ personaId: 'p1', score: 2, mode: 'opinion' as const }
 		]);
 
 		let turnCount = 0;
@@ -348,14 +380,18 @@ describe('executeChapterTask - 早期終了ロジック', () => {
 				id: `t${turnCount}`,
 				speakerType: 'persona',
 				content: '発言',
-				createdAt: '',
+				createdAt: ''
 			});
 			if (turnCount > 50) return null;
 			return { personaId: 'p1', turnId: `t${turnCount}`, queuedEntries: [], beliefChange: null };
 		});
 
 		const { executeChapterTask } = await import('../../../pipeline/debate/debate-orchestrator.js');
-		await executeChapterTask('topic1', 0, { turnsPerChapter: 15, maxTurns: 200, interventionCooldown: 3 });
+		await executeChapterTask('topic1', 0, {
+			turnsPerChapter: 15,
+			maxTurns: 200,
+			interventionCooldown: 3
+		});
 
 		expect(mockEvaluateDiscussionPointCoverage).toHaveBeenCalled();
 		expect(turnCount).toBeLessThan(38);
@@ -368,13 +404,13 @@ describe('executeChapterTask - 早期終了ロジック', () => {
 		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
 		mockGenerateOpening.mockResolvedValue({
 			ok: true,
-			value: { content: '開幕', targetPersonaId: 'p1' },
+			value: { content: '開幕', targetPersonaId: 'p1' }
 		});
 		mockEvaluateDiscussionPointCoverage.mockReset();
 
 		const { evaluateEngagements } = await import('../../../pipeline/debate/engagement.js');
 		vi.mocked(evaluateEngagements).mockResolvedValue([
-			{ personaId: 'p1', score: 2, mode: 'opinion' as const },
+			{ personaId: 'p1', score: 2, mode: 'opinion' as const }
 		]);
 
 		let turnCount = 0;
@@ -384,14 +420,18 @@ describe('executeChapterTask - 早期終了ロジック', () => {
 				id: `t${turnCount}`,
 				speakerType: 'persona',
 				content: '発言',
-				createdAt: '',
+				createdAt: ''
 			});
 			if (turnCount > 30) return null;
 			return { personaId: 'p1', turnId: `t${turnCount}`, queuedEntries: [], beliefChange: null };
 		});
 
 		const { executeChapterTask } = await import('../../../pipeline/debate/debate-orchestrator.js');
-		await executeChapterTask('topic1', 0, { turnsPerChapter: 15, maxTurns: 200, interventionCooldown: 3 });
+		await executeChapterTask('topic1', 0, {
+			turnsPerChapter: 15,
+			maxTurns: 200,
+			interventionCooldown: 3
+		});
 
 		expect(mockEvaluateDiscussionPointCoverage).not.toHaveBeenCalled();
 	});
@@ -410,7 +450,10 @@ describe('executeChapterTask - chapterId をダウンストリームに渡す', 
 		const state = makeState();
 		mockGetDebateState.mockReturnValue(state);
 		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
-		mockGenerateOpening.mockResolvedValue({ ok: true, value: { content: '開幕', targetPersonaId: 'p1' } });
+		mockGenerateOpening.mockResolvedValue({
+			ok: true,
+			value: { content: '開幕', targetPersonaId: 'p1' }
+		});
 		mockGeneratePersonaTurn.mockResolvedValue(null);
 
 		const { executeChapterTask } = await import('../../../pipeline/debate/debate-orchestrator.js');
@@ -425,7 +468,10 @@ describe('executeChapterTask - chapterId をダウンストリームに渡す', 
 		const state = makeState();
 		mockGetDebateState.mockReturnValue(state);
 		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
-		mockGenerateOpening.mockResolvedValue({ ok: true, value: { content: '開幕', targetPersonaId: 'p1' } });
+		mockGenerateOpening.mockResolvedValue({
+			ok: true,
+			value: { content: '開幕', targetPersonaId: 'p1' }
+		});
 		mockGeneratePersonaTurn.mockImplementation(async () => {
 			state.turns.push({ id: 't1', speakerType: 'persona', content: '', createdAt: '' });
 			return null;
@@ -435,7 +481,9 @@ describe('executeChapterTask - chapterId をダウンストリームに渡す', 
 		const { expireQueuedIntents } = await import('../../../pipeline/debate/queued-intents.js');
 		await executeChapterTask('topic1', 0);
 
-		expect(expireQueuedIntents).toHaveBeenCalledWith(expect.objectContaining({ topicId: 'topic1', chapterId: 'ch1' }));
+		expect(expireQueuedIntents).toHaveBeenCalledWith(
+			expect.objectContaining({ topicId: 'topic1', chapterId: 'ch1' })
+		);
 	});
 
 	it('evaluateEngagements が chapterId と chapterTurns を含むオブジェクトで呼ばれる', async () => {
@@ -443,7 +491,10 @@ describe('executeChapterTask - chapterId をダウンストリームに渡す', 
 		const state = makeState();
 		mockGetDebateState.mockReturnValue(state);
 		mockGetChaptersByTopicId.mockResolvedValue([makeChapterEntry(chapter)]);
-		mockGenerateOpening.mockResolvedValue({ ok: true, value: { content: '開幕', targetPersonaId: 'p1' } });
+		mockGenerateOpening.mockResolvedValue({
+			ok: true,
+			value: { content: '開幕', targetPersonaId: 'p1' }
+		});
 		mockGeneratePersonaTurn.mockImplementation(async () => {
 			state.turns.push({ id: 't1', speakerType: 'persona', content: '', createdAt: '' });
 			return null;
@@ -454,23 +505,40 @@ describe('executeChapterTask - chapterId をダウンストリームに渡す', 
 		await executeChapterTask('topic1', 0);
 
 		expect(evaluateEngagements).toHaveBeenCalledWith(
-			expect.objectContaining({ topicId: 'topic1', chapterId: 'ch1', chapterTurns: expect.any(Array) })
+			expect.objectContaining({
+				topicId: 'topic1',
+				chapterId: 'ch1',
+				chapterTurns: expect.any(Array)
+			})
 		);
 	});
 
 	it('evaluateEngagements に state.turns 全体ではなくチャプター内ターンのみが渡される', async () => {
 		const chapter = makeChapter({ id: 'ch1' });
-		const priorTurn = { id: 'prior', speakerType: 'persona' as const, content: '前章', createdAt: '' };
+		const priorTurn = {
+			id: 'prior',
+			speakerType: 'persona' as const,
+			content: '前章',
+			createdAt: ''
+		};
 		const state = makeState();
 		mockGetDebateTurnsByTopicId.mockResolvedValue([priorTurn]);
 		// chapterDoc.turns = [] なので chapterTurnStartInState = 1 - 0 = 1
 		mockGetChaptersByTopicId.mockResolvedValue([{ ...makeChapterEntry(chapter), turns: [] }]);
 		mockGetDebateState.mockReturnValue({ ...state, turns: [priorTurn] });
-		mockGenerateOpening.mockResolvedValue({ ok: true, value: { content: '開幕', targetPersonaId: 'p1' } });
+		mockGenerateOpening.mockResolvedValue({
+			ok: true,
+			value: { content: '開幕', targetPersonaId: 'p1' }
+		});
 		let callCount = 0;
 		mockGeneratePersonaTurn.mockImplementation(async () => {
 			callCount++;
-			const newTurn = { id: `t${callCount}`, speakerType: 'persona' as const, content: '', createdAt: '' };
+			const newTurn = {
+				id: `t${callCount}`,
+				speakerType: 'persona' as const,
+				content: '',
+				createdAt: ''
+			};
 			state.turns.push(newTurn);
 			return null;
 		});

@@ -1,15 +1,16 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
-import {
-	generateTurn,
-	generatePostDebateComment
-} from '../../agents/persona-agent.js';
-import {
-	generateChapterSummary,
-	generateClosing
-} from '../../agents/facilitator-agent.js';
+import { generateTurn, generatePostDebateComment } from '../../agents/persona-agent.js';
+import { generateChapterSummary, generateClosing } from '../../agents/facilitator-agent.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
-import type { DebateState, SpeakerSelection, QueuedIntent, BeliefChangeEvent, Engagement, DebateTurn } from '../../types/debate.types.js';
+import type {
+	DebateState,
+	SpeakerSelection,
+	QueuedIntent,
+	BeliefChangeEvent,
+	Engagement,
+	DebateTurn
+} from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
@@ -318,10 +319,20 @@ export const finalizeDebate = async ({
 	for (let i = 0; i < personas.length; i++) {
 		const persona = personas[i];
 		const finalBelief = getLatestBelief(persona).content;
-		const commentResult = await generatePostDebateComment(persona, finalBelief, state.turns, personas);
+		const commentResult = await generatePostDebateComment(
+			persona,
+			finalBelief,
+			state.turns,
+			personas
+		);
 		if (commentResult.ok) {
 			const id = nanoid();
-			comments.push({ id, personaId: persona.id, content: commentResult.value.content, sortOrder: i });
+			comments.push({
+				id,
+				personaId: persona.id,
+				content: commentResult.value.content,
+				sortOrder: i
+			});
 		}
 	}
 

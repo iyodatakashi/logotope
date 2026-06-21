@@ -2,19 +2,19 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('ai', () => ({
 	generateText: vi.fn(),
-	jsonSchema: (schema: unknown) => schema,
+	jsonSchema: (schema: unknown) => schema
 }));
 
 vi.mock('@tavily/core', () => ({
-	tavily: vi.fn(() => ({ search: vi.fn() })),
+	tavily: vi.fn(() => ({ search: vi.fn() }))
 }));
 
 vi.mock('../../llm/models.js', () => ({
-	getPipelineModel: vi.fn(() => 'mock-model'),
+	getPipelineModel: vi.fn(() => 'mock-model')
 }));
 
 vi.mock('../../constants/ai.constants.js', () => ({
-	MAX_TOKENS: { INTERVIEW: 4096 },
+	MAX_TOKENS: { INTERVIEW: 4096 }
 }));
 
 import type { Persona } from '../../types/persona.types.js';
@@ -35,11 +35,11 @@ const mockPersona: Persona = {
 	llmType: 'claude',
 	approved: true,
 	sortOrder: 0,
-	interviewRecord: '',
+	interviewRecord: ''
 };
 
 const makeGenerateTextResult = (args: unknown) => ({
-	toolCalls: [{ toolName: 'submit_research', args }],
+	toolCalls: [{ toolName: 'submit_research', args }]
 });
 
 describe('interview-agent.runInterview', () => {
@@ -53,7 +53,7 @@ describe('interview-agent.runInterview', () => {
 			makeGenerateTextResult({
 				researchSummary: 'summary',
 				interviewRecord: 'record',
-				initialBelief: 'belief',
+				initialBelief: 'belief'
 			})
 		);
 	});
@@ -69,14 +69,20 @@ describe('interview-agent.runInterview', () => {
 		const capturedMessages: unknown[] = [];
 		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
 			capturedMessages.push(...args.messages);
-			return makeGenerateTextResult({ researchSummary: 's', interviewRecord: 'r', initialBelief: 'b' });
+			return makeGenerateTextResult({
+				researchSummary: 's',
+				interviewRecord: 'r',
+				initialBelief: 'b'
+			});
 		});
 
 		const context: TopicContext = { description: 'AIが雇用を代替する問題' };
 		const { runInterview } = await import('../../agents/interview-agent.js');
 		await runInterview('AIと社会', mockPersona, context);
 
-		const userMessage = capturedMessages.find((m: unknown) => (m as { role: string }).role === 'user') as { content: string };
+		const userMessage = capturedMessages.find(
+			(m: unknown) => (m as { role: string }).role === 'user'
+		) as { content: string };
 		expect(userMessage.content).toContain('AIが雇用を代替する問題');
 	});
 
@@ -84,14 +90,20 @@ describe('interview-agent.runInterview', () => {
 		const capturedMessages: unknown[] = [];
 		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
 			capturedMessages.push(...args.messages);
-			return makeGenerateTextResult({ researchSummary: 's', interviewRecord: 'r', initialBelief: 'b' });
+			return makeGenerateTextResult({
+				researchSummary: 's',
+				interviewRecord: 'r',
+				initialBelief: 'b'
+			});
 		});
 
 		const context: TopicContext = { sourceContents: ['記事Aの内容', '記事Bの内容'] };
 		const { runInterview } = await import('../../agents/interview-agent.js');
 		await runInterview('AIと社会', mockPersona, context);
 
-		const userMessage = capturedMessages.find((m: unknown) => (m as { role: string }).role === 'user') as { content: string };
+		const userMessage = capturedMessages.find(
+			(m: unknown) => (m as { role: string }).role === 'user'
+		) as { content: string };
 		expect(userMessage.content).toContain('記事Aの内容');
 		expect(userMessage.content).toContain('記事Bの内容');
 	});
@@ -100,7 +112,11 @@ describe('interview-agent.runInterview', () => {
 		const capturedMessages: unknown[] = [];
 		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
 			capturedMessages.push(...args.messages);
-			return makeGenerateTextResult({ researchSummary: 's', interviewRecord: 'r', initialBelief: 'b' });
+			return makeGenerateTextResult({
+				researchSummary: 's',
+				interviewRecord: 'r',
+				initialBelief: 'b'
+			});
 		});
 
 		const longContent = 'x'.repeat(5000);
@@ -108,7 +124,9 @@ describe('interview-agent.runInterview', () => {
 		const { runInterview } = await import('../../agents/interview-agent.js');
 		await runInterview('AIと社会', mockPersona, context);
 
-		const userMessage = capturedMessages.find((m: unknown) => (m as { role: string }).role === 'user') as { content: string };
+		const userMessage = capturedMessages.find(
+			(m: unknown) => (m as { role: string }).role === 'user'
+		) as { content: string };
 		expect(userMessage.content).toContain('x'.repeat(3000));
 		expect(userMessage.content).not.toContain('x'.repeat(3001));
 	});
@@ -119,22 +137,38 @@ describe('interview-agent.runInterview', () => {
 
 		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
 			capturedWithout.push(...args.messages);
-			return makeGenerateTextResult({ researchSummary: 's', interviewRecord: 'r', initialBelief: 'b' });
+			return makeGenerateTextResult({
+				researchSummary: 's',
+				interviewRecord: 'r',
+				initialBelief: 'b'
+			});
 		});
 		const { runInterview } = await import('../../agents/interview-agent.js');
 		await runInterview('AIと社会', mockPersona);
-		const withoutContent = (capturedWithout.find((m: unknown) => (m as { role: string }).role === 'user') as { content: string }).content;
+		const withoutContent = (
+			capturedWithout.find((m: unknown) => (m as { role: string }).role === 'user') as {
+				content: string;
+			}
+		).content;
 
 		vi.resetModules();
 		const aiMod2 = await import('ai');
 		const gt2 = vi.mocked(aiMod2.generateText);
 		gt2.mockImplementation(async (args: { messages: unknown[] }) => {
 			capturedWith.push(...args.messages);
-			return makeGenerateTextResult({ researchSummary: 's', interviewRecord: 'r', initialBelief: 'b' });
+			return makeGenerateTextResult({
+				researchSummary: 's',
+				interviewRecord: 'r',
+				initialBelief: 'b'
+			});
 		});
 		const { runInterview: runInterview2 } = await import('../../agents/interview-agent.js');
 		await runInterview2('AIと社会', mockPersona, undefined);
-		const withContent = (capturedWith.find((m: unknown) => (m as { role: string }).role === 'user') as { content: string }).content;
+		const withContent = (
+			capturedWith.find((m: unknown) => (m as { role: string }).role === 'user') as {
+				content: string;
+			}
+		).content;
 
 		expect(withoutContent).toBe(withContent);
 	});

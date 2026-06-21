@@ -17,9 +17,7 @@ export const generateStakeholders = onCall(
 
 		try {
 			const { stakeholders } = await runStakeholderGeneration(title);
-			await db()
-				.doc(`topics/${topicId}/stakeholders/0`)
-				.set({ stakeholders });
+			await db().doc(`topics/${topicId}/stakeholders/0`).set({ stakeholders });
 			return {};
 		} catch (err) {
 			throw new HttpsError('internal', err instanceof Error ? err.message : String(err));

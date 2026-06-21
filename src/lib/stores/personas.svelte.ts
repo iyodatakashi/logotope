@@ -1,7 +1,20 @@
-import { onSnapshot, collection, query, orderBy, doc, updateDoc, writeBatch, Timestamp } from 'firebase/firestore';
+import {
+	onSnapshot,
+	collection,
+	query,
+	orderBy,
+	doc,
+	updateDoc,
+	writeBatch,
+	Timestamp
+} from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
-import type { PersonaForFirestore, Persona, PersonaForInterview } from '$lib/models/persona/persona.types';
+import type {
+	PersonaForFirestore,
+	Persona,
+	PersonaForInterview
+} from '$lib/models/persona/persona.types';
 import type { TopicContext } from '$lib/models/topic/topic.types';
 
 const toPersona = (id: string, raw: PersonaForFirestore): Persona => ({
@@ -22,10 +35,7 @@ export const createPersonasStore = (topicId: string) => {
 	let unsubscribe: (() => void) | null = null;
 
 	const start = () => {
-		const q = query(
-			collection(db, 'topics', topicId, 'personas'),
-			orderBy('sortOrder', 'asc')
-		);
+		const q = query(collection(db, 'topics', topicId, 'personas'), orderBy('sortOrder', 'asc'));
 		unsubscribe = onSnapshot(q, (snap) => {
 			personas = snap.docs.map((d) => toPersona(d.id, d.data() as PersonaForFirestore));
 			isLoaded = true;
@@ -93,12 +103,14 @@ export const createPersonasStore = (topicId: string) => {
 	// 取材フローの実行: 実行中→（未完了ペルソナの取材）→生成完了。
 	// 途中で失敗を捕捉した場合はトピックを停止状態にする。
 	// all=true で全ペルソナを再取材する（再生成・やり直し用）。
-	const runInterviews = async (topicTitle: string, topicContext?: TopicContext, all = false): Promise<void> => {
+	const runInterviews = async (
+		topicTitle: string,
+		topicContext?: TopicContext,
+		all = false
+	): Promise<void> => {
 		await markInterviewsStarted();
 		try {
-			const targets = all
-				? personas
-				: personas.filter((p) => p.interview?.status !== 'completed');
+			const targets = all ? personas : personas.filter((p) => p.interview?.status !== 'completed');
 			await Promise.all(targets.map((p) => runInterview(p.id, topicTitle, topicContext)));
 			await markInterviewsComplete();
 		} catch (e) {
@@ -107,7 +119,11 @@ export const createPersonasStore = (topicId: string) => {
 		}
 	};
 
-	const runInterview = async (personaId: string, topicTitle: string, topicContext?: TopicContext): Promise<void> => {
+	const runInterview = async (
+		personaId: string,
+		topicTitle: string,
+		topicContext?: TopicContext
+	): Promise<void> => {
 		const persona = personas.find((p) => p.id === personaId);
 		if (!persona) return;
 

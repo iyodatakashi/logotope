@@ -37,7 +37,9 @@ const TOPIC_PATH = { path: 'topics/t1' };
 
 const populate = (store: ReturnType<typeof createPersonasStore>, ids: string[]) => {
 	store.start();
-	snapshotCb?.({ docs: ids.map((id) => ({ id, data: () => ({ name: id, beliefs: [], approved: true }) })) });
+	snapshotCb?.({
+		docs: ids.map((id) => ({ id, data: () => ({ name: id, beliefs: [], approved: true }) }))
+	});
 };
 
 describe('Timestamp→Date 変換', () => {
@@ -51,14 +53,18 @@ describe('Timestamp→Date 変換', () => {
 		store.start();
 		const fakeDate = new Date('2026-01-01');
 		snapshotCb?.({
-			docs: [{
-				id: 'p1',
-				data: () => ({
-					name: 'テスト',
-					beliefs: [{ id: 'b1', version: 1, content: '信念', createdAt: { toDate: () => fakeDate } }],
-					approved: true
-				})
-			}]
+			docs: [
+				{
+					id: 'p1',
+					data: () => ({
+						name: 'テスト',
+						beliefs: [
+							{ id: 'b1', version: 1, content: '信念', createdAt: { toDate: () => fakeDate } }
+						],
+						approved: true
+					})
+				}
+			]
 		});
 		expect(store.personas[0].beliefs[0].createdAt).toBeInstanceOf(Date);
 		expect(store.personas[0].beliefs[0].createdAt).toBe(fakeDate);
@@ -69,15 +75,17 @@ describe('Timestamp→Date 変換', () => {
 		store.start();
 		const fakeDate = new Date('2026-06-01');
 		snapshotCb?.({
-			docs: [{
-				id: 'p1',
-				data: () => ({
-					name: 'テスト',
-					beliefs: [],
-					approved: true,
-					interview: { status: 'completed', completedAt: { toDate: () => fakeDate } }
-				})
-			}]
+			docs: [
+				{
+					id: 'p1',
+					data: () => ({
+						name: 'テスト',
+						beliefs: [],
+						approved: true,
+						interview: { status: 'completed', completedAt: { toDate: () => fakeDate } }
+					})
+				}
+			]
 		});
 		expect(store.personas[0].interview?.completedAt).toBeInstanceOf(Date);
 		expect(store.personas[0].interview?.completedAt).toBe(fakeDate);
@@ -87,15 +95,17 @@ describe('Timestamp→Date 変換', () => {
 		const store = createPersonasStore('t1');
 		store.start();
 		snapshotCb?.({
-			docs: [{
-				id: 'p1',
-				data: () => ({
-					name: 'テスト',
-					beliefs: [],
-					approved: true,
-					interview: { status: 'completed' }
-				})
-			}]
+			docs: [
+				{
+					id: 'p1',
+					data: () => ({
+						name: 'テスト',
+						beliefs: [],
+						approved: true,
+						interview: { status: 'completed' }
+					})
+				}
+			]
 		});
 		expect(store.personas[0].interview?.completedAt).toBeUndefined();
 	});
@@ -165,7 +175,9 @@ describe('createPersonasStore', () => {
 	});
 
 	it('runInterview は topicContext を Cloud Function ペイロードに含める', async () => {
-		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
+		const mockFn = vi
+			.fn()
+			.mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
 		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
 
 		const store = createPersonasStore('t1');
@@ -179,7 +191,9 @@ describe('createPersonasStore', () => {
 	});
 
 	it('runInterview は topicContext が undefined のとき ペイロードに含めない（後方互換）', async () => {
-		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
+		const mockFn = vi
+			.fn()
+			.mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
 		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
 
 		const store = createPersonasStore('t1');
@@ -192,7 +206,9 @@ describe('createPersonasStore', () => {
 	});
 
 	it('runInterviews は topicContext を runInterview に転送する', async () => {
-		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
+		const mockFn = vi
+			.fn()
+			.mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
 		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
 
 		const store = createPersonasStore('t1');
@@ -206,7 +222,9 @@ describe('createPersonasStore', () => {
 	});
 
 	it('runInterviews の all=true で全ペルソナを取材する', async () => {
-		const mockFn = vi.fn().mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
+		const mockFn = vi
+			.fn()
+			.mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
 		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
 
 		const store = createPersonasStore('t1');

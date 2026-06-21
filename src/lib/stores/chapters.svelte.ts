@@ -18,7 +18,10 @@ export const createChaptersStore = (topicId: string) => {
 		unsubscribe = onSnapshot(q, (snap) => {
 			chapters = snap.docs.map((d) => {
 				const raw = d.data() as ChapterForFirestore;
-				const turns: Turn[] = raw.turns.map((t: TurnForFirestore) => ({ ...t, createdAt: t.createdAt.toDate() }));
+				const turns: Turn[] = raw.turns.map((t: TurnForFirestore) => ({
+					...t,
+					createdAt: t.createdAt.toDate()
+				}));
 				return { id: d.id, ...raw, turns };
 			});
 			currentChapterId = chapters.find((c) => c.status === 'running')?.id ?? null;

@@ -14,10 +14,7 @@ export type ChapterEntry = {
 };
 
 export const getChaptersByTopicId = async (topicId: string): Promise<ChapterEntry[]> => {
-	const snap = await db()
-		.collection(`topics/${topicId}/chapters`)
-		.orderBy('chapterIndex')
-		.get();
+	const snap = await db().collection(`topics/${topicId}/chapters`).orderBy('chapterIndex').get();
 	return snap.docs.map((docSnap) => {
 		const data = docSnap.data() as {
 			chapterIndex: number;
@@ -50,17 +47,21 @@ export const getChaptersByTopicId = async (topicId: string): Promise<ChapterEntr
 				fromQueue: t.fromQueue,
 				targetPersonaId: t.targetPersonaId
 			})),
-			status: data.status ?? 'pending',
+			status: data.status ?? 'pending'
 		};
 	});
 };
 
 export const activateDebate = async (topicId: string): Promise<void> => {
-	await db().doc(`topics/${topicId}`).update({ phase: 5, phaseStatus: 'running', updatedAt: Timestamp.now() });
+	await db()
+		.doc(`topics/${topicId}`)
+		.update({ phase: 5, phaseStatus: 'running', updatedAt: Timestamp.now() });
 };
 
 export const markDebateStopped = async (topicId: string): Promise<void> => {
-	await db().doc(`topics/${topicId}`).update({ phaseStatus: 'stopped', updatedAt: Timestamp.now() });
+	await db()
+		.doc(`topics/${topicId}`)
+		.update({ phaseStatus: 'stopped', updatedAt: Timestamp.now() });
 };
 
 export const restartChapter = async (topicId: string, chapterId: string): Promise<void> => {
@@ -74,7 +75,7 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 		await db().doc(`topics/${topicId}/chapters/${chapter.id}`).update({
 			turns: [],
 			discussionPointStatuses: FieldValue.delete(),
-			status: 'pending',
+			status: 'pending'
 		});
 	}
 
@@ -93,7 +94,9 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 	}
 
 	for (const chapter of discardChapters) {
-		const engSnap = await db().collection(`topics/${topicId}/chapters/${chapter.id}/engagements`).get();
+		const engSnap = await db()
+			.collection(`topics/${topicId}/chapters/${chapter.id}/engagements`)
+			.get();
 		for (const engDoc of engSnap.docs) {
 			await engDoc.ref.delete();
 		}

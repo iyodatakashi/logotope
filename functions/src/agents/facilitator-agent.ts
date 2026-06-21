@@ -35,7 +35,6 @@ const coverageSchema = z.object({
 	addressedIndices: z.array(z.number()).nullish()
 });
 
-
 const runInterventionCheck = async (
 	turns: DebateTurn[],
 	personas: Persona[],
@@ -78,9 +77,10 @@ export const generateOpening = async (
 			? `\n\n第1章「${firstChapter.title}」のフォーカス: ${firstChapter.focusQuestion}`
 			: '';
 		const hasPoints = (firstChapter?.discussionPoints?.length ?? 0) > 0;
-		const firstPointContext = hasPoints && firstChapter
-			? `\n\nこの章の最初の論点: ${firstChapter.discussionPoints[0]}。この論点を最初の問いかけの切り口として使ってください。`
-			: '';
+		const firstPointContext =
+			hasPoints && firstChapter
+				? `\n\nこの章の最初の論点: ${firstChapter.discussionPoints[0]}。この論点を最初の問いかけの切り口として使ってください。`
+				: '';
 
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
@@ -268,4 +268,3 @@ export const evaluateDiscussionPointCoverage = async (
 		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 	}
 };
-

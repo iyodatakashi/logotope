@@ -9,7 +9,9 @@ export const createStakeholdersStore = (topicId: string) => {
 
 	const start = () => {
 		unsubscribe = onSnapshot(doc(db, 'topics', topicId, 'stakeholders', '0'), (snap) => {
-			const data = snap.exists() ? (snap.data() as { stakeholders: StakeholderForFirestore[] }) : null;
+			const data = snap.exists()
+				? (snap.data() as { stakeholders: StakeholderForFirestore[] })
+				: null;
 			stakeholders = data?.stakeholders ?? [];
 			isLoaded = true;
 		});

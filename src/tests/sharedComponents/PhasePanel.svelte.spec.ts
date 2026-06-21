@@ -70,7 +70,6 @@ describe('PhasePanel.svelte', () => {
 			);
 			await expect.element(page.getByText('準備が整ったら開始してください')).toBeInTheDocument();
 		});
-
 	});
 
 	describe('running 状態（フェーズ1〜4）', () => {
@@ -99,7 +98,6 @@ describe('PhasePanel.svelte', () => {
 				.element(page.getByRole('button', { name: '討論を停止する' }))
 				.toBeInTheDocument();
 		});
-
 	});
 
 	describe('stopped 状態（フェーズ5）', () => {
@@ -116,7 +114,6 @@ describe('PhasePanel.svelte', () => {
 				.element(page.getByRole('button', { name: '最初からやり直す' }))
 				.toBeInTheDocument();
 		});
-
 	});
 
 	describe('stopped 状態（フェーズ1〜4）', () => {
@@ -138,7 +135,6 @@ describe('PhasePanel.svelte', () => {
 			render(PhasePanel, makeProps({ logicalState: 'generated' }));
 			await expect.element(page.getByRole('button', { name: '再生成する' })).toBeInTheDocument();
 		});
-
 	});
 
 	describe('generated 状態（承認なし：フェーズ5）', () => {

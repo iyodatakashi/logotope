@@ -6,12 +6,12 @@ const mockDoc = vi.fn().mockReturnValue({ get: mockGet, update: mockUpdate });
 
 vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: vi.fn(() => ({ doc: mockDoc })),
-	FieldValue: { serverTimestamp: vi.fn(() => 'mock-server-timestamp') },
+	FieldValue: { serverTimestamp: vi.fn(() => 'mock-server-timestamp') }
 }));
 
 const mockFetchAndExtractText = vi.fn();
 vi.mock('../../pipeline/topics/source-fetcher.js', () => ({
-	fetchAndExtractText: (...args: unknown[]) => mockFetchAndExtractText(...args),
+	fetchAndExtractText: (...args: unknown[]) => mockFetchAndExtractText(...args)
 }));
 
 vi.mock('firebase-functions/v2/https', () => ({
@@ -23,11 +23,11 @@ vi.mock('firebase-functions/v2/https', () => ({
 		) {
 			super(message);
 		}
-	},
+	}
 }));
 
 vi.mock('../../utils/auth.js', () => ({
-	requireAuth: vi.fn(),
+	requireAuth: vi.fn()
 }));
 
 import { fetchSourceContents } from '../../api/source-contents.js';
@@ -47,31 +47,38 @@ describe('fetchSourceContents', () => {
 	it('トピックが存在しない場合はnot-foundエラーを投げる', async () => {
 		mockGet.mockResolvedValue({ exists: false });
 		const handler = fetchSourceContents as unknown as (req: unknown) => Promise<unknown>;
-		await expect(handler(makeRequest({ topicId: 'topic1' }))).rejects.toMatchObject({ code: 'not-found' });
+		await expect(handler(makeRequest({ topicId: 'topic1' }))).rejects.toMatchObject({
+			code: 'not-found'
+		});
 	});
 
 	it('sourceUrlsがない場合はinvalid-argumentエラーを投げる', async () => {
 		mockGet.mockResolvedValue({
 			exists: true,
-			data: () => ({ title: 'テスト', sourceUrls: undefined }),
+			data: () => ({ title: 'テスト', sourceUrls: undefined })
 		});
 		const handler = fetchSourceContents as unknown as (req: unknown) => Promise<unknown>;
-		await expect(handler(makeRequest({ topicId: 'topic1' }))).rejects.toMatchObject({ code: 'invalid-argument' });
+		await expect(handler(makeRequest({ topicId: 'topic1' }))).rejects.toMatchObject({
+			code: 'invalid-argument'
+		});
 	});
 
 	it('URLフェッチ結果をFirestoreに保存して件数を返す', async () => {
 		mockGet.mockResolvedValue({
 			exists: true,
 			data: () => ({
-				sourceUrls: ['https://example.com/1', 'https://example.com/2'],
-			}),
+				sourceUrls: ['https://example.com/1', 'https://example.com/2']
+			})
 		});
 		mockFetchAndExtractText
 			.mockResolvedValueOnce('コンテンツ1')
 			.mockResolvedValueOnce('コンテンツ2');
 
 		const handler = fetchSourceContents as unknown as (req: unknown) => Promise<unknown>;
-		const result = await handler(makeRequest({ topicId: 'topic1' })) as { fetchedCount: number; totalCount: number };
+		const result = (await handler(makeRequest({ topicId: 'topic1' }))) as {
+			fetchedCount: number;
+			totalCount: number;
+		};
 
 		expect(result.fetchedCount).toBe(2);
 		expect(result.totalCount).toBe(2);
@@ -86,15 +93,16 @@ describe('fetchSourceContents', () => {
 		mockGet.mockResolvedValue({
 			exists: true,
 			data: () => ({
-				sourceUrls: ['https://example.com/ok', 'https://example.com/fail'],
-			}),
+				sourceUrls: ['https://example.com/ok', 'https://example.com/fail']
+			})
 		});
-		mockFetchAndExtractText
-			.mockResolvedValueOnce('コンテンツ')
-			.mockResolvedValueOnce(null);
+		mockFetchAndExtractText.mockResolvedValueOnce('コンテンツ').mockResolvedValueOnce(null);
 
 		const handler = fetchSourceContents as unknown as (req: unknown) => Promise<unknown>;
-		const result = await handler(makeRequest({ topicId: 'topic1' })) as { fetchedCount: number; totalCount: number };
+		const result = (await handler(makeRequest({ topicId: 'topic1' }))) as {
+			fetchedCount: number;
+			totalCount: number;
+		};
 
 		expect(result.fetchedCount).toBe(1);
 		expect(result.totalCount).toBe(2);
@@ -105,7 +113,7 @@ describe('fetchSourceContents', () => {
 	it('sourceContentsFetchedAtをFirestoreに保存する', async () => {
 		mockGet.mockResolvedValue({
 			exists: true,
-			data: () => ({ sourceUrls: ['https://example.com'] }),
+			data: () => ({ sourceUrls: ['https://example.com'] })
 		});
 		mockFetchAndExtractText.mockResolvedValue('コンテンツ');
 

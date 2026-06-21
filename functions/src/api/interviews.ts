@@ -8,7 +8,11 @@ const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVIL
 
 export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, async (request) => {
 	requireAuth(request);
-	const { topicTitle, persona, topicContext } = request.data as { topicTitle: string; persona: Persona; topicContext?: TopicContext };
+	const { topicTitle, persona, topicContext } = request.data as {
+		topicTitle: string;
+		persona: Persona;
+		topicContext?: TopicContext;
+	};
 	if (!topicTitle?.trim()) throw new HttpsError('invalid-argument', 'topicTitle is required');
 	if (!persona?.name) throw new HttpsError('invalid-argument', 'persona is required');
 

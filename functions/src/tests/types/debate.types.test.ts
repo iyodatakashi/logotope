@@ -9,7 +9,7 @@ import type {
 	DebateState,
 	FacilitatorReply,
 	ChapterForFirestore,
-	ChapterProgressStatus,
+	ChapterProgressStatus
 } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 
@@ -19,7 +19,7 @@ describe('debate.types - questionモード型定義', () => {
 			personaId: 'p1',
 			score: 4,
 			mode: 'question',
-			intentSummary: '○○さんの意見の根拠を確認したい',
+			intentSummary: '○○さんの意見の根拠を確認したい'
 		};
 		expect(engagement.mode).toBe('question');
 	});
@@ -29,7 +29,7 @@ describe('debate.types - questionモード型定義', () => {
 			content: 'テスト発言',
 			speechMode: 'question',
 			beliefChange: null,
-			targetPersonaId: 'p2',
+			targetPersonaId: 'p2'
 		};
 		expect(reply.speechMode).toBe('question');
 	});
@@ -40,7 +40,7 @@ describe('debate.types - questionモード型定義', () => {
 			speakerType: 'persona',
 			content: 'テスト発言',
 			createdAt: '2026-01-01T00:00:00Z',
-			speechMode: 'question',
+			speechMode: 'question'
 		};
 		expect(turn.speechMode).toBe('question');
 	});
@@ -49,7 +49,7 @@ describe('debate.types - questionモード型定義', () => {
 		const context: TurnGenerationContext = {
 			chapterTurns: [],
 			chapter: { id: 'ch1', title: 'テスト', focusQuestion: 'テスト？' },
-			otherPersonas: [{ id: 'p2', name: 'ペルソナB' }],
+			otherPersonas: [{ id: 'p2', name: 'ペルソナB' }]
 		};
 		expect(context.otherPersonas).toHaveLength(1);
 		expect(context.otherPersonas[0].id).toBe('p2');
@@ -59,7 +59,7 @@ describe('debate.types - questionモード型定義', () => {
 		const context: TurnGenerationContext = {
 			chapterTurns: [],
 			chapter: { id: 'ch1', title: 'テスト', focusQuestion: 'テスト？' },
-			otherPersonas: [],
+			otherPersonas: []
 		};
 		expect(context.otherPersonas).toHaveLength(0);
 	});
@@ -74,7 +74,7 @@ describe('debate.types - 論点追跡型定義', () => {
 	it('DiscussionPointState は論点とステータスを持つ', () => {
 		const state: DiscussionPointState = {
 			point: '自由とは何か',
-			status: 'untouched',
+			status: 'untouched'
 		};
 		expect(state.point).toBe('自由とは何か');
 		expect(state.status).toBe('untouched');
@@ -87,7 +87,7 @@ describe('debate.types - 論点追跡型定義', () => {
 			speakCount: new Map(),
 			queuedIntents: new Map(),
 			pairConversationTurns: 0,
-			discussionPoints: [{ point: '論点1', status: 'introduced' }],
+			discussionPoints: [{ point: '論点1', status: 'introduced' }]
 		};
 		expect(state.discussionPoints).toHaveLength(1);
 		expect(state.discussionPoints[0].status).toBe('introduced');
@@ -96,7 +96,7 @@ describe('debate.types - 論点追跡型定義', () => {
 	it('FacilitatorReply に selectedDiscussionPointIndex が含まれる', () => {
 		const reply: FacilitatorReply = {
 			content: 'では次の論点に移りましょう',
-			selectedDiscussionPointIndex: 2,
+			selectedDiscussionPointIndex: 2
 		};
 		expect(reply.selectedDiscussionPointIndex).toBe(2);
 	});
@@ -106,7 +106,7 @@ describe('debate.types - 論点追跡型定義', () => {
 			id: 'ch1',
 			title: 'テスト章',
 			focusQuestion: 'テスト？',
-			discussionPoints: ['論点A', '論点B', '論点C'],
+			discussionPoints: ['論点A', '論点B', '論点C']
 		};
 		expect(chapter.discussionPoints).toHaveLength(3);
 	});
@@ -120,7 +120,7 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 			focusQuestion: 'この問題の核心は何か？',
 			discussionPoints: ['論点A', '論点B'],
 			turns: [],
-			status: 'pending',
+			status: 'pending'
 		};
 		expect(chapter.chapterIndex).toBe(0);
 		expect(chapter.turns).toHaveLength(0);
@@ -135,7 +135,7 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 			discussionPoints: ['論点A'],
 			turns: [],
 			discussionPointStatuses: [{ point: '論点A', status: 'introduced' }],
-			status: 'running',
+			status: 'running'
 		};
 		expect(chapter.discussionPointStatuses).toHaveLength(1);
 	});
@@ -150,7 +150,7 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 			id: 'turn1',
 			speakerType: 'persona',
 			content: 'テスト発言',
-			createdAt: '2026-01-01T00:00:00Z',
+			createdAt: '2026-01-01T00:00:00Z'
 		};
 		expect(turn).not.toHaveProperty('chapterId');
 	});

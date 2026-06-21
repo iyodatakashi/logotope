@@ -21,7 +21,12 @@ import {
 	DEFAULT_INTERVENTION_COOLDOWN
 } from '../../constants/debate.constants.js';
 import { evaluateEngagements, evaluateEngagementWithFallback } from './engagement.js';
-import { expireQueuedIntents, addQueuedIntents, consumeQueuedIntent, loadQueuedIntents } from './queued-intents.js';
+import {
+	expireQueuedIntents,
+	addQueuedIntents,
+	consumeQueuedIntent,
+	loadQueuedIntents
+} from './queued-intents.js';
 import { tryIntervention } from './intervention.js';
 import {
 	isDebateActive,
@@ -34,7 +39,12 @@ import {
 	getDebateTurnsByTopicId
 } from './turn.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
-import type { SpeakerSelection, DebateState, DebateTurn, DebateOptions } from '../../types/debate.types.js';
+import type {
+	SpeakerSelection,
+	DebateState,
+	DebateTurn,
+	DebateOptions
+} from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
@@ -51,7 +61,11 @@ export const DEFAULT_OPTIONS: DebateOptions = {
 export const executeChapterTask = async (
 	topicId: string,
 	chapterIndex: number,
-	options: DebateOptions = { turnsPerChapter: TURNS_PER_CHAPTER, maxTurns: MAX_TURNS, interventionCooldown: DEFAULT_INTERVENTION_COOLDOWN }
+	options: DebateOptions = {
+		turnsPerChapter: TURNS_PER_CHAPTER,
+		maxTurns: MAX_TURNS,
+		interventionCooldown: DEFAULT_INTERVENTION_COOLDOWN
+	}
 ): Promise<boolean> => {
 	// 停止ゲート: トピックが討論かつ実行中でなければ何も生成・上書きしない
 	if (!(await isDebateActive(topicId))) return false;
@@ -179,7 +193,13 @@ export const executeChapterTask = async (
 			}
 		: undefined;
 	if (speakerSelection) {
-		const engagements = await evaluateEngagements({ topicId, chapterId: chapterDoc.id, personas, state, chapterTurns: getChapterTurns() });
+		const engagements = await evaluateEngagements({
+			topicId,
+			chapterId: chapterDoc.id,
+			personas,
+			state,
+			chapterTurns: getChapterTurns()
+		});
 		const engagement = await evaluateEngagementWithFallback({
 			personaId: speakerSelection.personaId,
 			personas,
@@ -265,7 +285,13 @@ const executeTurn = async ({
 	await expireQueuedIntents({ topicId, chapterId, state });
 
 	// 3. 全員の発言意欲を評価する（直前話者を除く）
-	const engagements = await evaluateEngagements({ topicId, chapterId, personas, state, chapterTurns: getChapterTurns() });
+	const engagements = await evaluateEngagements({
+		topicId,
+		chapterId,
+		personas,
+		state,
+		chapterTurns: getChapterTurns()
+	});
 
 	// 4. ファシリテーター介入（介入した場合は早期終了）
 	const canContinuePairConversation = state.pairConversationTurns < MAX_PAIR_CONVERSATION_TURNS;
@@ -355,11 +381,20 @@ const executeTurn = async ({
 	return engagements.length === 0 || engagements.some((a) => a.score >= CONTINUE_CHAPTER_THRESHOLD);
 };
 
-const saveDiscussionPointStatuses = async (topicId: string, chapterId: string, state: DebateState): Promise<void> => {
+const saveDiscussionPointStatuses = async (
+	topicId: string,
+	chapterId: string,
+	state: DebateState
+): Promise<void> => {
 	if (state.discussionPoints.length === 0) return;
-	await db().doc(`topics/${topicId}/chapters/${chapterId}`).update({
-		discussionPointStatuses: state.discussionPoints.map((p) => ({ point: p.point, status: p.status }))
-	});
+	await db()
+		.doc(`topics/${topicId}/chapters/${chapterId}`)
+		.update({
+			discussionPointStatuses: state.discussionPoints.map((p) => ({
+				point: p.point,
+				status: p.status
+			}))
+		});
 };
 
 const deleteDiscussionPointStatuses = async (topicId: string, chapterId: string): Promise<void> => {
@@ -371,9 +406,10 @@ const deleteDiscussionPointStatuses = async (topicId: string, chapterId: string)
 const markIntroduced = (state: DebateState, index: number | undefined): void => {
 	if (index === undefined) return;
 	const untouched = state.discussionPoints.filter((p) => p.status !== 'addressed');
-	const target = untouched[index] !== undefined
-		? state.discussionPoints.find((p) => p.point === untouched[index].point)
-		: undefined;
+	const target =
+		untouched[index] !== undefined
+			? state.discussionPoints.find((p) => p.point === untouched[index].point)
+			: undefined;
 	if (target) target.status = 'introduced';
 };
 

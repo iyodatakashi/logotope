@@ -43,6 +43,8 @@ describe('Phase2Personas.svelte', () => {
 
 	it('承認ボタンを表示する（PhasePanel経由、generated状態）', async () => {
 		render(Phase2Personas);
-		await expect.element(page.getByRole('button', { name: '承認して次へ進む' })).toBeInTheDocument();
+		await expect
+			.element(page.getByRole('button', { name: '承認して次へ進む' }))
+			.toBeInTheDocument();
 	});
 });

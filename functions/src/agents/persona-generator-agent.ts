@@ -6,22 +6,25 @@ import { MAX_TOKENS } from '../constants/ai.constants.js';
 import type { Stakeholder } from '../types/stakeholder.types.js';
 import type { Persona } from '../types/persona.types.js';
 
-const personasSchema = (count: number) => z.object({
-	personas: z.array(
-		z.object({
-			stakeholderRole: z.string(),
-			specificRole: z.string(),
-			name: z.string(),
-			nationality: z.string(),
-			age: z.number().int(),
-			occupation: z.string(),
-			background: z.string(),
-			interests: z.string(),
-			engagementLevel: z.enum(['high', 'medium', 'low']),
-			llmType: z.enum(['gemini', 'claude', 'gpt'])
-		})
-	).length(count)
-});
+const personasSchema = (count: number) =>
+	z.object({
+		personas: z
+			.array(
+				z.object({
+					stakeholderRole: z.string(),
+					specificRole: z.string(),
+					name: z.string(),
+					nationality: z.string(),
+					age: z.number().int(),
+					occupation: z.string(),
+					background: z.string(),
+					interests: z.string(),
+					engagementLevel: z.enum(['high', 'medium', 'low']),
+					llmType: z.enum(['gemini', 'claude', 'gpt'])
+				})
+			)
+			.length(count)
+	});
 
 export const generatePersonas = async (
 	title: string,
@@ -47,8 +50,12 @@ export const generatePersonas = async (
 	});
 
 	type LLMPersona = Omit<Persona, 'id' | 'topicId' | 'approved' | 'sortOrder'>;
-	const personas: Persona[] = result.object.personas.map(
-		(p, i) => ({ ...(p as LLMPersona), id: nanoid(), topicId, approved: false, sortOrder: i })
-	);
+	const personas: Persona[] = result.object.personas.map((p, i) => ({
+		...(p as LLMPersona),
+		id: nanoid(),
+		topicId,
+		approved: false,
+		sortOrder: i
+	}));
 	return { personas };
 };

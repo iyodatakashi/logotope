@@ -6,6 +6,5 @@ export type Stakeholder = {
 	engagementLevel?: EngagementLevel;
 };
 
-
 export type MinorityLevel = 'high' | 'medium' | 'low';
 export type EngagementLevel = 'high' | 'medium' | 'low';

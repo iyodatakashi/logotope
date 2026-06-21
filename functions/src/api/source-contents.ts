@@ -31,7 +31,7 @@ export const fetchSourceContents = onCall(async (request) => {
 
 	await db().doc(`topics/${topicId}`).update({
 		fetchedSourceContents,
-		sourceContentsFetchedAt: FieldValue.serverTimestamp(),
+		sourceContentsFetchedAt: FieldValue.serverTimestamp()
 	});
 
 	return { fetchedCount: fetchedSourceContents.length, totalCount: urls.length };
