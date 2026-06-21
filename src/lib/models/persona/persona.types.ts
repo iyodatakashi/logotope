@@ -15,7 +15,7 @@ export type BeliefForFirestore = {
 export type Belief = Omit<BeliefForFirestore, 'createdAt'> & { createdAt: Date };
 
 export type SearchResult = { title: string; url: string };
-export type SearchSource = { query: string; results: SearchResult[] };
+export type SearchSource = { query: string; summary: string; results: SearchResult[] };
 
 export type InterviewForFirestore = {
 	researchSummary?: string;
