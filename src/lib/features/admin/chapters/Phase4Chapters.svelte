@@ -12,12 +12,18 @@
 			: 'not_started';
 	});
 	const chapters = $derived(
-		currentTopicStore.chaptersStore.chapters.length ? currentTopicStore.chaptersStore.chapters : null
+		currentTopicStore.chaptersStore.chapters.length
+			? currentTopicStore.chaptersStore.chapters
+			: null
 	);
 	const chapterIssues = $derived(currentTopicStore.chapterAnalysisStore.data);
 
-	const generalIssues = $derived(chapterIssues?.issues?.filter((i) => i.source === 'general') ?? []);
-	const personaIssues = $derived(chapterIssues?.issues?.filter((i) => i.source === 'persona') ?? []);
+	const generalIssues = $derived(
+		chapterIssues?.issues?.filter((i) => i.source === 'general') ?? []
+	);
+	const personaIssues = $derived(
+		chapterIssues?.issues?.filter((i) => i.source === 'persona') ?? []
+	);
 	const scoredIssues = $derived(
 		chapterIssues?.issues
 			?.filter((i) => i.score !== undefined)
@@ -67,7 +73,7 @@
 					<div class="issues-col">
 						<h4>一般的な切り口（ペルソナなし）</h4>
 						<ol>
-							{#each generalIssues as issue}
+							{#each generalIssues as issue (issue.text)}
 								<li>{issue.text}</li>
 							{/each}
 						</ol>
@@ -75,7 +81,7 @@
 					<div class="issues-col">
 						<h4>ペルソナ固有の切り口</h4>
 						<ol>
-							{#each personaIssues as issue}
+							{#each personaIssues as issue (issue.text)}
 								<li>{issue.text}</li>
 							{/each}
 						</ol>
@@ -87,7 +93,7 @@
 			<section class="issues">
 				<h3>Step 2: 論点スコアリング結果</h3>
 				<ul class="scored-issues">
-					{#each scoredIssues as issue}
+					{#each scoredIssues as issue (issue.text)}
 						<li class:selected={issue.selected} class:rejected={!issue.selected}>
 							<span class="score">{issue.score}</span>
 							<span class="issue-source">{issue.source === 'general' ? '一般' : 'ペルソナ'}</span>
@@ -102,12 +108,13 @@
 			<section class="issues">
 				<h3>Step 3: グループ化結果</h3>
 				<ul class="grouping">
-					{#each chapterIssues.issueGroups as group, i}
+					{#each chapterIssues.issueGroups as group, i (i)}
 						<li class="group">
 							<span class="group-label">グループ {i + 1}</span>
 							<span class="group-issues">
-								{#each group.issueIndexes as idx, j}
-									<span class="group-issue">{chapterIssues.issues[idx]?.text ?? ''}</span>{#if j < group.issueIndexes.length - 1}<span class="sep">, </span>{/if}
+								{#each group.issueIndexes as idx, j (j)}
+									<span class="group-issue">{chapterIssues.issues[idx]?.text ?? ''}</span
+									>{#if j < group.issueIndexes.length - 1}<span class="sep">, </span>{/if}
 								{/each}
 							</span>
 						</li>
@@ -119,12 +126,12 @@
 			<section class="issues">
 				<h3>Step 4: 論点精査結果</h3>
 				<ol class="chapters">
-					{#each chapters as chapter}
+					{#each chapters as chapter (chapter.title)}
 						<li>
 							<strong>{chapter.title}</strong>
 							{#if chapter.discussionPoints?.length}
 								<ul class="points">
-									{#each chapter.discussionPoints as point}
+									{#each chapter.discussionPoints as point (point)}
 										<li>{point}</li>
 									{/each}
 								</ul>
@@ -254,8 +261,12 @@
 		font-weight: 700;
 		text-align: center;
 	}
-	.selected .score { color: #2e7d32; }
-	.rejected .score { color: #9e9e9e; }
+	.selected .score {
+		color: #2e7d32;
+	}
+	.rejected .score {
+		color: #9e9e9e;
+	}
 	.issue-source {
 		font-size: 0.7rem;
 		color: #757575;

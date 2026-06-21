@@ -10,24 +10,31 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
-import type { TopicForFirestore, FetchedSourceContentForFirestore, FetchedSourceContent } from './topic.types';
+import type {
+	TopicForFirestore,
+	FetchedSourceContentForFirestore,
+	FetchedSourceContent
+} from './topic.types';
 import type { PersonaData } from '../persona/persona.types';
 import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
 
 export const createTopicStates = (topicDoc: TopicForFirestore) => {
-	let id: string = $state(topicDoc.id);
-	let title: string = $state(topicDoc.title);
-	let phase: Phase = $state(topicDoc.phase);
-	let phaseStatus: PhaseStatus = $state(topicDoc.phaseStatus);
-	let description: string | undefined = $state(topicDoc.description);
-	let sourceUrls: string[] | undefined = $state(topicDoc.sourceUrls);
-	let fetchedSourceContents: FetchedSourceContent[] | undefined = $state(
-		topicDoc.fetchedSourceContents?.map((s: FetchedSourceContentForFirestore) => ({ ...s, fetchedAt: s.fetchedAt.toDate() }))
+	const id: string = $state(topicDoc.id);
+	const title: string = $state(topicDoc.title);
+	const phase: Phase = $state(topicDoc.phase);
+	const phaseStatus: PhaseStatus = $state(topicDoc.phaseStatus);
+	const description: string | undefined = $state(topicDoc.description);
+	const sourceUrls: string[] | undefined = $state(topicDoc.sourceUrls);
+	const fetchedSourceContents: FetchedSourceContent[] | undefined = $state(
+		topicDoc.fetchedSourceContents?.map((s: FetchedSourceContentForFirestore) => ({
+			...s,
+			fetchedAt: s.fetchedAt.toDate()
+		}))
 	);
-	let personaCount: number = $state(topicDoc.personaCount ?? 0);
-	let createdAt: Date = topicDoc.createdAt.toDate();
-	let updatedAt: Date = topicDoc.updatedAt.toDate();
-	let publishedAt: Date | undefined = topicDoc.publishedAt?.toDate();
+	const personaCount: number = $state(topicDoc.personaCount ?? 0);
+	const createdAt: Date = topicDoc.createdAt.toDate();
+	const updatedAt: Date = topicDoc.updatedAt.toDate();
+	const publishedAt: Date | undefined = topicDoc.publishedAt?.toDate();
 
 	const approveStakeholders = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', id), {
@@ -103,7 +110,9 @@ export const createTopicStates = (topicDoc: TopicForFirestore) => {
 				const engagementsSnap = await getDocs(
 					collection(db, 'topics', id, 'chapters', chapterDoc.id, 'engagements')
 				);
-				await Promise.all(engagementsSnap.docs.map((engagementDoc) => deleteDoc(engagementDoc.ref)));
+				await Promise.all(
+					engagementsSnap.docs.map((engagementDoc) => deleteDoc(engagementDoc.ref))
+				);
 			})
 		);
 		// postDebateComments を空にする

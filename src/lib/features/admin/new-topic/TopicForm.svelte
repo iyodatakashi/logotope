@@ -67,7 +67,12 @@
 	}
 </script>
 
-<form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+<form
+	onsubmit={(e) => {
+		e.preventDefault();
+		handleSubmit();
+	}}
+>
 	<div>
 		<label for="topic-title">タイトル</label>
 		<Input
@@ -99,7 +104,7 @@
 
 	<div>
 		<p>参考URL（任意・最大5件）</p>
-		{#each sourceUrls as _url, i}
+		{#each sourceUrls as _url, i (i)}
 			<div>
 				<Input
 					value={sourceUrls[i]}

@@ -21,7 +21,7 @@
 
 {#if items.length > 0}
 	<div class="engagements">
-		{#each items as item}
+		{#each items as item (item.personaId)}
 			{@const selected = !!selectedPersonaId && item.personaId === selectedPersonaId}
 			<span class="engagement" data-mode={item.mode} class:selected>
 				{item.name}: {item.mode}({item.score}){#if selected}→選択{/if}

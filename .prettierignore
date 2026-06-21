@@ -7,3 +7,12 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# Compiled output
+functions/lib/
+
+# Project config / spec files (not source code)
+.kiro/
+.agents/
+.claude/
+skills-lock.json

@@ -28,33 +28,32 @@
 	);
 
 	const turns = $derived(
-		currentTopicStore.chaptersStore.turns
-			.map((t) => {
-				const persona = t.personaId ? personaMap.get(t.personaId) : null;
-				const addressedPersona = t.targetPersonaId ? personaMap.get(t.targetPersonaId) : null;
-				return {
-					id: t.id,
-					speakerType: t.speakerType,
-					speakerName: persona?.name ?? 'ファシリテーター',
-					speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
-					content: t.content,
-					speechMode: t.speechMode,
-					engagementScore: t.engagementScore,
-					fromQueue: t.fromQueue,
-					personaId: t.personaId,
-					addressedPersonaName: addressedPersona?.name ?? null,
-					engagements: currentTopicStore.engagementsStore.engagementsMap.get(t.id) ?? [],
-					beliefChangesTriggered: currentTopicStore.personasStore.personas.flatMap((p) =>
-						(p.beliefs ?? [])
-							.filter((b) => b.triggeredByTurnId === t.id)
-							.map((b) => ({
-								personaName: p.name,
-								changeType: b.changeType ?? '',
-								changeSummary: b.changeSummary ?? ''
-							}))
-					)
-				};
-			})
+		currentTopicStore.chaptersStore.turns.map((t) => {
+			const persona = t.personaId ? personaMap.get(t.personaId) : null;
+			const addressedPersona = t.targetPersonaId ? personaMap.get(t.targetPersonaId) : null;
+			return {
+				id: t.id,
+				speakerType: t.speakerType,
+				speakerName: persona?.name ?? 'ファシリテーター',
+				speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
+				content: t.content,
+				speechMode: t.speechMode,
+				engagementScore: t.engagementScore,
+				fromQueue: t.fromQueue,
+				personaId: t.personaId,
+				addressedPersonaName: addressedPersona?.name ?? null,
+				engagements: currentTopicStore.engagementsStore.engagementsMap.get(t.id) ?? [],
+				beliefChangesTriggered: currentTopicStore.personasStore.personas.flatMap((p) =>
+					(p.beliefs ?? [])
+						.filter((b) => b.triggeredByTurnId === t.id)
+						.map((b) => ({
+							personaName: p.name,
+							changeType: b.changeType ?? '',
+							changeSummary: b.changeSummary ?? ''
+						}))
+				)
+			};
+		})
 	);
 </script>
 
@@ -79,8 +78,11 @@
 		{#if logicalState === 'running'}
 			{#if currentTopicStore.chaptersStore.currentChapter}
 				<p class="chapter-progress">
-					第{currentTopicStore.chaptersStore.currentChapter.chapterIndex + 1}章「{currentTopicStore.chaptersStore.currentChapter.title}」
-					{#if currentTopicStore.chaptersStore.chapters.length}（第{currentTopicStore.chaptersStore.currentChapter.chapterIndex + 1}章 / 全{currentTopicStore.chaptersStore.chapters.length}章）{/if}
+					第{currentTopicStore.chaptersStore.currentChapter.chapterIndex + 1}章「{currentTopicStore
+						.chaptersStore.currentChapter.title}」
+					{#if currentTopicStore.chaptersStore.chapters.length}（第{currentTopicStore.chaptersStore
+							.currentChapter.chapterIndex + 1}章 / 全{currentTopicStore.chaptersStore.chapters
+							.length}章）{/if}
 				</p>
 			{:else if turns.length > 0}
 				<p class="chapter-progress">討論中...（ターン {turns.length}）</p>
@@ -90,15 +92,21 @@
 	{#snippet content()}
 		{#if currentTopicStore.chaptersStore.chapters.length}
 			<ol class="chapters">
-				{#each currentTopicStore.chaptersStore.chapters as chapter}
+				{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.title)}
 					<li class:current={chapter === currentTopicStore.chaptersStore.currentChapter}>
 						<strong>{chapter.title}</strong>
 						<span class="focus">{chapter.focusQuestion}</span>
 						{#if chapter === currentTopicStore.chaptersStore.currentChapter && chapter.discussionPointStatuses?.length}
 							<ul class="points">
-								{#each chapter.discussionPointStatuses as dp}
+								{#each chapter.discussionPointStatuses as dp (dp.point)}
 									<li class="point" data-status={dp.status}>
-										<span class="status-badge">{dp.status === 'untouched' ? '未' : dp.status === 'introduced' ? '着' : '済'}</span>
+										<span class="status-badge"
+											>{dp.status === 'untouched'
+												? '未'
+												: dp.status === 'introduced'
+													? '着'
+													: '済'}</span
+										>
 										{dp.point}
 									</li>
 								{/each}
@@ -138,7 +146,7 @@
 						/>
 						{#if turn.beliefChangesTriggered.length > 0}
 							<ul class="beliefs">
-								{#each turn.beliefChangesTriggered as bc}
+								{#each turn.beliefChangesTriggered as bc, bcIdx (bcIdx)}
 									<li>🔄 {bc.personaName}: {bc.changeSummary}</li>
 								{/each}
 							</ul>
