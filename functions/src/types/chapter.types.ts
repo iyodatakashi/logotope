@@ -19,7 +19,7 @@ export type IssueGroup = {
 	issueIndexes: number[];
 };
 
-export type ChapterAnalysisDoc = {
+export type ChapterAnalysisForFirestore = {
 	issues: Issue[];
 	issueGroups?: IssueGroup[];
 };

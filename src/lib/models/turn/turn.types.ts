@@ -2,7 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 
 export type SpeakerType = 'facilitator' | 'persona';
 
-export type TurnDoc = {
+export type TurnForFirestore = {
 	id: string;
 	speakerType: SpeakerType;
 	personaId?: string;
@@ -14,4 +14,4 @@ export type TurnDoc = {
 	targetPersonaId?: string;
 };
 
-export type Turn = Omit<TurnDoc, 'createdAt'> & { createdAt: Date };
+export type Turn = Omit<TurnForFirestore, 'createdAt'> & { createdAt: Date };

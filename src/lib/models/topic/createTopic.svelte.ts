@@ -10,18 +10,20 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
-import type { TopicDoc, FetchedSourceContent } from './topic.types';
+import type { TopicForFirestore, FetchedSourceContentForFirestore, FetchedSourceContent } from './topic.types';
 import type { PersonaData } from '../persona/persona.types';
 import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
 
-export const createTopicStates = (topicDoc: TopicDoc) => {
+export const createTopicStates = (topicDoc: TopicForFirestore) => {
 	let id: string = $state(topicDoc.id);
 	let title: string = $state(topicDoc.title);
 	let phase: Phase = $state(topicDoc.phase);
 	let phaseStatus: PhaseStatus = $state(topicDoc.phaseStatus);
 	let description: string | undefined = $state(topicDoc.description);
 	let sourceUrls: string[] | undefined = $state(topicDoc.sourceUrls);
-	let fetchedSourceContents: FetchedSourceContent[] | undefined = $state(topicDoc.fetchedSourceContents);
+	let fetchedSourceContents: FetchedSourceContent[] | undefined = $state(
+		topicDoc.fetchedSourceContents?.map((s: FetchedSourceContentForFirestore) => ({ ...s, fetchedAt: s.fetchedAt.toDate() }))
+	);
 	let personaCount: number = $state(topicDoc.personaCount ?? 0);
 	let createdAt: Date = topicDoc.createdAt.toDate();
 	let updatedAt: Date = topicDoc.updatedAt.toDate();

@@ -1,12 +1,12 @@
-export type PostDebateCommentDoc = {
+export type PostDebateCommentForFirestore = {
 	id: string;
 	personaId: string;
 	content: string;
 	sortOrder: number;
 };
 
-export type PostDebateCommentsDoc = {
-	comments: PostDebateCommentDoc[];
+export type PostDebateCommentsForFirestore = {
+	comments: PostDebateCommentForFirestore[];
 };
 
 export type PostDebateComment = {

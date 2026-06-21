@@ -28,7 +28,7 @@ export type DiscussionPointState = {
 
 export type ChapterProgressStatus = 'pending' | 'running' | 'completed';
 
-export type ChapterStateData = {
+export type ChapterForFirestore = {
 	chapterIndex: number;
 	title: string;
 	focusQuestion: string;

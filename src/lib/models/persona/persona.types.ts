@@ -2,7 +2,7 @@ import { Timestamp } from 'firebase/firestore';
 
 export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
 
-export type BeliefDoc = {
+export type BeliefForFirestore = {
 	id: string;
 	version: number;
 	content: string;
@@ -12,7 +12,9 @@ export type BeliefDoc = {
 	createdAt: Timestamp;
 };
 
-export type InterviewDoc = {
+export type Belief = Omit<BeliefForFirestore, 'createdAt'> & { createdAt: Date };
+
+export type InterviewForFirestore = {
 	researchSummary?: string;
 	interviewRecord?: string;
 	status: 'queued' | 'in_progress' | 'completed' | 'error';
@@ -20,9 +22,11 @@ export type InterviewDoc = {
 	completedAt?: Timestamp;
 };
 
+export type Interview = Omit<InterviewForFirestore, 'completedAt'> & { completedAt?: Date };
+
 export type EngagementLevel = 'high' | 'medium' | 'low';
 
-export type PersonaDoc = {
+export type PersonaForFirestore = {
 	id: string;
 	topicId: string;
 	stakeholderRole: string;
@@ -35,8 +39,13 @@ export type PersonaDoc = {
 	engagementLevel?: EngagementLevel;
 	approved: boolean;
 	sortOrder: number;
-	interview?: InterviewDoc;
-	beliefs: BeliefDoc[];
+	interview?: InterviewForFirestore;
+	beliefs: BeliefForFirestore[];
+};
+
+export type Persona = Omit<PersonaForFirestore, 'interview' | 'beliefs'> & {
+	interview?: Interview;
+	beliefs: Belief[];
 };
 
 export type PersonaBeliefVersion = {

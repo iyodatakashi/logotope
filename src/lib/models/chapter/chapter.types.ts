@@ -1,25 +1,25 @@
-import type { Turn, TurnDoc } from '$lib/models/turn/turn.types';
+import type { Turn, TurnForFirestore } from '$lib/models/turn/turn.types';
 
 export type ChapterProgressStatus = 'pending' | 'running' | 'completed';
 
 export type DiscussionPointStatus = 'untouched' | 'introduced' | 'addressed';
 
-export type DiscussionPointStatusDoc = {
+export type DiscussionPointState = {
 	point: string;
 	status: DiscussionPointStatus;
 };
 
-export type ChapterDoc = {
+export type ChapterForFirestore = {
 	chapterIndex: number;
 	title: string;
 	focusQuestion: string;
 	discussionPoints: string[];
-	turns: TurnDoc[];
-	discussionPointStatuses?: DiscussionPointStatusDoc[];
+	turns: TurnForFirestore[];
+	discussionPointStatuses?: DiscussionPointState[];
 	status: ChapterProgressStatus;
 };
 
-export type Chapter = Omit<ChapterDoc, 'turns'> & {
+export type Chapter = Omit<ChapterForFirestore, 'turns'> & {
 	id: string;
 	turns: Turn[];
 };
@@ -38,7 +38,7 @@ export type IssueGroup = {
 	issueIndexes: number[];
 };
 
-export type ChapterAnalysisDoc = {
+export type ChapterAnalysisForFirestore = {
 	issues: Issue[];
 	issueGroups?: IssueGroup[];
 };

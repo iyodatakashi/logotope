@@ -15,7 +15,7 @@ export type PendingIntentEntry = {
 	intentSummary: string;
 };
 
-export type EngagementDoc = {
+export type EngagementForFirestore = {
 	history: Record<string, EngagementHistoryEntry>;
 	pendingIntents: PendingIntentEntry[];
 };
