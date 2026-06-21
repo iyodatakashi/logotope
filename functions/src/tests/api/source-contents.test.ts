@@ -6,7 +6,8 @@ const mockDoc = vi.fn().mockReturnValue({ get: mockGet, update: mockUpdate });
 
 vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: vi.fn(() => ({ doc: mockDoc })),
-	FieldValue: { serverTimestamp: vi.fn(() => 'mock-server-timestamp') }
+	FieldValue: { serverTimestamp: vi.fn(() => 'mock-server-timestamp') },
+	Timestamp: { now: vi.fn(() => 'mock-timestamp') }
 }));
 
 const mockFetchAndExtractText = vi.fn();
