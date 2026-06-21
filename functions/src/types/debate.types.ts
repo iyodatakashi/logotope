@@ -46,6 +46,7 @@ export type DebateState = {
 	lastSpeakerId?: string;
 	queuedIntents: Map<string, QueuedIntent[]>;
 	discussionPoints: DiscussionPointState[];
+	runId?: string;
 };
 
 export type FacilitatorReply = {

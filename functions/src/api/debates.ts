@@ -16,10 +16,14 @@ const REGION = 'asia-northeast1';
 const enqueueChapterTask = async (
 	topicId: string,
 	chapterIndex: number,
+	runId: string,
 	singleChapterMode?: boolean
 ): Promise<void> => {
 	const queue = getFunctions().taskQueue(`locations/${REGION}/functions/runChapter`);
-	await queue.enqueue({ topicId, chapterIndex, singleChapterMode }, { scheduleDelaySeconds: 0 });
+	await queue.enqueue(
+		{ topicId, chapterIndex, runId, singleChapterMode },
+		{ scheduleDelaySeconds: 0 }
+	);
 };
 
 export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
@@ -32,8 +36,8 @@ export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 	const topic = await getTopicById(topicId);
 	if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
-	await activateDebate(topicId);
-	await enqueueChapterTask(topicId, 0, singleChapterMode);
+	const runId = await activateDebate(topicId);
+	await enqueueChapterTask(topicId, 0, runId, singleChapterMode);
 
 	return { topicId };
 });
@@ -53,8 +57,8 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 	const resumeChapter = runningChapter ?? chapters.find((c) => c.status === 'pending');
 	if (!resumeChapter) throw new HttpsError('not-found', 'No chapter to restart');
 
-	await restartChapter(topicId, resumeChapter.id);
-	await enqueueChapterTask(topicId, resumeChapter.chapterIndex, singleChapterMode);
+	const runId = await restartChapter(topicId, resumeChapter.id);
+	await enqueueChapterTask(topicId, resumeChapter.chapterIndex, runId, singleChapterMode);
 
 	return { topicId };
 });
@@ -70,18 +74,21 @@ export const runChapter = onTaskDispatched(
 		rateLimits: { maxConcurrentDispatches: 5 }
 	},
 	async (req) => {
-		const { topicId, chapterIndex, singleChapterMode } = req.data as {
+		const { topicId, chapterIndex, runId, singleChapterMode } = req.data as {
 			topicId: string;
 			chapterIndex: number;
+			runId?: string;
 			singleChapterMode?: boolean;
 		};
 		try {
-			const hasNextChapter = await executeChapterTask(topicId, chapterIndex, {
-				...DEFAULT_OPTIONS,
-				singleChapterMode
-			});
+			const hasNextChapter = await executeChapterTask(
+				topicId,
+				chapterIndex,
+				{ ...DEFAULT_OPTIONS, singleChapterMode },
+				runId
+			);
 			if (hasNextChapter) {
-				await enqueueChapterTask(topicId, chapterIndex + 1, singleChapterMode);
+				await enqueueChapterTask(topicId, chapterIndex + 1, runId ?? '', singleChapterMode);
 			}
 		} catch (err) {
 			if ((req.retryCount ?? 0) >= MAX_ATTEMPTS - 1) {

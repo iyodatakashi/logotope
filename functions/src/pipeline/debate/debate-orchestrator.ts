@@ -64,7 +64,8 @@ export const executeChapterTask = async (
 		turnsPerChapter: TURNS_PER_CHAPTER,
 		maxTurns: MAX_TURNS,
 		interventionCooldown: DEFAULT_INTERVENTION_COOLDOWN
-	}
+	},
+	runId?: string
 ): Promise<boolean> => {
 	// 停止ゲート: トピックが討論かつ実行中でなければ何も生成・上書きしない
 	if (!(await isDebateActive(topicId))) return false;
@@ -84,6 +85,7 @@ export const executeChapterTask = async (
 	const existingTurns = await getDebateTurnsByTopicId(topicId);
 	const persistedQueuedIntents = await loadQueuedIntents(topicId, chapterDoc.id);
 	const state = getDebateState(existingTurns, personas, persistedQueuedIntents);
+	state.runId = runId;
 
 	const chapter: Chapter = chapterDoc;
 

@@ -1,4 +1,5 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
+import { nanoid } from 'nanoid';
 import type { DebateTurn } from '../../types/debate.types.js';
 
 const db = () => getFirestore();
@@ -52,10 +53,12 @@ export const getChaptersByTopicId = async (topicId: string): Promise<ChapterEntr
 	});
 };
 
-export const activateDebate = async (topicId: string): Promise<void> => {
+export const activateDebate = async (topicId: string): Promise<string> => {
+	const runId = nanoid();
 	await db()
 		.doc(`topics/${topicId}`)
-		.update({ phase: 5, phaseStatus: 'running', updatedAt: Timestamp.now() });
+		.update({ phase: 5, phaseStatus: 'running', runId, updatedAt: Timestamp.now() });
+	return runId;
 };
 
 export const markDebateStopped = async (topicId: string): Promise<void> => {
@@ -64,7 +67,7 @@ export const markDebateStopped = async (topicId: string): Promise<void> => {
 		.update({ phaseStatus: 'stopped', updatedAt: Timestamp.now() });
 };
 
-export const restartChapter = async (topicId: string, chapterId: string): Promise<void> => {
+export const restartChapter = async (topicId: string, chapterId: string): Promise<string> => {
 	const chapters = await getChaptersByTopicId(topicId);
 	const targetIdx = chapters.findIndex((c) => c.id === chapterId);
 	const discardChapters = chapters.slice(targetIdx >= 0 ? targetIdx : 0);
@@ -102,5 +105,5 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 		}
 	}
 
-	await activateDebate(topicId);
+	return await activateDebate(topicId);
 };
