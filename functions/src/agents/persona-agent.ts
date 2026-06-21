@@ -1,7 +1,6 @@
-import { generateText, generateObject, jsonSchema } from 'ai';
+import { generateText, generateObject, jsonSchema, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { getPersonaModel } from '../llm/models.js';
-import { MAX_TOKENS } from '../constants/ai.constants.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
 import { formatTurns, currentDateString } from '../utils/prompt-formatters.js';
 import type {
@@ -169,8 +168,8 @@ const speechLengthGuide = (score?: number): string => {
 
 type AnyTool = {
 	description: string;
-	parameters: ReturnType<typeof jsonSchema>;
-	execute?: (args: { [key: string]: unknown }) => Promise<string>;
+	inputSchema: ReturnType<typeof jsonSchema>;
+	execute?: (input: { [key: string]: unknown }) => Promise<string>;
 };
 
 const buildFullTurnTools = (styleGuide: string, lengthGuide: string): Record<string, AnyTool> => {
@@ -178,7 +177,7 @@ const buildFullTurnTools = (styleGuide: string, lengthGuide: string): Record<str
 	const tools: Record<string, AnyTool> = {
 		submit_turn: {
 			description: 'ペルソナとして1ターン分の発言を提出する',
-			parameters: jsonSchema({
+			inputSchema: jsonSchema({
 				type: 'object' as const,
 				additionalProperties: false as const,
 				properties: {
@@ -216,7 +215,7 @@ const buildFullTurnTools = (styleGuide: string, lengthGuide: string): Record<str
 		tools['web_search'] = {
 			description:
 				'数値・統計・最新情報など正確性が必要な情報を検索する。1〜2回以内で使用すること。',
-			parameters: jsonSchema({
+			inputSchema: jsonSchema({
 				type: 'object' as const,
 				properties: { query: { type: 'string' as const, description: '検索クエリ（日本語可）' } },
 				required: ['query']
@@ -289,13 +288,11 @@ export const generateTurn = async (
 		const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 			generateText({
 				model,
-				maxTokens: MAX_TOKENS.PERSONA_TURN,
 				system,
 				tools: fullTools,
 				toolChoice: 'required' as const,
-				maxSteps: 4,
-				messages: [{ role: 'user', content: userContent }],
-				providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } }
+				stopWhen: stepCountIs(4),
+				messages: [{ role: 'user', content: userContent }]
 			});
 		let fullResult;
 		try {
@@ -322,7 +319,7 @@ export const generateTurn = async (
 		}
 
 		const searchCalls = allToolCalls.filter((c) => c.toolName === 'web_search');
-		const searchQueries = searchCalls.map((c) => (c.args as { query: string }).query);
+		const searchQueries = searchCalls.map((c) => (c.input as { query: string }).query);
 
 		const {
 			content,
@@ -330,7 +327,7 @@ export const generateTurn = async (
 			beliefChangeSummary,
 			beliefChangeUpdatedBelief,
 			targetPersonaId
-		} = toolCall.args as {
+		} = toolCall.input as {
 			content: string;
 			beliefChangeType?: BeliefChangeType;
 			beliefChangeSummary?: string;
@@ -386,14 +383,12 @@ export const evaluateEngagement = async (
 			otherPersonaNames.length > 0 ? `\n他の参加者: ${otherPersonaNames.join('、')}` : '';
 		const result = await generateObject({
 			model: getPersonaModel(persona.llmType ?? 'claude'),
-			maxTokens: MAX_TOKENS.PERSONA_ENGAGEMENT,
 			system: buildPersonaSystemPrompt(
 				persona,
 				persona.interviewRecord ?? '',
 				latestBeliefContent(persona)
 			),
 			schema: engagementSchema,
-			providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
 			messages: [
 				{
 					role: 'user',
@@ -431,10 +426,8 @@ export const generatePostDebateComment = async (
 	try {
 		const result = await generateObject({
 			model: getPersonaModel(persona.llmType ?? 'claude'),
-			maxTokens: MAX_TOKENS.PERSONA_POST_DEBATE,
 			system: buildPersonaSystemPrompt(persona, '', finalBelief),
 			schema: postDebateCommentSchema,
-			providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
 			messages: [
 				{
 					role: 'user',

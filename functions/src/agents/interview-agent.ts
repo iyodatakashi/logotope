@@ -1,7 +1,6 @@
-import { generateText, jsonSchema } from 'ai';
+import { generateText, jsonSchema, stepCountIs } from 'ai';
 import { tavily } from '@tavily/core';
 import { getPipelineModel } from '../llm/models.js';
-import { MAX_TOKENS } from '../constants/ai.constants.js';
 import type { Persona } from '../types/persona.types.js';
 import type { TopicContext } from '../types/topic.types.js';
 
@@ -20,7 +19,7 @@ const buildTools = () => {
 		web_search: {
 			description:
 				'ペルソナの立場・背景に関連する情報をウェブ検索する。当事者の体験談・証言・インタビュー・本音など一次情報を優先的に探す。必要と判断した回数だけ呼び出してよい。',
-			parameters: jsonSchema({
+			inputSchema: jsonSchema({
 				type: 'object' as const,
 				additionalProperties: false as const,
 				properties: {
@@ -49,7 +48,7 @@ const buildTools = () => {
 		submit_research: {
 			description:
 				'ウェブリサーチと仮想インタビューが完了したら呼び出す。リサーチサマリー・取材記録・初期信念ドキュメントを提出する。',
-			parameters: jsonSchema({
+			inputSchema: jsonSchema({
 				type: 'object' as const,
 				additionalProperties: false as const,
 				properties: {
@@ -97,10 +96,8 @@ export const runInterview = async (
 	const contextSection = buildTopicContextSection(topicContext);
 	const result = await generateText({
 		model: getPipelineModel('personaInterview'),
-		maxTokens: MAX_TOKENS.INTERVIEW,
-		maxSteps: 10,
+		stopWhen: stepCountIs(10),
 		tools: buildTools(),
-		providerOptions: { google: { thinkingConfig: { thinkingBudget: 0 } } },
 		messages: [
 			{
 				role: 'user',
@@ -131,5 +128,5 @@ export const runInterview = async (
 	const submitCall = result.toolCalls.find((c) => c.toolName === 'submit_research');
 	if (!submitCall) throw new Error('submit_research was not called');
 
-	return submitCall.args as InterviewOutput;
+	return submitCall.input as InterviewOutput;
 };

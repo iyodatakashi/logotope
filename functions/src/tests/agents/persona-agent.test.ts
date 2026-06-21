@@ -6,7 +6,8 @@ import type { Chapter } from '../../types/chapter.types.js';
 vi.mock('ai', () => ({
 	generateText: vi.fn(),
 	generateObject: vi.fn(),
-	jsonSchema: (schema: unknown) => schema
+	jsonSchema: (schema: unknown) => schema,
+	stepCountIs: vi.fn((n: number) => n)
 }));
 
 vi.mock('../../llm/models.js', () => ({
@@ -159,7 +160,7 @@ describe('generateTurn', () => {
 						toolCalls: [
 							{
 								toolName: 'submit_turn',
-								args: { content: '佐藤さん、なぜそう思うんですか？' }
+								input: { content: '佐藤さん、なぜそう思うんですか？' }
 							}
 						]
 					}
@@ -185,7 +186,7 @@ describe('generateTurn', () => {
 					toolCalls: [
 						{
 							toolName: 'submit_turn',
-							args: { content: '佐藤さん、なぜそう思うんですか？', targetPersonaId: 'p2' }
+							input: { content: '佐藤さん、なぜそう思うんですか？', targetPersonaId: 'p2' }
 						}
 					]
 				}
@@ -209,7 +210,7 @@ describe('generateTurn', () => {
 			return {
 				steps: [
 					{
-						toolCalls: [{ toolName: 'submit_turn', args: { content: 'テスト発言' } }]
+						toolCalls: [{ toolName: 'submit_turn', input: { content: 'テスト発言' } }]
 					}
 				]
 			} as never;
@@ -238,7 +239,7 @@ describe('generateTurn', () => {
 						toolCalls: [
 							{
 								toolName: 'submit_turn',
-								args: { content: 'テスト', targetPersonaId: 'p2' }
+								input: { content: 'テスト', targetPersonaId: 'p2' }
 							}
 						]
 					}
@@ -261,7 +262,7 @@ describe('generateTurn', () => {
 		vi.mocked(aiMod.generateText).mockImplementationOnce(
 			async () =>
 				({
-					steps: [{ toolCalls: [{ toolName: 'submit_turn', args: { content: 'テスト' } }] }]
+					steps: [{ toolCalls: [{ toolName: 'submit_turn', input: { content: 'テスト' } }] }]
 				}) as never
 		);
 

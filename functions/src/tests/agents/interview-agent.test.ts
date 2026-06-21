@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('ai', () => ({
 	generateText: vi.fn(),
-	jsonSchema: (schema: unknown) => schema
+	jsonSchema: (schema: unknown) => schema,
+	stepCountIs: vi.fn((n: number) => n)
 }));
 
 vi.mock('@tavily/core', () => ({
@@ -38,8 +39,8 @@ const mockPersona: Persona = {
 	interviewRecord: ''
 };
 
-const makeGenerateTextResult = (args: unknown) => ({
-	toolCalls: [{ toolName: 'submit_research', args }]
+const makeGenerateTextResult = (input: unknown) => ({
+	toolCalls: [{ toolName: 'submit_research', input }]
 });
 
 describe('interview-agent.runInterview', () => {
