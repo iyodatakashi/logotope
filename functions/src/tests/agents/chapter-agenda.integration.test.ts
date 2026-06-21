@@ -205,7 +205,6 @@ describe('Task 5.2: 介入経路で未完了論点が渡され着手へ更新さ
 			silenceMap: new Map<string, number>(),
 			speakCount: new Map<string, number>(),
 			queuedIntents: new Map(),
-			pairConversationTurns: 0,
 			discussionPoints: [
 				{ point: '未消化論点X', status: 'untouched' as const },
 				{ point: '未消化論点Y', status: 'untouched' as const }

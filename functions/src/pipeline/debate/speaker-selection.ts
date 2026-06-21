@@ -27,21 +27,16 @@ export const hasHighEngagement = (engagements: ReadonlyArray<{ score: number }>)
 /** 指名があればそれを優先し、なければキュー > スコアで話者を決定する */
 export const selectSpeaker = ({
 	targetPersona,
-	canContinuePairConversation,
 	engagements,
 	state,
 	personas
 }: {
 	targetPersona: { personaId: string; targetedBy: 'facilitator' | 'persona' } | undefined;
-	canContinuePairConversation: boolean;
 	engagements: ReadonlyArray<Engagement>;
 	state: DebateState;
 	personas: ReadonlyArray<Persona>;
 }): SpeakerSelection => {
-	if (
-		targetPersona &&
-		(targetPersona.targetedBy === 'facilitator' || canContinuePairConversation)
-	) {
+	if (targetPersona) {
 		return {
 			personaId: targetPersona.personaId,
 			reason:

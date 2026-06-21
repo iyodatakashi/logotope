@@ -58,7 +58,6 @@ export const persistInterventionTurn = async ({
 		targetPersonaId,
 		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});
-	state.pairConversationTurns = 0;
 	state.lastSpeakerId = undefined;
 	return targetPersonaId
 		? { personaId: targetPersonaId, reason: 'targeted_by_facilitator' }
@@ -100,12 +99,15 @@ export const tryIntervention = async ({
 			interventionCooldown
 		)
 	) {
+		// 高意欲者（score >= STALL_INTERVENTION_THRESHOLD_SCORE）がいる場合、論点投入を抑止して
+		// 明確な逸脱のみ検出させる（未完了論点リストを渡さないことで option 2 を封じる）
+		const driftPoints = hasHighEngagement(engagements) ? [] : unaddressedDiscussionPoints;
 		intervention = await tryTopicDriftIntervention({
 			personas,
 			chapter,
 			chapterTurns: currentChapterTurns,
 			state,
-			unaddressedDiscussionPoints
+			unaddressedDiscussionPoints: driftPoints
 		});
 		if (!intervention) {
 			intervention = await tryStallIntervention({

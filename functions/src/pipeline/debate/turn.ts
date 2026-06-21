@@ -153,7 +153,6 @@ export const generateFacilitatorTurn = async ({
 		targetPersonaId,
 		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});
-	state.pairConversationTurns = 0;
 	state.lastSpeakerId = undefined;
 	return { content, targetPersonaId };
 };

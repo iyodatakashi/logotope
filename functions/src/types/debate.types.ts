@@ -45,7 +45,6 @@ export type DebateState = {
 	speakCount: Map<string, number>;
 	lastSpeakerId?: string;
 	queuedIntents: Map<string, QueuedIntent[]>;
-	pairConversationTurns: number;
 	discussionPoints: DiscussionPointState[];
 };
 

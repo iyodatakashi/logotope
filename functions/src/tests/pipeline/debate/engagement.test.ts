@@ -45,7 +45,6 @@ const makeState = (overrides?: Partial<DebateState>): DebateState => ({
 	silenceMap: new Map(),
 	speakCount: new Map(),
 	queuedIntents: new Map(),
-	pairConversationTurns: 0,
 	discussionPoints: [],
 	...overrides
 });

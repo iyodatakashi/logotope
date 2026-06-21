@@ -55,7 +55,6 @@ export const getDebateState = (
 		speakCount,
 		lastSpeakerId,
 		queuedIntents,
-		pairConversationTurns: 0,
 		discussionPoints: []
 	};
 };

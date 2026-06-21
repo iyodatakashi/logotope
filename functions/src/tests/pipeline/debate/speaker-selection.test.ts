@@ -58,7 +58,6 @@ const makeState = (silenceMap: Map<string, number> = new Map()) => ({
 	silenceMap,
 	speakCount: new Map<string, number>(),
 	queuedIntents: new Map<string, QueuedIntent[]>(),
-	pairConversationTurns: 0,
 	discussionPoints: []
 });
 
@@ -73,7 +72,7 @@ describe('selectSpeaker - モード優先度タイブレーク（スコア・沈
 		];
 		const result = selectSpeaker({
 			targetPersona: undefined,
-			canContinuePairConversation: false,
+
 			engagements,
 			state: makeState(),
 			personas
@@ -88,7 +87,7 @@ describe('selectSpeaker - モード優先度タイブレーク（スコア・沈
 		];
 		const result = selectSpeaker({
 			targetPersona: undefined,
-			canContinuePairConversation: false,
+
 			engagements,
 			state: makeState(),
 			personas
@@ -107,7 +106,7 @@ describe('selectSpeaker - モード優先度タイブレーク（スコア・沈
 		for (let i = 0; i < 50; i++) {
 			const result = selectSpeaker({
 				targetPersona: undefined,
-				canContinuePairConversation: false,
+
 				engagements,
 				state: makeState(),
 				personas
@@ -128,7 +127,7 @@ describe('selectSpeaker - モード優先度タイブレーク（スコア・沈
 		];
 		const result = selectSpeaker({
 			targetPersona: undefined,
-			canContinuePairConversation: false,
+
 			engagements,
 			state: makeState(),
 			personas
@@ -148,7 +147,7 @@ describe('selectSpeaker - モード優先度タイブレーク（スコア・沈
 		]);
 		const result = selectSpeaker({
 			targetPersona: undefined,
-			canContinuePairConversation: false,
+
 			engagements,
 			state: makeState(silenceMap),
 			personas

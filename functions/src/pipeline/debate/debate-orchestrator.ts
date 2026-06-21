@@ -10,7 +10,6 @@ import {
 import { selectSpeaker } from './speaker-selection.js';
 import { getDebateState } from './debate-state.js';
 import {
-	MAX_PAIR_CONVERSATION_TURNS,
 	CHAPTER_END_COUNT_LIMIT,
 	EARLY_END_PROGRESS_RATIO,
 	TURN_CAP_RATIO,
@@ -293,10 +292,8 @@ const executeTurn = async ({
 		chapterTurns: getChapterTurns()
 	});
 
-	// 4. ファシリテーター介入（介入した場合は早期終了）
-	const canContinuePairConversation = state.pairConversationTurns < MAX_PAIR_CONVERSATION_TURNS;
-
-	if (!targetPersona || !canContinuePairConversation) {
+	// 4. ファシリテーター介入（targetがない場合のみ評価）
+	if (!targetPersona) {
 		const intervened = await tryIntervention({
 			topicId,
 			personas,
@@ -316,7 +313,6 @@ const executeTurn = async ({
 	// 5. 話者を決定する（指名 > キュー > スコア順）
 	const speakerSelection = selectSpeaker({
 		targetPersona,
-		canContinuePairConversation,
 		engagements,
 		state,
 		personas
@@ -332,9 +328,7 @@ const executeTurn = async ({
 		triggerTurnId: state.turns[state.turns.length - 1]?.id ?? ''
 	});
 
-	// 7. ペア会話ターン数を更新する（ペルソナ間指名の連続回数を管理する）
-	state.pairConversationTurns =
-		speakerSelection.reason === 'targeted_by_persona' ? state.pairConversationTurns + 1 : 0;
+	// 7. (ペア会話ターン数の更新は reply.targetPersonaId が確定するステップ9の後に移動)
 
 	// 8. 発言パラメータ（モード・スコア・意図）を決定する（直前話者など評価対象外の場合は単独評価）
 	const engagement = await evaluateEngagementWithFallback({

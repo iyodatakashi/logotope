@@ -32,7 +32,6 @@ const makeState = (
 	silenceMap: new Map(),
 	speakCount: new Map(),
 	queuedIntents: new Map(),
-	pairConversationTurns: 0,
 	discussionPoints
 });
 
@@ -154,19 +153,6 @@ describe('persistInterventionTurn', () => {
 			chapterId: 'ch-0'
 		});
 		expect(state.lastSpeakerId).toBeUndefined();
-	});
-
-	it('pairConversationTurns は 0 にリセットされる', async () => {
-		const state = makeState();
-		state.pairConversationTurns = 3;
-		await persistInterventionTurn({
-			topicId: 'topic1',
-			state,
-			content: '介入',
-			targetPersonaId: undefined,
-			chapterId: 'ch-0'
-		});
-		expect(state.pairConversationTurns).toBe(0);
 	});
 
 	it('state.turns に push されるターンに speakerName/speakerRole が含まれない', async () => {

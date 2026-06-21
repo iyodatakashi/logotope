@@ -86,7 +86,6 @@ describe('debate.types - 論点追跡型定義', () => {
 			silenceMap: new Map(),
 			speakCount: new Map(),
 			queuedIntents: new Map(),
-			pairConversationTurns: 0,
 			discussionPoints: [{ point: '論点1', status: 'introduced' }]
 		};
 		expect(state.discussionPoints).toHaveLength(1);

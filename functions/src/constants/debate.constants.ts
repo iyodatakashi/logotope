@@ -15,9 +15,6 @@ export const STALL_INTERVENTION_THRESHOLD_SCORE = 4;
 /** 章継続の活性シグナル閾値 */
 export const CONTINUE_CHAPTER_THRESHOLD = 4;
 
-/** ペルソナ間の連続直接質問の上限 */
-export const MAX_PAIR_CONVERSATION_TURNS = 3;
-
 /** 介入クールダウン既定ターン数（ドリフト・スタール共通） */
 export const DEFAULT_INTERVENTION_COOLDOWN = 3;
 

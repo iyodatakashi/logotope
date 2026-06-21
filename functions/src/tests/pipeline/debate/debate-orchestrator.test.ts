@@ -112,7 +112,6 @@ const makeState = (discussionPoints: DebateState['discussionPoints'] = []): Deba
 	silenceMap: new Map(),
 	speakCount: new Map(),
 	queuedIntents: new Map(),
-	pairConversationTurns: 0,
 	discussionPoints
 });
 
