@@ -1,5 +1,5 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { requireAuth } from '../utils/auth.js';
 import { fetchAndExtractText } from '../pipeline/topics/source-fetcher.js';
 
@@ -19,11 +19,11 @@ export const fetchSourceContents = onCall(async (request) => {
 	const urls = data.sourceUrls.slice(0, 5);
 	const results = await Promise.allSettled(urls.map((url) => fetchAndExtractText(url)));
 
-	const fetchedSourceContents: { url: string; content: string; fetchedAt: string }[] = [];
+	const fetchedSourceContents: { url: string; content: string; fetchedAt: Timestamp }[] = [];
 	results.forEach((result, i) => {
 		const content = result.status === 'fulfilled' ? result.value : null;
 		if (content !== null) {
-			fetchedSourceContents.push({ url: urls[i], content, fetchedAt: new Date().toISOString() });
+			fetchedSourceContents.push({ url: urls[i], content, fetchedAt: Timestamp.now() });
 		} else {
 			console.error(`Failed to fetch URL: ${urls[i]}`);
 		}
