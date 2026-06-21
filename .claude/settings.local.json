@@ -3,5 +3,20 @@
     "allow": [
       "Bash(npx tsc *)"
     ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/iyoda/Documents/workspace/Web_Workspace/logotope/.claude/scripts/quality-check.sh",
+            "timeout": 240,
+            "statusMessage": "品質チェック中（型・テスト・lint）...",
+            "asyncRewake": true
+          }
+        ]
+      }
+    ]
   }
 }
