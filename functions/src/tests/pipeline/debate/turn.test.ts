@@ -1,19 +1,30 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Persona } from '../../../types/persona.types.js';
-import type { Engagement, SpeakerSelection } from '../../../types/debate.types.js';
+import type { Engagement, SpeakerSelection, AppendTurnInput } from '../../../types/debate.types.js';
 import type { Chapter } from '../../../types/chapter.types.js';
 
+// 非トランザクション get（isDebateActive 等）と書き込み
 const mockGet = vi.fn().mockResolvedValue({
 	exists: true,
 	data: () => ({ phase: 5, phaseStatus: 'running' })
 });
 const mockUpdate = vi.fn().mockResolvedValue(undefined);
-const mockDoc = vi.fn().mockReturnValue({ get: mockGet, update: mockUpdate });
+const mockSet = vi.fn().mockResolvedValue(undefined);
+
+// トランザクション内 get / update（addTurn の冪等追記）
+const mockTxGet = vi.fn();
+const mockTxUpdate = vi.fn();
+const mockRunTransaction = vi.fn(
+	async (fn: (tx: { get: typeof mockTxGet; update: typeof mockTxUpdate }) => Promise<unknown>) =>
+		fn({ get: mockTxGet, update: mockTxUpdate })
+);
+
+const mockDoc = vi.fn((path: string) => ({ path, get: mockGet, update: mockUpdate, set: mockSet }));
 
 vi.mock('firebase-admin/firestore', () => ({
-	getFirestore: vi.fn(() => ({ doc: mockDoc })),
+	getFirestore: vi.fn(() => ({ doc: mockDoc, runTransaction: mockRunTransaction })),
 	Timestamp: { now: vi.fn(() => 'mock-timestamp') },
-	FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args[0]) }
+	FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args[0]), delete: vi.fn(() => 'DELETE') }
 }));
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-turn-id') }));
@@ -40,6 +51,28 @@ import {
 	addTurn,
 	generateFacilitatorTurn
 } from '../../../pipeline/debate/turn.js';
+
+// --- トランザクション get の制御変数 ---
+let txChapterTurns: Array<{ id: string }> = [];
+let txTopicRunId: string | undefined = undefined;
+
+const setupTxDocs = () => {
+	mockTxGet.mockImplementation(async (ref: { path: string }) => {
+		if (ref.path.includes('/chapters/')) {
+			return { exists: true, data: () => ({ turns: txChapterTurns }) };
+		}
+		return { exists: true, data: () => ({ runId: txTopicRunId }) };
+	});
+};
+
+/** mockTxUpdate に書かれた最新ターンレコードを取り出す */
+const getWrittenTurn = (): Record<string, unknown> => {
+	const call = mockTxUpdate.mock.calls.find(
+		(c) => (c[1] as { turns?: unknown[] }).turns !== undefined
+	);
+	const turns = (call![1] as { turns: Record<string, unknown>[] }).turns;
+	return turns[turns.length - 1];
+};
 
 const makePersona = (id: string, name: string): Persona => ({
 	id,
@@ -75,8 +108,8 @@ const makeSpeakerSelection = (override?: Partial<SpeakerSelection>): SpeakerSele
 const mockChapter: Chapter = { id: 'ch1', title: 'テスト章', focusQuestion: 'テスト？' };
 
 const makeDebateState = () => ({
-	turns: [],
-	lastSpeakerId: undefined,
+	turns: [] as Array<Record<string, unknown>>,
+	lastSpeakerId: undefined as string | undefined,
 	silenceMap: new Map(),
 	speakCount: new Map(),
 	queuedIntents: new Map(),
@@ -109,12 +142,19 @@ describe('generatePersonaTurn', () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
+		txChapterTurns = [];
+		txTopicRunId = undefined;
+		setupTxDocs();
 		mockGet.mockResolvedValue({
 			exists: true,
 			data: () => ({ phase: 5, phaseStatus: 'running' })
 		});
-		mockUpdate.mockResolvedValue(undefined);
-		mockDoc.mockReturnValue({ get: mockGet, update: mockUpdate });
+		mockDoc.mockImplementation((path: string) => ({
+			path,
+			get: mockGet,
+			update: mockUpdate,
+			set: mockSet
+		}));
 		mockValidPersonaId.mockImplementation((id: string | undefined) => id);
 	});
 
@@ -144,7 +184,6 @@ describe('generatePersonaTurn', () => {
 				{ id: 'p3', name: '鈴木次郎' }
 			])
 		);
-		// 発言者自身は含まれない
 		expect(context.otherPersonas.map((p: { id: string }) => p.id)).not.toContain('p1');
 	});
 
@@ -160,23 +199,16 @@ describe('generatePersonaTurn', () => {
 		});
 		mockValidPersonaId.mockReturnValue('p2');
 
-		const state = makeDebateState();
 		await generatePersonaTurn({
 			topicId: 'topic1',
 			personas,
 			chapter: mockChapter,
-			state,
+			state: makeDebateState(),
 			speakerSelection: makeSpeakerSelection(),
 			engagement: makeEngagement()
 		});
 
-		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
-			const arg = call[0] as { turns?: unknown };
-			return arg.turns !== undefined;
-		});
-		expect(updateCall).toBeDefined();
-		const savedTurn = (updateCall![0] as { turns: { speechMode?: string } }).turns;
-		expect(savedTurn.speechMode).toBe('question');
+		expect(getWrittenTurn().speechMode).toBe('question');
 	});
 
 	it('question モードかつ targetPersonaId が未設定の場合、speechMode: opinion にフォールバックして保存する', async () => {
@@ -191,23 +223,16 @@ describe('generatePersonaTurn', () => {
 		});
 		mockValidPersonaId.mockReturnValue(undefined);
 
-		const state = makeDebateState();
 		await generatePersonaTurn({
 			topicId: 'topic1',
 			personas,
 			chapter: mockChapter,
-			state,
+			state: makeDebateState(),
 			speakerSelection: makeSpeakerSelection(),
 			engagement: makeEngagement()
 		});
 
-		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
-			const arg = call[0] as { turns?: unknown };
-			return arg.turns !== undefined;
-		});
-		expect(updateCall).toBeDefined();
-		const savedTurn = (updateCall![0] as { turns: { speechMode?: string } }).turns;
-		expect(savedTurn.speechMode).toBe('opinion');
+		expect(getWrittenTurn().speechMode).toBe('opinion');
 	});
 
 	it('opinion モードは speechMode: opinion のままターンを保存する', async () => {
@@ -216,22 +241,16 @@ describe('generatePersonaTurn', () => {
 			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
-		const state = makeDebateState();
 		await generatePersonaTurn({
 			topicId: 'topic1',
 			personas,
 			chapter: mockChapter,
-			state,
+			state: makeDebateState(),
 			speakerSelection: makeSpeakerSelection(),
 			engagement: makeEngagement({ mode: 'opinion', intentSummary: '意見' })
 		});
 
-		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
-			const arg = call[0] as { turns?: unknown };
-			return arg.turns !== undefined;
-		});
-		const savedTurn = (updateCall![0] as { turns: { speechMode?: string } }).turns;
-		expect(savedTurn.speechMode).toBe('opinion');
+		expect(getWrittenTurn().speechMode).toBe('opinion');
 	});
 
 	it('Firestoreに書き込むターンに speakerName/speakerRole が含まれない', async () => {
@@ -240,24 +259,18 @@ describe('generatePersonaTurn', () => {
 			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
-		const state = makeDebateState();
 		await generatePersonaTurn({
 			topicId: 'topic1',
 			personas,
 			chapter: mockChapter,
-			state,
+			state: makeDebateState(),
 			speakerSelection: makeSpeakerSelection(),
 			engagement: makeEngagement({ mode: 'opinion' })
 		});
 
-		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
-			const arg = call[0] as { turns?: unknown };
-			return arg.turns !== undefined;
-		});
-		expect(updateCall).toBeDefined();
-		const savedTurn = updateCall![0] as { turns: Record<string, unknown> };
-		expect(savedTurn.turns.speakerName).toBeUndefined();
-		expect(savedTurn.turns.speakerRole).toBeUndefined();
+		const savedTurn = getWrittenTurn();
+		expect(savedTurn.speakerName).toBeUndefined();
+		expect(savedTurn.speakerRole).toBeUndefined();
 	});
 
 	it('state.turns に push されるターンに speakerName/speakerRole が含まれない', async () => {
@@ -291,6 +304,8 @@ describe('generatePersonaTurn', () => {
 		const state = makeDebateState();
 		state.turns.push(makeDebateTurn({ id: 't0', personaId: 'p2' }));
 		state.queuedIntents.set('p1', [{ triggerTurnId: 't0', intentSummary: '言いたいこと' }]);
+		// 章ローカル長を state.turns に合わせる（期待位置 = 1）
+		txChapterTurns = [{ id: 't0' }];
 
 		await generatePersonaTurn({
 			topicId: 'topic1',
@@ -316,6 +331,7 @@ describe('generatePersonaTurn', () => {
 		const state = makeDebateState();
 		state.turns.push(makeDebateTurn({ id: 'f0', speakerType: 'facilitator', personaId: null }));
 		state.queuedIntents.set('p1', [{ triggerTurnId: 'f0', intentSummary: 'ファシリ発言への反応' }]);
+		txChapterTurns = [{ id: 'f0' }];
 
 		await generatePersonaTurn({
 			topicId: 'topic1',
@@ -332,15 +348,12 @@ describe('generatePersonaTurn', () => {
 		expect(context.queuedTrigger.speakerName).toBe('ファシリテーター');
 	});
 
-	it('runId ミスマッチ時に addTurn が null を返し generatePersonaTurn が null を返す', async () => {
+	it('runId ミスマッチ時に addTurn が rejected を返し generatePersonaTurn が null を返す', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
 			value: { content: '発言', speechMode: 'opinion', beliefChange: null }
 		});
-		mockGet.mockResolvedValue({
-			exists: true,
-			data: () => ({ phase: 5, phaseStatus: 'running', runId: 'run-B' })
-		});
+		txTopicRunId = 'run-B';
 		const state = { ...makeDebateState(), runId: 'run-A' };
 		const result = await generatePersonaTurn({
 			topicId: 'topic1',
@@ -351,21 +364,39 @@ describe('generatePersonaTurn', () => {
 			engagement: makeEngagement()
 		});
 		expect(result).toBeNull();
-		expect(mockUpdate).not.toHaveBeenCalled();
+		expect(mockTxUpdate).not.toHaveBeenCalled();
 	});
 
-	it('Firestoreへの書き込みは sessions/0 ではなく chapters/{chapterId} に行われる', async () => {
+	it('期待位置不一致（章 doc が先行）の場合 null を返し追記しない', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '発言', speechMode: 'opinion', beliefChange: null }
+		});
+		// state.turns は空（期待位置 0）だが章 doc は既に1件 → index_mismatch
+		txChapterTurns = [{ id: 'already' }];
+		const result = await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement()
+		});
+		expect(result).toBeNull();
+		expect(mockTxUpdate).not.toHaveBeenCalled();
+	});
+
+	it('Firestoreへの書き込みは chapters/{chapterId} に行われる', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
 			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
-		const state = makeDebateState();
 		await generatePersonaTurn({
 			topicId: 'topic1',
 			personas,
-			chapter: mockChapter, // id: 'ch1'
-			state,
+			chapter: mockChapter,
+			state: makeDebateState(),
 			speakerSelection: makeSpeakerSelection(),
 			engagement: makeEngagement({ mode: 'opinion' })
 		});
@@ -381,23 +412,16 @@ describe('generatePersonaTurn', () => {
 			value: { content: '意見発言', speechMode: 'opinion', beliefChange: null }
 		});
 
-		const state = makeDebateState();
 		await generatePersonaTurn({
 			topicId: 'topic1',
 			personas,
 			chapter: mockChapter,
-			state,
+			state: makeDebateState(),
 			speakerSelection: makeSpeakerSelection(),
 			engagement: makeEngagement({ mode: 'opinion' })
 		});
 
-		const updateCall = mockUpdate.mock.calls.find((call: unknown[]) => {
-			const arg = call[0] as { turns?: unknown };
-			return arg.turns !== undefined;
-		});
-		expect(updateCall).toBeDefined();
-		const savedTurn = updateCall![0] as { turns: Record<string, unknown> };
-		expect(savedTurn.turns.chapterId).toBeUndefined();
+		expect(getWrittenTurn().chapterId).toBeUndefined();
 	});
 
 	it('state.turns に push されるターンに chapterId が含まれない', async () => {
@@ -422,74 +446,121 @@ describe('generatePersonaTurn', () => {
 	});
 });
 
-describe('addTurn - runId 世代照合', () => {
+describe('addTurn - 冪等トランザクション追記', () => {
+	const baseInput = (overrides: Partial<AppendTurnInput> = {}): AppendTurnInput => ({
+		topicId: 't1',
+		chapterId: 'ch1',
+		expectedTurnIndex: 0,
+		turn: { speakerType: 'persona', personaId: 'p1', content: '発言' },
+		...overrides
+	});
+
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mockUpdate.mockResolvedValue(undefined);
-		mockDoc.mockReturnValue({ get: mockGet, update: mockUpdate });
+		txChapterTurns = [];
+		txTopicRunId = undefined;
+		setupTxDocs();
+		mockDoc.mockImplementation((path: string) => ({
+			path,
+			get: mockGet,
+			update: mockUpdate,
+			set: mockSet
+		}));
 	});
 
-	it('runId 未設定の場合は照合をスキップし Firestore に書き込んで { id } を返す', async () => {
-		const result = await addTurn({
-			topicId: 'topic1',
-			chapterId: 'ch1',
-			speakerType: 'facilitator',
-			content: 'テスト'
-		});
-		expect(result).toEqual({ id: 'mock-turn-id' });
-		expect(mockUpdate).toHaveBeenCalledOnce();
-		expect(mockGet).not.toHaveBeenCalled();
+	it('期待位置が章ローカル turns.length と一致すれば committed を返し1ターン追記する', async () => {
+		txChapterTurns = [{ id: 'a' }, { id: 'b' }];
+		const result = await addTurn(baseInput({ expectedTurnIndex: 2 }));
+
+		expect(result).toEqual({ status: 'committed', id: 'mock-turn-id' });
+		expect(mockTxUpdate).toHaveBeenCalledTimes(1);
+		const [, update] = mockTxUpdate.mock.calls[0];
+		expect((update as { turns: unknown[] }).turns).toHaveLength(3);
 	});
 
-	it('params.runId と Firestore.runId が一致する場合は書き込んで { id } を返す', async () => {
-		mockGet.mockResolvedValue({ exists: true, data: () => ({ runId: 'run-A' }) });
-		const result = await addTurn({
-			topicId: 'topic1',
-			chapterId: 'ch1',
-			speakerType: 'facilitator',
-			content: 'テスト',
-			runId: 'run-A'
-		});
-		expect(result).toEqual({ id: 'mock-turn-id' });
-		expect(mockUpdate).toHaveBeenCalledOnce();
+	it('期待位置が一致しなければ index_mismatch を返し追記しない', async () => {
+		txChapterTurns = [{ id: 'a' }, { id: 'b' }];
+		const result = await addTurn(baseInput({ expectedTurnIndex: 1 }));
+
+		expect(result).toEqual({ status: 'rejected', reason: 'index_mismatch' });
+		expect(mockTxUpdate).not.toHaveBeenCalled();
 	});
 
-	it('params.runId と Firestore.runId が不一致の場合は null を返し Firestore に書き込まない', async () => {
-		mockGet.mockResolvedValue({ exists: true, data: () => ({ runId: 'run-B' }) });
-		const result = await addTurn({
-			topicId: 'topic1',
-			chapterId: 'ch1',
-			speakerType: 'facilitator',
-			content: 'テスト',
-			runId: 'run-A'
-		});
-		expect(result).toBeNull();
-		expect(mockUpdate).not.toHaveBeenCalled();
+	it('runId が topic doc と不一致なら generation_mismatch を返し追記しない', async () => {
+		txTopicRunId = 'run-A';
+		const result = await addTurn(baseInput({ expectedTurnIndex: 0, runId: 'run-B' }));
+
+		expect(result).toEqual({ status: 'rejected', reason: 'generation_mismatch' });
+		expect(mockTxUpdate).not.toHaveBeenCalled();
 	});
 
-	it('params.runId が設定されていても Firestore に runId フィールドがない場合は照合スキップして { id } を返す', async () => {
-		mockGet.mockResolvedValue({ exists: true, data: () => ({ phase: 5 }) });
-		const result = await addTurn({
-			topicId: 'topic1',
-			chapterId: 'ch1',
-			speakerType: 'facilitator',
-			content: 'テスト',
-			runId: 'run-A'
+	it('runId が一致すれば committed を返す', async () => {
+		txTopicRunId = 'run-A';
+		const result = await addTurn(baseInput({ expectedTurnIndex: 0, runId: 'run-A' }));
+		expect(result).toEqual({ status: 'committed', id: 'mock-turn-id' });
+	});
+
+	it('runId 欠如時は世代照合をスキップし committed を返す（topic doc を読まない）', async () => {
+		txTopicRunId = 'run-A';
+		const result = await addTurn(baseInput({ expectedTurnIndex: 0 }));
+
+		expect(result).toEqual({ status: 'committed', id: 'mock-turn-id' });
+		const readPaths = mockTxGet.mock.calls.map((c) => (c[0] as { path: string }).path);
+		expect(readPaths).not.toContain('topics/t1');
+	});
+
+	it('topic doc に runId が無ければ照合をスキップし committed を返す（後方互換）', async () => {
+		txTopicRunId = undefined;
+		const result = await addTurn(baseInput({ expectedTurnIndex: 0, runId: 'run-A' }));
+		expect(result).toEqual({ status: 'committed', id: 'mock-turn-id' });
+	});
+
+	it('progressPatch を指定すると同一更新で chapterEndCount / discussionPointStatuses を書く', async () => {
+		await addTurn(
+			baseInput({
+				expectedTurnIndex: 0,
+				progressPatch: {
+					chapterEndCount: 3,
+					discussionPointStatuses: [{ point: '論点A', status: 'addressed' }]
+				}
+			})
+		);
+		const [, update] = mockTxUpdate.mock.calls[0];
+		expect((update as { chapterEndCount: number }).chapterEndCount).toBe(3);
+		expect((update as { discussionPointStatuses: unknown[] }).discussionPointStatuses).toEqual([
+			{ point: '論点A', status: 'addressed' }
+		]);
+	});
+
+	it('順次実行では正当なターンが脱落しない（毎回 index が前進し committed）', async () => {
+		mockTxUpdate.mockImplementation((_ref: unknown, update: { turns: Array<{ id: string }> }) => {
+			txChapterTurns = [...update.turns];
 		});
-		expect(result).toEqual({ id: 'mock-turn-id' });
-		expect(mockUpdate).toHaveBeenCalledOnce();
+
+		for (let i = 0; i < 5; i++) {
+			const result = await addTurn(baseInput({ expectedTurnIndex: i }));
+			expect(result.status).toBe('committed');
+		}
+		expect(txChapterTurns).toHaveLength(5);
 	});
 });
 
-describe('generateFacilitatorTurn - runId 世代照合', () => {
+describe('generateFacilitatorTurn - 期待位置照合・runId 世代照合', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mockUpdate.mockResolvedValue(undefined);
-		mockDoc.mockReturnValue({ get: mockGet, update: mockUpdate });
+		txChapterTurns = [];
+		txTopicRunId = undefined;
+		setupTxDocs();
+		mockDoc.mockImplementation((path: string) => ({
+			path,
+			get: mockGet,
+			update: mockUpdate,
+			set: mockSet
+		}));
 	});
 
-	it('runId ミスマッチ時に null を返し state.turns に追加しない', async () => {
-		mockGet.mockResolvedValue({ exists: true, data: () => ({ runId: 'run-B' }) });
+	it('runId ミスマッチ時に rejected を返し state.turns に追加しない', async () => {
+		txTopicRunId = 'run-B';
 		const state = { ...makeDebateState(), runId: 'run-A' };
 		const result = await generateFacilitatorTurn({
 			topicId: 'topic1',
@@ -497,13 +568,13 @@ describe('generateFacilitatorTurn - runId 世代照合', () => {
 			content: 'テスト発言',
 			chapterId: 'ch1'
 		});
-		expect(result).toBeNull();
+		expect(result).toEqual({ status: 'rejected', reason: 'generation_mismatch' });
 		expect(state.turns).toHaveLength(0);
-		expect(mockUpdate).not.toHaveBeenCalled();
+		expect(mockTxUpdate).not.toHaveBeenCalled();
 	});
 
-	it('runId 一致時は { content, targetPersonaId } を返し state.turns に追加する', async () => {
-		mockGet.mockResolvedValue({ exists: true, data: () => ({ runId: 'run-A' }) });
+	it('runId 一致時は committed を返し state.turns に追加する', async () => {
+		txTopicRunId = 'run-A';
 		const state = { ...makeDebateState(), runId: 'run-A' };
 		const result = await generateFacilitatorTurn({
 			topicId: 'topic1',
@@ -511,8 +582,8 @@ describe('generateFacilitatorTurn - runId 世代照合', () => {
 			content: 'テスト発言',
 			chapterId: 'ch1'
 		});
-		expect(result).toEqual({ content: 'テスト発言', targetPersonaId: undefined });
+		expect(result).toEqual({ status: 'committed', id: 'mock-turn-id' });
 		expect(state.turns).toHaveLength(1);
-		expect(mockUpdate).toHaveBeenCalledOnce();
+		expect(mockTxUpdate).toHaveBeenCalledOnce();
 	});
 });

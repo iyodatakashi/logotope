@@ -9,7 +9,11 @@ import type {
 	QueuedIntent,
 	BeliefChangeEvent,
 	Engagement,
-	DebateTurn
+	DebateTurn,
+	AppendTurnInput,
+	AppendResult,
+	NewTurnFields,
+	ProgressPatch
 } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
@@ -32,49 +36,62 @@ export const isDebateActive = async (topicId: string): Promise<boolean> => {
 	return data.phase === 5 && data.phaseStatus === 'running';
 };
 
-export const addTurn = async (params: {
-	topicId: string;
-	chapterId: string;
-	speakerType: 'persona' | 'facilitator';
-	personaId?: string;
-	content: string;
-	speechMode?: 'opinion' | 'fact' | 'question';
-	engagementScore?: number;
-	fromQueue?: boolean;
-	targetPersonaId?: string;
-	targetedBy?: 'facilitator' | 'persona';
-	searchUsed?: boolean;
-	searchQueries?: string[];
-	runId?: string;
-}): Promise<{ id: string } | null> => {
-	if (params.runId) {
-		try {
-			const topicSnap = await db().doc(`topics/${params.topicId}`).get();
-			const topicData = topicSnap.data() as { runId?: string } | undefined;
-			if (topicData?.runId && topicData.runId !== params.runId) return null;
-		} catch {
-			return null;
-		}
-	}
-	const id = nanoid();
-	const turn: Record<string, unknown> = {
+/** NewTurnFields から永続化用のターンレコード（undefined フィールドを除外）を構築する */
+const buildTurnRecord = (id: string, turn: NewTurnFields): Record<string, unknown> => {
+	const record: Record<string, unknown> = {
 		id,
-		speakerType: params.speakerType,
-		content: params.content,
+		speakerType: turn.speakerType,
+		content: turn.content,
 		createdAt: Timestamp.now()
 	};
-	if (params.personaId !== undefined) turn.personaId = params.personaId;
-	if (params.speechMode !== undefined) turn.speechMode = params.speechMode;
-	if (params.engagementScore !== undefined) turn.engagementScore = params.engagementScore;
-	if (params.fromQueue) turn.fromQueue = true;
-	if (params.targetPersonaId !== undefined) turn.targetPersonaId = params.targetPersonaId;
-	if (params.targetedBy !== undefined) turn.targetedBy = params.targetedBy;
-	if (params.searchUsed) turn.searchUsed = true;
-	if (params.searchQueries?.length) turn.searchQueries = params.searchQueries;
-	await db()
-		.doc(`topics/${params.topicId}/chapters/${params.chapterId}`)
-		.update({ turns: FieldValue.arrayUnion(turn) });
-	return { id };
+	if (turn.personaId !== undefined) record.personaId = turn.personaId;
+	if (turn.speechMode !== undefined) record.speechMode = turn.speechMode;
+	if (turn.engagementScore !== undefined) record.engagementScore = turn.engagementScore;
+	if (turn.fromQueue) record.fromQueue = true;
+	if (turn.targetPersonaId !== undefined) record.targetPersonaId = turn.targetPersonaId;
+	if (turn.targetedBy !== undefined) record.targetedBy = turn.targetedBy;
+	if (turn.searchUsed) record.searchUsed = true;
+	if (turn.searchQueries?.length) record.searchQueries = turn.searchQueries;
+	return record;
+};
+
+/**
+ * 章ローカル `turns.length === expectedTurnIndex` のときだけ1ターン追記し、runId 世代照合と
+ * 進捗（chapterEndCount / discussionPointStatuses）更新を同一トランザクションで行う冪等追記。
+ * 不一致時は例外を投げず rejected を返して副作用を残さない。
+ */
+export const addTurn = async (input: AppendTurnInput): Promise<AppendResult> => {
+	const { topicId, chapterId, expectedTurnIndex, turn, runId, progressPatch } = input;
+	const chapterRef = db().doc(`topics/${topicId}/chapters/${chapterId}`);
+	const topicRef = db().doc(`topics/${topicId}`);
+	const id = nanoid();
+	return db().runTransaction(async (tx) => {
+		// runId がペイロード・topic doc の双方にある場合のみ世代照合する（後方互換）
+		if (runId) {
+			const topicSnap = await tx.get(topicRef);
+			const topicData = topicSnap.data() as { runId?: string } | undefined;
+			if (topicData?.runId && topicData.runId !== runId) {
+				return { status: 'rejected', reason: 'generation_mismatch' };
+			}
+		}
+		const chapterSnap = await tx.get(chapterRef);
+		const data = chapterSnap.data() as { turns?: DebateTurn[] } | undefined;
+		const currentTurns = data?.turns ?? [];
+		if (currentTurns.length !== expectedTurnIndex) {
+			return { status: 'rejected', reason: 'index_mismatch' };
+		}
+		const update: Record<string, unknown> = {
+			turns: [...currentTurns, buildTurnRecord(id, turn)]
+		};
+		if (progressPatch?.chapterEndCount !== undefined) {
+			update.chapterEndCount = progressPatch.chapterEndCount;
+		}
+		if (progressPatch?.discussionPointStatuses !== undefined) {
+			update.discussionPointStatuses = progressPatch.discussionPointStatuses;
+		}
+		tx.update(chapterRef, update);
+		return { status: 'committed', id };
+	});
 };
 
 export const updateSpeakerStats = ({
@@ -133,33 +150,43 @@ export const applyBeliefChange = async ({
 	];
 };
 
-/** ファシリテーター発言を保存し、state.turns を更新して発言内容を返す。世代ミスマッチ時は null を返す */
+/**
+ * ファシリテーター発言を期待位置照合のうえ保存し、committed なら state.turns を更新する。
+ * 期待位置は章ローカル長 `state.turns.length - chapterTurnStartIndex`。追記結果をそのまま返す。
+ */
 export const generateFacilitatorTurn = async ({
 	topicId,
 	state,
 	content,
 	targetPersonaId,
-	chapterId
+	chapterId,
+	chapterTurnStartIndex = 0,
+	progressPatch
 }: {
 	topicId: string;
 	state: DebateState;
 	content: string;
 	targetPersonaId?: string;
 	chapterId: string;
-}): Promise<{ content: string; targetPersonaId?: string } | null> => {
+	chapterTurnStartIndex?: number;
+	progressPatch?: ProgressPatch;
+}): Promise<AppendResult> => {
 	const result = await addTurn({
 		topicId,
 		chapterId,
-		speakerType: 'facilitator',
-		content,
-		targetPersonaId,
-		targetedBy: targetPersonaId ? 'facilitator' : undefined,
-		runId: state.runId
+		expectedTurnIndex: state.turns.length - chapterTurnStartIndex,
+		turn: {
+			speakerType: 'facilitator',
+			content,
+			targetPersonaId,
+			targetedBy: targetPersonaId ? 'facilitator' : undefined
+		},
+		runId: state.runId,
+		progressPatch
 	});
-	if (!result) return null;
-	const { id: turnId } = result;
+	if (result.status !== 'committed') return result;
 	state.turns.push({
-		id: turnId,
+		id: result.id,
 		speakerType: 'facilitator',
 		content,
 		createdAt: Timestamp.now(),
@@ -167,7 +194,7 @@ export const generateFacilitatorTurn = async ({
 		targetedBy: targetPersonaId ? 'facilitator' : undefined
 	});
 	state.lastSpeakerId = undefined;
-	return { content, targetPersonaId };
+	return result;
 };
 
 /** 決定に基づきペルソナ発言を生成・保存する。討論停止時は null を返す */
@@ -178,7 +205,8 @@ export const generatePersonaTurn = async ({
 	state,
 	speakerSelection,
 	engagement,
-	chapterTurnStartIndex = 0
+	chapterTurnStartIndex = 0,
+	progressPatch
 }: {
 	topicId: string;
 	personas: Persona[];
@@ -187,6 +215,7 @@ export const generatePersonaTurn = async ({
 	speakerSelection: SpeakerSelection;
 	engagement: Engagement;
 	chapterTurnStartIndex?: number;
+	progressPatch?: ProgressPatch;
 }): Promise<{
 	turnId: string;
 	personaId: string;
@@ -255,19 +284,23 @@ export const generatePersonaTurn = async ({
 	const addTurnResult = await addTurn({
 		topicId,
 		chapterId: chapter.id,
-		speakerType: 'persona',
-		personaId: persona.id,
-		content: turnResult.value.content,
-		speechMode: effectiveSpeechMode,
-		engagementScore: engagement.score,
-		fromQueue: fromQueue || undefined,
-		targetPersonaId,
-		targetedBy: targetPersonaId ? 'persona' : undefined,
-		searchUsed: turnResult.value.searchUsed,
-		searchQueries: turnResult.value.searchQueries,
-		runId: state.runId
+		expectedTurnIndex: state.turns.length - chapterTurnStartIndex,
+		turn: {
+			speakerType: 'persona',
+			personaId: persona.id,
+			content: turnResult.value.content,
+			speechMode: effectiveSpeechMode,
+			engagementScore: engagement.score,
+			fromQueue: fromQueue || undefined,
+			targetPersonaId,
+			targetedBy: targetPersonaId ? 'persona' : undefined,
+			searchUsed: turnResult.value.searchUsed,
+			searchQueries: turnResult.value.searchQueries
+		},
+		runId: state.runId,
+		progressPatch
 	});
-	if (!addTurnResult) return null;
+	if (addTurnResult.status !== 'committed') return null;
 	const { id: turnId } = addTurnResult;
 	state.turns.push({
 		id: turnId,
@@ -295,12 +328,14 @@ export const generateChapterTransition = async ({
 	topicId,
 	chapter,
 	state,
-	personas
+	personas,
+	chapterTurnStartIndex = 0
 }: {
 	topicId: string;
 	chapter: Chapter;
 	state: DebateState;
 	personas: Persona[];
+	chapterTurnStartIndex?: number;
 }): Promise<void> => {
 	const summaryResult = await generateChapterSummary(state.turns.slice(-10), chapter, personas);
 	if (summaryResult.ok) {
@@ -308,28 +343,51 @@ export const generateChapterTransition = async ({
 			topicId,
 			state,
 			chapterId: chapter.id,
-			content: summaryResult.value
+			content: summaryResult.value,
+			chapterTurnStartIndex
 		});
 	}
 };
 
-/** 討論終端: クロージング → 事後コメント → 完了 */
-export const finalizeDebate = async ({
+/** クロージングのファシリテーターターンを期待位置照合のうえ追記する。追記結果を返す */
+export const appendClosingTurn = async ({
 	topicId,
 	personas,
 	state,
-	chapterId
+	chapterId,
+	chapterTurnStartIndex = 0
 }: {
 	topicId: string;
 	personas: Persona[];
 	state: DebateState;
 	chapterId: string;
-}): Promise<void> => {
+	chapterTurnStartIndex?: number;
+}): Promise<AppendResult> => {
 	const finalBeliefs = new Map(personas.map((p) => [p.id, getLatestBelief(p).content]));
 	const closingResult = await generateClosing(state.turns, finalBeliefs, personas);
 	if (!closingResult.ok) throw new Error(pipelineErrorMessage(closingResult.error));
-	await generateFacilitatorTurn({ topicId, state, chapterId, content: closingResult.value ?? '' });
+	return generateFacilitatorTurn({
+		topicId,
+		state,
+		chapterId,
+		content: closingResult.value ?? '',
+		chapterTurnStartIndex
+	});
+};
 
+/**
+ * 事後コメントを生成して postDebateComments/0 に保存し、phaseStatus を running のときだけ
+ * generated へ遷移する（冪等）。既に generated なら no-op。
+ */
+export const persistPostDebateComments = async ({
+	topicId,
+	personas,
+	state
+}: {
+	topicId: string;
+	personas: Persona[];
+	state: DebateState;
+}): Promise<void> => {
 	const comments: Array<{ id: string; personaId: string; content: string; sortOrder: number }> = [];
 	for (let i = 0; i < personas.length; i++) {
 		const persona = personas[i];

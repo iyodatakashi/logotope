@@ -39,13 +39,21 @@ vi.mock('firebase-admin/firestore', async () => {
 		...(actual as object),
 		getFirestore: vi.fn(() => ({
 			doc: vi.fn(() => ({
+				get: vi.fn().mockResolvedValue({ exists: true, data: () => ({}) }),
 				update: vi.fn().mockResolvedValue(undefined),
 				set: vi.fn().mockResolvedValue(undefined),
 				delete: vi.fn().mockResolvedValue(undefined)
 			})),
 			collection: vi.fn(() => ({
 				get: vi.fn().mockResolvedValue({ docs: [] })
-			}))
+			})),
+			runTransaction: vi.fn(
+				async (fn: (tx: { get: typeof vi.fn; update: typeof vi.fn }) => Promise<unknown>) =>
+					fn({
+						get: vi.fn().mockResolvedValue({ exists: true, data: () => ({}) }),
+						update: vi.fn()
+					} as never)
+			)
 		})),
 		FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args), delete: vi.fn(() => 'DELETE') }
 	};

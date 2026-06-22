@@ -9,7 +9,15 @@ import type {
 	DebateState,
 	FacilitatorReply,
 	ChapterForFirestore,
-	ChapterProgressStatus
+	ChapterProgressStatus,
+	ChapterProgress,
+	NewTurnFields,
+	ProgressPatch,
+	AppendTurnInput,
+	AppendResult,
+	TurnStepKind,
+	TurnStepPayload,
+	NextStep
 } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 
@@ -152,5 +160,138 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 			createdAt: '2026-01-01T00:00:00Z'
 		};
 		expect(turn).not.toHaveProperty('chapterId');
+	});
+
+	it('ChapterForFirestore は chapterEndCount を任意で持つ', () => {
+		const chapter: ChapterForFirestore = {
+			chapterIndex: 0,
+			title: '導入',
+			focusQuestion: 'テスト？',
+			discussionPoints: ['論点A'],
+			turns: [],
+			chapterEndCount: 2,
+			status: 'running'
+		};
+		expect(chapter.chapterEndCount).toBe(2);
+	});
+
+	it('ChapterForFirestore は chapterEndCount 未設定でも構築できる（未設定=0扱い）', () => {
+		const chapter: ChapterForFirestore = {
+			chapterIndex: 0,
+			title: '導入',
+			focusQuestion: 'テスト？',
+			discussionPoints: ['論点A'],
+			turns: [],
+			status: 'pending'
+		};
+		expect(chapter.chapterEndCount).toBeUndefined();
+	});
+
+	it('ChapterProgress は章終了カウンタと論点ステータスを持つ', () => {
+		const progress: ChapterProgress = {
+			chapterEndCount: 0,
+			discussionPointStatuses: [{ point: '論点A', status: 'untouched' }]
+		};
+		expect(progress.chapterEndCount).toBe(0);
+		expect(progress.discussionPointStatuses).toHaveLength(1);
+	});
+});
+
+describe('debate.types - ターン追記入力・結果型定義', () => {
+	it('NewTurnFields は永続化前のターンフィールドを表す', () => {
+		const turn: NewTurnFields = {
+			speakerType: 'persona',
+			personaId: 'p1',
+			content: 'テスト発言',
+			speechMode: 'opinion',
+			targetPersonaId: 'p2',
+			targetedBy: 'persona'
+		};
+		expect(turn.speakerType).toBe('persona');
+		expect(turn).not.toHaveProperty('id');
+		expect(turn).not.toHaveProperty('createdAt');
+	});
+
+	it('ProgressPatch は chapterEndCount と discussionPointStatuses を任意で持つ', () => {
+		const patch: ProgressPatch = {
+			chapterEndCount: 1,
+			discussionPointStatuses: [{ point: '論点A', status: 'addressed' }]
+		};
+		expect(patch.chapterEndCount).toBe(1);
+		expect(patch.discussionPointStatuses).toHaveLength(1);
+	});
+
+	it('AppendTurnInput は expectedTurnIndex と progressPatch を持つ', () => {
+		const input: AppendTurnInput = {
+			topicId: 't1',
+			chapterId: 'ch1',
+			expectedTurnIndex: 3,
+			turn: { speakerType: 'facilitator', content: 'まとめ' },
+			runId: 'run-1',
+			progressPatch: { chapterEndCount: 0 }
+		};
+		expect(input.expectedTurnIndex).toBe(3);
+		expect(input.progressPatch?.chapterEndCount).toBe(0);
+	});
+
+	it('AppendTurnInput は runId・progressPatch なしでも構築できる（後方互換）', () => {
+		const input: AppendTurnInput = {
+			topicId: 't1',
+			chapterId: 'ch1',
+			expectedTurnIndex: 0,
+			turn: { speakerType: 'persona', personaId: 'p1', content: '発言' }
+		};
+		expect(input.runId).toBeUndefined();
+		expect(input.progressPatch).toBeUndefined();
+	});
+
+	it('AppendResult は committed で id を持つ', () => {
+		const result: AppendResult = { status: 'committed', id: 'turn-1' };
+		expect(result.status).toBe('committed');
+		if (result.status === 'committed') expect(result.id).toBe('turn-1');
+	});
+
+	it('AppendResult は rejected で reason を3種から持つ', () => {
+		const reasons: AppendResult[] = [
+			{ status: 'rejected', reason: 'index_mismatch' },
+			{ status: 'rejected', reason: 'generation_mismatch' },
+			{ status: 'rejected', reason: 'debate_inactive' }
+		];
+		expect(reasons).toHaveLength(3);
+		expect(reasons.every((r) => r.status === 'rejected')).toBe(true);
+	});
+});
+
+describe('debate.types - ステップ・次ステップ判定型定義', () => {
+	it('TurnStepKind は5種のステップ種別を表す', () => {
+		const kinds: TurnStepKind[] = ['open', 'turn', 'summary', 'closing', 'comments'];
+		expect(kinds).toHaveLength(5);
+	});
+
+	it('TurnStepPayload はステップ実行に必要な情報を持つ', () => {
+		const payload: TurnStepPayload = {
+			topicId: 't1',
+			chapterIndex: 0,
+			runId: 'run-1',
+			stepKind: 'turn',
+			expectedTurnIndex: 5,
+			singleChapterMode: true
+		};
+		expect(payload.stepKind).toBe('turn');
+		expect(payload.expectedTurnIndex).toBe(5);
+	});
+
+	it('NextStep は各遷移を判別共用体で表す', () => {
+		const steps: NextStep[] = [
+			{ kind: 'turn', expectedTurnIndex: 1 },
+			{ kind: 'summary', expectedTurnIndex: 10 },
+			{ kind: 'closing', expectedTurnIndex: 12 },
+			{ kind: 'open', chapterIndex: 1, expectedTurnIndex: 0 },
+			{ kind: 'comments' },
+			{ kind: 'none' }
+		];
+		expect(steps).toHaveLength(6);
+		const open = steps.find((s) => s.kind === 'open');
+		if (open && open.kind === 'open') expect(open.chapterIndex).toBe(1);
 	});
 });

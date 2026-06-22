@@ -36,7 +36,13 @@ export type ChapterForFirestore = {
 	discussionPoints: string[];
 	turns: DebateTurn[];
 	discussionPointStatuses?: DiscussionPointState[];
+	chapterEndCount?: number;
 	status: ChapterProgressStatus;
+};
+
+export type ChapterProgress = {
+	chapterEndCount: number;
+	discussionPointStatuses: DiscussionPointState[];
 };
 
 export type DebateState = {
@@ -109,3 +115,55 @@ export type PostDebateCommentResult = {
 	personaId: string;
 	content: string;
 };
+
+export type NewTurnFields = {
+	speakerType: 'persona' | 'facilitator';
+	personaId?: string;
+	content: string;
+	speechMode?: 'opinion' | 'fact' | 'question';
+	engagementScore?: number;
+	fromQueue?: boolean;
+	targetPersonaId?: string;
+	targetedBy?: 'facilitator' | 'persona';
+	searchUsed?: boolean;
+	searchQueries?: string[];
+};
+
+export type ProgressPatch = {
+	chapterEndCount?: number;
+	discussionPointStatuses?: DiscussionPointState[];
+};
+
+export type AppendTurnInput = {
+	topicId: string;
+	chapterId: string;
+	expectedTurnIndex: number;
+	turn: NewTurnFields;
+	runId?: string;
+	progressPatch?: ProgressPatch;
+};
+
+export type AppendResult =
+	| { status: 'committed'; id: string }
+	| { status: 'rejected'; reason: 'index_mismatch' | 'generation_mismatch' | 'debate_inactive' };
+
+export type TurnStepKind = 'open' | 'turn' | 'summary' | 'closing' | 'comments';
+
+export type TurnStepPayload = {
+	topicId: string;
+	chapterIndex: number;
+	runId: string;
+	stepKind: TurnStepKind;
+	expectedTurnIndex: number;
+	singleChapterMode?: boolean;
+	// 章末の未応答指名に対する最終応答（+1）ターンであることを示す。処理後は summary/closing へ直行する
+	finalResponse?: boolean;
+};
+
+export type NextStep =
+	| { kind: 'turn'; expectedTurnIndex: number; finalResponse?: boolean }
+	| { kind: 'summary'; expectedTurnIndex: number }
+	| { kind: 'closing'; expectedTurnIndex: number }
+	| { kind: 'open'; chapterIndex: number; expectedTurnIndex: 0 }
+	| { kind: 'comments' }
+	| { kind: 'none' };

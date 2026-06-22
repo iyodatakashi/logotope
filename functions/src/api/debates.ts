@@ -1,29 +1,36 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
-import { getFunctions } from 'firebase-admin/functions';
 import { getTopicById } from '../pipeline/topics/topics.js';
 import { getChaptersByTopicId } from '../pipeline/debate/debate-lifecycle.js';
-import { executeChapterTask, DEFAULT_OPTIONS } from '../pipeline/debate/debate-orchestrator.js';
+import { advanceDebate } from '../pipeline/debate/debate-orchestrator.js';
+import { enqueueTurnStep, taskKey } from '../pipeline/debate/turn-step-task.js';
 import {
 	activateDebate,
 	markDebateStopped,
 	restartChapter
 } from '../pipeline/debate/debate-lifecycle.js';
 import { requireAuth } from '../utils/auth.js';
+import type { TurnStepPayload } from '../types/debate.types.js';
 
 const REGION = 'asia-northeast1';
 
-const enqueueChapterTask = async (
+/** 討論の起点（最初の章開始ステップ）を deterministic id で投入する */
+const enqueueFirstOpenStep = async (
 	topicId: string,
 	chapterIndex: number,
+	chapterId: string,
 	runId: string,
 	singleChapterMode?: boolean
 ): Promise<void> => {
-	const queue = getFunctions().taskQueue(`locations/${REGION}/functions/runChapter`);
-	await queue.enqueue(
-		{ topicId, chapterIndex, runId, singleChapterMode },
-		{ scheduleDelaySeconds: 0 }
-	);
+	const payload: TurnStepPayload = {
+		topicId,
+		chapterIndex,
+		runId,
+		stepKind: 'open',
+		expectedTurnIndex: 0,
+		singleChapterMode
+	};
+	await enqueueTurnStep(payload, taskKey({ runId, chapterId, frontierIndex: 0 }));
 };
 
 export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
@@ -37,8 +44,12 @@ export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 		const topic = await getTopicById(topicId);
 		if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
+		const chapters = await getChaptersByTopicId(topicId);
+		const firstChapter = chapters[0];
+		if (!firstChapter) throw new HttpsError('not-found', 'No chapter to start');
+
 		const runId = await activateDebate(topicId);
-		await enqueueChapterTask(topicId, 0, runId, singleChapterMode);
+		await enqueueFirstOpenStep(topicId, 0, firstChapter.id, runId, singleChapterMode);
 
 		return { topicId };
 	} catch (err) {
@@ -66,7 +77,13 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 		if (!resumeChapter) throw new HttpsError('not-found', 'No chapter to restart');
 
 		const runId = await restartChapter(topicId, resumeChapter.id);
-		await enqueueChapterTask(topicId, resumeChapter.chapterIndex, runId, singleChapterMode);
+		await enqueueFirstOpenStep(
+			topicId,
+			resumeChapter.chapterIndex,
+			resumeChapter.id,
+			runId,
+			singleChapterMode
+		);
 
 		return { topicId };
 	} catch (err) {
@@ -79,7 +96,7 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 
 const MAX_ATTEMPTS = 3;
 
-export const runChapter = onTaskDispatched(
+export const runTurnStep = onTaskDispatched(
 	{
 		timeoutSeconds: 540,
 		region: REGION,
@@ -88,30 +105,23 @@ export const runChapter = onTaskDispatched(
 		rateLimits: { maxConcurrentDispatches: 5 }
 	},
 	async (req) => {
-		const { topicId, chapterIndex, runId, singleChapterMode } = req.data as {
-			topicId: string;
-			chapterIndex: number;
-			runId?: string;
-			singleChapterMode?: boolean;
-		};
+		const payload = req.data as TurnStepPayload;
 		try {
-			const hasNextChapter = await executeChapterTask(
-				topicId,
-				chapterIndex,
-				{ ...DEFAULT_OPTIONS, singleChapterMode },
-				runId
-			);
-			if (hasNextChapter) {
-				await enqueueChapterTask(topicId, chapterIndex + 1, runId ?? '', singleChapterMode);
-			}
+			await advanceDebate(payload);
 		} catch (err) {
 			console.error(
-				'[runChapter] error',
-				{ topicId, chapterIndex, retryCount: req.retryCount },
+				'[runTurnStep] error',
+				{
+					topicId: payload.topicId,
+					chapterIndex: payload.chapterIndex,
+					stepKind: payload.stepKind,
+					expectedTurnIndex: payload.expectedTurnIndex,
+					retryCount: req.retryCount
+				},
 				err
 			);
 			if ((req.retryCount ?? 0) >= MAX_ATTEMPTS - 1) {
-				await markDebateStopped(topicId);
+				await markDebateStopped(payload.topicId);
 			}
 			throw err;
 		}

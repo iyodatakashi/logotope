@@ -169,8 +169,8 @@ describe('persistInterventionTurn', () => {
 		expect(pushedTurn.speakerRole).toBeUndefined();
 	});
 
-	it('addTurn が null を返した場合は undefined を返し state.turns に追加しない', async () => {
-		mockAddTurnFn.mockResolvedValueOnce(null);
+	it('addTurn が rejected を返した場合は undefined を返し state.turns に追加しない', async () => {
+		mockAddTurnFn.mockResolvedValueOnce({ status: 'rejected', reason: 'index_mismatch' });
 		const state = makeState();
 		const result = await persistInterventionTurn({
 			topicId: 'topic1',
@@ -195,7 +195,7 @@ vi.mock('../../../pipeline/debate/speaker-selection.js', () => ({
 vi.mock('../../../pipeline/debate/queued-intents.js', () => ({
 	addQueuedIntents: vi.fn().mockResolvedValue(undefined)
 }));
-const mockAddTurnFn = vi.fn().mockResolvedValue({ id: 'turn-new' });
+const mockAddTurnFn = vi.fn().mockResolvedValue({ status: 'committed', id: 'turn-new' });
 vi.mock('../../../pipeline/debate/turn.js', () => ({
 	addTurn: (...args: unknown[]) => mockAddTurnFn(...args)
 }));

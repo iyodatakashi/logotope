@@ -13,5 +13,5 @@ export { generateStakeholders } from './api/stakeholders.js';
 export { generatePersonas } from './api/personas.js';
 export { runInterview } from './api/interviews.js';
 export { generateChapters } from './api/chapters.js';
-export { startDebate, restartDebate, runChapter } from './api/debates.js';
+export { startDebate, restartDebate, runTurnStep } from './api/debates.js';
 export { fetchSourceContents } from './api/source-contents.js';

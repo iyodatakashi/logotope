@@ -8,7 +8,8 @@ import type {
 	DebateState,
 	SpeakerSelection,
 	Engagement,
-	DebateTurn
+	DebateTurn,
+	ProgressPatch
 } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
@@ -28,33 +29,43 @@ export const countPersonaTurnsSinceFacilitator = (history: readonly DebateTurn[]
 	return history.slice(lastFacilitatorIdx + 1).filter((t) => t.speakerType === 'persona').length;
 };
 
-/** ファシリテーター介入ターンを保存し、ターゲットがあれば SpeakerSelection を返す。世代ミスマッチ時は undefined を返す */
+/**
+ * ファシリテーター介入ターンを期待位置照合のうえ保存する。committed なら state.turns を更新し、
+ * ターゲットがあれば SpeakerSelection を返す。期待位置不一致・世代ミスマッチ時は undefined を返す。
+ */
 export const persistInterventionTurn = async ({
 	topicId,
 	state,
 	content,
 	targetPersonaId,
-	chapterId
+	chapterId,
+	chapterTurnStartIndex = 0,
+	progressPatch
 }: {
 	topicId: string;
 	state: DebateState;
 	content: string;
 	targetPersonaId: string | undefined;
 	chapterId: string;
+	chapterTurnStartIndex?: number;
+	progressPatch?: ProgressPatch;
 }): Promise<SpeakerSelection | undefined> => {
 	const result = await addTurn({
 		topicId,
-		speakerType: 'facilitator',
-		content,
 		chapterId,
-		targetPersonaId,
-		targetedBy: targetPersonaId ? 'facilitator' : undefined,
-		runId: state.runId
+		expectedTurnIndex: state.turns.length - chapterTurnStartIndex,
+		turn: {
+			speakerType: 'facilitator',
+			content,
+			targetPersonaId,
+			targetedBy: targetPersonaId ? 'facilitator' : undefined
+		},
+		runId: state.runId,
+		progressPatch
 	});
-	if (!result) return undefined;
-	const { id: turnId } = result;
+	if (result.status !== 'committed') return undefined;
 	state.turns.push({
-		id: turnId,
+		id: result.id,
 		speakerType: 'facilitator',
 		content,
 		createdAt: Timestamp.now(),
@@ -76,7 +87,9 @@ export const tryIntervention = async ({
 	state,
 	engagements,
 	interventionCooldown,
-	chapterTurns
+	chapterTurns,
+	chapterTurnStartIndex = 0,
+	progressPatch
 }: {
 	topicId: string;
 	personas: Persona[];
@@ -86,6 +99,8 @@ export const tryIntervention = async ({
 	engagements: Engagement[];
 	interventionCooldown: number;
 	chapterTurns?: DebateTurn[];
+	chapterTurnStartIndex?: number;
+	progressPatch?: ProgressPatch;
 }): Promise<boolean> => {
 	const currentChapterTurns = chapterTurns ?? state.turns;
 	let intervention:
@@ -148,7 +163,9 @@ export const tryIntervention = async ({
 		state,
 		content: intervention.content,
 		targetPersonaId: intervention.targetPersonaId,
-		chapterId: chapter.id
+		chapterId: chapter.id,
+		chapterTurnStartIndex,
+		progressPatch
 	});
 	return true;
 };

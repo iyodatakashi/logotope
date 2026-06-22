@@ -1,6 +1,16 @@
-import type { DebateTurn, QueuedIntent, DebateState } from '../../types/debate.types.js';
+import { getFirestore } from 'firebase-admin/firestore';
+import type {
+	DebateTurn,
+	QueuedIntent,
+	DebateState,
+	DiscussionPointState,
+	ChapterProgress
+} from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
+import type { Chapter } from '../../types/chapter.types.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/debate.constants.js';
+
+const db = () => getFirestore();
 
 /** 保存済みターン・永続化キューから DebateState を導出する（同一入力 → 同一出力） */
 export const getDebateState = (
@@ -56,5 +66,27 @@ export const getDebateState = (
 		lastSpeakerId,
 		queuedIntents,
 		discussionPoints: []
+	};
+};
+
+/**
+ * chapter doc から章進捗を復元する。chapterEndCount 未設定は 0、discussionPointStatuses 未設定は
+ * 章の論点から untouched 初期化する。同一の永続データから同一の出力を返す（決定論）。
+ */
+export const loadChapterProgress = async (
+	topicId: string,
+	chapterId: string,
+	chapter: Chapter
+): Promise<ChapterProgress> => {
+	const snap = await db().doc(`topics/${topicId}/chapters/${chapterId}`).get();
+	const data = snap.data() as
+		| { chapterEndCount?: number; discussionPointStatuses?: DiscussionPointState[] }
+		| undefined;
+	const discussionPointStatuses =
+		data?.discussionPointStatuses ??
+		(chapter.discussionPoints ?? []).map((point) => ({ point, status: 'untouched' as const }));
+	return {
+		chapterEndCount: data?.chapterEndCount ?? 0,
+		discussionPointStatuses
 	};
 };
