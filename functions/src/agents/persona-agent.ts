@@ -165,12 +165,14 @@ const speechLengthGuide = (score?: number): string => {
 	}
 };
 
+// OpenAI(gpt) の strict structured output は全プロパティを required に要求するため、
+// optional ではなく nullable で「必須・null許容」にする。
 const turnOutputSchema = z.object({
 	content: z.string(),
-	beliefChangeType: z.enum(['opinion_change', 'partial_acceptance']).optional(),
-	beliefChangeSummary: z.string().optional(),
-	beliefChangeUpdatedBelief: z.string().optional(),
-	targetPersonaId: z.string().optional()
+	beliefChangeType: z.enum(['opinion_change', 'partial_acceptance']).nullable(),
+	beliefChangeSummary: z.string().nullable(),
+	beliefChangeUpdatedBelief: z.string().nullable(),
+	targetPersonaId: z.string().nullable()
 });
 
 type TurnOutput = z.infer<typeof turnOutputSchema>;
@@ -327,7 +329,7 @@ export const generateTurn = async (
 				content,
 				speechMode: isQuestion ? 'question' : isFact ? 'fact' : 'opinion',
 				beliefChange,
-				targetPersonaId,
+				targetPersonaId: targetPersonaId ?? undefined,
 				...(searchQueries.length > 0 && {
 					searchUsed: true,
 					searchQueries
@@ -343,7 +345,8 @@ export const generateTurn = async (
 const engagementSchema = z.object({
 	score: z.number().int().min(1).max(5),
 	mode: z.enum(['question', 'fact', 'opinion', 'none']),
-	intentSummary: z.string().optional()
+	// gpt の strict structured output 対応のため optional ではなく nullable にする
+	intentSummary: z.string().nullable()
 });
 
 export const evaluateEngagement = async (
@@ -381,7 +384,8 @@ export const evaluateEngagement = async (
 		const clampedScore = Math.max(1, Math.min(5, Math.round(score)));
 		let resolvedMode: 'opinion' | 'fact' | 'none' | 'question' = clampedScore === 1 ? 'none' : mode;
 		if (resolvedMode === 'question' && !intentSummary) resolvedMode = 'opinion';
-		const resolvedIntentSummary = resolvedMode === 'none' ? undefined : intentSummary;
+		const resolvedIntentSummary =
+			resolvedMode === 'none' ? undefined : (intentSummary ?? undefined);
 		return {
 			personaId: persona.id,
 			score: clampedScore,
