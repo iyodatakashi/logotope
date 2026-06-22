@@ -13,7 +13,8 @@ import { db, functions } from '$lib/firebase';
 import type {
 	PersonaForFirestore,
 	Persona,
-	PersonaForInterview
+	PersonaForInterview,
+	DraftBelief
 } from '$lib/models/persona/persona.types';
 import type { TopicContext } from '$lib/models/topic/topic.types';
 
@@ -127,14 +128,19 @@ export const createPersonasStore = (topicId: string) => {
 		const persona = personas.find((p) => p.id === personaId);
 		if (!persona) return;
 
+		// 処理開始時に前回の取材結果（中間データ・最終信念）を即時クリアする。
+		// interview の上書きで中間データが、beliefs の空配列で前回の最終信念が消える。
 		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
-			interview: { status: 'in_progress' }
+			interview: { status: 'in_progress' },
+			beliefs: []
 		});
 
 		try {
 			const fn = httpsCallable<
 				{ topicTitle: string; persona: PersonaForInterview; topicContext?: TopicContext },
 				{
+					draftBelief: DraftBelief;
+					verificationReport: string;
 					interviewRecord: string;
 					initialBelief: string;
 					sources: Array<{
@@ -159,6 +165,8 @@ export const createPersonasStore = (topicId: string) => {
 			});
 			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
 				interview: {
+					draftBelief: data.draftBelief,
+					verificationReport: data.verificationReport,
 					interviewRecord: data.interviewRecord,
 					sources: data.sources,
 					status: 'completed',

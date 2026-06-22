@@ -1,22 +1,38 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+const { mockGenerateText, mockGenerateObject } = vi.hoisted(() => ({
+	mockGenerateText: vi.fn(),
+	mockGenerateObject: vi.fn()
+}));
 
 vi.mock('ai', () => ({
-	generateText: vi.fn(),
-	jsonSchema: (schema: unknown) => schema,
-	stepCountIs: vi.fn((n: number) => n),
-	Output: { object: vi.fn(() => ({})) }
+	generateText: mockGenerateText,
+	generateObject: mockGenerateObject
 }));
 
-vi.mock('@tavily/core', () => ({
-	tavily: vi.fn(() => ({ search: vi.fn() }))
-}));
+const { mockGetGoogleProvider, mockGoogleProvider, mockGoogleSearch } = vi.hoisted(() => {
+	const mockGoogleSearch = vi.fn(() => ({ name: 'google_search', type: 'provider-defined' }));
+	const mockGoogleProvider = Object.assign(
+		vi.fn(() => 'mock-google-model'),
+		{
+			tools: { googleSearch: mockGoogleSearch }
+		}
+	);
+	return {
+		mockGetGoogleProvider: vi.fn(() => mockGoogleProvider),
+		mockGoogleProvider,
+		mockGoogleSearch
+	};
+});
 
 vi.mock('../../llm/models.js', () => ({
-	getPipelineModel: vi.fn(() => 'mock-model')
+	getPipelineModel: vi.fn(() => 'mock-model'),
+	getGoogleProvider: mockGetGoogleProvider
 }));
 
 import type { Persona } from '../../types/persona.types.js';
 import type { TopicContext } from '../../types/topic.types.js';
+import { runInterview, extractSources } from '../../agents/interview-agent.js';
 
 const mockPersona: Persona = {
 	id: 'p1',
@@ -36,136 +52,294 @@ const mockPersona: Persona = {
 	interviewRecord: ''
 };
 
-const makeGenerateTextResult = (output: unknown) => ({ output });
+const makeDraftBeliefObject = () => ({
+	stanceAndGrounds: 'draft-stance',
+	coreClaims: 'draft-claims',
+	concerns: 'draft-concerns',
+	values: 'draft-values',
+	compromisePoints: 'draft-compromise',
+	changePotential: 'draft-change'
+});
 
-describe('interview-agent.runInterview', () => {
-	let generateText: ReturnType<typeof vi.fn>;
+const makeFinalBeliefObject = () => ({
+	initialBelief: 'final-belief',
+	interviewRecord: 'final-record'
+});
 
-	beforeEach(async () => {
-		vi.resetModules();
-		const aiMod = await import('ai');
-		generateText = vi.mocked(aiMod.generateText);
-		generateText.mockResolvedValue(
-			makeGenerateTextResult({
-				researchItems: [],
-				interviewRecord: 'record',
-				initialBelief: 'belief'
-			})
+const makeGroundingResult = (
+	chunks: Array<{ uri: string; title?: string }>,
+	queries: string[] = ['test query']
+) => ({
+	text: 'verification report text',
+	providerMetadata: {
+		google: {
+			groundingMetadata: {
+				groundingChunks: chunks.map((c) => ({ web: { uri: c.uri, title: c.title ?? null } })),
+				webSearchQueries: queries
+			}
+		}
+	}
+});
+
+const setupSuccessfulMocks = (
+	chunks: Array<{ uri: string; title?: string }> = [{ uri: 'https://example.com', title: 'Test' }]
+) => {
+	mockGenerateObject
+		.mockResolvedValueOnce({ object: makeDraftBeliefObject() })
+		.mockResolvedValueOnce({ object: makeFinalBeliefObject() });
+	mockGenerateText.mockResolvedValueOnce(makeGroundingResult(chunks));
+};
+
+// redirect 解決は HEAD のみ（body を読まない）ので response.url だけ持つレスポンスでよい
+const makeFetchResponse = (url: string) => ({ url }) as unknown as Response;
+
+describe('extractSources', () => {
+	it('groundingChunksをSearchResultに変換する', () => {
+		const metadata = {
+			groundingChunks: [
+				{ web: { uri: 'https://a.com', title: 'Article A' } },
+				{ web: { uri: 'https://b.com', title: 'Article B' } }
+			],
+			webSearchQueries: ['クエリ1', 'クエリ2']
+		};
+		const sources = extractSources(metadata as never, 'summary');
+		expect(sources).toHaveLength(1);
+		expect(sources[0].results).toHaveLength(2);
+		expect(sources[0].results[0]).toEqual({ title: 'Article A', url: 'https://a.com' });
+		expect(sources[0].results[1]).toEqual({ title: 'Article B', url: 'https://b.com' });
+	});
+
+	it('URL重複を排除する', () => {
+		const metadata = {
+			groundingChunks: [
+				{ web: { uri: 'https://a.com', title: 'A1' } },
+				{ web: { uri: 'https://a.com', title: 'A2' } },
+				{ web: { uri: 'https://b.com', title: 'B' } }
+			],
+			webSearchQueries: []
+		};
+		const sources = extractSources(metadata as never, 'summary');
+		expect(sources[0].results).toHaveLength(2);
+		expect(sources[0].results.map((r) => r.url)).toEqual(['https://a.com', 'https://b.com']);
+	});
+
+	it('webSearchQueriesをセミコロン結合してqueryに格納する', () => {
+		const metadata = {
+			groundingChunks: [{ web: { uri: 'https://a.com' } }],
+			webSearchQueries: ['クエリA', 'クエリB']
+		};
+		const sources = extractSources(metadata as never, 'test-summary');
+		expect(sources[0].query).toBe('クエリA; クエリB');
+		expect(sources[0].summary).toBe('test-summary');
+	});
+
+	it('groundingChunksが空のとき空配列を返す', () => {
+		const metadata = { groundingChunks: [], webSearchQueries: [] };
+		const sources = extractSources(metadata as never, 'summary');
+		expect(sources).toEqual([]);
+	});
+});
+
+describe('runInterview', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockGoogleSearch.mockReturnValue({ name: 'google_search', type: 'provider-defined' });
+		mockGoogleProvider.mockReturnValue('mock-google-model');
+		mockGetGoogleProvider.mockReturnValue(mockGoogleProvider);
+		// デフォルトはリダイレクトなし（response.url が入力URL）・タイトルなしHTML
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async (url: string) => makeFetchResponse(url))
 		);
 	});
 
-	it('topicContextなしでrunInterviewが成功する（後方互換）', async () => {
-		const { runInterview } = await import('../../agents/interview-agent.js');
-		const result = await runInterview('AIと社会', mockPersona);
-		expect(result.interviewRecord).toBe('record');
-		expect(result.initialBelief).toBe('belief');
+	afterEach(() => {
+		vi.unstubAllGlobals();
 	});
 
-	it('topicContext.descriptionがあればプロンプトに含める', async () => {
-		const capturedMessages: unknown[] = [];
-		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
-			capturedMessages.push(...args.messages);
-			return makeGenerateTextResult({
-				researchItems: [],
-				interviewRecord: 'r',
-				initialBelief: 'b'
-			});
+	describe('Phase1: ドラフト信念生成', () => {
+		it('generateObjectを検索ツールなしで呼ぶ', async () => {
+			setupSuccessfulMocks();
+			await runInterview('AIと社会', mockPersona);
+			const args = mockGenerateObject.mock.calls[0][0] as { tools?: unknown };
+			expect(args.tools).toBeUndefined();
 		});
 
-		const context: TopicContext = { description: 'AIが雇用を代替する問題' };
-		const { runInterview } = await import('../../agents/interview-agent.js');
-		await runInterview('AIと社会', mockPersona, context);
-
-		const userMessage = capturedMessages.find(
-			(m: unknown) => (m as { role: string }).role === 'user'
-		) as { content: string };
-		expect(userMessage.content).toContain('AIが雇用を代替する問題');
-	});
-
-	it('topicContext.sourceContentsがあれば参考資料セクションとしてプロンプトに含める', async () => {
-		const capturedMessages: unknown[] = [];
-		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
-			capturedMessages.push(...args.messages);
-			return makeGenerateTextResult({
-				researchItems: [],
-				interviewRecord: 'r',
-				initialBelief: 'b'
-			});
-		});
-
-		const context: TopicContext = { sourceContents: ['記事Aの内容', '記事Bの内容'] };
-		const { runInterview } = await import('../../agents/interview-agent.js');
-		await runInterview('AIと社会', mockPersona, context);
-
-		const userMessage = capturedMessages.find(
-			(m: unknown) => (m as { role: string }).role === 'user'
-		) as { content: string };
-		expect(userMessage.content).toContain('記事Aの内容');
-		expect(userMessage.content).toContain('記事Bの内容');
-	});
-
-	it('sourceContentsの各エントリを3000文字で切り詰める', async () => {
-		const capturedMessages: unknown[] = [];
-		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
-			capturedMessages.push(...args.messages);
-			return makeGenerateTextResult({
-				researchItems: [],
-				interviewRecord: 'r',
-				initialBelief: 'b'
-			});
-		});
-
-		const longContent = 'x'.repeat(5000);
-		const context: TopicContext = { sourceContents: [longContent] };
-		const { runInterview } = await import('../../agents/interview-agent.js');
-		await runInterview('AIと社会', mockPersona, context);
-
-		const userMessage = capturedMessages.find(
-			(m: unknown) => (m as { role: string }).role === 'user'
-		) as { content: string };
-		expect(userMessage.content).toContain('x'.repeat(3000));
-		expect(userMessage.content).not.toContain('x'.repeat(3001));
-	});
-
-	it('topicContextがundefinedのとき既存プロンプトと同一', async () => {
-		const capturedWithout: unknown[] = [];
-		const capturedWith: unknown[] = [];
-
-		generateText.mockImplementation(async (args: { messages: unknown[] }) => {
-			capturedWithout.push(...args.messages);
-			return makeGenerateTextResult({
-				researchItems: [],
-				interviewRecord: 'r',
-				initialBelief: 'b'
-			});
-		});
-		const { runInterview } = await import('../../agents/interview-agent.js');
-		await runInterview('AIと社会', mockPersona);
-		const withoutContent = (
-			capturedWithout.find((m: unknown) => (m as { role: string }).role === 'user') as {
-				content: string;
+		it('generateObject失敗時はResult.errorを返し後続フェーズを実行しない', async () => {
+			mockGenerateObject.mockRejectedValueOnce(new Error('LLM error'));
+			const result = await runInterview('AIと社会', mockPersona);
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.error.code).toBe('AI_API_ERROR');
+				expect(result.error.retryable).toBe(true);
 			}
-		).content;
-
-		vi.resetModules();
-		const aiMod2 = await import('ai');
-		const gt2 = vi.mocked(aiMod2.generateText);
-		gt2.mockImplementation(async (args: { messages: unknown[] }) => {
-			capturedWith.push(...args.messages);
-			return makeGenerateTextResult({
-				researchItems: [],
-				interviewRecord: 'r',
-				initialBelief: 'b'
-			});
+			expect(mockGenerateText).not.toHaveBeenCalled();
 		});
-		const { runInterview: runInterview2 } = await import('../../agents/interview-agent.js');
-		await runInterview2('AIと社会', mockPersona, undefined);
-		const withContent = (
-			capturedWith.find((m: unknown) => (m as { role: string }).role === 'user') as {
-				content: string;
-			}
-		).content;
+	});
 
-		expect(withoutContent).toBe(withContent);
+	describe('Phase2: グラウンディング検証', () => {
+		it('generateTextをgoogle_searchツール付きで呼ぶ', async () => {
+			setupSuccessfulMocks();
+			await runInterview('AIと社会', mockPersona);
+			expect(mockGenerateText).toHaveBeenCalledOnce();
+			const args = mockGenerateText.mock.calls[0][0] as { tools?: Record<string, unknown> };
+			expect(args.tools?.['google_search']).toBeDefined();
+		});
+
+		it('groundingChunksが空のときResult.errorを返す', async () => {
+			mockGenerateObject.mockResolvedValueOnce({ object: makeDraftBeliefObject() });
+			mockGenerateText.mockResolvedValueOnce(makeGroundingResult([]));
+			const result = await runInterview('AIと社会', mockPersona);
+			expect(result.ok).toBe(false);
+			if (!result.ok) expect(result.error.code).toBe('AI_API_ERROR');
+			// Phase3は実行されない
+			expect(mockGenerateObject).toHaveBeenCalledOnce();
+		});
+
+		it('groundingMetadataがないときResult.errorを返す', async () => {
+			mockGenerateObject.mockResolvedValueOnce({ object: makeDraftBeliefObject() });
+			mockGenerateText.mockResolvedValueOnce({ text: 'report', providerMetadata: {} });
+			const result = await runInterview('AIと社会', mockPersona);
+			expect(result.ok).toBe(false);
+		});
+
+		it('generateText失敗時はResult.errorを返す', async () => {
+			mockGenerateObject.mockResolvedValueOnce({ object: makeDraftBeliefObject() });
+			mockGenerateText.mockRejectedValueOnce(new Error('Grounding error'));
+			const result = await runInterview('AIと社会', mockPersona);
+			expect(result.ok).toBe(false);
+			if (!result.ok) {
+				expect(result.error.code).toBe('AI_API_ERROR');
+				expect(result.error.retryable).toBe(true);
+			}
+		});
+	});
+
+	describe('Phase3: 最終信念生成', () => {
+		it('ドラフトと検証レポートをプロンプトに含める', async () => {
+			mockGenerateObject
+				.mockResolvedValueOnce({ object: makeDraftBeliefObject() })
+				.mockResolvedValueOnce({ object: makeFinalBeliefObject() });
+			mockGenerateText.mockResolvedValueOnce(makeGroundingResult([{ uri: 'https://example.com' }]));
+			await runInterview('AIと社会', mockPersona);
+			const args = mockGenerateObject.mock.calls[1][0] as {
+				messages: Array<{ content: string }>;
+			};
+			const prompt = args.messages[0].content;
+			expect(prompt).toContain('draft-stance');
+			expect(prompt).toContain('verification report text');
+			expect(prompt).toContain('比較参照');
+		});
+
+		it('generateObject失敗時はResult.errorを返す', async () => {
+			mockGenerateObject
+				.mockResolvedValueOnce({ object: makeDraftBeliefObject() })
+				.mockRejectedValueOnce(new Error('Phase3 error'));
+			mockGenerateText.mockResolvedValueOnce(makeGroundingResult([{ uri: 'https://example.com' }]));
+			const result = await runInterview('AIと社会', mockPersona);
+			expect(result.ok).toBe(false);
+			if (!result.ok) expect(result.error.code).toBe('AI_API_ERROR');
+		});
+	});
+
+	describe('パイプライン全体', () => {
+		it('全フェーズ成功でInterviewOutputを返す（sources非空）', async () => {
+			setupSuccessfulMocks([
+				{ uri: 'https://a.com', title: 'A' },
+				{ uri: 'https://b.com', title: 'B' }
+			]);
+			const result = await runInterview('AIと社会', mockPersona);
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.value.interviewRecord).toBe('final-record');
+				expect(result.value.initialBelief).toBe('final-belief');
+				expect(result.value.sources).toHaveLength(1);
+				expect(result.value.sources[0].results).toHaveLength(2);
+			}
+		});
+
+		it('中間データ（ドラフト信念・検証レポート）も出力に含める', async () => {
+			setupSuccessfulMocks();
+			const result = await runInterview('AIと社会', mockPersona);
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.value.draftBelief).toEqual(makeDraftBeliefObject());
+				expect(result.value.verificationReport).toBe('verification report text');
+			}
+		});
+
+		it('リダイレクトURLを実URL(フル)に解決し、url・titleともにフルURLにする', async () => {
+			setupSuccessfulMocks([
+				{ uri: 'https://vertexaisearch.example/redirect/xyz', title: 'example.com' }
+			]);
+			vi.stubGlobal(
+				'fetch',
+				vi.fn(async () => makeFetchResponse('https://real-article.example/news/1'))
+			);
+			const result = await runInterview('AIと社会', mockPersona);
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.value.sources[0].results[0].url).toBe('https://real-article.example/news/1');
+				expect(result.value.sources[0].results[0].title).toBe(
+					'https://real-article.example/news/1'
+				);
+			}
+		});
+
+		it('解決が失敗したURLは元のURLをurl・titleに使う', async () => {
+			setupSuccessfulMocks([
+				{ uri: 'https://vertexaisearch.example/redirect/xyz', title: 'example.com' }
+			]);
+			vi.stubGlobal(
+				'fetch',
+				vi.fn(async () => {
+					throw new Error('network error');
+				})
+			);
+			const result = await runInterview('AIと社会', mockPersona);
+			expect(result.ok).toBe(true);
+			if (result.ok) {
+				expect(result.value.sources[0].results[0].url).toBe(
+					'https://vertexaisearch.example/redirect/xyz'
+				);
+				expect(result.value.sources[0].results[0].title).toBe(
+					'https://vertexaisearch.example/redirect/xyz'
+				);
+			}
+		});
+
+		it('topicContextなしでも成功する（後方互換）', async () => {
+			setupSuccessfulMocks();
+			const result = await runInterview('AIと社会', mockPersona);
+			expect(result.ok).toBe(true);
+		});
+
+		it('topicContext.descriptionがあればPhase1プロンプトに含める', async () => {
+			setupSuccessfulMocks();
+			const context: TopicContext = { description: 'AIが雇用を代替する問題' };
+			await runInterview('AIと社会', mockPersona, context);
+			const args = mockGenerateObject.mock.calls[0][0] as { messages: Array<{ content: string }> };
+			expect(args.messages[0].content).toContain('AIが雇用を代替する問題');
+		});
+
+		it('topicContext.sourceContentsがあれば参考資料としてPhase1プロンプトに含める', async () => {
+			setupSuccessfulMocks();
+			const context: TopicContext = { sourceContents: ['記事Aの内容', '記事Bの内容'] };
+			await runInterview('AIと社会', mockPersona, context);
+			const args = mockGenerateObject.mock.calls[0][0] as { messages: Array<{ content: string }> };
+			const prompt = args.messages[0].content;
+			expect(prompt).toContain('記事Aの内容');
+			expect(prompt).toContain('記事Bの内容');
+		});
+
+		it('sourceContentsを3000文字で切り詰める', async () => {
+			setupSuccessfulMocks();
+			const context: TopicContext = { sourceContents: ['x'.repeat(5000)] };
+			await runInterview('AIと社会', mockPersona, context);
+			const args = mockGenerateObject.mock.calls[0][0] as { messages: Array<{ content: string }> };
+			const prompt = args.messages[0].content;
+			expect(prompt).toContain('x'.repeat(3000));
+			expect(prompt).not.toContain('x'.repeat(3001));
+		});
 	});
 });

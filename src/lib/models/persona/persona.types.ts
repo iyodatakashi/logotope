@@ -17,8 +17,19 @@ export type Belief = Omit<BeliefForFirestore, 'createdAt'> & { createdAt: Date }
 export type SearchResult = { title: string; url: string };
 export type SearchSource = { query: string; summary: string; results: SearchResult[] };
 
+export type DraftBelief = {
+	stanceAndGrounds: string;
+	coreClaims: string;
+	concerns: string;
+	values: string;
+	compromisePoints: string;
+	changePotential: string;
+};
+
 export type InterviewForFirestore = {
 	researchSummary?: string;
+	draftBelief?: DraftBelief;
+	verificationReport?: string;
 	interviewRecord?: string;
 	sources?: SearchSource[];
 	status: 'queued' | 'in_progress' | 'completed' | 'error';

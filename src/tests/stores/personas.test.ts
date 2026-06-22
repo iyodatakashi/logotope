@@ -174,6 +174,22 @@ describe('createPersonasStore', () => {
 		expect(topicUpdate?.[1]).not.toHaveProperty('status');
 	});
 
+	it('runInterview は開始時に前回の最終信念(beliefs)と中間データをクリアする', async () => {
+		const mockFn = vi
+			.fn()
+			.mockResolvedValue({ data: { interviewRecord: '', initialBelief: '', sources: [] } });
+		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
+
+		const store = createPersonasStore('t1');
+		populate(store, ['p1']);
+		await store.runInterview('p1', 'テストテーマ');
+
+		expect(updateDoc).toHaveBeenCalledWith(
+			{ path: 'topics/t1/personas/p1' },
+			{ interview: { status: 'in_progress' }, beliefs: [] }
+		);
+	});
+
 	it('runInterview は topicContext を Cloud Function ペイロードに含める', async () => {
 		const mockFn = vi
 			.fn()

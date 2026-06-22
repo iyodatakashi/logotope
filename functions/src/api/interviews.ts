@@ -4,7 +4,7 @@ import { runInterview as runInterviewAgent } from '../agents/interview-agent.js'
 import type { Persona } from '../types/persona.types.js';
 import type { TopicContext } from '../types/topic.types.js';
 
-const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
+const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY'];
 
 export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, async (request) => {
 	requireAuth(request);
@@ -16,10 +16,11 @@ export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, as
 	if (!topicTitle?.trim()) throw new HttpsError('invalid-argument', 'topicTitle is required');
 	if (!persona?.name) throw new HttpsError('invalid-argument', 'persona is required');
 
-	try {
-		return await runInterviewAgent(topicTitle, persona, topicContext);
-	} catch (err) {
-		console.error('[runInterview] error', err);
-		throw new HttpsError('internal', err instanceof Error ? err.message : String(err));
+	const result = await runInterviewAgent(topicTitle, persona, topicContext);
+	if (!result.ok) {
+		console.error('[runInterview] error', result.error);
+		const message = 'message' in result.error ? result.error.message : result.error.code;
+		throw new HttpsError('internal', message);
 	}
+	return result.value;
 });

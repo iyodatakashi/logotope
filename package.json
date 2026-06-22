@@ -42,6 +42,8 @@
 	"dependencies": {
 		"@14ch/svelte-ui": "^0.0.42",
 		"firebase": "^12.14.0",
+		"isomorphic-dompurify": "^3.18.0",
+		"marked": "^18.0.5",
 		"nanoid": "^5.1.11"
 	}
 }

@@ -26,6 +26,12 @@ export const getPersonaModel = (llmType: LLMType): LanguageModel => {
 	}
 };
 
+export const getGoogleProvider = (): ReturnType<typeof createGoogleGenerativeAI> | null => {
+	const apiKey = process.env.GEMINI_API_KEY;
+	if (!apiKey) return null;
+	return createGoogleGenerativeAI({ apiKey });
+};
+
 export const getPipelineModel = (task: keyof typeof PIPELINE_MODELS): LanguageModel => {
 	const modelId = PIPELINE_MODELS[task];
 	switch (task) {

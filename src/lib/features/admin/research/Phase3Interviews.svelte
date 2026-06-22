@@ -1,10 +1,25 @@
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
+	import { marked } from 'marked';
+	import DOMPurify from 'isomorphic-dompurify';
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import type { TopicContext } from '$lib/models/topic/topic.types';
+	import type { DraftBelief } from '$lib/models/persona/persona.types';
+
+	const md = (text: string): string =>
+		DOMPurify.sanitize(marked.parse(text, { async: false, gfm: true, breaks: true }));
+
+	const DRAFT_LABELS: { key: keyof DraftBelief; label: string }[] = [
+		{ key: 'stanceAndGrounds', label: '立場と根拠' },
+		{ key: 'coreClaims', label: '核心的主張' },
+		{ key: 'concerns', label: '懸念事項' },
+		{ key: 'values', label: '価値観' },
+		{ key: 'compromisePoints', label: '妥協点' },
+		{ key: 'changePotential', label: '変化の可能性' }
+	];
 
 	const PHASE = 3;
 	const logicalState = $derived.by(() => {
@@ -28,6 +43,8 @@
 			personaId: p.id,
 			personaName: p.name,
 			role: p.specificRole ?? p.stakeholderRole,
+			draftBelief: p.interview?.draftBelief,
+			verificationReport: p.interview?.verificationReport ?? '',
 			researchSummary: p.interview?.researchSummary ?? '',
 			interviewRecord: p.interview?.interviewRecord ?? '',
 			sources: p.interview?.sources ?? [],
@@ -155,17 +172,38 @@
 
 						{#if expanded.has(iv.personaId) && iv.initialBelief}
 							<div class="detail">
+								{#if iv.draftBelief}
+									<div class="section">
+										<p class="section-label">① ドラフト信念（ステレオタイプ仮説）</p>
+										<dl class="draft-belief">
+											{#each DRAFT_LABELS as { key, label } (key)}
+												<dt>{label}</dt>
+												<dd>{iv.draftBelief[key]}</dd>
+											{/each}
+										</dl>
+									</div>
+								{/if}
+								{#if iv.verificationReport}
+									<div class="section">
+										<p class="section-label">② リサーチに基づく検証（ギャップ）</p>
+										<!-- eslint-disable-next-line svelte/no-at-html-tags -- DOMPurifyでサニタイズ済み -->
+										<div class="md-body">{@html md(iv.verificationReport)}</div>
+									</div>
+								{/if}
 								{#if iv.sources.length > 0}
 									<div class="section">
-										<p class="section-label">リサーチ内容</p>
+										<p class="section-label">参照元</p>
 										{#each iv.sources as source (source.query)}
 											<div class="source-entry">
 												<p class="source-summary">{source.summary}</p>
 												<ul>
 													{#each source.results as result (result.url)}
 														<li>
-															<a href={result.url} target="_blank" rel="noopener noreferrer"
-																>{result.title}</a
+															<a
+																class="source-url"
+																href={result.url}
+																target="_blank"
+																rel="noopener noreferrer">{result.url}</a
 															>
 														</li>
 													{/each}
@@ -176,19 +214,22 @@
 								{:else if iv.researchSummary}
 									<div class="section">
 										<p class="section-label">リサーチ内容</p>
-										<pre class="record research">{iv.researchSummary}</pre>
-									</div>
-								{/if}
-								{#if iv.interviewRecord}
-									<div class="section">
-										<p class="section-label">取材記録</p>
-										<pre class="record research">{iv.interviewRecord}</pre>
+										<!-- eslint-disable-next-line svelte/no-at-html-tags -- DOMPurifyでサニタイズ済み -->
+										<div class="md-body">{@html md(iv.researchSummary)}</div>
 									</div>
 								{/if}
 								<div class="section">
-									<p class="section-label">初期信念</p>
-									<pre class="record belief">{iv.initialBelief}</pre>
+									<p class="section-label">③ 最終信念</p>
+									<!-- eslint-disable-next-line svelte/no-at-html-tags -- DOMPurifyでサニタイズ済み -->
+									<div class="md-body belief">{@html md(iv.initialBelief)}</div>
 								</div>
+								{#if iv.interviewRecord}
+									<div class="section">
+										<p class="section-label">取材記録</p>
+										<!-- eslint-disable-next-line svelte/no-at-html-tags -- DOMPurifyでサニタイズ済み -->
+										<div class="md-body">{@html md(iv.interviewRecord)}</div>
+									</div>
+								{/if}
 							</div>
 						{/if}
 					</li>
@@ -313,19 +354,56 @@
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 	}
-	.record {
+	.md-body {
 		font-size: 0.875rem;
+		line-height: 1.7;
+		word-break: break-word;
+		color: #333;
+	}
+	.md-body.belief {
+		color: #1a237e;
+	}
+	.md-body :global(h1),
+	.md-body :global(h2),
+	.md-body :global(h3),
+	.md-body :global(h4) {
+		font-size: 0.95rem;
+		font-weight: 600;
+		margin: 12px 0 4px;
+	}
+	.md-body :global(p) {
+		margin: 4px 0;
+	}
+	.md-body :global(ul),
+	.md-body :global(ol) {
+		margin: 4px 0;
+		padding-left: 20px;
+	}
+	.md-body :global(li) {
+		margin: 2px 0;
+	}
+	.md-body :global(a) {
+		color: #1565c0;
+	}
+	.md-body :global(code) {
+		background: #f0f0f0;
+		padding: 1px 4px;
+		border-radius: 3px;
+	}
+	.draft-belief {
+		font-size: 0.875rem;
+		margin: 0;
+	}
+	.draft-belief dt {
+		font-weight: 600;
+		color: #555;
+		margin-top: 8px;
+	}
+	.draft-belief dd {
+		margin: 2px 0 0;
 		white-space: pre-wrap;
 		word-break: break-word;
-		margin: 0;
-		background: none;
-		padding: 0;
-	}
-	.research {
-		color: #555;
-	}
-	.belief {
-		color: #1a237e;
+		color: #333;
 	}
 	.source-entry {
 		margin-bottom: 12px;
@@ -349,7 +427,7 @@
 	}
 	.source-entry li {
 		font-size: 0.8rem;
-		margin-bottom: 2px;
+		margin-bottom: 6px;
 	}
 	.source-entry a {
 		color: #1565c0;
@@ -357,5 +435,11 @@
 	}
 	.source-entry a:hover {
 		text-decoration: underline;
+	}
+	.source-url {
+		display: block;
+		font-size: 0.7rem;
+		color: #999;
+		word-break: break-all;
 	}
 </style>
