@@ -1,18 +1,8 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
-import type { DebateTurn } from '../../types/debate.types.js';
+import type { ChapterEntry } from '../../types/debate.types.js';
 
 const db = () => getFirestore();
-
-export type ChapterEntry = {
-	id: string;
-	chapterIndex: number;
-	title: string;
-	focusQuestion: string;
-	discussionPoints: string[];
-	turns: DebateTurn[];
-	status: 'pending' | 'running' | 'completed';
-};
 
 export const getChaptersByTopicId = async (topicId: string): Promise<ChapterEntry[]> => {
 	const snap = await db().collection(`topics/${topicId}/chapters`).orderBy('chapterIndex').get();
@@ -51,6 +41,15 @@ export const getChaptersByTopicId = async (topicId: string): Promise<ChapterEntr
 			status: data.status ?? 'pending'
 		};
 	});
+};
+
+/** 章のステータス（running / completed など）を更新する */
+export const updateChapterStatus = async (
+	topicId: string,
+	chapterId: string,
+	status: ChapterEntry['status']
+): Promise<void> => {
+	await db().doc(`topics/${topicId}/chapters/${chapterId}`).update({ status });
 };
 
 export const activateDebate = async (topicId: string): Promise<string> => {
