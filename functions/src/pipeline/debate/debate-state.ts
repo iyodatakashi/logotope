@@ -70,7 +70,7 @@ export const getDebateState = (
 };
 
 /**
- * chapter doc から章進捗を復元する。chapterEndCount 未設定は 0、discussionPointStatuses 未設定は
+ * chapter doc から章進捗を復元する。quietStreak 未設定は 0、discussionPointStatuses 未設定は
  * 章の論点から untouched 初期化する。同一の永続データから同一の出力を返す（決定論）。
  */
 export const loadChapterProgress = async (
@@ -80,13 +80,13 @@ export const loadChapterProgress = async (
 ): Promise<ChapterProgress> => {
 	const snap = await db().doc(`topics/${topicId}/chapters/${chapterId}`).get();
 	const data = snap.data() as
-		| { chapterEndCount?: number; discussionPointStatuses?: DiscussionPointState[] }
+		| { quietStreak?: number; discussionPointStatuses?: DiscussionPointState[] }
 		| undefined;
 	const discussionPointStatuses =
 		data?.discussionPointStatuses ??
 		(chapter.discussionPoints ?? []).map((point) => ({ point, status: 'untouched' as const }));
 	return {
-		chapterEndCount: data?.chapterEndCount ?? 0,
+		quietStreak: data?.quietStreak ?? 0,
 		discussionPointStatuses
 	};
 };

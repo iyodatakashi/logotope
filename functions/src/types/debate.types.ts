@@ -36,12 +36,12 @@ export type ChapterForFirestore = {
 	discussionPoints: string[];
 	turns: DebateTurn[];
 	discussionPointStatuses?: DiscussionPointState[];
-	chapterEndCount?: number;
+	quietStreak?: number;
 	status: ChapterProgressStatus;
 };
 
 export type ChapterProgress = {
-	chapterEndCount: number;
+	quietStreak: number;
 	discussionPointStatuses: DiscussionPointState[];
 };
 
@@ -130,7 +130,7 @@ export type NewTurnFields = {
 };
 
 export type ProgressPatch = {
-	chapterEndCount?: number;
+	quietStreak?: number;
 	discussionPointStatuses?: DiscussionPointState[];
 };
 

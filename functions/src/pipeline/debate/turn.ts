@@ -57,7 +57,7 @@ const buildTurnRecord = (id: string, turn: NewTurnFields): Record<string, unknow
 
 /**
  * 章ローカル `turns.length === expectedTurnIndex` のときだけ1ターン追記し、runId 世代照合と
- * 進捗（chapterEndCount / discussionPointStatuses）更新を同一トランザクションで行う冪等追記。
+ * 進捗（quietStreak / discussionPointStatuses）更新を同一トランザクションで行う冪等追記。
  * 不一致時は例外を投げず rejected を返して副作用を残さない。
  */
 export const addTurn = async (input: AppendTurnInput): Promise<AppendResult> => {
@@ -83,8 +83,8 @@ export const addTurn = async (input: AppendTurnInput): Promise<AppendResult> => 
 		const update: Record<string, unknown> = {
 			turns: [...currentTurns, buildTurnRecord(id, turn)]
 		};
-		if (progressPatch?.chapterEndCount !== undefined) {
-			update.chapterEndCount = progressPatch.chapterEndCount;
+		if (progressPatch?.quietStreak !== undefined) {
+			update.quietStreak = progressPatch.quietStreak;
 		}
 		if (progressPatch?.discussionPointStatuses !== undefined) {
 			update.discussionPointStatuses = progressPatch.discussionPointStatuses;

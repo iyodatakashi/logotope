@@ -110,7 +110,7 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 		expect(allCollectionPaths).not.toContain('topics/topic1/engagements');
 	});
 
-	it('廃棄チャプターの chapterEndCount をリセット（削除）する', async () => {
+	it('廃棄チャプターの quietStreak をリセット（削除）する', async () => {
 		mockChaptersGet.mockResolvedValue({
 			docs: [makeChapterDoc('ch1', [{ id: 't1' }])]
 		});
@@ -122,7 +122,7 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 			(c: unknown[]) => (c[0] as { turns?: unknown }).turns !== undefined
 		);
 		expect(chapterResetUpdate).toBeDefined();
-		expect((chapterResetUpdate![0] as { chapterEndCount: unknown }).chapterEndCount).toBe(
+		expect((chapterResetUpdate![0] as { quietStreak: unknown }).quietStreak).toBe(
 			'DELETE_SENTINEL'
 		);
 	});

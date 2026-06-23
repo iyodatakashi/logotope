@@ -13,7 +13,7 @@ import type {
 const options: DebateOptions = { turnsPerChapter: 15, maxTurns: 200, interventionCooldown: 3 };
 
 // cap: hasPoints → ceil(15*2.5)=38 / noPoints → ceil(15*1.5)=23
-// earlyThreshold: ceil(15*0.75)=12, CHAPTER_END_COUNT_LIMIT=5
+// earlyThreshold: ceil(15*0.75)=12, QUIET_STREAK_LIMIT=5
 
 const personaTurn = (i: number, extra: Partial<DebateTurn> = {}): DebateTurn => ({
 	id: `t${i}`,
@@ -29,7 +29,7 @@ const turns = (n: number): DebateTurn[] => Array.from({ length: n }, (_, i) => p
 const base = (overrides: Partial<Parameters<typeof decideNextStep>[0]> = {}) => ({
 	chapterTurns: turns(5),
 	globalTurnCount: 5,
-	chapterEndCount: 0,
+	quietStreak: 0,
 	discussionPoints: [] as DiscussionPointState[],
 	chapterIndex: 0,
 	options,
@@ -62,21 +62,21 @@ describe('decideNextStep', () => {
 
 	it('早期終了条件成立（進捗閾値超え＋カウンタ上限）なら summary を返す', () => {
 		const result = decideNextStep(
-			base({ chapterTurns: turns(13), globalTurnCount: 13, chapterEndCount: 5 })
+			base({ chapterTurns: turns(13), globalTurnCount: 13, quietStreak: 5 })
 		);
 		expect(result).toEqual({ kind: 'summary', expectedTurnIndex: 13 });
 	});
 
 	it('早期終了の進捗閾値未満なら turn を返す（継続）', () => {
 		const result = decideNextStep(
-			base({ chapterTurns: turns(10), globalTurnCount: 10, chapterEndCount: 5 })
+			base({ chapterTurns: turns(10), globalTurnCount: 10, quietStreak: 5 })
 		);
 		expect(result.kind).toBe('turn');
 	});
 
 	it('カウンタが上限未満（カバレッジ評価で 0 リセット相当）なら turn を返す（継続）', () => {
 		const result = decideNextStep(
-			base({ chapterTurns: turns(13), globalTurnCount: 13, chapterEndCount: 0 })
+			base({ chapterTurns: turns(13), globalTurnCount: 13, quietStreak: 0 })
 		);
 		expect(result.kind).toBe('turn');
 	});

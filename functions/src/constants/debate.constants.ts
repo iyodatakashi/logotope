@@ -24,8 +24,8 @@ export const TURNS_PER_CHAPTER = 15;
 /** 討論全体のターン上限（既定） */
 export const MAX_TURNS = 200;
 
-/** checkChapterContinuation が連続 false になった場合に章を早期終了するカウント上限 */
-export const CHAPTER_END_COUNT_LIMIT = 5;
+/** 議論の沈静化（盛り上がりが低い状態）が連続したターン数の上限。これを超えたら章を早期終了する */
+export const QUIET_STREAK_LIMIT = 5;
 
 /** 早期終了の進捗比率（目標ターンの何割消化で打ち切り判定に入るか） */
 export const EARLY_END_PROGRESS_RATIO = 0.75;

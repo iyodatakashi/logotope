@@ -1,5 +1,5 @@
 /**
- * loadChapterProgress: 永続データ（chapter doc）から章進捗（chapterEndCount / 論点ステータス）を
+ * loadChapterProgress: 永続データ（chapter doc）から章進捗（quietStreak / 論点ステータス）を
  * 決定論的に復元することを検証する。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -25,16 +25,16 @@ describe('loadChapterProgress', () => {
 		vi.clearAllMocks();
 	});
 
-	it('chapterEndCount 未設定なら 0 を返す', async () => {
+	it('quietStreak 未設定なら 0 を返す', async () => {
 		mockGet.mockResolvedValue({ exists: true, data: () => ({}) });
 		const progress = await loadChapterProgress('t1', 'ch1', makeChapter(['論点A']));
-		expect(progress.chapterEndCount).toBe(0);
+		expect(progress.quietStreak).toBe(0);
 	});
 
-	it('chapterEndCount が永続化されていればその値を返す', async () => {
-		mockGet.mockResolvedValue({ exists: true, data: () => ({ chapterEndCount: 4 }) });
+	it('quietStreak が永続化されていればその値を返す', async () => {
+		mockGet.mockResolvedValue({ exists: true, data: () => ({ quietStreak: 4 }) });
 		const progress = await loadChapterProgress('t1', 'ch1', makeChapter(['論点A']));
-		expect(progress.chapterEndCount).toBe(4);
+		expect(progress.quietStreak).toBe(4);
 	});
 
 	it('discussionPointStatuses 未設定なら章の論点から untouched 初期化する', async () => {
@@ -73,7 +73,7 @@ describe('loadChapterProgress', () => {
 		mockGet.mockResolvedValue({
 			exists: true,
 			data: () => ({
-				chapterEndCount: 2,
+				quietStreak: 2,
 				discussionPointStatuses: [{ point: '論点A', status: 'introduced' }]
 			})
 		});

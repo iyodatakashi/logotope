@@ -11,7 +11,7 @@ import { selectSpeaker } from './speaker-selection.js';
 import { getDebateState, loadChapterProgress } from './debate-state.js';
 import { enqueueTurnStep, taskKey } from './turn-step-task.js';
 import {
-	CHAPTER_END_COUNT_LIMIT,
+	QUIET_STREAK_LIMIT,
 	EARLY_END_PROGRESS_RATIO,
 	TURN_CAP_RATIO,
 	AGENDA_TURN_CAP_RATIO,
@@ -75,14 +75,14 @@ const hasUnansweredTargetAtEnd = (chapterTurns: DebateTurn[]): boolean => {
 export const decideNextStep = ({
 	chapterTurns,
 	globalTurnCount,
-	chapterEndCount,
+	quietStreak,
 	discussionPoints,
 	options,
 	isLastChapter
 }: {
 	chapterTurns: DebateTurn[];
 	globalTurnCount: number;
-	chapterEndCount: number;
+	quietStreak: number;
 	discussionPoints: DiscussionPointState[];
 	chapterIndex: number;
 	options: DebateOptions;
@@ -98,7 +98,7 @@ export const decideNextStep = ({
 	const hitCap = chapterTurnCount >= cap || globalTurnCount >= options.maxTurns;
 	const earlyEnd =
 		chapterTurnCount >= Math.ceil(options.turnsPerChapter * EARLY_END_PROGRESS_RATIO) &&
-		chapterEndCount >= CHAPTER_END_COUNT_LIMIT;
+		quietStreak >= QUIET_STREAK_LIMIT;
 
 	if (!hitCap && !earlyEnd) {
 		return { kind: 'turn', expectedTurnIndex };
@@ -189,7 +189,7 @@ type StepContext = {
 	topicTitle: string;
 	state: DebateState;
 	chapterTurnStartInState: number;
-	chapterEndCount: number;
+	quietStreak: number;
 	isLastChapter: boolean;
 };
 
@@ -215,7 +215,7 @@ const loadStepContext = async (payload: TurnStepPayload): Promise<StepContext> =
 		topicTitle,
 		state,
 		chapterTurnStartInState: existingTurns.length - chapterDoc.turns.length,
-		chapterEndCount: progress.chapterEndCount,
+		quietStreak: progress.quietStreak,
 		isLastChapter: !!singleChapterMode || chapterIndex >= chapters.length - 1
 	};
 };
@@ -235,13 +235,13 @@ const enqueueStep = async (
 const enqueueAfterTurn = async (
 	ctx: StepContext,
 	payload: TurnStepPayload,
-	chapterEndCount: number
+	quietStreak: number
 ): Promise<void> => {
 	if (ctx.chapterDoc.status === 'completed') return;
 	const next = decideNextStep({
 		chapterTurns: ctx.state.turns.slice(ctx.chapterTurnStartInState),
 		globalTurnCount: ctx.state.turns.length,
-		chapterEndCount,
+		quietStreak,
 		discussionPoints: ctx.state.discussionPoints,
 		chapterIndex: payload.chapterIndex,
 		options: stepOptions(payload),
@@ -268,13 +268,13 @@ const enqueueChapterEnd = async (ctx: StepContext, payload: TurnStepPayload): Pr
 /** rejected/競合時に最新の永続状態から次ステップを再導出して投入する（liveness 保証） */
 const resumeFromFresh = async (payload: TurnStepPayload): Promise<void> => {
 	const ctx = await loadStepContext(payload);
-	await enqueueAfterTurn(ctx, payload, ctx.chapterEndCount);
+	await enqueueAfterTurn(ctx, payload, ctx.quietStreak);
 };
 
 /**
  * 新経路の1ターン生成（while ループの executeTurn と等価）。
- * chapterEndCount を継続シグナルから決め、追記と同一トランザクションで書き込む。
- * freeze=true（章末 +1 最終応答）のときは chapterEndCount を据え置き、簡略フローで生成する。
+ * quietStreak を継続シグナルから決め、追記と同一トランザクションで書き込む。
+ * freeze=true（章末 +1 最終応答）のときは quietStreak を据え置き、簡略フローで生成する。
  */
 const generateSingleTurn = async ({
 	topicId,
@@ -284,7 +284,7 @@ const generateSingleTurn = async ({
 	state,
 	chapterTurnStartInState,
 	interventionCooldown,
-	chapterEndCount,
+	quietStreak,
 	freeze
 }: {
 	topicId: string;
@@ -294,9 +294,9 @@ const generateSingleTurn = async ({
 	state: DebateState;
 	chapterTurnStartInState: number;
 	interventionCooldown: number;
-	chapterEndCount: number;
+	quietStreak: number;
 	freeze: boolean;
-}): Promise<{ committed: boolean; chapterEndCount: number }> => {
+}): Promise<{ committed: boolean; quietStreak: number }> => {
 	const getChapterTurns = (): DebateTurn[] => state.turns.slice(chapterTurnStartInState);
 	const targetPersona = getLastTargetPersona(state.turns);
 
@@ -330,9 +330,9 @@ const generateSingleTurn = async ({
 			speakerSelection,
 			engagement,
 			chapterTurnStartIndex: chapterTurnStartInState,
-			progressPatch: { chapterEndCount }
+			progressPatch: { quietStreak }
 		});
-		if (!reply) return { committed: false, chapterEndCount };
+		if (!reply) return { committed: false, quietStreak };
 		await consumeQueuedIntent({
 			topicId,
 			chapterId,
@@ -348,7 +348,7 @@ const generateSingleTurn = async ({
 				turnId: reply.turnId,
 				beliefChange: reply.beliefChange
 			});
-		return { committed: true, chapterEndCount };
+		return { committed: true, quietStreak };
 	}
 
 	await expireQueuedIntents({ topicId, chapterId, state });
@@ -360,7 +360,7 @@ const generateSingleTurn = async ({
 		chapterTurns: getChapterTurns()
 	});
 
-	// ファシリテーター介入（target がない場合のみ）。介入は継続扱いで chapterEndCount を 0 にする
+	// ファシリテーター介入（target がない場合のみ）。介入は継続扱いで quietStreak を 0 にする
 	if (!targetPersona) {
 		const intervened = await tryIntervention({
 			topicId,
@@ -372,11 +372,11 @@ const generateSingleTurn = async ({
 			interventionCooldown,
 			chapterTurns: getChapterTurns(),
 			chapterTurnStartIndex: chapterTurnStartInState,
-			progressPatch: { chapterEndCount: 0 }
+			progressPatch: { quietStreak: 0 }
 		});
 		if (intervened) {
 			await saveDiscussionPointStatuses(topicId, chapterId, state);
-			return { committed: true, chapterEndCount: 0 };
+			return { committed: true, quietStreak: 0 };
 		}
 	}
 
@@ -397,7 +397,7 @@ const generateSingleTurn = async ({
 	});
 	const shouldContinue =
 		engagements.length === 0 || engagements.some((a) => a.score >= CONTINUE_CHAPTER_THRESHOLD);
-	const nextEndCount = shouldContinue ? 0 : chapterEndCount + 1;
+	const nextEndCount = shouldContinue ? 0 : quietStreak + 1;
 
 	const reply = await generatePersonaTurn({
 		topicId,
@@ -407,9 +407,9 @@ const generateSingleTurn = async ({
 		speakerSelection,
 		engagement,
 		chapterTurnStartIndex: chapterTurnStartInState,
-		progressPatch: { chapterEndCount: nextEndCount }
+		progressPatch: { quietStreak: nextEndCount }
 	});
-	if (!reply) return { committed: false, chapterEndCount };
+	if (!reply) return { committed: false, quietStreak };
 	await consumeQueuedIntent({
 		topicId,
 		chapterId,
@@ -425,7 +425,7 @@ const generateSingleTurn = async ({
 			turnId: reply.turnId,
 			beliefChange: reply.beliefChange
 		});
-	return { committed: true, chapterEndCount: nextEndCount };
+	return { committed: true, quietStreak: nextEndCount };
 };
 
 /** open ステップ: オープニング/導入のファシリテーターターンを追記し、最初の turn ステップを投入する */
@@ -490,11 +490,11 @@ const performOpenStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 
 /** turn ステップ: frontier 一致なら1ターン生成→冪等追記→次ステップ投入。不一致/rejected は resume */
 const performTurnStep = async (ctx: StepContext, payload: TurnStepPayload): Promise<boolean> => {
-	const { chapterDoc, chapter, personas, state, chapterTurnStartInState, chapterEndCount } = ctx;
+	const { chapterDoc, chapter, personas, state, chapterTurnStartInState, quietStreak } = ctx;
 	const { topicId } = payload;
 	const options = stepOptions(payload);
 	const chapterLocalCount = chapterDoc.turns.length;
-	const freeze = !!payload.finalResponse; // 章末 +1 最終応答は chapterEndCount を据え置く
+	const freeze = !!payload.finalResponse; // 章末 +1 最終応答は quietStreak を据え置く
 
 	if (chapterDoc.status === 'completed') return false;
 
@@ -502,7 +502,7 @@ const performTurnStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 	// 最終応答ステップなら +1 は済んでいるので summary/closing へ直行、通常ステップは resume
 	if (chapterLocalCount !== payload.expectedTurnIndex) {
 		if (freeze) await enqueueChapterEnd(ctx, payload);
-		else await enqueueAfterTurn(ctx, payload, chapterEndCount);
+		else await enqueueAfterTurn(ctx, payload, quietStreak);
 		return false;
 	}
 
@@ -514,7 +514,7 @@ const performTurnStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 		state,
 		chapterTurnStartInState,
 		interventionCooldown: options.interventionCooldown,
-		chapterEndCount,
+		quietStreak,
 		freeze
 	});
 	if (!result.committed) {
@@ -528,12 +528,12 @@ const performTurnStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 		return true;
 	}
 
-	let finalEndCount = result.chapterEndCount;
+	let finalEndCount = result.quietStreak;
 	// 早期終了カバレッジ評価。未消化が残ればカウンタを 0 に戻して継続させる
 	const chapterTurnCountNow = state.turns.length - chapterTurnStartInState;
 	if (
 		chapterTurnCountNow >= Math.ceil(options.turnsPerChapter * EARLY_END_PROGRESS_RATIO) &&
-		finalEndCount >= CHAPTER_END_COUNT_LIMIT
+		finalEndCount >= QUIET_STREAK_LIMIT
 	) {
 		const incomplete = state.discussionPoints.filter((p) => p.status !== 'addressed');
 		if (incomplete.length > 0) {
@@ -550,9 +550,7 @@ const performTurnStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 				await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
 				if (state.discussionPoints.some((p) => p.status !== 'addressed')) {
 					finalEndCount = 0;
-					await db()
-						.doc(`topics/${topicId}/chapters/${chapterDoc.id}`)
-						.update({ chapterEndCount: 0 });
+					await db().doc(`topics/${topicId}/chapters/${chapterDoc.id}`).update({ quietStreak: 0 });
 				}
 			}
 		}

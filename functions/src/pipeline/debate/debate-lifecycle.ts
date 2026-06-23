@@ -78,7 +78,7 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 		await db().doc(`topics/${topicId}/chapters/${chapter.id}`).update({
 			turns: [],
 			discussionPointStatuses: FieldValue.delete(),
-			chapterEndCount: FieldValue.delete(),
+			quietStreak: FieldValue.delete(),
 			status: 'pending'
 		});
 	}

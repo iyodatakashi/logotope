@@ -162,20 +162,20 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 		expect(turn).not.toHaveProperty('chapterId');
 	});
 
-	it('ChapterForFirestore は chapterEndCount を任意で持つ', () => {
+	it('ChapterForFirestore は quietStreak を任意で持つ', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
 			focusQuestion: 'テスト？',
 			discussionPoints: ['論点A'],
 			turns: [],
-			chapterEndCount: 2,
+			quietStreak: 2,
 			status: 'running'
 		};
-		expect(chapter.chapterEndCount).toBe(2);
+		expect(chapter.quietStreak).toBe(2);
 	});
 
-	it('ChapterForFirestore は chapterEndCount 未設定でも構築できる（未設定=0扱い）', () => {
+	it('ChapterForFirestore は quietStreak 未設定でも構築できる（未設定=0扱い）', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
@@ -184,15 +184,15 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 			turns: [],
 			status: 'pending'
 		};
-		expect(chapter.chapterEndCount).toBeUndefined();
+		expect(chapter.quietStreak).toBeUndefined();
 	});
 
 	it('ChapterProgress は章終了カウンタと論点ステータスを持つ', () => {
 		const progress: ChapterProgress = {
-			chapterEndCount: 0,
+			quietStreak: 0,
 			discussionPointStatuses: [{ point: '論点A', status: 'untouched' }]
 		};
-		expect(progress.chapterEndCount).toBe(0);
+		expect(progress.quietStreak).toBe(0);
 		expect(progress.discussionPointStatuses).toHaveLength(1);
 	});
 });
@@ -212,12 +212,12 @@ describe('debate.types - ターン追記入力・結果型定義', () => {
 		expect(turn).not.toHaveProperty('createdAt');
 	});
 
-	it('ProgressPatch は chapterEndCount と discussionPointStatuses を任意で持つ', () => {
+	it('ProgressPatch は quietStreak と discussionPointStatuses を任意で持つ', () => {
 		const patch: ProgressPatch = {
-			chapterEndCount: 1,
+			quietStreak: 1,
 			discussionPointStatuses: [{ point: '論点A', status: 'addressed' }]
 		};
-		expect(patch.chapterEndCount).toBe(1);
+		expect(patch.quietStreak).toBe(1);
 		expect(patch.discussionPointStatuses).toHaveLength(1);
 	});
 
@@ -228,10 +228,10 @@ describe('debate.types - ターン追記入力・結果型定義', () => {
 			expectedTurnIndex: 3,
 			turn: { speakerType: 'facilitator', content: 'まとめ' },
 			runId: 'run-1',
-			progressPatch: { chapterEndCount: 0 }
+			progressPatch: { quietStreak: 0 }
 		};
 		expect(input.expectedTurnIndex).toBe(3);
-		expect(input.progressPatch?.chapterEndCount).toBe(0);
+		expect(input.progressPatch?.quietStreak).toBe(0);
 	});
 
 	it('AppendTurnInput は runId・progressPatch なしでも構築できる（後方互換）', () => {
