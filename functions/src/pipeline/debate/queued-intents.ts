@@ -10,6 +10,11 @@ import type {
 
 const db = () => getFirestore();
 
+/**
+ * 失効した発言意図キューを state と Firestore の両方から取り除く。
+ * INTENT_EXPIRY_TURNS ターンより古い（またはトリガーターンが消えた）エントリを破棄し、
+ * 変化があったペルソナの分だけ Firestore に書き戻す（全消えはローカル削除のみ）。
+ */
 export const expireQueuedIntents = async ({
 	topicId,
 	chapterId,
@@ -26,7 +31,7 @@ export const expireQueuedIntents = async ({
 			if (triggerIdx === -1) return false;
 			return state.turns.length - triggerIdx <= INTENT_EXPIRY_TURNS;
 		});
-		if (alive.length === items.length) continue;
+		if (alive.length === items.length) continue; // 失効なし → 書き込み不要
 		if (alive.length === 0) {
 			state.queuedIntents.delete(personaId);
 		} else {
@@ -59,6 +64,7 @@ export const addQueuedIntents = async ({
 	speakerSelection: SpeakerSelection;
 	triggerTurnId: string;
 }): Promise<void> => {
+	// 今回の話者本人は除外（これから発言するので積む必要がない）。閾値超えの意欲者だけをキューに積む
 	const updates = engagements
 		.filter((e) => shouldQueue(e) && e.personaId !== speakerSelection.personaId)
 		.map((e) => {
@@ -76,6 +82,7 @@ export const addQueuedIntents = async ({
 	);
 };
 
+/** キュー保持者が発言したら、消化した先頭1件を取り除いて残りを state と Firestore に反映する */
 export const consumeQueuedIntent = async ({
 	topicId,
 	chapterId,
@@ -90,7 +97,7 @@ export const consumeQueuedIntent = async ({
 	queuedEntries: QueuedIntent[] | undefined;
 }): Promise<void> => {
 	if (!queuedEntries || queuedEntries.length === 0) return;
-	const remaining = queuedEntries.slice(1);
+	const remaining = queuedEntries.slice(1); // 先頭（最古）の意図を消化済みとして落とす
 	if (remaining.length === 0) {
 		state.queuedIntents.delete(personaId);
 	} else {

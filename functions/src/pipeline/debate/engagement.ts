@@ -5,6 +5,10 @@ import type { Persona } from '../../types/persona.types.js';
 
 const db = () => getFirestore();
 
+/**
+ * 各ペルソナの意欲評価を engagements ドキュメントの history.<turnId> に保存する。
+ * mergeFields で当該ターンのエントリだけを更新し、既存の queuedIntents 等は壊さない。
+ */
 const saveEngagements = async (params: {
 	topicId: string;
 	chapterId: string;
@@ -42,7 +46,9 @@ export const evaluateEngagements = async ({
 	state: DebateState;
 	chapterTurns: ReadonlyArray<DebateTurn>;
 }): Promise<Engagement[]> => {
+	// 直前話者は連続発言させないため評価対象から外す（必要なら後で個別フォールバック評価する）
 	const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
+	// 全対象を並列に意欲評価する
 	const engagements = await Promise.all(
 		assessTargets.map((p) => {
 			const otherPersonaNames = personas.filter((q) => q.id !== p.id).map((q) => q.name);
@@ -75,9 +81,11 @@ export const evaluateEngagementWithFallback = async ({
 	chapterTurns: ReadonlyArray<DebateTurn>;
 	engagements?: Engagement[];
 }): Promise<Engagement> => {
+	// 一括評価の結果に含まれていればそれを使う（再評価を避ける）
 	const fromList = engagements.find((a) => a.personaId === personaId);
 	if (fromList) return fromList;
 	const persona = personas.find((p) => p.id === personaId);
+	// ペルソナが見つからない異常系は中間値 score=2 を返して処理を継続させる
 	if (!persona) return { personaId, mode: 'opinion' as const, score: 2 };
 	const otherPersonaNames = personas.filter((p) => p.id !== personaId).map((p) => p.name);
 	return evaluateEngagement(persona, [...chapterTurns], otherPersonaNames, personas);

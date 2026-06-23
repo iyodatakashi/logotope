@@ -102,15 +102,19 @@ export const tryIntervention = async ({
 	chapterTurnStartIndex?: number;
 	progressPatch?: ProgressPatch;
 }): Promise<boolean> => {
+	// 介入判定の対象とする発言履歴（呼び出し側が章ローカルのターン列を渡す。未指定なら全ターン）
 	const currentChapterTurns = chapterTurns ?? state.turns;
+	// いずれかの介入が発火したらここに { 発言内容, 指名先, 提示する論点index } が入る
 	let intervention:
 		| { content: string; targetPersonaId?: string; selectedDiscussionPointIndex?: number }
 		| undefined;
 
+	// まだ消化しきれていない（addressed でない）論点。介入時にファシリテーターへ提示候補として渡す
 	const unaddressedDiscussionPoints = state.discussionPoints
 		.filter((p) => p.status !== 'addressed')
 		.map((p) => p.point);
 
+	// クールダウン（前回ファシリテーター発言から十分なペルソナ発言が経過）を満たすときだけ介入を評価する
 	if (
 		shouldEvaluateIntervention(
 			countPersonaTurnsSinceFacilitator(currentChapterTurns),
@@ -120,6 +124,7 @@ export const tryIntervention = async ({
 		// 高意欲者（score >= STALL_INTERVENTION_THRESHOLD_SCORE）がいる場合、論点投入を抑止して
 		// 明確な逸脱のみ検出させる（未完了論点リストを渡さないことで option 2 を封じる）
 		const driftPoints = hasHighEngagement(engagements) ? [] : unaddressedDiscussionPoints;
+		// 介入は2段カスケード: まず論点ずれ介入を試し、起きなければ出尽くし(スタール)介入を試す
 		intervention = await tryTopicDriftIntervention({
 			personas,
 			chapter,
@@ -140,6 +145,7 @@ export const tryIntervention = async ({
 	}
 	if (!intervention) return false;
 
+	// 介入が論点を1つ提示した場合、その論点を introduced（提示済み）に更新する
 	if (
 		intervention.selectedDiscussionPointIndex !== undefined &&
 		intervention.selectedDiscussionPointIndex >= 0 &&
@@ -150,6 +156,8 @@ export const tryIntervention = async ({
 		if (target) target.status = 'introduced';
 	}
 
+	// 介入ターンの直前時点で意欲の高かった他ペルソナの意図をキューに積んでおく
+	// （speakerSelection.personaId='' は「除外する話者なし」を意味する）
 	await addQueuedIntents({
 		topicId,
 		chapterId,
@@ -158,6 +166,7 @@ export const tryIntervention = async ({
 		speakerSelection: { personaId: '', reason: 'score' },
 		triggerTurnId: state.turns[state.turns.length - 1]?.id ?? ''
 	});
+	// 介入発言を1ターンとして永続化する
 	await persistInterventionTurn({
 		topicId,
 		state,

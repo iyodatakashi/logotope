@@ -1,3 +1,15 @@
+/**
+ * 討論を「1ステップ＝1 Cloud Task」のチェーンとして駆動するオーケストレータ。
+ *
+ * 各章は open → turn(複数) → summary/closing → comments という step の連鎖で進む。
+ * 1ステップ処理するたびに次のステップを enqueue し、そのタスクが起動して advanceDebate を呼ぶ…という
+ * 自己継続ループになっている。状態は毎回 Firestore（永続データ）から再構築するため、各ステップは
+ * メモリ上の状態を引き継がず、いつ・何回起動されても同じ結果になる（冪等・再入可能）。
+ *
+ * 並走対策として「frontier（章ローカルのターン数 expectedTurnIndex）」を使う。複数タスクが同じ
+ * frontier を狙っても、追記トランザクションで勝てるのは1つだけ。敗者・リトライは resume で
+ * 最新状態から次ステップを再投入し、チェーンが途切れないようにする（liveness 保証）。
+ */
 import { getTopicById } from '../topics/topics.js';
 import { getPersonasByTopicId } from '../personas/personas.js';
 import { getChaptersByTopicId } from './debate-lifecycle.js';
@@ -88,18 +100,24 @@ export const decideNextStep = ({
 	options: DebateOptions;
 	isLastChapter: boolean;
 }): NextStep => {
+	// 論点リストを持つ章は消化のため上限を高めに取る（AGENDA_TURN_CAP_RATIO > TURN_CAP_RATIO）
 	const hasPoints = discussionPoints.length > 0;
+	// この章の強制終了ターン数。目標ターン数 × 比率で算出する
 	const cap = Math.ceil(
 		options.turnsPerChapter * (hasPoints ? AGENDA_TURN_CAP_RATIO : TURN_CAP_RATIO)
 	);
 	const chapterTurnCount = chapterTurns.length;
+	// 次に追記すべき章ローカル位置（= 現在のターン数）。frontier 照合に使う
 	const expectedTurnIndex = chapterTurnCount;
 
+	// 章上限に到達、または討論全体の上限に到達したか
 	const hitCap = chapterTurnCount >= cap || globalTurnCount >= options.maxTurns;
+	// 一定割合まで進み、かつ盛り上がりが連続して低い（quietStreak が上限超え）なら早期終了
 	const earlyEnd =
 		chapterTurnCount >= Math.ceil(options.turnsPerChapter * EARLY_END_PROGRESS_RATIO) &&
 		quietStreak >= QUIET_STREAK_LIMIT;
 
+	// まだ終了条件に達していなければ、通常のターンを続ける
 	if (!hitCap && !earlyEnd) {
 		return { kind: 'turn', expectedTurnIndex };
 	}
@@ -115,6 +133,7 @@ export const decideNextStep = ({
 		: { kind: 'summary', expectedTurnIndex };
 };
 
+/** トピックと承認済みペルソナを取得する。討論に参加するのは approved なペルソナのみ */
 const getTopicContext = async (topicId: string) => {
 	const [topic, allPersonas] = await Promise.all([
 		getTopicById(topicId),
@@ -124,6 +143,7 @@ const getTopicContext = async (topicId: string) => {
 	return { topicTitle: topic.title, personas: allPersonas.filter((p) => p.approved) };
 };
 
+/** 章ドキュメントに論点ステータス（point/status）を書き込む。論点を持たない章では何もしない */
 const saveDiscussionPointStatuses = async (
 	topicId: string,
 	chapterId: string,
@@ -140,12 +160,17 @@ const saveDiscussionPointStatuses = async (
 		});
 };
 
+/** 章完了時に論点ステータスのフィールドごと削除する（クリーンアップ） */
 const deleteDiscussionPointStatuses = async (topicId: string, chapterId: string): Promise<void> => {
 	await db().doc(`topics/${topicId}/chapters/${chapterId}`).update({
 		discussionPointStatuses: FieldValue.delete()
 	});
 };
 
+/**
+ * オープニング/導入で提示した論点を introduced に更新する。
+ * index は「未消化(addressed でない)論点リスト」上の位置なので、そこから実体を引いて状態を変える。
+ */
 const markIntroduced = (state: DebateState, index: number | undefined): void => {
 	if (index === undefined) return;
 	const untouched = state.discussionPoints.filter((p) => p.status !== 'addressed');
@@ -156,6 +181,7 @@ const markIntroduced = (state: DebateState, index: number | undefined): void => 
 	if (target) target.status = 'introduced';
 };
 
+/** 末尾ターンが誰かを指名（直接質問）していれば、その指名先と指名元を返す。なければ undefined */
 const getLastTargetPersona = (
 	turns: DebateTurn[]
 ): { personaId: string; targetedBy: 'facilitator' | 'persona' } | undefined => {
@@ -164,6 +190,7 @@ const getLastTargetPersona = (
 	return { personaId: last.targetPersonaId, targetedBy: last.targetedBy };
 };
 
+/** 章のステータス（running / completed など）を更新する */
 const updateChapterStatus = async (
 	topicId: string,
 	chapterId: string,
@@ -176,21 +203,23 @@ const updateChapterStatus = async (
 // 新経路: per-turn ステップチェーン（advanceDebate / runTurnStep の本体）
 // ===================================================================
 
+/** 既定オプションにペイロード由来の単章モードを重ねた実行オプションを作る */
 const stepOptions = (payload: TurnStepPayload): DebateOptions => ({
 	...DEFAULT_OPTIONS,
 	singleChapterMode: payload.singleChapterMode
 });
 
+/** 1ステップ処理に必要な、永続データから再構築した一式のコンテキスト */
 type StepContext = {
-	chapters: ChapterEntry[];
-	chapterDoc: ChapterEntry;
-	chapter: Chapter;
-	personas: Persona[];
-	topicTitle: string;
-	state: DebateState;
-	chapterTurnStartInState: number;
-	quietStreak: number;
-	isLastChapter: boolean;
+	chapters: ChapterEntry[]; // トピックの全章
+	chapterDoc: ChapterEntry; // 処理対象の章
+	chapter: Chapter; // chapterDoc と同一（型を Chapter として扱う用）
+	personas: Persona[]; // 承認済み参加ペルソナ
+	topicTitle: string; // トピック名（プロンプト用）
+	state: DebateState; // 全ターンから導出した討論状態（発言数・沈黙・キュー等）
+	chapterTurnStartInState: number; // state.turns 内でこの章のターンが始まるオフセット
+	quietStreak: number; // 盛り上がりが低いターンの連続数（早期終了判定用）
+	isLastChapter: boolean; // この章が最終章か（true なら summary でなく closing へ）
 };
 
 /** ステップ起動時に永続データのみから状態と章進捗を再構築する */
@@ -201,10 +230,12 @@ const loadStepContext = async (payload: TurnStepPayload): Promise<StepContext> =
 	const chapterDoc = chapters[chapterIndex];
 	if (!chapterDoc) throw new Error(`Chapter not found: ${chapterIndex}`);
 	const { personas, topicTitle } = await getTopicContext(topicId);
+	// 全章のターンを時系列で結合し、永続キューと合わせて討論状態を導出する
 	const existingTurns = await getDebateTurnsByTopicId(topicId);
 	const persistedQueuedIntents = await loadQueuedIntents(topicId, chapterDoc.id);
 	const state = getDebateState(existingTurns, personas, persistedQueuedIntents);
-	state.runId = runId;
+	state.runId = runId; // 世代照合用の runId を載せる（古い世代のタスクの追記を弾くため）
+	// 章ローカルの進捗（quietStreak / 論点ステータス）を復元して state に載せる
 	const progress = await loadChapterProgress(topicId, chapterDoc.id, chapterDoc);
 	state.discussionPoints = progress.discussionPointStatuses;
 	return {
@@ -214,12 +245,19 @@ const loadStepContext = async (payload: TurnStepPayload): Promise<StepContext> =
 		personas,
 		topicTitle,
 		state,
+		// 全ターン数 − この章のターン数 = この章が state.turns 内で始まる位置
 		chapterTurnStartInState: existingTurns.length - chapterDoc.turns.length,
 		quietStreak: progress.quietStreak,
+		// 単章モード、または最後の章なら最終章扱い
 		isLastChapter: !!singleChapterMode || chapterIndex >= chapters.length - 1
 	};
 };
 
+/**
+ * 次ステップのタスクを投入する。override で stepKind/位置などを差し替えたペイロードを作り、
+ * (runId, chapterId, frontier) から決まる決定的なタスクキーで重複投入を防ぐ（同じ frontier への
+ * 二重起動は ALREADY_EXISTS で弾かれる）。comments ステップだけは frontier を 'comments' 固定にする。
+ */
 const enqueueStep = async (
 	payload: TurnStepPayload,
 	chapterId: string,
@@ -297,10 +335,13 @@ const generateSingleTurn = async ({
 	quietStreak: number;
 	freeze: boolean;
 }): Promise<{ committed: boolean; quietStreak: number }> => {
+	// この章ぶんのターン列を切り出すヘルパ（state.turns は全章を含むため）
 	const getChapterTurns = (): DebateTurn[] => state.turns.slice(chapterTurnStartInState);
+	// 末尾ターンが誰かを指名していれば、その指名先（次に応答すべき人）
 	const targetPersona = getLastTargetPersona(state.turns);
 
 	// 章末 +1 最終応答: 旧ループの章末ブロックと等価（expire/addQueue を行わず固定の指名先に応答させる）
+	// 話者選択・介入・キュー更新を一切挟まず、指名された人にそのまま1回だけ答えさせる簡略フロー
 	if (freeze && targetPersona) {
 		const speakerSelection: SpeakerSelection = {
 			personaId: targetPersona.personaId,
@@ -330,9 +371,10 @@ const generateSingleTurn = async ({
 			speakerSelection,
 			engagement,
 			chapterTurnStartIndex: chapterTurnStartInState,
-			progressPatch: { quietStreak }
+			progressPatch: { quietStreak } // freeze 中は quietStreak を据え置く
 		});
-		if (!reply) return { committed: false, quietStreak };
+		if (!reply) return { committed: false, quietStreak }; // 追記競合・討論停止 → 未コミット
+		// 発言後の共通後処理: 消化したキューを除去 → 発言統計を更新 → 信念変化があれば永続化
 		await consumeQueuedIntent({
 			topicId,
 			chapterId,
@@ -351,6 +393,8 @@ const generateSingleTurn = async ({
 		return { committed: true, quietStreak };
 	}
 
+	// --- 通常ターン ---
+	// 失効したキューを掃除し、全ペルソナの意欲を評価する
 	await expireQueuedIntents({ topicId, chapterId, state });
 	const engagements = await evaluateEngagements({
 		topicId,
@@ -380,6 +424,7 @@ const generateSingleTurn = async ({
 		}
 	}
 
+	// 次の話者を決定（指名 > キュー > スコア）し、選ばれなかった意欲者の意図はキューに積む
 	const speakerSelection = selectSpeaker({ targetPersona, engagements, state, personas });
 	await addQueuedIntents({
 		topicId,
@@ -389,12 +434,14 @@ const generateSingleTurn = async ({
 		speakerSelection,
 		triggerTurnId: state.turns[state.turns.length - 1]?.id ?? ''
 	});
+	// 選ばれた話者の意欲（一括評価に無ければ個別評価）を取得する
 	const engagement = await evaluateEngagementWithFallback({
 		personaId: speakerSelection.personaId,
 		personas,
 		chapterTurns: getChapterTurns(),
 		engagements
 	});
+	// 盛り上がり判定: 高意欲者がいれば連続カウントを 0 リセット、いなければ +1（早期終了に近づく）
 	const shouldContinue =
 		engagements.length === 0 || engagements.some((a) => a.score >= CONTINUE_CHAPTER_THRESHOLD);
 	const nextEndCount = shouldContinue ? 0 : quietStreak + 1;
@@ -409,7 +456,8 @@ const generateSingleTurn = async ({
 		chapterTurnStartIndex: chapterTurnStartInState,
 		progressPatch: { quietStreak: nextEndCount }
 	});
-	if (!reply) return { committed: false, quietStreak };
+	if (!reply) return { committed: false, quietStreak }; // 追記競合・討論停止 → 未コミット
+	// 発言後の共通後処理: 消化したキューを除去 → 発言統計を更新 → 信念変化があれば永続化
 	await consumeQueuedIntent({
 		topicId,
 		chapterId,
@@ -444,6 +492,7 @@ const performOpenStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 		return false;
 	}
 
+	// 章を running にし、論点をすべて untouched で初期化して保存する
 	await updateChapterStatus(topicId, chapterDoc.id, 'running');
 	state.discussionPoints = (chapter.discussionPoints ?? []).map((point) => ({
 		point,
@@ -451,6 +500,7 @@ const performOpenStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 	}));
 	await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
 
+	// 第1章は討論全体のオープニング、それ以外は章の導入をファシリテーターに生成させる
 	if (chapterIndex === 0) {
 		const openingResult = await generateOpening(topicTitle, personas, chapter);
 		if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
@@ -529,7 +579,9 @@ const performTurnStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 	}
 
 	let finalEndCount = result.quietStreak;
-	// 早期終了カバレッジ評価。未消化が残ればカウンタを 0 に戻して継続させる
+	// 早期終了の手前で論点カバレッジを再確認する。
+	// 盛り上がりが落ちて早期終了しそうでも、明示的に話されないまま実は消化された論点を拾い上げ、
+	// それでも未消化が残るなら quietStreak を 0 に戻して章を続行させる（取りこぼし防止）
 	const chapterTurnCountNow = state.turns.length - chapterTurnStartInState;
 	if (
 		chapterTurnCountNow >= Math.ceil(options.turnsPerChapter * EARLY_END_PROGRESS_RATIO) &&
@@ -537,17 +589,20 @@ const performTurnStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 	) {
 		const incomplete = state.discussionPoints.filter((p) => p.status !== 'addressed');
 		if (incomplete.length > 0) {
+			// LLM に「未消化論点のうち実際には議論された index」を判定させる
 			const coverageResult = await evaluateDiscussionPointCoverage(
 				state.turns.slice(chapterTurnStartInState),
 				incomplete.map((p) => p.point),
 				personas
 			);
 			if (coverageResult.ok) {
+				// 実は議論済みと判定された論点を addressed に更新する
 				for (const idx of coverageResult.value) {
 					const target = state.discussionPoints.find((p) => p.point === incomplete[idx]?.point);
 					if (target) target.status = 'addressed';
 				}
 				await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
+				// まだ未消化が残るなら早期終了を取り消して継続（quietStreak リセット）
 				if (state.discussionPoints.some((p) => p.status !== 'addressed')) {
 					finalEndCount = 0;
 					await db().doc(`topics/${topicId}/chapters/${chapterDoc.id}`).update({ quietStreak: 0 });
@@ -556,6 +611,7 @@ const performTurnStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 		}
 	}
 
+	// 確定した quietStreak をもとに次ステップ（turn / summary / closing）を投入する
 	await enqueueAfterTurn(ctx, payload, finalEndCount);
 	return true;
 };
