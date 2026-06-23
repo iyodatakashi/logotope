@@ -1,7 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { getTopicById } from '../pipeline/topics/topics.js';
-import { getChaptersByTopicId } from '../pipeline/debate/debate-lifecycle.js';
+import { getChaptersByTopicId } from '../pipeline/debate/debate-state.js';
 import { advanceDebate } from '../pipeline/debate/debate-orchestrator.js';
 import { enqueueTurnStep, taskKey } from '../pipeline/debate/turn-step-task.js';
 import {

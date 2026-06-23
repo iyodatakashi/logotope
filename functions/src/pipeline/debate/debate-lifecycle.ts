@@ -1,47 +1,9 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
+import { getChaptersByTopicId } from './debate-state.js';
 import type { ChapterEntry } from '../../types/debate.types.js';
 
 const db = () => getFirestore();
-
-export const getChaptersByTopicId = async (topicId: string): Promise<ChapterEntry[]> => {
-	const snap = await db().collection(`topics/${topicId}/chapters`).orderBy('chapterIndex').get();
-	return snap.docs.map((docSnap) => {
-		const data = docSnap.data() as {
-			chapterIndex: number;
-			title: string;
-			focusQuestion: string;
-			discussionPoints?: string[];
-			turns?: Array<{
-				id: string;
-				speakerType: string;
-				personaId?: string;
-				content: string;
-				createdAt: Timestamp;
-				fromQueue?: boolean;
-				targetPersonaId?: string;
-			}>;
-			status?: 'pending' | 'running' | 'completed';
-		};
-		return {
-			id: docSnap.id,
-			chapterIndex: data.chapterIndex,
-			title: data.title,
-			focusQuestion: data.focusQuestion,
-			discussionPoints: data.discussionPoints ?? [],
-			turns: (data.turns ?? []).map((t) => ({
-				id: t.id,
-				speakerType: t.speakerType,
-				personaId: t.personaId ?? null,
-				content: t.content,
-				createdAt: t.createdAt,
-				fromQueue: t.fromQueue,
-				targetPersonaId: t.targetPersonaId
-			})),
-			status: data.status ?? 'pending'
-		};
-	});
-};
 
 /** 章のステータス（running / completed など）を更新する */
 export const updateChapterStatus = async (
@@ -66,13 +28,11 @@ export const markDebateStopped = async (topicId: string): Promise<void> => {
 		.update({ phaseStatus: 'stopped', updatedAt: Timestamp.now() });
 };
 
-export const restartChapter = async (topicId: string, chapterId: string): Promise<string> => {
+/** 指定章以降を破棄対象として turns/進捗/status をリセットし、破棄した章を返す */
+const discardChaptersFrom = async (topicId: string, chapterId: string): Promise<ChapterEntry[]> => {
 	const chapters = await getChaptersByTopicId(topicId);
 	const targetIdx = chapters.findIndex((c) => c.id === chapterId);
 	const discardChapters = chapters.slice(targetIdx >= 0 ? targetIdx : 0);
-	const discardedTurns = discardChapters.flatMap((c) => c.turns);
-	const removedTurnIds = new Set(discardedTurns.map((t) => t.id));
-
 	for (const chapter of discardChapters) {
 		await db().doc(`topics/${topicId}/chapters/${chapter.id}`).update({
 			turns: [],
@@ -81,9 +41,14 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 			status: 'pending'
 		});
 	}
+	return discardChapters;
+};
 
-	await db().doc(`topics/${topicId}/postDebateComments/0`).set({ comments: [] });
-
+/** 破棄したターンに紐づく belief を各ペルソナからまとめて巻き戻す（restart 固有のバルク操作） */
+const rollbackBeliefsForRemovedTurns = async (
+	topicId: string,
+	removedTurnIds: Set<string>
+): Promise<void> => {
 	const personasSnap = await db().collection(`topics/${topicId}/personas`).get();
 	for (const personaSnap of personasSnap.docs) {
 		const pdata = personaSnap.data() as { beliefs?: Array<{ triggeredByTurnId?: string | null }> };
@@ -95,8 +60,14 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 			await personaSnap.ref.update({ beliefs: filtered });
 		}
 	}
+};
 
-	for (const chapter of discardChapters) {
+/** 破棄した各章の engagements サブコレクションを削除する */
+const deleteChapterEngagements = async (
+	topicId: string,
+	chapters: ChapterEntry[]
+): Promise<void> => {
+	for (const chapter of chapters) {
 		const engSnap = await db()
 			.collection(`topics/${topicId}/chapters/${chapter.id}/engagements`)
 			.get();
@@ -104,6 +75,16 @@ export const restartChapter = async (topicId: string, chapterId: string): Promis
 			await engDoc.ref.delete();
 		}
 	}
+};
+
+export const restartChapter = async (topicId: string, chapterId: string): Promise<string> => {
+	const discardChapters = await discardChaptersFrom(topicId, chapterId);
+	const removedTurnIds = new Set(discardChapters.flatMap((c) => c.turns).map((t) => t.id));
+
+	await db().doc(`topics/${topicId}/postDebateComments/0`).set({ comments: [] });
+
+	await rollbackBeliefsForRemovedTurns(topicId, removedTurnIds);
+	await deleteChapterEngagements(topicId, discardChapters);
 
 	return await activateDebate(topicId);
 };

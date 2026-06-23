@@ -32,14 +32,14 @@ import {
 	deleteDiscussionPointStatuses
 } from './discussion-points.js';
 import { tryIntervention } from './intervention.js';
+import { applyBeliefChange } from './belief.js';
+import { updateSpeakerStats } from './debate-state.js';
+import { persistPostDebateComments } from './post-debate-comments.js';
 import {
 	generateFacilitatorTurn,
 	generatePersonaTurn,
 	generateChapterTransition,
-	appendClosingTurn,
-	persistPostDebateComments,
-	updateSpeakerStats,
-	applyBeliefChange
+	appendClosingTurn
 } from './turn.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
 import type {
@@ -49,7 +49,8 @@ import type {
 	DebateOptions,
 	TurnStepPayload,
 	StepContext,
-	TurnExecution
+	TurnExecution,
+	Engagement
 } from '../../types/debate.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
@@ -98,6 +99,16 @@ const finalizeCommittedTurn = async ({
 			turnId: reply.turnId,
 			beliefChange: reply.beliefChange
 		});
+};
+
+/**
+ * 盛り上がり判定: 高意欲者がいれば連続カウントを 0 リセット、いなければ +1（早期終了に近づく）。
+ * engagements から純粋に次 quietStreak を算出する（算出式は不変）。
+ */
+const decideQuietStreak = (engagements: Engagement[], quietStreak: number): number => {
+	const shouldContinue =
+		engagements.length === 0 || engagements.some((a) => a.score >= CONTINUE_CHAPTER_THRESHOLD);
+	return shouldContinue ? 0 : quietStreak + 1;
 };
 
 /**
@@ -217,10 +228,7 @@ const executeTurn = async ({
 		chapterTurns: getChapterTurns(),
 		engagements
 	});
-	// 盛り上がり判定: 高意欲者がいれば連続カウントを 0 リセット、いなければ +1（早期終了に近づく）
-	const shouldContinue =
-		engagements.length === 0 || engagements.some((a) => a.score >= CONTINUE_CHAPTER_THRESHOLD);
-	const nextEndCount = shouldContinue ? 0 : quietStreak + 1;
+	const nextEndCount = decideQuietStreak(engagements, quietStreak);
 
 	const reply = await generatePersonaTurn({
 		topicId,
@@ -296,6 +304,63 @@ export const performOpenStep = async (
 };
 
 /**
+ * 早期終了の手前で論点カバレッジを再確認・補正する。
+ * 盛り上がりが落ちて早期終了しそうでも、明示的に話されないまま実は消化された論点を拾い上げ、
+ * それでも未消化が残るなら quietStreak を 0 に戻して章を続行させる（取りこぼし防止）。
+ * 発火条件・閾値・LLM 判定・addressed 更新は不変。補正後の quietStreak を返す。
+ */
+const reconcileEarlyEndCoverage = async ({
+	topicId,
+	chapterId,
+	personas,
+	state,
+	chapterTurnStartInState,
+	turnsPerChapter,
+	quietStreak
+}: {
+	topicId: string;
+	chapterId: string;
+	personas: Persona[];
+	state: DebateState;
+	chapterTurnStartInState: number;
+	turnsPerChapter: number;
+	quietStreak: number;
+}): Promise<number> => {
+	const chapterTurnCountNow = state.turns.length - chapterTurnStartInState;
+	if (
+		!(
+			chapterTurnCountNow >= Math.ceil(turnsPerChapter * EARLY_END_PROGRESS_RATIO) &&
+			quietStreak >= QUIET_STREAK_LIMIT
+		)
+	) {
+		return quietStreak;
+	}
+	const incomplete = state.discussionPoints.filter((p) => p.status !== 'addressed');
+	if (incomplete.length === 0) return quietStreak;
+
+	// LLM に「未消化論点のうち実際には議論された index」を判定させる
+	const coverageResult = await evaluateDiscussionPointCoverage(
+		state.turns.slice(chapterTurnStartInState),
+		incomplete.map((p) => p.point),
+		personas
+	);
+	if (!coverageResult.ok) return quietStreak;
+
+	// 実は議論済みと判定された論点を addressed に更新する
+	for (const idx of coverageResult.value) {
+		const point = incomplete[idx]?.point;
+		if (point !== undefined) markAddressed(state, point);
+	}
+	await saveDiscussionPointStatuses(topicId, chapterId, state);
+	// まだ未消化が残るなら早期終了を取り消して継続（quietStreak リセット）
+	if (state.discussionPoints.some((p) => p.status !== 'addressed')) {
+		await db().doc(`topics/${topicId}/chapters/${chapterId}`).update({ quietStreak: 0 });
+		return 0;
+	}
+	return quietStreak;
+};
+
+/**
  * turn ステップ: frontier 一致なら1ターン生成→冪等追記し、実行結果を返す。
  * 不一致（既に前進済み）は advanced、追記競合は conflict、章完了済みは completed を返す。
  * 次ステップの決定・投入は orchestrator が本結果と payload.finalResponse から行う。
@@ -333,38 +398,16 @@ export const performTurnStep = async (
 	// 最終応答（+1）の直後は次ステップ判定を再評価せず、そのまま章末へ進む（orchestrator が判断）
 	if (freeze) return { status: 'advanced', quietStreak: result.quietStreak };
 
-	let finalEndCount = result.quietStreak;
-	// 早期終了の手前で論点カバレッジを再確認する。
-	// 盛り上がりが落ちて早期終了しそうでも、明示的に話されないまま実は消化された論点を拾い上げ、
-	// それでも未消化が残るなら quietStreak を 0 に戻して章を続行させる（取りこぼし防止）
-	const chapterTurnCountNow = state.turns.length - chapterTurnStartInState;
-	if (
-		chapterTurnCountNow >= Math.ceil(options.turnsPerChapter * EARLY_END_PROGRESS_RATIO) &&
-		finalEndCount >= QUIET_STREAK_LIMIT
-	) {
-		const incomplete = state.discussionPoints.filter((p) => p.status !== 'addressed');
-		if (incomplete.length > 0) {
-			// LLM に「未消化論点のうち実際には議論された index」を判定させる
-			const coverageResult = await evaluateDiscussionPointCoverage(
-				state.turns.slice(chapterTurnStartInState),
-				incomplete.map((p) => p.point),
-				personas
-			);
-			if (coverageResult.ok) {
-				// 実は議論済みと判定された論点を addressed に更新する
-				for (const idx of coverageResult.value) {
-					const point = incomplete[idx]?.point;
-					if (point !== undefined) markAddressed(state, point);
-				}
-				await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
-				// まだ未消化が残るなら早期終了を取り消して継続（quietStreak リセット）
-				if (state.discussionPoints.some((p) => p.status !== 'addressed')) {
-					finalEndCount = 0;
-					await db().doc(`topics/${topicId}/chapters/${chapterDoc.id}`).update({ quietStreak: 0 });
-				}
-			}
-		}
-	}
+	// 早期終了の手前で論点カバレッジを再確認・補正し、確定した quietStreak を得る
+	const finalEndCount = await reconcileEarlyEndCoverage({
+		topicId,
+		chapterId: chapterDoc.id,
+		personas,
+		state,
+		chapterTurnStartInState,
+		turnsPerChapter: options.turnsPerChapter,
+		quietStreak: result.quietStreak
+	});
 
 	// 確定した quietStreak を実行結果に載せる。これを基に orchestrator が次ステップを決める
 	return { status: 'advanced', quietStreak: finalEndCount };
