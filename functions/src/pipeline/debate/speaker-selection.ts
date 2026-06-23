@@ -57,7 +57,7 @@ export const selectSpeaker = ({
 };
 
 /** 発話モードの優先度。事実提示(fact) > 質問(question) > 意見(opinion/none)。同点時のタイブレークに使う */
-const modeRank = (mode: string): number => (mode === 'fact' ? 2 : mode === 'question' ? 1 : 0);
+const getModeRank = (mode: string): number => (mode === 'fact' ? 2 : mode === 'question' ? 1 : 0);
 
 /** キュー > スコアの2段で話者を決定する */
 const selectSpeakerByEngagement = (
@@ -71,12 +71,12 @@ const selectSpeakerByEngagement = (
 	// 現在この章に参加しているペルソナの評価だけに絞る
 	const filteredAssessments = engagements.filter((a) => personaIds.includes(a.personaId));
 
-	const silence = (a: Engagement) => silenceMap.get(a.personaId) ?? 0;
+	const getSilence = (a: Engagement) => silenceMap.get(a.personaId) ?? 0;
 	// スコア降順 → 沈黙が長い順 → モード優先度の順で並べる比較関数
 	const byScoreThenSilenceThenMode = (a: Engagement, b: Engagement) => {
 		if (b.score !== a.score) return b.score - a.score;
-		if (silence(b) !== silence(a)) return silence(b) - silence(a);
-		return modeRank(b.mode) - modeRank(a.mode);
+		if (getSilence(b) !== getSilence(a)) return getSilence(b) - getSilence(a);
+		return getModeRank(b.mode) - getModeRank(a.mode);
 	};
 
 	// (1) キュー選択ゲート: 今このターンで自発的に発言したい者（閾値超え）が誰もいない場合のみ作動する。
@@ -137,8 +137,8 @@ const selectSpeakerByEngagement = (
 		return candidates.filter(
 			(a) =>
 				a.score === best.score &&
-				silence(a) === silence(best) &&
-				modeRank(a.mode) === modeRank(best.mode)
+				getSilence(a) === getSilence(best) &&
+				getModeRank(a.mode) === getModeRank(best.mode)
 		);
 	})();
 

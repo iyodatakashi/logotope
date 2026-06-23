@@ -73,6 +73,19 @@ export const DEFAULT_OPTIONS: DebateOptions = {
 	interventionCooldown: DEFAULT_INTERVENTION_COOLDOWN
 };
 
+/** 1ステップ処理に必要な、永続データから再構築した一式のコンテキスト */
+type StepContext = {
+	chapters: ChapterEntry[]; // トピックの全章
+	chapterDoc: ChapterEntry; // 処理対象の章
+	chapter: Chapter; // chapterDoc と同一（型を Chapter として扱う用）
+	personas: Persona[]; // 承認済み参加ペルソナ
+	topicTitle: string; // トピック名（プロンプト用）
+	state: DebateState; // 全ターンから導出した討論状態（発言数・沈黙・キュー等）
+	chapterTurnStartInState: number; // state.turns 内でこの章のターンが始まるオフセット
+	quietStreak: number; // 盛り上がりが低いターンの連続数（早期終了判定用）
+	isLastChapter: boolean; // この章が最終章か（true なら summary でなく closing へ）
+};
+
 /** 章ローカルの永続ターン末尾に未応答の指名（直接質問）が残っているか判定する */
 const hasUnansweredTargetAtEnd = (chapterTurns: DebateTurn[]): boolean => {
 	const last = chapterTurns[chapterTurns.length - 1];
@@ -204,23 +217,10 @@ const updateChapterStatus = async (
 // ===================================================================
 
 /** 既定オプションにペイロード由来の単章モードを重ねた実行オプションを作る */
-const stepOptions = (payload: TurnStepPayload): DebateOptions => ({
+const buildStepOptions = (payload: TurnStepPayload): DebateOptions => ({
 	...DEFAULT_OPTIONS,
 	singleChapterMode: payload.singleChapterMode
 });
-
-/** 1ステップ処理に必要な、永続データから再構築した一式のコンテキスト */
-type StepContext = {
-	chapters: ChapterEntry[]; // トピックの全章
-	chapterDoc: ChapterEntry; // 処理対象の章
-	chapter: Chapter; // chapterDoc と同一（型を Chapter として扱う用）
-	personas: Persona[]; // 承認済み参加ペルソナ
-	topicTitle: string; // トピック名（プロンプト用）
-	state: DebateState; // 全ターンから導出した討論状態（発言数・沈黙・キュー等）
-	chapterTurnStartInState: number; // state.turns 内でこの章のターンが始まるオフセット
-	quietStreak: number; // 盛り上がりが低いターンの連続数（早期終了判定用）
-	isLastChapter: boolean; // この章が最終章か（true なら summary でなく closing へ）
-};
 
 /** ステップ起動時に永続データのみから状態と章進捗を再構築する */
 const loadStepContext = async (payload: TurnStepPayload): Promise<StepContext> => {
@@ -282,7 +282,7 @@ const enqueueAfterTurn = async (
 		quietStreak,
 		discussionPoints: ctx.state.discussionPoints,
 		chapterIndex: payload.chapterIndex,
-		options: stepOptions(payload),
+		options: buildStepOptions(payload),
 		isLastChapter: ctx.isLastChapter
 	});
 	if (next.kind === 'none') return;
@@ -310,11 +310,11 @@ const resumeFromFresh = async (payload: TurnStepPayload): Promise<void> => {
 };
 
 /**
- * 新経路の1ターン生成（while ループの executeTurn と等価）。
- * quietStreak を継続シグナルから決め、追記と同一トランザクションで書き込む。
- * freeze=true（章末 +1 最終応答）のときは quietStreak を据え置き、簡略フローで生成する。
+ * 1ターンを実行する（旧 while ループの executeTurn に相当）。話者選択・介入・発言生成・
+ * 永続化・統計更新までを担う。quietStreak を継続シグナルから決め、追記と同一トランザクションで書き込む。
+ * freeze=true（章末 +1 最終応答）のときは quietStreak を据え置き、簡略フローで実行する。
  */
-const generateSingleTurn = async ({
+const executeTurn = async ({
 	topicId,
 	personas,
 	chapter,
@@ -542,7 +542,7 @@ const performOpenStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 const performTurnStep = async (ctx: StepContext, payload: TurnStepPayload): Promise<boolean> => {
 	const { chapterDoc, chapter, personas, state, chapterTurnStartInState, quietStreak } = ctx;
 	const { topicId } = payload;
-	const options = stepOptions(payload);
+	const options = buildStepOptions(payload);
 	const chapterLocalCount = chapterDoc.turns.length;
 	const freeze = !!payload.finalResponse; // 章末 +1 最終応答は quietStreak を据え置く
 
@@ -556,7 +556,7 @@ const performTurnStep = async (ctx: StepContext, payload: TurnStepPayload): Prom
 		return false;
 	}
 
-	const result = await generateSingleTurn({
+	const result = await executeTurn({
 		topicId,
 		personas,
 		chapter,
