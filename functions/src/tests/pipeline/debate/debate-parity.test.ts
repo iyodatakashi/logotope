@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createFirestoreMock } from '../../helpers/firestore-mock.js';
-import type { TurnStepPayload } from '../../../types/debate.types.js';
+import type { StepPayload } from '../../../types/step.types.js';
 
 const { holder } = vi.hoisted(() => ({
 	holder: {
@@ -73,13 +73,13 @@ vi.mock('../../../pipeline/personas/personas.js', () => ({
 }));
 
 // --- enqueue モック（新チェーン駆動用のキュー） ---
-const stepQueue: TurnStepPayload[] = [];
+const stepQueue: StepPayload[] = [];
 const enqueuedKeys = new Set<string>();
-vi.mock('../../../pipeline/debate/turn-step-task.js', () => ({
+vi.mock('../../../pipeline/debate/enqueue-step.js', () => ({
 	taskKey: (p: { runId: string; chapterId: string; frontierIndex: number | 'comments' }) =>
 		`${p.runId}:${p.chapterId}:${p.frontierIndex}`,
 	hashTaskId: (k: string) => k,
-	enqueueTurnStep: async (payload: TurnStepPayload, key: string) => {
+	enqueueStep: async (payload: StepPayload, key: string) => {
 		if (enqueuedKeys.has(key)) return; // dedup（task-already-exists 相当）
 		enqueuedKeys.add(key);
 		stepQueue.push(payload);

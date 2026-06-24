@@ -4,13 +4,12 @@ import { getPersonaModel } from '../llm/models.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
 import { formatTurns, currentDateString } from '../utils/prompt-formatters.js';
 import type {
-	DebateTurn,
 	PersonaReply,
 	BeliefChangeEvent,
 	PostDebateCommentResult,
-	Engagement,
-	TurnGenerationContext
+	Engagement
 } from '../types/debate.types.js';
+import type { DebateTurn, TurnGenerationContext } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 

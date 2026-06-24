@@ -3,13 +3,13 @@ import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { getTopicById } from '../pipeline/topics/topics.js';
 import { getChaptersByTopicId } from '../pipeline/debate/chapter.js';
 import { advanceDebate } from '../pipeline/debate/debate-orchestrator.js';
-import { enqueueTurnStep, taskKey } from '../pipeline/debate/turn-step-task.js';
+import { enqueueStep, taskKey } from '../pipeline/debate/enqueue-step.js';
 import {
 	updateDebatePhaseStatus,
 	restartDebateFromChapter
 } from '../pipeline/debate/debate-lifecycle.js';
 import { requireAuth } from '../utils/auth.js';
-import type { TurnStepPayload } from '../types/debate.types.js';
+import type { StepPayload } from '../types/step.types.js';
 
 const REGION = 'asia-northeast1';
 
@@ -21,7 +21,7 @@ const enqueueFirstOpenStep = async (
 	runId: string,
 	singleChapterMode?: boolean
 ): Promise<void> => {
-	const payload: TurnStepPayload = {
+	const payload: StepPayload = {
 		topicId,
 		chapterIndex,
 		runId,
@@ -29,7 +29,7 @@ const enqueueFirstOpenStep = async (
 		expectedTurnIndex: 0,
 		singleChapterMode
 	};
-	await enqueueTurnStep(payload, taskKey({ runId, chapterId, frontierIndex: 0 }));
+	await enqueueStep(payload, taskKey({ runId, chapterId, frontierIndex: 0 }));
 };
 
 export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
@@ -95,7 +95,7 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 
 const MAX_ATTEMPTS = 3;
 
-export const runTurnStep = onTaskDispatched(
+export const runStep = onTaskDispatched(
 	{
 		timeoutSeconds: 540,
 		region: REGION,
@@ -104,12 +104,12 @@ export const runTurnStep = onTaskDispatched(
 		rateLimits: { maxConcurrentDispatches: 5 }
 	},
 	async (req) => {
-		const payload = req.data as TurnStepPayload;
+		const payload = req.data as StepPayload;
 		try {
 			await advanceDebate(payload);
 		} catch (err) {
 			console.error(
-				'[runTurnStep] error',
+				'[runStep] error',
 				{
 					topicId: payload.topicId,
 					chapterIndex: payload.chapterIndex,

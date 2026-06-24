@@ -1,5 +1,6 @@
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import type { DebateState, DiscussionPointState } from '../../types/debate.types.js';
+import type { DebateState } from '../../types/debate.types.js';
+import type { DiscussionPointState } from '../../types/chapter.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 
 const db = () => getFirestore();

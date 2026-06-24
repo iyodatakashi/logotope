@@ -45,13 +45,11 @@ import { pipelineErrorMessage, validPersonaId } from './utils.js';
 import type {
 	SpeakerSelection,
 	DebateState,
-	DebateTurn,
 	DebateOptions,
-	TurnStepPayload,
-	StepContext,
-	TurnExecution,
 	Engagement
 } from '../../types/debate.types.js';
+import type { DebateTurn } from '../../types/turn.types.js';
+import type { StepPayload, StepContext, TurnExecution } from '../../types/step.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import { getFirestore } from 'firebase-admin/firestore';
@@ -249,10 +247,7 @@ const executeTurn = async ({
  * open ステップ: オープニング/導入のファシリテーターターンを追記する。
  * @returns 開始処理を行ったか（既に開始済み/完了で何もしなければ false）。次の turn 投入は orchestrator が行う。
  */
-export const performOpenStep = async (
-	ctx: StepContext,
-	payload: TurnStepPayload
-): Promise<boolean> => {
+export const performOpenStep = async (ctx: StepContext, payload: StepPayload): Promise<boolean> => {
 	const { chapterDoc, chapter, personas, topicTitle, state, chapterTurnStartInState } = ctx;
 	const { topicId, chapterIndex } = payload;
 
@@ -367,7 +362,7 @@ const reconcileEarlyEndCoverage = async ({
  */
 export const performTurnStep = async (
 	ctx: StepContext,
-	payload: TurnStepPayload,
+	payload: StepPayload,
 	options: DebateOptions
 ): Promise<TurnExecution> => {
 	const { chapterDoc, chapter, personas, state, chapterTurnStartInState, quietStreak } = ctx;
@@ -419,7 +414,7 @@ export const performTurnStep = async (
  */
 export const performSummaryStep = async (
 	ctx: StepContext,
-	payload: TurnStepPayload
+	payload: StepPayload
 ): Promise<boolean> => {
 	const { chapterDoc, chapter, personas, state, chapterTurnStartInState } = ctx;
 	const { topicId } = payload;
@@ -444,7 +439,7 @@ export const performSummaryStep = async (
  */
 export const performClosingStep = async (
 	ctx: StepContext,
-	payload: TurnStepPayload
+	payload: StepPayload
 ): Promise<boolean> => {
 	const { chapterDoc, personas, state, chapterTurnStartInState } = ctx;
 	const { topicId } = payload;
@@ -466,7 +461,7 @@ export const performClosingStep = async (
 /** comments ステップ: 事後コメント生成と phaseStatus 遷移（冪等・終端） */
 export const performCommentsStep = async (
 	ctx: StepContext,
-	payload: TurnStepPayload
+	payload: StepPayload
 ): Promise<boolean> => {
 	await persistPostDebateComments({
 		topicId: payload.topicId,

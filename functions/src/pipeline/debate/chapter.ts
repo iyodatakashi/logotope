@@ -1,10 +1,10 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type {
-	DebateTurn,
 	DiscussionPointState,
 	ChapterProgress,
 	ChapterEntry
-} from '../../types/debate.types.js';
+} from '../../types/chapter.types.js';
+import type { DebateTurn } from '../../types/turn.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 
 const db = () => getFirestore();

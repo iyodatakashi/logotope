@@ -2,23 +2,25 @@ import { describe, it, expect } from 'vitest';
 import type {
 	Engagement,
 	PersonaReply,
-	DebateTurn,
-	TurnGenerationContext,
+	DebateState,
+	FacilitatorReply
+} from '../../types/debate.types.js';
+import type {
 	DiscussionPointStatus,
 	DiscussionPointState,
-	DebateState,
-	FacilitatorReply,
 	ChapterForFirestore,
 	ChapterProgressStatus,
-	ChapterProgress,
+	ChapterProgress
+} from '../../types/chapter.types.js';
+import type {
+	DebateTurn,
+	TurnGenerationContext,
 	NewTurnFields,
 	ProgressPatch,
 	AppendTurnInput,
-	AppendResult,
-	TurnStepKind,
-	TurnStepPayload,
-	NextStep
-} from '../../types/debate.types.js';
+	AppendResult
+} from '../../types/turn.types.js';
+import type { StepKind, StepPayload, NextStep } from '../../types/step.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 
 describe('debate.types - questionモード型定義', () => {
@@ -263,13 +265,13 @@ describe('debate.types - ターン追記入力・結果型定義', () => {
 });
 
 describe('debate.types - ステップ・次ステップ判定型定義', () => {
-	it('TurnStepKind は5種のステップ種別を表す', () => {
-		const kinds: TurnStepKind[] = ['open', 'turn', 'summary', 'closing', 'comments'];
+	it('StepKind は5種のステップ種別を表す', () => {
+		const kinds: StepKind[] = ['open', 'turn', 'summary', 'closing', 'comments'];
 		expect(kinds).toHaveLength(5);
 	});
 
-	it('TurnStepPayload はステップ実行に必要な情報を持つ', () => {
-		const payload: TurnStepPayload = {
+	it('StepPayload はステップ実行に必要な情報を持つ', () => {
+		const payload: StepPayload = {
 			topicId: 't1',
 			chapterIndex: 0,
 			runId: 'run-1',

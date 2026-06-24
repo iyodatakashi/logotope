@@ -19,7 +19,7 @@ import { getPersonasByTopicId } from '../personas/personas.js';
 import { getDebateState } from './debate-state.js';
 import { loadChapterProgress, getChaptersByTopicId, getDebateTurnsByTopicId } from './chapter.js';
 import { isDebateActive } from './debate-lifecycle.js';
-import { enqueueTurnStep, taskKey } from './turn-step-task.js';
+import { enqueueStep, taskKey } from './enqueue-step.js';
 import {
 	QUIET_STREAK_LIMIT,
 	EARLY_END_PROGRESS_RATIO,
@@ -37,14 +37,10 @@ import {
 	performClosingStep,
 	performCommentsStep
 } from './step.js';
-import type {
-	DebateTurn,
-	DebateOptions,
-	DiscussionPointState,
-	NextStep,
-	TurnStepPayload,
-	StepContext
-} from '../../types/debate.types.js';
+import type { DebateOptions } from '../../types/debate.types.js';
+import type { DiscussionPointState } from '../../types/chapter.types.js';
+import type { DebateTurn } from '../../types/turn.types.js';
+import type { NextStep, StepPayload, StepContext } from '../../types/step.types.js';
 
 export const DEFAULT_OPTIONS: DebateOptions = {
 	turnsPerChapter: TURNS_PER_CHAPTER,
@@ -123,13 +119,13 @@ const getTopicContext = async (topicId: string) => {
 };
 
 /** 既定オプションにペイロード由来の単章モードを重ねた実行オプションを作る */
-const buildStepOptions = (payload: TurnStepPayload): DebateOptions => ({
+const buildStepOptions = (payload: StepPayload): DebateOptions => ({
 	...DEFAULT_OPTIONS,
 	singleChapterMode: payload.singleChapterMode
 });
 
 /** ステップ起動時に永続データのみから状態と章進捗を再構築する */
-const loadStepContext = async (payload: TurnStepPayload): Promise<StepContext> => {
+const loadStepContext = async (payload: StepPayload): Promise<StepContext> => {
 	const { topicId, chapterIndex, runId, singleChapterMode } = payload;
 	const chapters = await getChaptersByTopicId(topicId);
 	if (!chapters.length) throw new Error('Chapters not found');
@@ -164,27 +160,27 @@ const loadStepContext = async (payload: TurnStepPayload): Promise<StepContext> =
  * (runId, chapterId, frontier) から決まる決定的なタスクキーで重複投入を防ぐ（同じ frontier への
  * 二重起動は ALREADY_EXISTS で弾かれる）。comments ステップだけは frontier を 'comments' 固定にする。
  */
-const enqueueStep = async (
-	payload: TurnStepPayload,
+const enqueueNextStep = async (
+	payload: StepPayload,
 	chapterId: string,
-	override: Partial<TurnStepPayload>
+	override: Partial<StepPayload>
 ): Promise<void> => {
-	const next: TurnStepPayload = { ...payload, ...override };
+	const next: StepPayload = { ...payload, ...override };
 	const frontier: number | 'comments' =
 		next.stepKind === 'comments' ? 'comments' : next.expectedTurnIndex;
-	await enqueueTurnStep(next, taskKey({ runId: next.runId, chapterId, frontierIndex: frontier }));
+	await enqueueStep(next, taskKey({ runId: next.runId, chapterId, frontierIndex: frontier }));
 };
 
 /** open 完了後の最初の turn を、handler が更新した state から算出した章ローカル位置へ投入する */
-const enqueueFirstTurn = async (ctx: StepContext, payload: TurnStepPayload): Promise<void> => {
+const enqueueFirstTurn = async (ctx: StepContext, payload: StepPayload): Promise<void> => {
 	const idx = ctx.state.turns.length - ctx.chapterTurnStartInState;
-	await enqueueStep(payload, ctx.chapterDoc.id, { stepKind: 'turn', expectedTurnIndex: idx });
+	await enqueueNextStep(payload, ctx.chapterDoc.id, { stepKind: 'turn', expectedTurnIndex: idx });
 };
 
 /** ターン後の次ステップ（turn/summary/closing）を最新状態の decideNextStep から投入する */
 const enqueueAfterTurn = async (
 	ctx: StepContext,
-	payload: TurnStepPayload,
+	payload: StepPayload,
 	quietStreak: number
 ): Promise<void> => {
 	if (ctx.chapterDoc.status === 'completed') return;
@@ -198,7 +194,7 @@ const enqueueAfterTurn = async (
 		isLastChapter: ctx.isLastChapter
 	});
 	if (next.kind === 'none') return;
-	await enqueueStep(payload, ctx.chapterDoc.id, {
+	await enqueueNextStep(payload, ctx.chapterDoc.id, {
 		stepKind: next.kind,
 		expectedTurnIndex: 'expectedTurnIndex' in next ? next.expectedTurnIndex : 0,
 		finalResponse: next.kind === 'turn' ? next.finalResponse : undefined
@@ -206,9 +202,9 @@ const enqueueAfterTurn = async (
 };
 
 /** 章末（最終応答ターンの直後）に summary（非最終章）/ closing（最終章）を現在の章ローカル位置へ投入する */
-const enqueueChapterEnd = async (ctx: StepContext, payload: TurnStepPayload): Promise<void> => {
+const enqueueChapterEnd = async (ctx: StepContext, payload: StepPayload): Promise<void> => {
 	const idx = ctx.state.turns.length - ctx.chapterTurnStartInState;
-	await enqueueStep(payload, ctx.chapterDoc.id, {
+	await enqueueNextStep(payload, ctx.chapterDoc.id, {
 		stepKind: ctx.isLastChapter ? 'closing' : 'summary',
 		expectedTurnIndex: idx,
 		finalResponse: undefined
@@ -216,7 +212,7 @@ const enqueueChapterEnd = async (ctx: StepContext, payload: TurnStepPayload): Pr
 };
 
 /** rejected/競合時に最新の永続状態から次ステップを再導出して投入する（liveness 保証） */
-const resumeFromFresh = async (payload: TurnStepPayload): Promise<void> => {
+const resumeFromFresh = async (payload: StepPayload): Promise<void> => {
 	const ctx = await loadStepContext(payload);
 	await enqueueAfterTurn(ctx, payload, ctx.quietStreak);
 };
@@ -224,7 +220,7 @@ const resumeFromFresh = async (payload: TurnStepPayload): Promise<void> => {
 /** turn を dispatch し、実行結果と payload.finalResponse から次ステップを投入する */
 const advanceTurn = async (
 	ctx: StepContext,
-	payload: TurnStepPayload,
+	payload: StepPayload,
 	options: DebateOptions
 ): Promise<boolean> => {
 	const exec = await performTurnStep(ctx, payload, options);
@@ -249,7 +245,7 @@ const advanceTurn = async (
  * frontier の唯一勝者だけがターンを生成し、敗者・リトライは resume でチェーンを途切れさせない。
  * @returns 生成・追記したか（観測用）。停止/resume/rejected は false。
  */
-export const advanceDebate = async (payload: TurnStepPayload): Promise<boolean> => {
+export const advanceDebate = async (payload: StepPayload): Promise<boolean> => {
 	if (!(await isDebateActive(payload.topicId))) return false;
 	const ctx = await loadStepContext(payload);
 	const options = buildStepOptions(payload);
@@ -266,7 +262,7 @@ export const advanceDebate = async (payload: TurnStepPayload): Promise<boolean> 
 			const committed = await performSummaryStep(ctx, payload);
 			const nextChapter = ctx.chapters[payload.chapterIndex + 1];
 			if (nextChapter) {
-				await enqueueStep(payload, nextChapter.id, {
+				await enqueueNextStep(payload, nextChapter.id, {
 					chapterIndex: payload.chapterIndex + 1,
 					stepKind: 'open',
 					expectedTurnIndex: 0
@@ -276,7 +272,7 @@ export const advanceDebate = async (payload: TurnStepPayload): Promise<boolean> 
 		}
 		case 'closing': {
 			const committed = await performClosingStep(ctx, payload);
-			await enqueueStep(payload, ctx.chapterDoc.id, {
+			await enqueueNextStep(payload, ctx.chapterDoc.id, {
 				stepKind: 'comments',
 				expectedTurnIndex: -1
 			});

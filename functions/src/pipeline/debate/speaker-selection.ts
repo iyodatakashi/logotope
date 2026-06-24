@@ -2,9 +2,9 @@ import type {
 	SpeakerSelection,
 	Engagement,
 	QueuedIntent,
-	DebateState,
-	DebateTurn
+	DebateState
 } from '../../types/debate.types.js';
+import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import {
 	QUEUE_THRESHOLD_SCORE,

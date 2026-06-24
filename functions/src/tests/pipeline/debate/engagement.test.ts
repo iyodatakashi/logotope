@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Persona } from '../../../types/persona.types.js';
-import type { DebateState, DebateTurn } from '../../../types/debate.types.js';
+import type { DebateState } from '../../../types/debate.types.js';
+import type { DebateTurn } from '../../../types/turn.types.js';
 
 const mockUpdate = vi.fn().mockResolvedValue(undefined);
 const mockSet = vi.fn().mockResolvedValue(undefined);

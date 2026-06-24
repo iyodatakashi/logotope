@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { DebateTurn, DebateState } from '../../../types/debate.types.js';
+import type { DebateState } from '../../../types/debate.types.js';
+import type { DebateTurn } from '../../../types/turn.types.js';
 
 const mockUpdate = vi.fn().mockResolvedValue(undefined);
 const mockDoc = vi.fn().mockReturnValue({ update: mockUpdate });
@@ -204,7 +205,8 @@ vi.mock('../../../pipeline/debate/utils.js', () => ({
 	validPersonaId: vi.fn((_id: string | undefined, _personas: unknown[]) => _id)
 }));
 
-import type { Persona, Engagement } from '../../../types/debate.types.js';
+import type { Engagement } from '../../../types/debate.types.js';
+import type { Persona } from '../../../types/persona.types.js';
 import type { Chapter } from '../../../types/chapter.types.js';
 
 const mockPersonas: Persona[] = [{ id: 'p1', name: 'テスト' } as Persona];

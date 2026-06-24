@@ -10,13 +10,15 @@ import type {
 	SpeakerSelection,
 	QueuedIntent,
 	BeliefChangeEvent,
-	Engagement,
+	Engagement
+} from '../../types/debate.types.js';
+import type {
 	DebateTurn,
 	AppendTurnInput,
 	AppendResult,
 	NewTurnFields,
 	ProgressPatch
-} from '../../types/debate.types.js';
+} from '../../types/turn.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 

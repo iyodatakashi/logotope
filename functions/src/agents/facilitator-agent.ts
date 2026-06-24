@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic';
 import { AI_MODELS } from '../constants/ai.constants.js';
 import { formatTurns, formatPersonas, currentDateString } from '../utils/prompt-formatters.js';
-import type { DebateTurn } from '../types/debate.types.js';
+import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { FacilitatorReply } from '../types/debate.types.js';
 import type { Chapter } from '../types/chapter.types.js';

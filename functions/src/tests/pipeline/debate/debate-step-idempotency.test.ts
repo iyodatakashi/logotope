@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createFirestoreMock } from '../../helpers/firestore-mock.js';
-import type { TurnStepPayload } from '../../../types/debate.types.js';
+import type { StepPayload } from '../../../types/step.types.js';
 
 const { holder } = vi.hoisted(() => ({
 	holder: {
@@ -66,13 +66,13 @@ vi.mock('../../../pipeline/personas/personas.js', () => ({
 	])
 }));
 
-const stepQueue: TurnStepPayload[] = [];
+const stepQueue: StepPayload[] = [];
 const enqueuedKeys = new Set<string>();
-vi.mock('../../../pipeline/debate/turn-step-task.js', () => ({
+vi.mock('../../../pipeline/debate/enqueue-step.js', () => ({
 	taskKey: (p: { runId: string; chapterId: string; frontierIndex: number | 'comments' }) =>
 		`${p.runId}:${p.chapterId}:${p.frontierIndex}`,
 	hashTaskId: (k: string) => k,
-	enqueueTurnStep: async (payload: TurnStepPayload, key: string) => {
+	enqueueStep: async (payload: StepPayload, key: string) => {
 		if (enqueuedKeys.has(key)) return;
 		enqueuedKeys.add(key);
 		stepQueue.push(payload);
@@ -109,7 +109,7 @@ const chapterTurns = (): Array<Record<string, unknown>> =>
 		Record<string, unknown>
 	>;
 
-const turnPayload = (expectedTurnIndex: number): TurnStepPayload => ({
+const turnPayload = (expectedTurnIndex: number): StepPayload => ({
 	topicId: TOPIC_ID,
 	chapterIndex: 0,
 	runId: RUN_ID,
@@ -154,7 +154,7 @@ describe('liveness: 追記コミット済みだが次 enqueue 前にクラッシ
 });
 
 describe('終端冪等: comments ステップ', () => {
-	const commentsPayload: TurnStepPayload = {
+	const commentsPayload: StepPayload = {
 		topicId: TOPIC_ID,
 		chapterIndex: 0,
 		runId: RUN_ID,

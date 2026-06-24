@@ -4,11 +4,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import { decideNextStep } from '../../../pipeline/debate/debate-orchestrator.js';
-import type {
-	DebateTurn,
-	DebateOptions,
-	DiscussionPointState
-} from '../../../types/debate.types.js';
+import type { DebateOptions } from '../../../types/debate.types.js';
+import type { DiscussionPointState } from '../../../types/chapter.types.js';
+import type { DebateTurn } from '../../../types/turn.types.js';
 
 const options: DebateOptions = { turnsPerChapter: 15, maxTurns: 200, interventionCooldown: 3 };
 

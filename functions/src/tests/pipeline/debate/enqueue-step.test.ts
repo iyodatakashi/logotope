@@ -1,9 +1,9 @@
 /**
- * enqueueTurnStep: deterministic task id によるステップ enqueue の冪等化を検証する。
+ * enqueueStep: deterministic task id によるステップ enqueue の冪等化を検証する。
  * 同一 (runId, chapterId, frontierIndex) は同一 id になり、task-already-exists は成功扱いになる。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { TurnStepPayload } from '../../../types/debate.types.js';
+import type { StepPayload } from '../../../types/step.types.js';
 
 const mockEnqueue = vi.fn().mockResolvedValue(undefined);
 const mockTaskQueue = vi.fn(() => ({ enqueue: mockEnqueue }));
@@ -11,9 +11,9 @@ vi.mock('firebase-admin/functions', () => ({
 	getFunctions: vi.fn(() => ({ taskQueue: mockTaskQueue }))
 }));
 
-import { taskKey, hashTaskId, enqueueTurnStep } from '../../../pipeline/debate/turn-step-task.js';
+import { taskKey, hashTaskId, enqueueStep } from '../../../pipeline/debate/enqueue-step.js';
 
-const payload: TurnStepPayload = {
+const payload: StepPayload = {
 	topicId: 't1',
 	chapterIndex: 0,
 	runId: 'run-A',
@@ -54,7 +54,7 @@ describe('hashTaskId', () => {
 	});
 });
 
-describe('enqueueTurnStep', () => {
+describe('enqueueStep', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockEnqueue.mockResolvedValue(undefined);
@@ -62,7 +62,7 @@ describe('enqueueTurnStep', () => {
 
 	it('deterministic id（hashTaskId）を指定して enqueue する', async () => {
 		const key = taskKey({ runId: 'run-A', chapterId: 'ch1', frontierIndex: 3 });
-		await enqueueTurnStep(payload, key);
+		await enqueueStep(payload, key);
 		expect(mockEnqueue).toHaveBeenCalledWith(
 			payload,
 			expect.objectContaining({ id: hashTaskId(key) })
@@ -71,16 +71,16 @@ describe('enqueueTurnStep', () => {
 
 	it('task-already-exists（重複）は成功扱いにして throw しない', async () => {
 		mockEnqueue.mockRejectedValueOnce({ code: 'functions/task-already-exists' });
-		await expect(enqueueTurnStep(payload, 'k')).resolves.toBeUndefined();
+		await expect(enqueueStep(payload, 'k')).resolves.toBeUndefined();
 	});
 
 	it('ALREADY_EXISTS メッセージのエラーも成功扱いにする', async () => {
 		mockEnqueue.mockRejectedValueOnce(new Error('Requested entity already exists'));
-		await expect(enqueueTurnStep(payload, 'k')).resolves.toBeUndefined();
+		await expect(enqueueStep(payload, 'k')).resolves.toBeUndefined();
 	});
 
 	it('その他のエラーは throw する', async () => {
 		mockEnqueue.mockRejectedValueOnce(new Error('network failure'));
-		await expect(enqueueTurnStep(payload, 'k')).rejects.toThrow('network failure');
+		await expect(enqueueStep(payload, 'k')).rejects.toThrow('network failure');
 	});
 });

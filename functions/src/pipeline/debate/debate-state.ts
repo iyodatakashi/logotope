@@ -1,4 +1,5 @@
-import type { DebateTurn, QueuedIntent, DebateState } from '../../types/debate.types.js';
+import type { QueuedIntent, DebateState } from '../../types/debate.types.js';
+import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/debate.constants.js';
 

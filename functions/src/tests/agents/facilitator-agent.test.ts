@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { DebateTurn } from '../../types/debate.types.js';
+import type { DebateTurn } from '../../types/turn.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 

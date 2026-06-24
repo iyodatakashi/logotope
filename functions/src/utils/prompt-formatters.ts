@@ -1,4 +1,4 @@
-import type { DebateTurn } from '../types/debate.types.js';
+import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
 
 export const currentDateString = (): string => {

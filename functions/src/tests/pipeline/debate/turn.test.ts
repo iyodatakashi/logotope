@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Persona } from '../../../types/persona.types.js';
-import type { Engagement, SpeakerSelection, AppendTurnInput } from '../../../types/debate.types.js';
+import type { Engagement, SpeakerSelection } from '../../../types/debate.types.js';
+import type { AppendTurnInput } from '../../../types/turn.types.js';
 import type { Chapter } from '../../../types/chapter.types.js';
 
 // 非トランザクション get（isDebateActive 等）と書き込み

@@ -1,11 +1,8 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { evaluateEngagement } from '../../agents/persona-agent.js';
-import type {
-	Engagement,
-	DebateState,
-	DebateTurn,
-	ChapterEntry
-} from '../../types/debate.types.js';
+import type { Engagement, DebateState } from '../../types/debate.types.js';
+import type { ChapterEntry } from '../../types/chapter.types.js';
+import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
 const db = () => getFirestore();

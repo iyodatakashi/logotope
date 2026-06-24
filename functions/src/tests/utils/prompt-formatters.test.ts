@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { formatTurns } from '../../utils/prompt-formatters.js';
-import type { DebateTurn } from '../../types/debate.types.js';
+import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
 const makePersona = (

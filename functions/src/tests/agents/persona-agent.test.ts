@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Persona } from '../../types/persona.types.js';
-import type { DebateTurn, Engagement, TurnGenerationContext } from '../../types/debate.types.js';
+import type { Engagement } from '../../types/debate.types.js';
+import type { DebateTurn, TurnGenerationContext } from '../../types/turn.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 
 vi.mock('ai', () => ({

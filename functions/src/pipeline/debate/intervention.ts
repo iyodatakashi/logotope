@@ -4,13 +4,8 @@ import { hasHighEngagement } from './speaker-selection.js';
 import { addQueuedIntents } from './queued-intents.js';
 import { addTurn } from './turn.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
-import type {
-	DebateState,
-	SpeakerSelection,
-	Engagement,
-	DebateTurn,
-	ProgressPatch
-} from '../../types/debate.types.js';
+import type { DebateState, SpeakerSelection, Engagement } from '../../types/debate.types.js';
+import type { DebateTurn, ProgressPatch } from '../../types/turn.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 

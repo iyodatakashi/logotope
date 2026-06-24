@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { getFunctions } from 'firebase-admin/functions';
-import type { TurnStepPayload } from '../../types/debate.types.js';
+import type { StepPayload } from '../../types/step.types.js';
 
 const REGION = 'asia-northeast1';
 
@@ -35,8 +35,8 @@ const isTaskAlreadyExists = (err: unknown): boolean => {
  * 同一 id のタスクが既存/最近実行済みなら task-already-exists を catch して成功扱いにし、
  * resume の多重投入を1本へ収束させる。
  */
-export const enqueueTurnStep = async (payload: TurnStepPayload, key: string): Promise<void> => {
-	const queue = getFunctions().taskQueue(`locations/${REGION}/functions/runTurnStep`);
+export const enqueueStep = async (payload: StepPayload, key: string): Promise<void> => {
+	const queue = getFunctions().taskQueue(`locations/${REGION}/functions/runStep`);
 	try {
 		await queue.enqueue(payload, { id: hashTaskId(key), scheduleDelaySeconds: 0 });
 	} catch (err) {
