@@ -58,3 +58,21 @@ export const applyBeliefChange = async ({
 		}
 	];
 };
+
+/** 破棄したターンに紐づく belief を各ペルソナからまとめて巻き戻す（restart 固有のバルク操作） */
+export const rollbackBeliefsForRemovedTurns = async (
+	topicId: string,
+	removedTurnIds: Set<string>
+): Promise<void> => {
+	const personasSnap = await db().collection(`topics/${topicId}/personas`).get();
+	for (const personaSnap of personasSnap.docs) {
+		const pdata = personaSnap.data() as { beliefs?: Array<{ triggeredByTurnId?: string | null }> };
+		const beliefs = pdata.beliefs ?? [];
+		const filtered = beliefs.filter(
+			(b) => !(b.triggeredByTurnId && removedTurnIds.has(b.triggeredByTurnId))
+		);
+		if (filtered.length !== beliefs.length) {
+			await personaSnap.ref.update({ beliefs: filtered });
+		}
+	}
+};

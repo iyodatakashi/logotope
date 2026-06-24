@@ -1,6 +1,11 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { evaluateEngagement } from '../../agents/persona-agent.js';
-import type { Engagement, DebateState, DebateTurn } from '../../types/debate.types.js';
+import type {
+	Engagement,
+	DebateState,
+	DebateTurn,
+	ChapterEntry
+} from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
 const db = () => getFirestore();
@@ -89,4 +94,19 @@ export const evaluateEngagementWithFallback = async ({
 	if (!persona) return { personaId, mode: 'opinion' as const, score: 2 };
 	const otherPersonaNames = personas.filter((p) => p.id !== personaId).map((p) => p.name);
 	return evaluateEngagement(persona, [...chapterTurns], otherPersonaNames, personas);
+};
+
+/** 破棄した各章の engagements サブコレクションを削除する */
+export const deleteChapterEngagements = async (
+	topicId: string,
+	chapters: ChapterEntry[]
+): Promise<void> => {
+	for (const chapter of chapters) {
+		const engSnap = await db()
+			.collection(`topics/${topicId}/chapters/${chapter.id}/engagements`)
+			.get();
+		for (const engDoc of engSnap.docs) {
+			await engDoc.ref.delete();
+		}
+	}
 };

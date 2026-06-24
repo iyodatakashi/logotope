@@ -1,4 +1,4 @@
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type {
 	DebateTurn,
 	QueuedIntent,
@@ -191,4 +191,23 @@ export const updateSpeakerStats = ({
 	}
 	state.speakCount.set(personaId, (state.speakCount.get(personaId) ?? 0) + 1);
 	state.lastSpeakerId = personaId;
+};
+
+/** 指定章以降を破棄対象として turns/進捗/status をリセットし、破棄した章を返す */
+export const discardChaptersFrom = async (
+	topicId: string,
+	chapterId: string
+): Promise<ChapterEntry[]> => {
+	const chapters = await getChaptersByTopicId(topicId);
+	const targetIdx = chapters.findIndex((c) => c.id === chapterId);
+	const discardChapters = chapters.slice(targetIdx >= 0 ? targetIdx : 0);
+	for (const chapter of discardChapters) {
+		await db().doc(`topics/${topicId}/chapters/${chapter.id}`).update({
+			turns: [],
+			discussionPointStatuses: FieldValue.delete(),
+			quietStreak: FieldValue.delete(),
+			status: 'pending'
+		});
+	}
+	return discardChapters;
 };

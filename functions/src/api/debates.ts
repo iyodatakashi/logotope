@@ -4,11 +4,7 @@ import { getTopicById } from '../pipeline/topics/topics.js';
 import { getChaptersByTopicId } from '../pipeline/debate/debate-state.js';
 import { advanceDebate } from '../pipeline/debate/debate-orchestrator.js';
 import { enqueueTurnStep, taskKey } from '../pipeline/debate/turn-step-task.js';
-import {
-	activateDebate,
-	markDebateStopped,
-	restartChapter
-} from '../pipeline/debate/debate-lifecycle.js';
+import { updateDebatePhaseStatus, restartChapter } from '../pipeline/debate/debate-lifecycle.js';
 import { requireAuth } from '../utils/auth.js';
 import type { TurnStepPayload } from '../types/debate.types.js';
 
@@ -48,7 +44,7 @@ export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 		const firstChapter = chapters[0];
 		if (!firstChapter) throw new HttpsError('not-found', 'No chapter to start');
 
-		const runId = await activateDebate(topicId);
+		const runId = await updateDebatePhaseStatus(topicId, 'running');
 		await enqueueFirstOpenStep(topicId, 0, firstChapter.id, runId, singleChapterMode);
 
 		return { topicId };
@@ -121,7 +117,7 @@ export const runTurnStep = onTaskDispatched(
 				err
 			);
 			if ((req.retryCount ?? 0) >= MAX_ATTEMPTS - 1) {
-				await markDebateStopped(payload.topicId);
+				await updateDebatePhaseStatus(payload.topicId, 'stopped');
 			}
 			throw err;
 		}
