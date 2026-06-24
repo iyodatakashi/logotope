@@ -4,7 +4,10 @@ import { getTopicById } from '../pipeline/topics/topics.js';
 import { getChaptersByTopicId } from '../pipeline/debate/chapter.js';
 import { advanceDebate } from '../pipeline/debate/debate-orchestrator.js';
 import { enqueueTurnStep, taskKey } from '../pipeline/debate/turn-step-task.js';
-import { updateDebatePhaseStatus, restartChapter } from '../pipeline/debate/debate-lifecycle.js';
+import {
+	updateDebatePhaseStatus,
+	restartDebateFromChapter
+} from '../pipeline/debate/debate-lifecycle.js';
 import { requireAuth } from '../utils/auth.js';
 import type { TurnStepPayload } from '../types/debate.types.js';
 
@@ -72,7 +75,7 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 		const resumeChapter = runningChapter ?? chapters.find((c) => c.status === 'pending');
 		if (!resumeChapter) throw new HttpsError('not-found', 'No chapter to restart');
 
-		const runId = await restartChapter(topicId, resumeChapter.id);
+		const runId = await restartDebateFromChapter(topicId, resumeChapter.id);
 		await enqueueFirstOpenStep(
 			topicId,
 			resumeChapter.chapterIndex,

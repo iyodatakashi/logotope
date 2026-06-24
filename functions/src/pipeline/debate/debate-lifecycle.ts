@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import { discardChaptersFrom } from './chapter.js';
 import { rollbackBeliefsForRemovedTurns } from './belief.js';
 import { deleteChapterEngagements } from './engagement.js';
+import { clearPostDebateComments } from './post-debate-comments.js';
 
 const db = () => getFirestore();
 
@@ -29,11 +30,14 @@ export const isDebateActive = async (topicId: string): Promise<boolean> => {
 	return data.phase === 5 && data.phaseStatus === 'running';
 };
 
-export const restartChapter = async (topicId: string, chapterId: string): Promise<string> => {
+export const restartDebateFromChapter = async (
+	topicId: string,
+	chapterId: string
+): Promise<string> => {
 	const discardChapters = await discardChaptersFrom(topicId, chapterId);
 	const removedTurnIds = new Set(discardChapters.flatMap((c) => c.turns).map((t) => t.id));
 
-	await db().doc(`topics/${topicId}/postDebateComments/0`).set({ comments: [] });
+	await clearPostDebateComments(topicId);
 
 	await rollbackBeliefsForRemovedTurns(topicId, removedTurnIds);
 	await deleteChapterEngagements(topicId, discardChapters);

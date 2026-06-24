@@ -32,7 +32,7 @@ vi.mock('firebase-admin/firestore', () => ({
 	}
 }));
 
-import { restartChapter } from '../../../pipeline/debate/debate-lifecycle.js';
+import { restartDebateFromChapter } from '../../../pipeline/debate/debate-lifecycle.js';
 
 const makeChapterDoc = (id: string, turns: { id: string }[] = []) => ({
 	id,
@@ -51,7 +51,7 @@ const makeEngagementDoc = (id: string) => ({
 	data: () => ({ history: {}, queuedIntents: [] })
 });
 
-describe('restartChapter - チャプタースコープ engagements 削除', () => {
+describe('restartDebateFromChapter - チャプタースコープ engagements 削除', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockPersonasGet.mockResolvedValue({ docs: [] });
@@ -63,7 +63,7 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 		});
 		mockEngagementsGet.mockResolvedValue({ docs: [] });
 
-		await restartChapter('topic1', 'ch1');
+		await restartDebateFromChapter('topic1', 'ch1');
 
 		const engagementPaths = mockCollection.mock.calls
 			.map((c: string[]) => c[0])
@@ -82,7 +82,7 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 			docs: [makeEngagementDoc('persona1'), makeEngagementDoc('persona2')]
 		});
 
-		await restartChapter('topic1', 'ch1');
+		await restartDebateFromChapter('topic1', 'ch1');
 
 		expect(mockDelete).toHaveBeenCalledTimes(2);
 	});
@@ -93,7 +93,7 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 		});
 		mockEngagementsGet.mockResolvedValue({ docs: [] });
 
-		await restartChapter('topic1', 'ch1');
+		await restartDebateFromChapter('topic1', 'ch1');
 
 		expect(mockDelete).not.toHaveBeenCalled();
 	});
@@ -104,7 +104,7 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 		});
 		mockEngagementsGet.mockResolvedValue({ docs: [] });
 
-		await restartChapter('topic1', 'ch1');
+		await restartDebateFromChapter('topic1', 'ch1');
 
 		const allCollectionPaths = mockCollection.mock.calls.map((c: string[]) => c[0]);
 		expect(allCollectionPaths).not.toContain('topics/topic1/engagements');
@@ -116,7 +116,7 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 		});
 		mockEngagementsGet.mockResolvedValue({ docs: [] });
 
-		await restartChapter('topic1', 'ch1');
+		await restartDebateFromChapter('topic1', 'ch1');
 
 		const chapterResetUpdate = mockUpdate.mock.calls.find(
 			(c: unknown[]) => (c[0] as { turns?: unknown }).turns !== undefined
@@ -135,10 +135,10 @@ describe('restartChapter - チャプタースコープ engagements 削除', () =
 				makeChapterDoc('ch3', [{ id: 't3' }])
 			]
 		});
-		// ch2 以降を廃棄（ch2 から restartChapter）
+		// ch2 以降を廃棄（ch2 から restartDebateFromChapter）
 		mockEngagementsGet.mockResolvedValue({ docs: [makeEngagementDoc('p1')] });
 
-		await restartChapter('topic1', 'ch2');
+		await restartDebateFromChapter('topic1', 'ch2');
 
 		const engagementPaths = mockCollection.mock.calls
 			.map((c: string[]) => c[0])

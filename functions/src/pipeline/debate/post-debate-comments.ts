@@ -53,3 +53,8 @@ export const persistPostDebateComments = async ({
 		tx.update(ref, { phaseStatus: 'generated', updatedAt: Timestamp.now() });
 	});
 };
+
+/** 事後コメントを空にリセットする（restart 時の後始末） */
+export const clearPostDebateComments = async (topicId: string): Promise<void> => {
+	await db().doc(`topics/${topicId}/postDebateComments/0`).set({ comments: [] });
+};
