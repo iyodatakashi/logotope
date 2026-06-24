@@ -1,9 +1,8 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
-import { discardChaptersFrom } from './debate-state.js';
+import { discardChaptersFrom } from './chapter.js';
 import { rollbackBeliefsForRemovedTurns } from './belief.js';
 import { deleteChapterEngagements } from './engagement.js';
-import type { ChapterEntry } from '../../types/debate.types.js';
 
 const db = () => getFirestore();
 
@@ -22,13 +21,12 @@ export const updateDebatePhaseStatus = async (
 	return runId;
 };
 
-/** 章のステータス（running / completed など）を更新する */
-export const updateChapterStatus = async (
-	topicId: string,
-	chapterId: string,
-	status: ChapterEntry['status']
-): Promise<void> => {
-	await db().doc(`topics/${topicId}/chapters/${chapterId}`).update({ status });
+/** 討論が稼働中（phase 5 かつ phaseStatus running）かを判定する */
+export const isDebateActive = async (topicId: string): Promise<boolean> => {
+	const snap = await db().doc(`topics/${topicId}`).get();
+	if (!snap.exists) return false;
+	const data = snap.data() as { phase?: number; phaseStatus?: string };
+	return data.phase === 5 && data.phaseStatus === 'running';
 };
 
 export const restartChapter = async (topicId: string, chapterId: string): Promise<string> => {

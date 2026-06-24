@@ -16,13 +16,9 @@
  */
 import { getTopicById } from '../topics/topics.js';
 import { getPersonasByTopicId } from '../personas/personas.js';
-import {
-	getDebateState,
-	loadChapterProgress,
-	getChaptersByTopicId,
-	getDebateTurnsByTopicId,
-	isDebateActive
-} from './debate-state.js';
+import { getDebateState } from './debate-state.js';
+import { loadChapterProgress, getChaptersByTopicId, getDebateTurnsByTopicId } from './chapter.js';
+import { isDebateActive } from './debate-lifecycle.js';
 import { enqueueTurnStep, taskKey } from './turn-step-task.js';
 import {
 	QUIET_STREAK_LIMIT,

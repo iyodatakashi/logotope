@@ -11,7 +11,7 @@ vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: vi.fn(() => ({ doc: mockDoc }))
 }));
 
-import { loadChapterProgress } from '../../../pipeline/debate/debate-state.js';
+import { loadChapterProgress } from '../../../pipeline/debate/chapter.js';
 
 const makeChapter = (discussionPoints: string[] = []): Chapter => ({
 	id: 'ch1',

@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid';
 import { generateTurn } from '../../agents/persona-agent.js';
 import { generateChapterSummary, generateClosing } from '../../agents/facilitator-agent.js';
 import { getLatestBelief } from './belief.js';
-import { isDebateActive } from './debate-state.js';
+import { isDebateActive } from './debate-lifecycle.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
 import type {
 	DebateState,

@@ -10,7 +10,7 @@
  * handler は受け取った ctx・options のみで実行し、ctx.state を破壊的に更新する。
  * その更新後の状態を基に orchestrator が次ステップを enqueue する（frontier 算出も orchestrator 側）。
  */
-import { updateChapterStatus } from './debate-lifecycle.js';
+import { updateChapterStatus } from './chapter.js';
 import {
 	generateOpening,
 	generateChapterIntroduction,
