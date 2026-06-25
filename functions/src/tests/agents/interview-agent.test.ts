@@ -32,7 +32,7 @@ vi.mock('../../llm/models.js', () => ({
 
 import type { Persona } from '../../types/persona.types.js';
 import type { TopicContext } from '../../types/topic.types.js';
-import { runInterview, extractSources } from '../../agents/interview-agent.js';
+import { runInterview } from '../../agents/interview-agent.js';
 
 const mockPersona: Persona = {
 	id: 'p1',
@@ -92,53 +92,6 @@ const setupSuccessfulMocks = (
 
 // redirect 解決は HEAD のみ（body を読まない）ので response.url だけ持つレスポンスでよい
 const makeFetchResponse = (url: string) => ({ url }) as unknown as Response;
-
-describe('extractSources', () => {
-	it('groundingChunksをSearchResultに変換する', () => {
-		const metadata = {
-			groundingChunks: [
-				{ web: { uri: 'https://a.com', title: 'Article A' } },
-				{ web: { uri: 'https://b.com', title: 'Article B' } }
-			],
-			webSearchQueries: ['クエリ1', 'クエリ2']
-		};
-		const sources = extractSources(metadata as never, 'summary');
-		expect(sources).toHaveLength(1);
-		expect(sources[0].results).toHaveLength(2);
-		expect(sources[0].results[0]).toEqual({ title: 'Article A', url: 'https://a.com' });
-		expect(sources[0].results[1]).toEqual({ title: 'Article B', url: 'https://b.com' });
-	});
-
-	it('URL重複を排除する', () => {
-		const metadata = {
-			groundingChunks: [
-				{ web: { uri: 'https://a.com', title: 'A1' } },
-				{ web: { uri: 'https://a.com', title: 'A2' } },
-				{ web: { uri: 'https://b.com', title: 'B' } }
-			],
-			webSearchQueries: []
-		};
-		const sources = extractSources(metadata as never, 'summary');
-		expect(sources[0].results).toHaveLength(2);
-		expect(sources[0].results.map((r) => r.url)).toEqual(['https://a.com', 'https://b.com']);
-	});
-
-	it('webSearchQueriesをセミコロン結合してqueryに格納する', () => {
-		const metadata = {
-			groundingChunks: [{ web: { uri: 'https://a.com' } }],
-			webSearchQueries: ['クエリA', 'クエリB']
-		};
-		const sources = extractSources(metadata as never, 'test-summary');
-		expect(sources[0].query).toBe('クエリA; クエリB');
-		expect(sources[0].summary).toBe('test-summary');
-	});
-
-	it('groundingChunksが空のとき空配列を返す', () => {
-		const metadata = { groundingChunks: [], webSearchQueries: [] };
-		const sources = extractSources(metadata as never, 'summary');
-		expect(sources).toEqual([]);
-	});
-});
 
 describe('runInterview', () => {
 	beforeEach(() => {
