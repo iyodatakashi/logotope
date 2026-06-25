@@ -1,4 +1,5 @@
 import { generateText, generateObject } from 'ai';
+import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { getPipelineModel, getGoogleProvider } from '../../llm/models.js';
 import { PIPELINE_MODELS } from '../../constants/ai.constants.js';
@@ -150,7 +151,7 @@ export const checkTurn = async (
 
 		const speakerType = turn.speakerType === 'facilitator' ? 'facilitator' : 'persona';
 		const findings: FactCheckFinding[] = [];
-		phase2.object.findings.forEach((f, i) => {
+		phase2.object.findings.forEach((f) => {
 			// claim は当該発言本文の部分文字列であることを照合（ハルシネーション引用を破棄）
 			if (!turn.content.includes(f.claim)) return;
 			const sources = f.sourceIndices
@@ -159,7 +160,7 @@ export const checkTurn = async (
 			// 出典が得られない主張は検証不能とする（3.4, 3.6）
 			const verdict = sources.length === 0 ? 'unverifiable' : f.verdict;
 			findings.push({
-				id: `${turn.id}-${i}`,
+				id: nanoid(),
 				turnId: turn.id,
 				speakerType,
 				claim: f.claim,

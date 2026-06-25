@@ -23,6 +23,7 @@ vi.mock('firebase-admin/firestore', () => ({
 import {
 	startFactCheckResult,
 	appendFactCheckFindings,
+	resetFactCheckProgress,
 	markFactCheckCompleted,
 	failFactCheckResult,
 	readFactCheckResult,
@@ -110,6 +111,23 @@ describe('appendFactCheckFindings', () => {
 		await appendFactCheckFindings('t1', 'c1', [], []);
 		const doc = holder.mock!.store.get(PATH);
 		expect(doc!.findings).toEqual([]);
+	});
+});
+
+describe('resetFactCheckProgress', () => {
+	it('追記済みの findings・sources をクリアし running を保つ（再試行の重複追記を防ぐ）', async () => {
+		await startFactCheckResult('t1', 'c1');
+		await appendFactCheckFindings(
+			't1',
+			'c1',
+			[makeFinding('f1')],
+			[{ title: 'https://a.com', url: 'https://a.com' }]
+		);
+		await resetFactCheckProgress('t1', 'c1');
+		const doc = holder.mock!.store.get(PATH);
+		expect(doc!.findings).toEqual([]);
+		expect(doc!.sources).toEqual([]);
+		expect(doc!.status).toBe('running');
 	});
 });
 

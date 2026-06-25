@@ -5,9 +5,10 @@ const { mockGetChapterById, mockCheckChapter } = vi.hoisted(() => ({
 	mockCheckChapter: vi.fn()
 }));
 
-const { mockStart, mockAppend, mockMarkCompleted, mockFail } = vi.hoisted(() => ({
+const { mockStart, mockAppend, mockReset, mockMarkCompleted, mockFail } = vi.hoisted(() => ({
 	mockStart: vi.fn().mockResolvedValue(undefined),
 	mockAppend: vi.fn().mockResolvedValue(undefined),
+	mockReset: vi.fn().mockResolvedValue(undefined),
 	mockMarkCompleted: vi.fn().mockResolvedValue(undefined),
 	mockFail: vi.fn().mockResolvedValue(undefined)
 }));
@@ -45,6 +46,7 @@ vi.mock('../../pipeline/fact-check/fact-check-runner.js', () => ({
 vi.mock('../../pipeline/fact-check/fact-check-repository.js', () => ({
 	startFactCheckResult: mockStart,
 	appendFactCheckFindings: mockAppend,
+	resetFactCheckProgress: mockReset,
 	markFactCheckCompleted: mockMarkCompleted,
 	failFactCheckResult: mockFail
 }));
@@ -156,6 +158,18 @@ describe('runFactCheckTask（検証本体）', () => {
 		});
 		await taskHandler(makeTaskReq());
 		expect(mockAppend.mock.calls[0][3]).toEqual([{ title: 'https://a.com', url: 'https://a.com' }]);
+	});
+
+	it('初回（retryCount=0）は追記前のクリアをしない', async () => {
+		mockCheckChapter.mockImplementationOnce(async () => ({ ok: true, value: [] }));
+		await taskHandler(makeTaskReq(0));
+		expect(mockReset).not.toHaveBeenCalled();
+	});
+
+	it('再試行（retryCount>0）は検証前に部分追記をクリアして重複を防ぐ', async () => {
+		mockCheckChapter.mockImplementationOnce(async () => ({ ok: true, value: [] }));
+		await taskHandler(makeTaskReq(1));
+		expect(mockReset).toHaveBeenCalledWith('t1', 'c1');
 	});
 
 	it('checkChapter がエラー結果なら failed を記録し、リトライしない（throw しない）', async () => {

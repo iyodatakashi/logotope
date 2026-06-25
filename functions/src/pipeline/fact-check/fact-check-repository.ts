@@ -38,6 +38,16 @@ export const appendFactCheckFindings = async (
 	await resultRef(topicId, chapterId).update(update);
 };
 
+/**
+ * タスク再試行時に部分追記済みの指摘・出典をクリアする。
+ * 再試行では checkChapter が全発言を最初から再検証して再追記するため、
+ * クリアしないと同一 turnId の finding が重複し（arrayUnion は中身が変わると別物として残す）、
+ * FE のキー重複クラッシュを招く。
+ */
+export const resetFactCheckProgress = async (topicId: string, chapterId: string): Promise<void> => {
+	await resultRef(topicId, chapterId).update({ findings: [], sources: [] });
+};
+
 /** 全発言の検証が終わったら completed に遷移する（findings は逐次追記済み）（4.1） */
 export const markFactCheckCompleted = async (topicId: string, chapterId: string): Promise<void> => {
 	await resultRef(topicId, chapterId).update({

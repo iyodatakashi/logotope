@@ -7,6 +7,7 @@ import { checkChapter } from '../pipeline/fact-check/fact-check-runner.js';
 import {
 	startFactCheckResult,
 	appendFactCheckFindings,
+	resetFactCheckProgress,
 	markFactCheckCompleted,
 	failFactCheckResult
 } from '../pipeline/fact-check/fact-check-repository.js';
@@ -75,6 +76,10 @@ export const runFactCheckTask = onTaskDispatched(
 	async (req) => {
 		const { topicId, chapterId } = req.data as FactCheckTaskPayload;
 		try {
+			// 再試行は全発言を再検証して再追記するため、追記済みの部分結果を一旦クリアして重複を防ぐ
+			if ((req.retryCount ?? 0) > 0) {
+				await resetFactCheckProgress(topicId, chapterId);
+			}
 			// 発言ごとに指摘が確定するたびに結果ドキュメントへ追記する（逐次表示）
 			const result = await checkChapter({ topicId, chapterId }, async (findings) => {
 				await appendFactCheckFindings(topicId, chapterId, findings, aggregateSources(findings));
