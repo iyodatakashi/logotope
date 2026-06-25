@@ -9,44 +9,55 @@ import type { Chapter } from '../../types/chapter.types.js';
 
 const db = () => getFirestore();
 
+type ChapterDocData = {
+	chapterIndex: number;
+	title: string;
+	focusQuestion: string;
+	discussionPoints?: string[];
+	turns?: Array<{
+		id: string;
+		speakerType: string;
+		personaId?: string;
+		content: string;
+		createdAt: Timestamp;
+		fromQueue?: boolean;
+		targetPersonaId?: string;
+	}>;
+	status?: 'pending' | 'running' | 'completed';
+};
+
+const toChapterEntry = (id: string, data: ChapterDocData): ChapterEntry => ({
+	id,
+	chapterIndex: data.chapterIndex,
+	title: data.title,
+	focusQuestion: data.focusQuestion,
+	discussionPoints: data.discussionPoints ?? [],
+	turns: (data.turns ?? []).map((t) => ({
+		id: t.id,
+		speakerType: t.speakerType,
+		personaId: t.personaId ?? null,
+		content: t.content,
+		createdAt: t.createdAt,
+		fromQueue: t.fromQueue,
+		targetPersonaId: t.targetPersonaId
+	})),
+	status: data.status ?? 'pending'
+});
+
 /** 章を chapterIndex 順に読み取り、ターン・論点・ステータスを含む ChapterEntry の配列で返す */
 export const getChaptersByTopicId = async (topicId: string): Promise<ChapterEntry[]> => {
 	const snap = await db().collection(`topics/${topicId}/chapters`).orderBy('chapterIndex').get();
-	return snap.docs.map((docSnap) => {
-		const data = docSnap.data() as {
-			chapterIndex: number;
-			title: string;
-			focusQuestion: string;
-			discussionPoints?: string[];
-			turns?: Array<{
-				id: string;
-				speakerType: string;
-				personaId?: string;
-				content: string;
-				createdAt: Timestamp;
-				fromQueue?: boolean;
-				targetPersonaId?: string;
-			}>;
-			status?: 'pending' | 'running' | 'completed';
-		};
-		return {
-			id: docSnap.id,
-			chapterIndex: data.chapterIndex,
-			title: data.title,
-			focusQuestion: data.focusQuestion,
-			discussionPoints: data.discussionPoints ?? [],
-			turns: (data.turns ?? []).map((t) => ({
-				id: t.id,
-				speakerType: t.speakerType,
-				personaId: t.personaId ?? null,
-				content: t.content,
-				createdAt: t.createdAt,
-				fromQueue: t.fromQueue,
-				targetPersonaId: t.targetPersonaId
-			})),
-			status: data.status ?? 'pending'
-		};
-	});
+	return snap.docs.map((docSnap) => toChapterEntry(docSnap.id, docSnap.data() as ChapterDocData));
+};
+
+/** 単一の章を読み取り、ターン・論点・ステータスを含む ChapterEntry で返す。存在しなければ null */
+export const getChapterById = async (
+	topicId: string,
+	chapterId: string
+): Promise<ChapterEntry | null> => {
+	const snap = await db().doc(`topics/${topicId}/chapters/${chapterId}`).get();
+	if (!snap.exists) return null;
+	return toChapterEntry(chapterId, snap.data() as ChapterDocData);
 };
 
 /** 全章のターンを chapterIndex 順に連結して返す */

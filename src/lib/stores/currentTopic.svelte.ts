@@ -6,6 +6,7 @@ import { createPostDebateCommentsStore } from '$lib/stores/postDebateComments.sv
 import { createPersonasStore } from '$lib/stores/personas.svelte';
 import { createEngagementsStore } from '$lib/stores/engagements.svelte';
 import { createStakeholdersStore } from '$lib/stores/stakeholders.svelte';
+import { createFactCheckStore } from '$lib/stores/factCheck.svelte';
 
 const create = () => {
 	let chaptersStore = $state(createChaptersStore(''));
@@ -14,6 +15,7 @@ const create = () => {
 	let personasStore = $state(createPersonasStore(''));
 	let engagementsStore = $state(createEngagementsStore(''));
 	let stakeholdersStore = $state(createStakeholdersStore(''));
+	let factCheckStore = $state(createFactCheckStore(''));
 
 	return {
 		get topic() {
@@ -37,6 +39,9 @@ const create = () => {
 		get stakeholdersStore() {
 			return stakeholdersStore;
 		},
+		get factCheckStore() {
+			return factCheckStore;
+		},
 		start(topicId: string) {
 			const chapters = createChaptersStore(topicId);
 			const analysis = createChapterAnalysisStore(topicId);
@@ -44,18 +49,21 @@ const create = () => {
 			const personas = createPersonasStore(topicId);
 			const engagements = createEngagementsStore(topicId);
 			const stakeholders = createStakeholdersStore(topicId);
+			const factCheck = createFactCheckStore(topicId);
 			chapters.start();
 			analysis.start();
 			comments.start();
 			personas.start();
 			engagements.start();
 			stakeholders.start();
+			factCheck.start();
 			chaptersStore = chapters;
 			chapterAnalysisStore = analysis;
 			postDebateCommentsStore = comments;
 			personasStore = personas;
 			engagementsStore = engagements;
 			stakeholdersStore = stakeholders;
+			factCheckStore = factCheck;
 			return () => {
 				chapters.stop();
 				analysis.stop();
@@ -63,6 +71,7 @@ const create = () => {
 				personas.stop();
 				engagements.stop();
 				stakeholders.stop();
+				factCheck.stop();
 			};
 		}
 	};

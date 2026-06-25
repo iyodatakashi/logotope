@@ -1,8 +1,11 @@
 <script lang="ts">
+	import { Button } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState } from '$lib/models/phase/phase';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import EngagementList from './EngagementList.svelte';
+	import FactCheckFindings from './FactCheckFindings.svelte';
+	import type { FactCheckFinding } from '$lib/models/factCheck/factCheck.types';
 
 	const PHASE = 5;
 	const generate = () => currentTopicStore.topic?.startDebate();
@@ -27,6 +30,18 @@
 		new Map(currentTopicStore.personasStore.personas.map((p) => [p.id, p]))
 	);
 
+	// 章ごとの結果から turnId 別に指摘をまとめる（各発言の直下に表示する）
+	const findingsByTurn = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const map = new Map<string, FactCheckFinding[]>();
+		for (const result of currentTopicStore.factCheckStore.resultsMap.values()) {
+			for (const finding of result.findings) {
+				map.set(finding.turnId, [...(map.get(finding.turnId) ?? []), finding]);
+			}
+		}
+		return map;
+	});
+
 	const turns = $derived(
 		currentTopicStore.chaptersStore.turns.map((t) => {
 			const persona = t.personaId ? personaMap.get(t.personaId) : null;
@@ -43,6 +58,7 @@
 				personaId: t.personaId,
 				addressedPersonaName: addressedPersona?.name ?? null,
 				engagements: currentTopicStore.engagementsStore.engagementsMap.get(t.id) ?? [],
+				factCheckFindings: findingsByTurn.get(t.id) ?? [],
 				beliefChangesTriggered: currentTopicStore.personasStore.personas.flatMap((p) =>
 					(p.beliefs ?? [])
 						.filter((b) => b.triggeredByTurnId === t.id)
@@ -96,6 +112,28 @@
 					<li class:current={chapter === currentTopicStore.chaptersStore.currentChapter}>
 						<strong>{chapter.title}</strong>
 						<span class="focus">{chapter.focusQuestion}</span>
+						{#if chapter.status === 'completed'}
+							{@const fcStatus = currentTopicStore.factCheckStore.resultsMap.get(
+								chapter.id
+							)?.status}
+							{@const fcRun = currentTopicStore.factCheckStore.getRunState(chapter.id)}
+							{@const fcRunning = fcRun.pending || (fcStatus === 'running' && !fcRun.error)}
+							{@const fcFailed = !!fcRun.error || fcStatus === 'failed'}
+							<span class="fact-check-action">
+								<Button
+									variant="outlined"
+									disabled={fcRunning}
+									onclick={() => currentTopicStore.factCheckStore.runFactCheck(chapter.id)}
+								>
+									{fcRunning ? 'ファクトチェック実行中…' : 'ファクトチェックを実行'}
+								</Button>
+								{#if fcFailed}
+									<span class="fc-failed">
+										ファクトチェックに失敗しました{fcRun.error ? `（${fcRun.error}）` : ''}
+									</span>
+								{/if}
+							</span>
+						{/if}
 						{#if chapter === currentTopicStore.chaptersStore.currentChapter && chapter.discussionPointStatuses?.length}
 							<ul class="points">
 								{#each chapter.discussionPointStatuses as dp (dp.point)}
@@ -144,6 +182,7 @@
 							{personaMap}
 							selectedPersonaId={turns[i + 1]?.personaId}
 						/>
+						<FactCheckFindings findings={turn.factCheckFindings} />
 						{#if turn.beliefChangesTriggered.length > 0}
 							<ul class="beliefs">
 								{#each turn.beliefChangesTriggered as bc, bcIdx (bcIdx)}
@@ -285,5 +324,15 @@
 		color: #555;
 		list-style: none;
 		padding: 0;
+	}
+	.fact-check-action {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		margin-left: 8px;
+	}
+	.fc-failed {
+		color: #c62828;
+		font-size: 0.78rem;
 	}
 </style>

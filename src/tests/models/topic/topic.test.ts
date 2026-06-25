@@ -29,7 +29,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { httpsCallable } from 'firebase/functions';
-import { updateDoc, setDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
+import { updateDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
 import { createTopicStates } from '$lib/models/topic/createTopic.svelte';
 
 const TOPIC_PATH = { path: 'topics/t1' };
@@ -192,42 +192,17 @@ describe('createTopicStates', () => {
 			expect(deleteDoc).toHaveBeenCalledWith({ path: 'topics/t1/chapterAnalysis/0' });
 		});
 
-		it('resetDebate は各チャプターの turns を消し、postDebateComments/0 を削除する', async () => {
-			const chapterRef = { path: 'topics/t1/chapters/c1' };
-			vi.mocked(getDocs)
-				.mockResolvedValueOnce({ docs: [{ id: 'c1', ref: chapterRef }] } as never) // chapters
-				.mockResolvedValueOnce({ docs: [] } as never) // chapter c1 の engagements
-				.mockResolvedValueOnce({ docs: [] } as never); // personas
+		it('resetDebate は resetDebate onCall を呼ぶだけ（クライアント側で個別削除しない）', async () => {
+			const callable = vi.fn().mockResolvedValue({ data: { topicId: 't1' } });
+			vi.mocked(httpsCallable).mockReturnValue(callable as never);
 
 			const store = makeTopic();
 			await store.resetDebate();
 
-			expect(deleteDoc).toHaveBeenCalledWith({ path: 'topics/t1/postDebateComments/0' });
-			expect(updateDoc).toHaveBeenCalledWith(
-				chapterRef,
-				expect.objectContaining({ turns: [], status: 'pending' })
-			);
-			// sessions/0 には書かない
-			const sessionCall = vi
-				.mocked(setDoc)
-				.mock.calls.find((c) => String((c[0] as { path: string }).path).includes('sessions'));
-			expect(sessionCall).toBeUndefined();
-		});
-
-		it('resetDebate は engagements 文書（各チャプター配下）を全削除する', async () => {
-			const chapterRef = { path: 'topics/t1/chapters/c1' };
-			const ref1 = { path: 'topics/t1/chapters/c1/engagements/old-p1' };
-			const ref2 = { path: 'topics/t1/chapters/c1/engagements/old-p2' };
-			vi.mocked(getDocs)
-				.mockResolvedValueOnce({ docs: [{ id: 'c1', ref: chapterRef }] } as never) // chapters
-				.mockResolvedValueOnce({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never) // chapter c1 の engagements
-				.mockResolvedValueOnce({ docs: [] } as never); // personas
-
-			const store = makeTopic();
-			await store.resetDebate();
-
-			expect(deleteDoc).toHaveBeenCalledWith(ref1);
-			expect(deleteDoc).toHaveBeenCalledWith(ref2);
+			expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'resetDebate');
+			expect(callable).toHaveBeenCalledWith({ topicId: 't1' });
+			// 章付随データの削除はサーバ責務。FE からは直接削除しない
+			expect(deleteDoc).not.toHaveBeenCalled();
 		});
 	});
 

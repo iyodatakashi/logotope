@@ -6,7 +6,8 @@ import { advanceDebate } from '../pipeline/debate/debate-orchestrator.js';
 import { enqueueStep, taskKey } from '../pipeline/debate/enqueue-step.js';
 import {
 	updateDebatePhaseStatus,
-	restartDebateFromChapter
+	restartDebateFromChapter,
+	resetDebate as resetDebateLifecycle
 } from '../pipeline/debate/debate-lifecycle.js';
 import { requireAuth } from '../utils/auth.js';
 import type { StepPayload } from '../types/step.types.js';
@@ -87,6 +88,29 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 		return { topicId };
 	} catch (err) {
 		console.error('[restartDebate] error', { topicId }, err);
+		throw err instanceof HttpsError
+			? err
+			: new HttpsError('internal', err instanceof Error ? err.message : String(err));
+	}
+});
+
+/**
+ * 討論を全章リセットする（付随データも全削除）。running にはしない。
+ * 章付随データの削除責務をサーバへ集約するため、FE は本エンドポイントを呼ぶだけにする。
+ */
+export const resetDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
+	requireAuth(request);
+	const { topicId } = request.data as { topicId: string };
+	if (!topicId?.trim()) throw new HttpsError('invalid-argument', 'topicId is required');
+
+	try {
+		const topic = await getTopicById(topicId);
+		if (!topic) throw new HttpsError('not-found', 'Topic not found');
+
+		await resetDebateLifecycle(topicId);
+		return { topicId };
+	} catch (err) {
+		console.error('[resetDebate] error', { topicId }, err);
 		throw err instanceof HttpsError
 			? err
 			: new HttpsError('internal', err instanceof Error ? err.message : String(err));

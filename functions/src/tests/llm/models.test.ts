@@ -16,8 +16,8 @@ vi.mock('@ai-sdk/openai', () => ({
 import { anthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { openai } from '@ai-sdk/openai';
-import { getPersonaModel } from '../../llm/models.js';
-import { PERSONA_MODELS } from '../../constants/ai.constants.js';
+import { getPersonaModel, getPipelineModel } from '../../llm/models.js';
+import { PERSONA_MODELS, PIPELINE_MODELS } from '../../constants/ai.constants.js';
 
 const savedEnv: Record<string, string | undefined> = {};
 
@@ -73,5 +73,25 @@ describe('getPersonaModel', () => {
 			expect(anthropic).toHaveBeenCalledWith(PERSONA_MODELS.claude);
 			expect(openai).not.toHaveBeenCalled();
 		});
+	});
+});
+
+describe('getPipelineModel - ファクトチェック', () => {
+	beforeEach(() => {
+		process.env.GEMINI_API_KEY = 'test-gemini-key';
+	});
+
+	it('factCheckGrounding は Gemini プロバイダ（gemini-2.5-pro）を返す', () => {
+		getPipelineModel('factCheckGrounding');
+		expect(createGoogleGenerativeAI).toHaveBeenCalledWith({ apiKey: 'test-gemini-key' });
+		expect(mockGoogleModelFn).toHaveBeenCalledWith(PIPELINE_MODELS.factCheckGrounding);
+		expect(anthropic).not.toHaveBeenCalled();
+	});
+
+	it('factCheckStructuring は Gemini プロバイダ（gemini-2.5-flash）を返す', () => {
+		getPipelineModel('factCheckStructuring');
+		expect(createGoogleGenerativeAI).toHaveBeenCalledWith({ apiKey: 'test-gemini-key' });
+		expect(mockGoogleModelFn).toHaveBeenCalledWith(PIPELINE_MODELS.factCheckStructuring);
+		expect(anthropic).not.toHaveBeenCalled();
 	});
 });
