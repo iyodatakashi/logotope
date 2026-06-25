@@ -10,6 +10,7 @@ import {
 } from '../../search/grounding.js';
 import { getChapterById } from '../debate/chapter.js';
 import { getTopicById } from '../topics/topics.js';
+import { currentDateString } from '../../utils/prompt-formatters.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { FactCheckFinding } from '../../types/fact-check.types.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
@@ -29,6 +30,7 @@ export type FactCheckContext = {
 	topicTitle: string;
 	chapterTitle: string;
 	focusQuestion: string;
+	currentDate: string; // 時間軸検証の基準（currentDateString() 由来＝実行開始時刻, 3.5）
 };
 
 const buildContextSection = (context?: FactCheckContext): string => {
@@ -36,25 +38,40 @@ const buildContextSection = (context?: FactCheckContext): string => {
 	const focus = context.focusQuestion ? `（${context.focusQuestion}）` : '';
 	return `【討論のテーマ】${context.topicTitle}
 【この章で議論していること】${context.chapterTitle}${focus}
+【本日】${context.currentDate}
 
 この発言は上記テーマの討論の一部です。一般論ではなく、このテーマ・状況に即して事実性を検証してください。
+時間軸に関する主張（出来事までの残り期間・開催時期など）は、本日（${context.currentDate}）を基準に正否を検証してください。
 
 `;
 };
 
-const buildPhase1Prompt = (content: string, context?: FactCheckContext): string =>
-	`${buildContextSection(context)}次の発言に含まれる「検証可能な事実主張」を、誤り・実態と異なる証拠を優先的に探して検証してください（反証起点）。
+const buildPhase1Prompt = (
+	content: string,
+	context?: FactCheckContext,
+	speechMode?: DebateTurn['speechMode']
+): string => {
+	const questionNote =
+		speechMode === 'question'
+			? '\n- この発言には質問モードのシグナルが付いている（問いかけである手掛かり）。ただしモードのみを理由に発言内の全主張を一律に検証対象外としない'
+			: '';
+	return `${buildContextSection(context)}次の発言に含まれる「検証可能な事実主張」を、誤り・実態と異なる証拠を優先的に探して検証してください（反証起点）。
 
 【検証の姿勢】
 - 意見・価値判断は対象外。事実主張のみを検証する
+- 事実として断定された主張を反証起点で検証する。問い・問いかけの前提・仮定/条件（「〜が見るとして」「もし〜なら」）・他者認識の代弁は厳密な検証の主対象としない
+- ただし質問文中でも、確定した事実（過去に起きた出来事・既成の状態）として述べた部分は検証対象とする
+- 制度・規則の変更を伴う事実（大会方式の変更による試合数など）は最新の事実に照らして確認する
+- 断定か非断定かが不確実なときは、断定として扱い検証する
 - 主張が誤っている証拠を優先的に検索し、正しい事実・理由を確認する
-- 当事者の証言・統計・公式情報を根拠にする
+- 当事者の証言・統計・公式情報を根拠にする${questionNote}
 
 【対象の発言】
 ${content}
 
 検索結果を踏まえ、各事実主張について「引用（発言からの抜粋）・誤っている箇所・正しい事実・理由」を記述してください。
 ※本文中にURL（http/https）を一切記載しないこと。出典は媒体名・調査機関名で示すこと。参照元リンクはシステムが検索情報から自動収集します。`;
+};
 
 const buildPhase2Prompt = (
 	content: string,
@@ -77,6 +94,9 @@ ${verificationText}
 ${sourceList}
 
 【出力ルール】
+- 事実として断定された主張のみを指摘する。問い・問いかけの前提・仮定/条件・他者認識の代弁として述べられた主張は、断定でないと判断し finding を生成しない（非断定の抑制判断はこのフェーズで行う）
+- 「意見・価値判断（対象外）」と「断定でない事実言及」は別概念として扱う。断定か非断定かが不確実なときは断定として扱い finding を生成する
+- 一つの発言に断定された事実主張と断定でない内容が混在する場合は、主張ごとに判定し、断定された主張のみを指摘する
 - 事実上の誤りがない主張は finding を生成しない
 - claim は対象の発言からの正確な引用（部分文字列）にする
 - verdict は incorrect（事実と異なる）または unverifiable（裏付けが得られない）
@@ -102,7 +122,9 @@ export const checkTurn = async (
 		const phase1 = await generateText({
 			model: google(PIPELINE_MODELS.factCheckGrounding),
 			tools: { google_search: google.tools.googleSearch({}) },
-			messages: [{ role: 'user', content: buildPhase1Prompt(turn.content, context) }]
+			messages: [
+				{ role: 'user', content: buildPhase1Prompt(turn.content, context, turn.speechMode) }
+			]
 		});
 
 		const googleMeta = phase1.providerMetadata?.['google'] as
@@ -190,7 +212,8 @@ export const checkChapter = async (
 	const context: FactCheckContext = {
 		topicTitle: topic?.title ?? '',
 		chapterTitle: chapter.title,
-		focusQuestion: chapter.focusQuestion
+		focusQuestion: chapter.focusQuestion,
+		currentDate: currentDateString()
 	};
 
 	const turns = chapter.turns.filter(
