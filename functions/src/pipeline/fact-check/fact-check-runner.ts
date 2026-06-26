@@ -11,9 +11,10 @@ import {
 } from '../../search/grounding.js';
 import { getChapterById } from '../debate/chapter.js';
 import { getTopicById } from '../topics/topics.js';
+import { judgeCorrectionWorthiness } from './fact-check-judge.js';
 import { currentDateString } from '../../utils/prompt-formatters.js';
 import type { DebateTurn } from '../../types/turn.types.js';
-import type { FactCheckFinding } from '../../types/fact-check.types.js';
+import type { FactCheckFinding, FactCheckContext } from '../../types/fact-check.types.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
 
 const findingSchema = z.object({
@@ -25,14 +26,6 @@ const findingSchema = z.object({
 });
 
 const phase2Schema = z.object({ findings: z.array(findingSchema) });
-
-// 検証対象の発言が属する討論の文脈（テーマ・章）。発言を単独で検証すると一般論に流れるため必須。
-export type FactCheckContext = {
-	topicTitle: string;
-	chapterTitle: string;
-	focusQuestion: string;
-	currentDate: string; // 時間軸検証の基準（currentDateString() 由来＝実行開始時刻, 3.5）
-};
 
 const buildContextSection = (context?: FactCheckContext): string => {
 	if (!context) return '';
@@ -170,6 +163,13 @@ export const checkTurn = async (
 				sources
 			});
 		});
+
+		// 修正適否ジャッジ（共通フィルタ）: 修正すべき finding のみ残す。
+		// finding 0 件、または文脈なしのときは判定を起動せずそのまま返す（1.3）。
+		if (findings.length > 0 && context) {
+			const { kept } = await judgeCorrectionWorthiness(turn.content, findings, context);
+			return { ok: true, value: kept };
+		}
 
 		return { ok: true, value: findings };
 	} catch (err) {

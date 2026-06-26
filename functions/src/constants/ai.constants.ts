@@ -8,7 +8,8 @@ export const PIPELINE_MODELS = {
 	personaGenerator: 'gpt-5.5',
 	personaInterview: 'gemini-2.5-pro',
 	factCheckGrounding: 'gemini-2.5-pro',
-	factCheckStructuring: 'gemini-2.5-flash'
+	factCheckStructuring: 'gemini-2.5-flash',
+	factCheckJudge: 'gemini-2.5-flash'
 } as const;
 
 export const PERSONA_MODELS = {

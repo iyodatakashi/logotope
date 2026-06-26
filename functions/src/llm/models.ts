@@ -58,7 +58,8 @@ export const getPipelineModel = (task: keyof typeof PIPELINE_MODELS): LanguageMo
 			return createGoogleGenerativeAI({ apiKey })(modelId);
 		}
 		case 'factCheckGrounding':
-		case 'factCheckStructuring': {
+		case 'factCheckStructuring':
+		case 'factCheckJudge': {
 			const apiKey = process.env.GEMINI_API_KEY;
 			if (!apiKey) {
 				console.warn(`[llm] fallback to claude: ${task} - GEMINI_API_KEY not set`);

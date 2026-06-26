@@ -16,6 +16,14 @@ export type FactCheckFinding = {
 	sources: SearchResult[]; // 出典（3.4）
 };
 
+// 検証対象の発言が属する討論の文脈（テーマ・章）。発言を単独で検証すると一般論に流れるため必須。
+export type FactCheckContext = {
+	topicTitle: string;
+	chapterTitle: string;
+	focusQuestion: string;
+	currentDate: string; // 時間軸検証の基準（currentDateString() 由来＝実行開始時刻, 3.5）
+};
+
 export type FactCheckResultForFirestore = {
 	chapterId: string;
 	status: FactCheckStatus;
