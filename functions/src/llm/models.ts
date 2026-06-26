@@ -57,6 +57,7 @@ export const getPipelineModel = (task: keyof typeof PIPELINE_MODELS): LanguageMo
 			}
 			return createGoogleGenerativeAI({ apiKey })(modelId);
 		}
+		case 'factCheckAssertionGate':
 		case 'factCheckGrounding':
 		case 'factCheckStructuring':
 		case 'factCheckJudge': {

@@ -7,6 +7,7 @@ export const PIPELINE_MODELS = {
 	stakeholderAnalyzer: 'gemini-2.5-pro',
 	personaGenerator: 'gpt-5.5',
 	personaInterview: 'gemini-2.5-pro',
+	factCheckAssertionGate: 'gemini-2.5-flash',
 	factCheckGrounding: 'gemini-2.5-pro',
 	factCheckStructuring: 'gemini-2.5-flash',
 	factCheckJudge: 'gemini-2.5-flash'
