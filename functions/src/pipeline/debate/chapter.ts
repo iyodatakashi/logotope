@@ -22,6 +22,7 @@ type ChapterDocData = {
 		createdAt: Timestamp;
 		fromQueue?: boolean;
 		targetPersonaId?: string;
+		targetedBy?: 'facilitator' | 'persona';
 	}>;
 	status?: 'pending' | 'running' | 'completed';
 };
@@ -39,7 +40,8 @@ const toChapterEntry = (id: string, data: ChapterDocData): ChapterEntry => ({
 		content: t.content,
 		createdAt: t.createdAt,
 		fromQueue: t.fromQueue,
-		targetPersonaId: t.targetPersonaId
+		targetPersonaId: t.targetPersonaId,
+		targetedBy: t.targetedBy
 	})),
 	status: data.status ?? 'pending'
 });
@@ -74,6 +76,7 @@ export const getDebateTurnsByTopicId = async (topicId: string): Promise<DebateTu
 				createdAt: Timestamp;
 				fromQueue?: boolean;
 				targetPersonaId?: string;
+				targetedBy?: 'facilitator' | 'persona';
 			}>;
 		};
 		const turns = (data.turns ?? []).map((t) => ({
@@ -83,7 +86,8 @@ export const getDebateTurnsByTopicId = async (topicId: string): Promise<DebateTu
 			content: t.content,
 			createdAt: t.createdAt,
 			fromQueue: t.fromQueue,
-			targetPersonaId: t.targetPersonaId
+			targetPersonaId: t.targetPersonaId,
+			targetedBy: t.targetedBy
 		}));
 		allTurns.push(...turns);
 	}

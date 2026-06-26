@@ -7,11 +7,17 @@ import type { Chapter } from '../../../types/chapter.types.js';
 
 const mockGet = vi.fn();
 const mockDoc = vi.fn(() => ({ get: mockGet }));
+const mockCollectionGet = vi.fn();
+const mockCollection = vi.fn(() => ({ orderBy: () => ({ get: mockCollectionGet }) }));
 vi.mock('firebase-admin/firestore', () => ({
-	getFirestore: vi.fn(() => ({ doc: mockDoc }))
+	getFirestore: vi.fn(() => ({ doc: mockDoc, collection: mockCollection }))
 }));
 
-import { loadChapterProgress } from '../../../pipeline/debate/chapter.js';
+import {
+	loadChapterProgress,
+	getChaptersByTopicId,
+	getDebateTurnsByTopicId
+} from '../../../pipeline/debate/chapter.js';
 
 const makeChapter = (discussionPoints: string[] = []): Chapter => ({
 	id: 'ch1',
@@ -80,5 +86,49 @@ describe('loadChapterProgress', () => {
 		const a = await loadChapterProgress('t1', 'ch1', makeChapter(['論点A']));
 		const b = await loadChapterProgress('t1', 'ch1', makeChapter(['論点A']));
 		expect(a).toEqual(b);
+	});
+});
+
+/**
+ * 永続データからの turns 復元で targetedBy を取りこぼさないことを検証する。
+ * これが欠落すると getLastTargetPersona が指名を検出できず、指名応答が常に無視される。
+ */
+describe('turns 復元で targetedBy を保持する', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	const chapterDoc = {
+		id: 'ch1',
+		data: () => ({
+			chapterIndex: 0,
+			title: 'テスト章',
+			focusQuestion: 'テスト？',
+			turns: [
+				{
+					id: 'turn1',
+					speakerType: 'persona',
+					personaId: 'p1',
+					content: '...',
+					createdAt: 0,
+					targetPersonaId: 'p2',
+					targetedBy: 'persona'
+				}
+			]
+		})
+	};
+
+	it('getDebateTurnsByTopicId が targetedBy を復元する', async () => {
+		mockCollectionGet.mockResolvedValue({ docs: [chapterDoc] });
+		const turns = await getDebateTurnsByTopicId('t1');
+		expect(turns[0].targetPersonaId).toBe('p2');
+		expect(turns[0].targetedBy).toBe('persona');
+	});
+
+	it('getChaptersByTopicId（toChapterEntry）が targetedBy を復元する', async () => {
+		mockCollectionGet.mockResolvedValue({ docs: [chapterDoc] });
+		const chapters = await getChaptersByTopicId('t1');
+		expect(chapters[0].turns[0].targetPersonaId).toBe('p2');
+		expect(chapters[0].turns[0].targetedBy).toBe('persona');
 	});
 });
