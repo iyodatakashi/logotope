@@ -239,4 +239,91 @@ describe('generateTurn', () => {
 
 		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(expect.any(Array), personas);
 	});
+
+	it('factCheckFeedback 指定時、指摘（主張・訂正・理由）と修正方針がプロンプト末尾に付与される', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: '補正後の発言' }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(
+			mockPersona,
+			makeContext({
+				factCheckFeedback: [
+					{
+						claim: '日本の人口は2億人である',
+						verdict: 'incorrect',
+						correction: '約1.2億人である',
+						reason: '統計と矛盾するため'
+					}
+				]
+			}),
+			makeEngagement({ mode: 'opinion' })
+		);
+
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		const userContent = callArgs.messages[0].content;
+		expect(userContent).toContain('事実確認による修正指示');
+		expect(userContent).toContain('日本の人口は2億人である');
+		expect(userContent).toContain('約1.2億人である');
+		expect(userContent).toContain('統計と矛盾するため');
+		// 立場・口調・論旨・指名の整合維持と結論変化の許容
+		expect(userContent).toContain('論旨の方向性');
+		expect(userContent).toContain('結論が変わることは許容');
+	});
+
+	it('検証不能（unverifiable）の指摘は不確実性を含む表現に改めるか取り下げる方針を伝える', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: '補正後の発言' }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(
+			mockPersona,
+			makeContext({
+				factCheckFeedback: [
+					{
+						claim: '来年には完全に普及している',
+						verdict: 'unverifiable',
+						correction: '',
+						reason: '裏付けとなる情報が見つからない'
+					}
+				]
+			}),
+			makeEngagement({ mode: 'opinion' })
+		);
+
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		expect(userContent).toContain('検証不能');
+		expect(userContent).toContain('不確実性');
+		expect(userContent).toContain('取り下げる');
+	});
+
+	it('factCheckFeedback 未指定時は修正指示節を付与せず従来どおり生成する', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		const result = await generateTurn(
+			mockPersona,
+			makeContext(),
+			makeEngagement({ mode: 'opinion' })
+		);
+
+		expect(result.ok).toBe(true);
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		expect(userContent).not.toContain('事実確認による修正指示');
+	});
 });

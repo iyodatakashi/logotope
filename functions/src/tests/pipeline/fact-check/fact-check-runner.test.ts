@@ -72,7 +72,11 @@ vi.mock('../../../pipeline/fact-check/fact-check-judge.js', () => ({
 }));
 
 import type { DebateTurn } from '../../../types/turn.types.js';
-import { checkTurn, checkChapter } from '../../../pipeline/fact-check/fact-check-runner.js';
+import {
+	checkContent,
+	checkTurn,
+	checkChapter
+} from '../../../pipeline/fact-check/fact-check-runner.js';
 import { getPipelineModel } from '../../../llm/models.js';
 
 const makeTurn = (overrides: Partial<DebateTurn> = {}): DebateTurn => ({
@@ -385,6 +389,76 @@ describe('checkTurn', () => {
 	});
 });
 
+describe('checkContent（content ベース検証コア）', () => {
+	it('検出した finding の turnId は空（束縛は呼び出し元の責務）', async () => {
+		setResolvedSources([{ title: 'https://a.com', url: 'https://a.com' }]);
+		mockGenerateText.mockResolvedValueOnce(groundingResult());
+		queuePhase2(
+			phase2Result([
+				{
+					claim: '日本の人口は2億人である',
+					verdict: 'incorrect',
+					correction: '約1.2億人',
+					reason: '統計と矛盾',
+					sourceIndices: [1]
+				}
+			])
+		);
+		const result = await checkContent({
+			content: '日本の人口は2億人である。',
+			speakerType: 'persona'
+		});
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toHaveLength(1);
+			expect(result.value[0].turnId).toBe('');
+			expect(result.value[0].speakerType).toBe('persona');
+		}
+	});
+
+	it('speakerType は入力で受け取り finding に反映する', async () => {
+		setResolvedSources([{ title: 'https://a.com', url: 'https://a.com' }]);
+		mockGenerateText.mockResolvedValueOnce(groundingResult());
+		queuePhase2(
+			phase2Result([
+				{
+					claim: '日本の人口は2億人である',
+					verdict: 'incorrect',
+					correction: '約1.2億人',
+					reason: '統計と矛盾',
+					sourceIndices: [1]
+				}
+			])
+		);
+		const result = await checkContent({
+			content: '日本の人口は2億人である。',
+			speakerType: 'facilitator'
+		});
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value[0].speakerType).toBe('facilitator');
+	});
+
+	it('断定主張がない本文は grounding を起動せず指摘ゼロで即時通過する（7.1）', async () => {
+		setGateClaims([]);
+		const result = await checkContent({
+			content: '本当にそれでいいのでしょうか？',
+			speechMode: 'question',
+			speakerType: 'persona'
+		});
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value).toEqual([]);
+		expect(mockGenerateText).not.toHaveBeenCalled();
+		expect(mockGenerateObject).toHaveBeenCalledTimes(1); // ゲートのみ
+	});
+
+	it('プロバイダ利用不可なら AI_API_ERROR を返す', async () => {
+		mockGetGoogleProvider.mockReturnValueOnce(null);
+		const result = await checkContent({ content: 'x', speakerType: 'persona' });
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe('AI_API_ERROR');
+	});
+});
+
 describe('checkTurn Phase0 断定ゲート', () => {
 	const gatePrompt = () =>
 		(mockGenerateObject.mock.calls[0][0] as { messages: Array<{ content: string }> }).messages[0]
@@ -511,7 +585,7 @@ describe('checkTurn Phase0 断定ゲート', () => {
 		expect(phase1).toContain('日本の人口は2億人である');
 		// 失敗がログされる
 		expect(errSpy).toHaveBeenCalledWith(
-			'[checkTurn] assertion gate failed; falling back to full verification',
+			'[checkContent] assertion gate failed; falling back to full verification',
 			{ turnId: 'turn1' },
 			expect.anything()
 		);
@@ -809,6 +883,183 @@ describe('checkChapter', () => {
 		const prompt = (mockGenerateText.mock.calls[0][0] as { messages: Array<{ content: string }> })
 			.messages[0].content;
 		expect(prompt).toContain('2026年6月25日');
+	});
+});
+
+describe('checkChapter インライン検証済みターンの再グラウンディング回避（要件5）', () => {
+	const embeddedFinding = (overrides: Record<string, unknown> = {}) => ({
+		id: 'ef1',
+		turnId: '',
+		speakerType: 'persona',
+		claim: '原ドラフトの誤り主張',
+		verdict: 'incorrect',
+		correction: '正しい事実',
+		reason: '理由',
+		sources: [],
+		...overrides
+	});
+
+	const chapterWith = (turns: unknown[]) => ({
+		id: 'c1',
+		chapterIndex: 0,
+		title: 't',
+		focusQuestion: 'f',
+		discussionPoints: [],
+		turns,
+		status: 'completed'
+	});
+
+	it('補正済み（checked / revised:true）ターンは grounding を呼ばず、埋め込み指摘を結果へ流さない', async () => {
+		mockGetChapterById.mockResolvedValueOnce(
+			chapterWith([
+				makeTurn({
+					id: 'tr',
+					content: '補正後の本文',
+					factCheck: {
+						status: 'checked',
+						revised: true,
+						findings: [embeddedFinding()],
+						originalContent: '原ドラフトの誤り主張'
+					}
+				})
+			])
+		);
+		const onTurn = vi.fn().mockResolvedValue(undefined);
+		const result = await checkChapter({ topicId: 't1', chapterId: 'c1' }, onTurn);
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value).toEqual([]);
+		expect(mockGenerateText).not.toHaveBeenCalled();
+		expect(onTurn).not.toHaveBeenCalled();
+	});
+
+	it('補正なし指摘あり（checked / revised:false / findings）ターンは grounding を呼ばず、turnId を復元して結果へ反映する', async () => {
+		mockGetChapterById.mockResolvedValueOnce(
+			chapterWith([
+				makeTurn({
+					id: 'tre',
+					content: '原ドラフトの誤り主張',
+					factCheck: {
+						status: 'checked',
+						revised: false,
+						findings: [embeddedFinding()]
+					}
+				})
+			])
+		);
+		const onTurn = vi.fn().mockResolvedValue(undefined);
+		const result = await checkChapter({ topicId: 't1', chapterId: 'c1' }, onTurn);
+		expect(mockGenerateText).not.toHaveBeenCalled();
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toHaveLength(1);
+			expect(result.value[0].turnId).toBe('tre');
+			expect(result.value[0].claim).toBe('原ドラフトの誤り主張');
+		}
+		expect(onTurn).toHaveBeenCalledTimes(1);
+		expect(onTurn.mock.calls[0][0][0].turnId).toBe('tre');
+	});
+
+	it('検証済み指摘なし（checked / findings:[]）ターンは grounding を呼ばず反映対象なし', async () => {
+		mockGetChapterById.mockResolvedValueOnce(
+			chapterWith([
+				makeTurn({
+					id: 'tc',
+					factCheck: { status: 'checked', revised: false, findings: [] }
+				})
+			])
+		);
+		const onTurn = vi.fn().mockResolvedValue(undefined);
+		const result = await checkChapter({ topicId: 't1', chapterId: 'c1' }, onTurn);
+		expect(mockGenerateText).not.toHaveBeenCalled();
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value).toEqual([]);
+		expect(onTurn).not.toHaveBeenCalled();
+	});
+
+	it('未検証（unverified）ターンは従来どおり grounding で検証する', async () => {
+		mockGetChapterById.mockResolvedValueOnce(
+			chapterWith([
+				makeTurn({
+					id: 'tu',
+					content: '日本の人口は2億人である。',
+					factCheck: { status: 'unverified', revised: false, findings: [] }
+				})
+			])
+		);
+		setResolvedSources([{ title: 'https://a.com', url: 'https://a.com' }]);
+		mockGenerateText.mockResolvedValue(groundingResult());
+		queuePhase2(
+			phase2Result([
+				{
+					claim: '日本の人口は2億人である',
+					verdict: 'incorrect',
+					correction: '約1.2億人',
+					reason: '統計と矛盾',
+					sourceIndices: [1]
+				}
+			])
+		);
+		const result = await checkChapter({ topicId: 't1', chapterId: 'c1' });
+		expect(mockGenerateText).toHaveBeenCalledTimes(1);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toHaveLength(1);
+			expect(result.value[0].turnId).toBe('tu');
+		}
+	});
+
+	it('トレース無し（旧データ）ターンは従来どおり grounding で検証する', async () => {
+		mockGetChapterById.mockResolvedValueOnce(
+			chapterWith([makeTurn({ id: 'told', content: '日本の人口は2億人である。' })])
+		);
+		setResolvedSources([{ title: 'https://a.com', url: 'https://a.com' }]);
+		mockGenerateText.mockResolvedValue(groundingResult());
+		queuePhase2(phase2Result([]));
+		await checkChapter({ topicId: 't1', chapterId: 'c1' });
+		expect(mockGenerateText).toHaveBeenCalledTimes(1);
+	});
+
+	it('混在章では未検証ターンのみ grounding し、補正済みターンは再検証しない', async () => {
+		mockGetChapterById.mockResolvedValueOnce(
+			chapterWith([
+				makeTurn({
+					id: 'trevised',
+					content: '補正後',
+					factCheck: {
+						status: 'checked',
+						revised: true,
+						findings: [embeddedFinding()],
+						originalContent: '原'
+					}
+				}),
+				makeTurn({
+					id: 'tneedscheck',
+					content: '日本の人口は2億人である。',
+					factCheck: { status: 'unverified', revised: false, findings: [] }
+				})
+			])
+		);
+		setResolvedSources([{ title: 'https://a.com', url: 'https://a.com' }]);
+		mockGenerateText.mockResolvedValue(groundingResult());
+		queuePhase2(
+			phase2Result([
+				{
+					claim: '日本の人口は2億人である',
+					verdict: 'incorrect',
+					correction: '約1.2億人',
+					reason: '統計と矛盾',
+					sourceIndices: [1]
+				}
+			])
+		);
+		const result = await checkChapter({ topicId: 't1', chapterId: 'c1' });
+		// grounding は未検証ターン1件のみ
+		expect(mockGenerateText).toHaveBeenCalledTimes(1);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toHaveLength(1);
+			expect(result.value[0].turnId).toBe('tneedscheck');
+		}
 	});
 });
 

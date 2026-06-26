@@ -5,7 +5,8 @@ import type {
 	FactCheckVerdict,
 	FactCheckFinding,
 	FactCheckResultForFirestore,
-	FactCheckResult
+	FactCheckResult,
+	TurnFactCheckTrace
 } from '$lib/models/factCheck/factCheck.types';
 
 describe('factCheck.types', () => {
@@ -56,5 +57,31 @@ describe('factCheck.types', () => {
 		};
 		expect(result.startedAt).toBeInstanceOf(Date);
 		expect(result.completedAt).toBeUndefined();
+	});
+
+	it('TurnFactCheckTrace は補正トレース（検証状態・補正有無・適用指摘・補正前ドラフト）を表す', () => {
+		const trace: TurnFactCheckTrace = {
+			status: 'checked',
+			revised: true,
+			findings: [
+				{
+					id: 'f1',
+					turnId: '',
+					speakerType: 'persona',
+					claim: '誤った主張',
+					verdict: 'incorrect',
+					correction: '正しい事実',
+					reason: '理由',
+					sources: []
+				}
+			],
+			originalContent: '補正前ドラフト'
+		};
+		expect(trace.status).toBe('checked');
+		expect(trace.revised).toBe(true);
+		expect(trace.originalContent).toBe('補正前ドラフト');
+
+		const unverified: TurnFactCheckTrace = { status: 'unverified', revised: false, findings: [] };
+		expect(unverified.originalContent).toBeUndefined();
 	});
 });

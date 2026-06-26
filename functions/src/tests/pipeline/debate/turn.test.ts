@@ -47,6 +47,19 @@ vi.mock('../../../pipeline/debate/utils.js', () => ({
 	validPersonaId: (id: string | undefined, _personas: unknown[]) => mockValidPersonaId(id)
 }));
 
+// 既定はパススルー（採用 reply = ドラフト、検証済み・補正なし）。分岐検証時に上書きする。
+const mockVerifyAndReviseDraft = vi.fn(async ({ draft }: { draft: unknown }) => ({
+	reply: draft,
+	trace: { status: 'checked', revised: false, findings: [] }
+}));
+vi.mock('../../../pipeline/debate/inline-fact-check.js', () => ({
+	verifyAndReviseDraft: (...args: unknown[]) => mockVerifyAndReviseDraft(...args)
+}));
+
+vi.mock('../../../utils/prompt-formatters.js', () => ({
+	currentDateString: vi.fn(() => '2026年6月25日')
+}));
+
 import {
 	generatePersonaTurn,
 	addTurn,
@@ -157,6 +170,10 @@ describe('generatePersonaTurn', () => {
 			set: mockSet
 		}));
 		mockValidPersonaId.mockImplementation((id: string | undefined) => id);
+		mockVerifyAndReviseDraft.mockImplementation(async ({ draft }: { draft: unknown }) => ({
+			reply: draft,
+			trace: { status: 'checked', revised: false, findings: [] }
+		}));
 	});
 
 	it('generateTurn に otherPersonas（発言者を除く）を渡す', async () => {
@@ -444,6 +461,152 @@ describe('generatePersonaTurn', () => {
 		expect(state.turns).toHaveLength(1);
 		const pushedTurn = state.turns[0] as Record<string, unknown>;
 		expect(pushedTurn.chapterId).toBeUndefined();
+	});
+
+	it('ドラフト生成後に verifyAndReviseDraft へドラフトと検証文脈（テーマ・章・フォーカス）を渡す', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: 'ドラフト本文', speechMode: 'opinion', beliefChange: null }
+		});
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			topicTitle: 'テーマ名',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		expect(mockVerifyAndReviseDraft).toHaveBeenCalledOnce();
+		const arg = mockVerifyAndReviseDraft.mock.calls[0][0];
+		expect(arg.draft.content).toBe('ドラフト本文');
+		expect(arg.factCheckContext.topicTitle).toBe('テーマ名');
+		expect(arg.factCheckContext.chapterTitle).toBe('テスト章');
+		expect(arg.factCheckContext.focusQuestion).toBe('テスト？');
+	});
+
+	it('補正後に採用された発言（再生成）の内容・発言モード・指名先で正式登録する', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '誤りドラフト', speechMode: 'opinion', beliefChange: null }
+		});
+		mockVerifyAndReviseDraft.mockResolvedValueOnce({
+			reply: {
+				content: '補正後本文',
+				speechMode: 'question',
+				beliefChange: null,
+				targetPersonaId: 'p2'
+			},
+			trace: { status: 'checked', revised: true, findings: [], originalContent: '誤りドラフト' }
+		});
+		mockValidPersonaId.mockReturnValue('p2');
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement()
+		});
+
+		const written = getWrittenTurn();
+		expect(written.content).toBe('補正後本文');
+		expect(written.speechMode).toBe('question');
+		expect(written.targetPersonaId).toBe('p2');
+	});
+
+	it('補正トレースを永続レコードと state.turns に保存する（4.2）', async () => {
+		const trace = {
+			status: 'checked',
+			revised: true,
+			findings: [
+				{
+					id: 'f1',
+					turnId: '',
+					speakerType: 'persona',
+					claim: '誤った主張',
+					verdict: 'incorrect',
+					correction: '正しい事実',
+					reason: '理由',
+					sources: []
+				}
+			],
+			originalContent: '原ドラフト'
+		};
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '原ドラフト', speechMode: 'opinion', beliefChange: null }
+		});
+		mockVerifyAndReviseDraft.mockResolvedValueOnce({
+			reply: { content: '補正後', speechMode: 'opinion', beliefChange: null },
+			trace
+		});
+
+		const state = makeDebateState();
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state,
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		expect(getWrittenTurn().factCheck).toEqual(trace);
+		expect((state.turns[0] as Record<string, unknown>).factCheck).toEqual(trace);
+	});
+
+	it('未検証（unverified）で登録された場合もその事実をトレースに残す（4.2）', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: 'ドラフト', speechMode: 'opinion', beliefChange: null }
+		});
+		mockVerifyAndReviseDraft.mockResolvedValueOnce({
+			reply: { content: 'ドラフト', speechMode: 'opinion', beliefChange: null },
+			trace: { status: 'unverified', revised: false, findings: [] }
+		});
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		expect(getWrittenTurn().factCheck).toEqual({
+			status: 'unverified',
+			revised: false,
+			findings: []
+		});
+	});
+
+	it('ドラフト生成後に討論が停止していたら検証・補正せず null を返す（1.5 経路前の短絡）', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: 'ドラフト', speechMode: 'opinion', beliefChange: null }
+		});
+		mockGet.mockResolvedValue({
+			exists: true,
+			data: () => ({ phase: 5, phaseStatus: 'stopped' })
+		});
+
+		const result = await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		expect(result).toBeNull();
+		expect(mockVerifyAndReviseDraft).not.toHaveBeenCalled();
+		expect(mockTxUpdate).not.toHaveBeenCalled();
 	});
 });
 
