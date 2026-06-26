@@ -127,11 +127,22 @@ ${sourceList}
 - sourceIndices は根拠とした出典リストの番号（1始まり）の配列。出典がなければ空配列`;
 };
 
-/** 1つの発言を Phase1（grounding 検証）→ Phase2（構造化）で検証し、指摘の配列を返す（2.2） */
-export const checkTurn = async (
-	turn: DebateTurn,
+/**
+ * 発言本文ベースの検証コア（2.1）。Phase0 断定ゲート→Phase1 grounding→Phase2 構造化→修正適否ジャッジを実行し、
+ * 修正対象の指摘のみを返す。`finding.turnId` は '' で返す（束縛は呼び出し元の責務）。
+ * インライン補正（ドラフト検証）と後追い `checkTurn` の双方から呼ばれる単一実装。
+ * `logId` はログ識別用（turnId 採番前のインライン経路では persona.id・章 id などを渡す）。
+ */
+export const checkContent = async (
+	input: {
+		content: string;
+		speechMode?: DebateTurn['speechMode'];
+		speakerType: 'persona' | 'facilitator';
+		logId?: string;
+	},
 	context?: FactCheckContext
 ): Promise<Result<FactCheckFinding[], PipelineError>> => {
+	const { content, speechMode, speakerType, logId } = input;
 	const google = getGoogleProvider();
 	if (!google) {
 		return {
@@ -151,34 +162,32 @@ export const checkTurn = async (
 				messages: [
 					{
 						role: 'user',
-						content: buildAssertionGatePrompt(turn.content, context, turn.speechMode)
+						content: buildAssertionGatePrompt(content, context, speechMode)
 					}
 				]
 			});
 			assertedClaims = gate.object.assertedClaims
 				.map((c) => c.claim)
-				.filter((claim) => turn.content.includes(claim));
+				.filter((claim) => content.includes(claim));
 		} catch (gateErr) {
 			// 断定ゲートの失敗・スキーマ不整合は見逃し回避を優先し、全文を従来どおり検証に回す（フェイルオープン・3.6）
 			console.error(
-				'[checkTurn] assertion gate failed; falling back to full verification',
-				{ turnId: turn.id },
+				'[checkContent] assertion gate failed; falling back to full verification',
+				{ turnId: logId },
 				gateErr
 			);
-			assertedClaims = [turn.content];
+			assertedClaims = [content];
 		}
-		// 非断定のみ（問い・前提・仮定・代弁）の発言は grounding 検索にも掛けず、指摘なしで終える（2.1）
+		// 非断定のみ（問い・前提・仮定・代弁）の発言は grounding 検索にも掛けず、指摘なしで終える（7.1）
 		if (assertedClaims.length === 0) {
-			console.info('[factCheckGate] no asserted claim', { turnId: turn.id });
+			console.info('[factCheckGate] no asserted claim', { turnId: logId });
 			return { ok: true, value: [] };
 		}
 
 		const phase1 = await generateText({
 			model: google(PIPELINE_MODELS.factCheckGrounding),
 			tools: { google_search: google.tools.googleSearch({}) },
-			messages: [
-				{ role: 'user', content: buildPhase1Prompt(assertedClaims, context, turn.speechMode) }
-			]
+			messages: [{ role: 'user', content: buildPhase1Prompt(assertedClaims, context, speechMode) }]
 		});
 
 		const googleMeta = phase1.providerMetadata?.['google'] as
@@ -197,16 +206,15 @@ export const checkTurn = async (
 			messages: [
 				{
 					role: 'user',
-					content: buildPhase2Prompt(turn.content, phase1.text, numberedSources, context)
+					content: buildPhase2Prompt(content, phase1.text, numberedSources, context)
 				}
 			]
 		});
 
-		const speakerType = turn.speakerType === 'facilitator' ? 'facilitator' : 'persona';
 		const findings: FactCheckFinding[] = [];
 		phase2.object.findings.forEach((f) => {
 			// claim は当該発言本文の部分文字列であることを照合（ハルシネーション引用を破棄）
-			if (!turn.content.includes(f.claim)) return;
+			if (!content.includes(f.claim)) return;
 			const sources = f.sourceIndices
 				.map((idx) => numberedSources[idx - 1])
 				.filter((s): s is SearchResult => !!s);
@@ -214,7 +222,7 @@ export const checkTurn = async (
 			const verdict = sources.length === 0 ? 'unverifiable' : f.verdict;
 			findings.push({
 				id: nanoid(),
-				turnId: turn.id,
+				turnId: '', // 呼び出し元が束縛する
 				speakerType,
 				claim: f.claim,
 				verdict,
@@ -227,13 +235,13 @@ export const checkTurn = async (
 		// 修正適否ジャッジ（共通フィルタ）: 修正すべき finding のみ残す。
 		// finding 0 件、または文脈なしのときは判定を起動せずそのまま返す（1.3）。
 		if (findings.length > 0 && context) {
-			const { kept } = await judgeCorrectionWorthiness(turn.content, findings, context);
+			const { kept } = await judgeCorrectionWorthiness(content, findings, context);
 			return { ok: true, value: kept };
 		}
 
 		return { ok: true, value: findings };
 	} catch (err) {
-		console.error('[checkTurn] error', { turnId: turn.id }, err);
+		console.error('[checkContent] error', { turnId: logId }, err);
 		return {
 			ok: false,
 			error: {
@@ -243,6 +251,31 @@ export const checkTurn = async (
 			}
 		};
 	}
+};
+
+/**
+ * 1つの発言を検証し指摘の配列を返す薄いラッパ（2.2）。検証コア `checkContent` を呼び、
+ * 検出された finding に対象発言 ID（`turn.id`）を後付けするだけ。後追い検証の挙動を不変に保つ。
+ */
+export const checkTurn = async (
+	turn: DebateTurn,
+	context?: FactCheckContext
+): Promise<Result<FactCheckFinding[], PipelineError>> => {
+	const result = await checkContent(
+		{
+			content: turn.content,
+			speechMode: turn.speechMode,
+			speakerType: turn.speakerType === 'facilitator' ? 'facilitator' : 'persona',
+			logId: turn.id
+		},
+		context
+	);
+	if (result.ok) {
+		result.value.forEach((finding) => {
+			finding.turnId = turn.id;
+		});
+	}
+	return result;
 };
 
 /** 1発言の検証が終わるたびに、その発言の指摘を通知するコールバック（逐次表示用） */
@@ -283,6 +316,24 @@ export const checkChapter = async (
 
 	const allFindings: FactCheckFinding[] = [];
 	for (const turn of turns) {
+		const trace = turn.factCheck;
+		// インライン検証済み（checked）のターンは再 grounding しない（5.1）。反映は revised で分岐する
+		if (trace?.status === 'checked') {
+			// 補正済み（revised:true）の埋め込み指摘は補正前ドラフトに対するもので本文と一致しない。
+			// 結果ドキュメント（本文に対して突合される面）へ流すと解決済みを未解決として再提示するため流さない（5.3/5.4）
+			if (trace.revised) continue;
+			// 補正なし（revised:false）かつ指摘あり（再生成失敗で原ドラフト登録）は本文と一致するため、
+			// 対象発言 ID を復元して結果へ反映する
+			if (trace.findings.length > 0) {
+				const restamped = trace.findings.map((finding) => ({ ...finding, turnId: turn.id }));
+				if (onTurnFindings) await onTurnFindings(restamped);
+				allFindings.push(...restamped);
+			}
+			// checked かつ finding なし（修正対象なし）は反映対象なし
+			continue;
+		}
+
+		// unverified ターン・トレースの無い旧データのターンのみ、従来どおり grounding 検証する（5.2）
 		const result = await checkTurn(turn, context);
 		if (!result.ok) {
 			console.error('[checkChapter] turn check failed', { turnId: turn.id }, result.error);

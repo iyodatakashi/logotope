@@ -35,3 +35,6 @@ export const TURN_CAP_RATIO = 1.5;
 
 /** 論点リストが存在する章の強制終了上限の比率（論点消化を許容するため既定より高い） */
 export const AGENDA_TURN_CAP_RATIO = 2.5;
+
+/** インライン検証（ドラフトのファクトチェック）の1発言あたり上限時間（ミリ秒）。超過時はフォールバック */
+export const INLINE_FACT_CHECK_TIMEOUT_MS = 120_000;

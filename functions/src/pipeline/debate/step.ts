@@ -116,6 +116,7 @@ const decideQuietStreak = (engagements: Engagement[], quietStreak: number): numb
  */
 const executeTurn = async ({
 	topicId,
+	topicTitle,
 	personas,
 	chapter,
 	chapterId,
@@ -126,6 +127,7 @@ const executeTurn = async ({
 	freeze
 }: {
 	topicId: string;
+	topicTitle: string;
 	personas: Persona[];
 	chapter: Chapter;
 	chapterId: string;
@@ -165,6 +167,7 @@ const executeTurn = async ({
 		});
 		const reply = await generatePersonaTurn({
 			topicId,
+			topicTitle,
 			personas,
 			chapter,
 			state,
@@ -230,6 +233,7 @@ const executeTurn = async ({
 
 	const reply = await generatePersonaTurn({
 		topicId,
+		topicTitle,
 		personas,
 		chapter,
 		state,
@@ -365,7 +369,8 @@ export const performTurnStep = async (
 	payload: StepPayload,
 	options: DebateOptions
 ): Promise<TurnExecution> => {
-	const { chapterDoc, chapter, personas, state, chapterTurnStartInState, quietStreak } = ctx;
+	const { chapterDoc, chapter, personas, topicTitle, state, chapterTurnStartInState, quietStreak } =
+		ctx;
 	const { topicId } = payload;
 	const chapterLocalCount = chapterDoc.turns.length;
 	const freeze = !!payload.finalResponse; // 章末 +1 最終応答は quietStreak を据え置く
@@ -379,6 +384,7 @@ export const performTurnStep = async (
 
 	const result = await executeTurn({
 		topicId,
+		topicTitle,
 		personas,
 		chapter,
 		chapterId: chapterDoc.id,

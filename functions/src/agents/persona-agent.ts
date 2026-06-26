@@ -272,7 +272,21 @@ export const generateTurn = async (
 					: opinionInstruction) +
 			antiSycophancyNote +
 			targetBiasNote;
-		const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterContext}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}`;
+		// 事実確認の指摘フィードバック（補正再生成）。未指定なら従来どおりの生成（3.1〜3.4）
+		const factCheckFeedback = context.factCheckFeedback ?? [];
+		const factCheckNote =
+			factCheckFeedback.length > 0
+				? `\n\n【事実確認による修正指示】直前に生成したあなたの発言ドラフトに、以下の事実誤認の指摘がありました。指摘を踏まえ、誤りを含まない発言に作り直してください。\n${factCheckFeedback
+						.map((feedback, index) =>
+							feedback.verdict === 'incorrect'
+								? `${index + 1}. 「${feedback.claim}」は誤り。正しくは: ${feedback.correction}（理由: ${feedback.reason}）`
+								: `${index + 1}. 「${feedback.claim}」は裏付けが取れず検証不能（理由: ${feedback.reason}）`
+						)
+						.join(
+							'\n'
+						)}\n【修正の方針】\n- 自分の立場・口調・論旨の方向性・指名（targetPersonaId）の整合は維持する（ただし事実の訂正によって主張の結論が変わることは許容する）\n- 誤り（incorrect）の主張は発言に含めず、訂正後の事実に基づいて組み立て直す\n- 検証不能（unverifiable）の主張は、不確実性を含む表現に改めるか取り下げる`
+				: '';
+		const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterContext}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}${factCheckNote}`;
 		const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 			generateText({
 				model,

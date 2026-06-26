@@ -31,3 +31,11 @@ export type FactCheckResult = Omit<FactCheckResultForFirestore, 'startedAt' | 'c
 	startedAt: Date;
 	completedAt?: Date;
 };
+
+// インライン検証・補正の監査トレース（ターンに埋め込み）。表示 UI は本仕様の対象外（型整合のみ）。
+export type TurnFactCheckTrace = {
+	status: 'checked' | 'unverified';
+	revised: boolean;
+	findings: FactCheckFinding[];
+	originalContent?: string;
+};

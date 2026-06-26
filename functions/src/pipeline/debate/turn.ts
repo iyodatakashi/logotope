@@ -2,9 +2,11 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { generateTurn } from '../../agents/persona-agent.js';
 import { generateChapterSummary, generateClosing } from '../../agents/facilitator-agent.js';
+import { verifyAndReviseDraft } from './inline-fact-check.js';
 import { getLatestBelief } from './belief.js';
 import { isDebateActive } from './debate-lifecycle.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
+import { currentDateString } from '../../utils/prompt-formatters.js';
 import type {
 	DebateState,
 	SpeakerSelection,
@@ -17,8 +19,10 @@ import type {
 	AppendTurnInput,
 	AppendResult,
 	NewTurnFields,
-	ProgressPatch
+	ProgressPatch,
+	TurnGenerationContext
 } from '../../types/turn.types.js';
+import type { FactCheckContext } from '../../types/fact-check.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
@@ -40,6 +44,8 @@ const buildTurnRecord = (id: string, turn: NewTurnFields): Record<string, unknow
 	if (turn.targetedBy !== undefined) record.targetedBy = turn.targetedBy;
 	if (turn.searchUsed) record.searchUsed = true;
 	if (turn.searchQueries?.length) record.searchQueries = turn.searchQueries;
+	// 補正トレース（検証状態・補正有無・適用指摘・補正前ドラフト）を発言に co-located で永続化（4.2）
+	if (turn.factCheck !== undefined) record.factCheck = turn.factCheck;
 	return record;
 };
 
@@ -153,6 +159,7 @@ const buildQueuedTrigger = (
 /** 決定に基づきペルソナ発言を生成・保存する。討論停止時は null を返す */
 export const generatePersonaTurn = async ({
 	topicId,
+	topicTitle = '',
 	personas,
 	chapter,
 	state,
@@ -162,6 +169,7 @@ export const generatePersonaTurn = async ({
 	progressPatch
 }: {
 	topicId: string;
+	topicTitle?: string;
 	personas: Persona[];
 	chapter: Chapter;
 	state: DebateState;
@@ -188,39 +196,56 @@ export const generatePersonaTurn = async ({
 		.filter((p) => p.id !== persona.id)
 		.map((p) => ({ id: p.id, name: p.name }));
 
-	const turnResult = await generateTurn(
-		persona,
-		{
-			chapterTurns,
-			chapter,
-			queuedTrigger,
-			targetedBy:
-				speakerSelection.reason === 'targeted_by_facilitator' ||
-				speakerSelection.reason === 'targeted_by_persona'
-					? speakerSelection.reason === 'targeted_by_facilitator'
-						? 'facilitator'
-						: 'persona'
-					: undefined,
-			otherPersonas
-		},
-		{ ...engagement, intentSummary: speakerSelection.intentSummary ?? engagement.intentSummary },
-		personas
-	);
+	// 補正モジュールが再生成時に再利用できるよう、生成文脈とエンゲージメントを一度組み立てる
+	const generationContext: TurnGenerationContext = {
+		chapterTurns,
+		chapter,
+		queuedTrigger,
+		targetedBy:
+			speakerSelection.reason === 'targeted_by_facilitator' ||
+			speakerSelection.reason === 'targeted_by_persona'
+				? speakerSelection.reason === 'targeted_by_facilitator'
+					? 'facilitator'
+					: 'persona'
+				: undefined,
+		otherPersonas
+	};
+	const turnEngagement: Engagement = {
+		...engagement,
+		intentSummary: speakerSelection.intentSummary ?? engagement.intentSummary
+	};
+
+	// まずドラフトを生成する
+	const turnResult = await generateTurn(persona, generationContext, turnEngagement, personas);
 	if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
-	// 生成中に討論が停止された場合は、生成済みのセリフを保存せず状態も更新しない
+	// 生成中に討論が停止された場合は、ドラフトを検証・保存せず状態も更新しない
 	if (!(await isDebateActive(topicId))) return null;
 
-	// 直接質問先は ID 検証のうえターンに永続化する（自分自身への指定は無視）
-	const rawTarget = turnResult.value.targetPersonaId;
+	// 討論継続中はインライン検証・補正を経てから正式登録する（誤った発言の伝播を防ぐ）
+	const factCheckContext: FactCheckContext = {
+		topicTitle,
+		chapterTitle: chapter.title,
+		focusQuestion: chapter.focusQuestion,
+		currentDate: currentDateString()
+	};
+	const { reply, trace } = await verifyAndReviseDraft({
+		draft: turnResult.value,
+		persona,
+		context: generationContext,
+		factCheckContext,
+		engagement: turnEngagement,
+		personas
+	});
+
+	// 採用された発言（補正後 or 原ドラフト）で指名先の再検証・発言モード確定を行う（3.3）
+	const rawTarget = reply.targetPersonaId;
 	const targetPersonaId =
 		rawTarget !== persona.id ? validPersonaId(rawTarget, personas) : undefined;
 
 	// question モードで targetPersonaId が設定されなかった場合は opinion にフォールバック
 	const effectiveSpeechMode =
-		turnResult.value.speechMode === 'question' && !targetPersonaId
-			? 'opinion'
-			: turnResult.value.speechMode;
+		reply.speechMode === 'question' && !targetPersonaId ? 'opinion' : reply.speechMode;
 
 	const addTurnResult = await addTurn({
 		topicId,
@@ -229,14 +254,15 @@ export const generatePersonaTurn = async ({
 		turn: {
 			speakerType: 'persona',
 			personaId: persona.id,
-			content: turnResult.value.content,
+			content: reply.content,
 			speechMode: effectiveSpeechMode,
 			engagementScore: engagement.score,
 			fromQueue: fromQueue || undefined,
 			targetPersonaId,
 			targetedBy: targetPersonaId ? 'persona' : undefined,
-			searchUsed: turnResult.value.searchUsed,
-			searchQueries: turnResult.value.searchQueries
+			searchUsed: reply.searchUsed,
+			searchQueries: reply.searchQueries,
+			factCheck: trace
 		},
 		runId: state.runId,
 		progressPatch
@@ -247,18 +273,19 @@ export const generatePersonaTurn = async ({
 		id: turnId,
 		speakerType: 'persona',
 		personaId: persona.id,
-		content: turnResult.value.content,
+		content: reply.content,
 		createdAt: Timestamp.now(),
 		fromQueue: fromQueue || undefined,
 		targetPersonaId,
-		targetedBy: targetPersonaId ? 'persona' : undefined
+		targetedBy: targetPersonaId ? 'persona' : undefined,
+		factCheck: trace
 	});
 
 	return {
 		turnId,
 		personaId: persona.id,
 		targetPersonaId,
-		beliefChange: turnResult.value.beliefChange,
+		beliefChange: reply.beliefChange,
 		queuedEntries,
 		fromQueue
 	};
