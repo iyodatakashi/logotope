@@ -59,6 +59,18 @@ vi.mock('../../../utils/prompt-formatters.js', () => ({
 	currentDateString: mockCurrentDateString
 }));
 
+// 既定はパススルー（kept = 入力 findings）。フィルタを検証するテストだけ上書きする。
+const { mockJudge } = vi.hoisted(() => ({
+	mockJudge: vi.fn(async (_content: string, findings: unknown[]) => ({
+		kept: findings,
+		judgments: []
+	}))
+}));
+
+vi.mock('../../../pipeline/fact-check/fact-check-judge.js', () => ({
+	judgeCorrectionWorthiness: mockJudge
+}));
+
 import type { DebateTurn } from '../../../types/turn.types.js';
 import { checkTurn, checkChapter } from '../../../pipeline/fact-check/fact-check-runner.js';
 
@@ -96,6 +108,10 @@ beforeEach(() => {
 	mockExtractSources.mockReturnValue([{ query: 'q', summary: 's', results: [] }]);
 	mockResolveSourceUrls.mockResolvedValue([{ query: 'q', summary: 's', results: [] }]);
 	mockGetTopicById.mockResolvedValue({ id: 't1', title: 'ウクライナ情勢と医療' });
+	mockJudge.mockImplementation(async (_content: string, findings: unknown[]) => ({
+		kept: findings,
+		judgments: []
+	}));
 });
 
 describe('checkTurn', () => {
@@ -301,6 +317,58 @@ describe('checkTurn', () => {
 	});
 });
 
+describe('checkTurn 修正適否フィルタ（共通フィルタ）', () => {
+	const ctx = {
+		topicTitle: 'ウクライナ情勢と医療',
+		chapterTitle: '戦時下の医療中立性',
+		focusQuestion: '医療は誰を守るのか',
+		currentDate: '2026年6月25日'
+	};
+	const oneFinding = () =>
+		phase2Result([
+			{
+				claim: '日本の人口は2億人である',
+				verdict: 'incorrect',
+				correction: '約1.2億人',
+				reason: '統計と矛盾',
+				sourceIndices: [1]
+			}
+		]);
+
+	it('finding を修正適否ジャッジに通し、kept のみを返す', async () => {
+		setResolvedSources([{ title: 'https://a.com', url: 'https://a.com' }]);
+		mockGenerateText.mockResolvedValueOnce(groundingResult());
+		mockGenerateObject.mockResolvedValueOnce(oneFinding());
+		// ジャッジが修正対象外（skip）と判断し空を返す
+		mockJudge.mockResolvedValueOnce({ kept: [], judgments: [] });
+		const result = await checkTurn(makeTurn(), ctx);
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value).toEqual([]);
+		expect(mockJudge).toHaveBeenCalledTimes(1);
+	});
+
+	it('ジャッジには発言本文・finding・文脈を渡す', async () => {
+		setResolvedSources([{ title: 'https://a.com', url: 'https://a.com' }]);
+		mockGenerateText.mockResolvedValueOnce(groundingResult());
+		mockGenerateObject.mockResolvedValueOnce(oneFinding());
+		await checkTurn(makeTurn({ content: '日本の人口は2億人である。' }), ctx);
+		const [content, findings, passedCtx] = mockJudge.mock.calls[0];
+		expect(content).toBe('日本の人口は2億人である。');
+		expect(findings).toHaveLength(1);
+		expect(passedCtx).toEqual(ctx);
+	});
+
+	it('finding が0件のときはジャッジを呼ばない', async () => {
+		setResolvedSources([{ title: 'https://a.com', url: 'https://a.com' }]);
+		mockGenerateText.mockResolvedValueOnce(groundingResult());
+		mockGenerateObject.mockResolvedValueOnce(phase2Result([]));
+		const result = await checkTurn(makeTurn(), ctx);
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value).toEqual([]);
+		expect(mockJudge).not.toHaveBeenCalled();
+	});
+});
+
 describe('checkChapter', () => {
 	it('章が存在しなければ NOT_FOUND を返す', async () => {
 		mockGetChapterById.mockResolvedValueOnce(null);
@@ -371,6 +439,59 @@ describe('checkChapter', () => {
 			expect(result.value.map((f) => f.turnId).sort()).toEqual(['tf', 'tp']);
 		}
 		expect(mockGenerateText).toHaveBeenCalledTimes(2);
+	});
+
+	it('章集約はフィルタ済み（kept）findings になる', async () => {
+		mockGetChapterById.mockResolvedValueOnce({
+			id: 'c1',
+			chapterIndex: 0,
+			title: 't',
+			focusQuestion: 'f',
+			discussionPoints: [],
+			turns: [
+				makeTurn({ id: 'tp', speakerType: 'persona', content: 'ペルソナの誤り主張' }),
+				makeTurn({ id: 'tf', speakerType: 'facilitator', content: 'ファシの誤り主張' })
+			],
+			status: 'completed'
+		});
+		setResolvedSources([{ title: 'https://a.com', url: 'https://a.com' }]);
+		mockGenerateText.mockResolvedValue(groundingResult());
+		mockGenerateObject
+			.mockResolvedValueOnce(
+				phase2Result([
+					{
+						claim: 'ペルソナの誤り主張',
+						verdict: 'incorrect',
+						correction: 'c',
+						reason: 'r',
+						sourceIndices: [1]
+					}
+				])
+			)
+			.mockResolvedValueOnce(
+				phase2Result([
+					{
+						claim: 'ファシの誤り主張',
+						verdict: 'incorrect',
+						correction: 'c',
+						reason: 'r',
+						sourceIndices: [1]
+					}
+				])
+			);
+		// 1発言目（tp）は kept、2発言目（tf）はジャッジが除外（skip）
+		mockJudge
+			.mockImplementationOnce(async (_c: string, findings: unknown[]) => ({
+				kept: findings,
+				judgments: []
+			}))
+			.mockImplementationOnce(async () => ({ kept: [], judgments: [] }));
+		const result = await checkChapter({ topicId: 't1', chapterId: 'c1' });
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toHaveLength(1);
+			expect(result.value[0].turnId).toBe('tp');
+		}
 	});
 
 	it('発言ごとに onTurnFindings を呼ぶ（逐次表示）', async () => {

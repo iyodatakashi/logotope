@@ -10,6 +10,7 @@
 		"logs": "firebase functions:log",
 		"test": "vitest run --project unit",
 		"test:watch": "vitest --project unit",
+		"eval:judge": "RUN_JUDGE_EVAL=1 vitest run --project eval",
 		"test:integration": "cd .. && firebase emulators:exec --only firestore --project demo-logotope \"cd functions && npx vitest run --project integration\""
 	},
 	"engines": {

@@ -94,4 +94,18 @@ describe('getPipelineModel - ファクトチェック', () => {
 		expect(mockGoogleModelFn).toHaveBeenCalledWith(PIPELINE_MODELS.factCheckStructuring);
 		expect(anthropic).not.toHaveBeenCalled();
 	});
+
+	it('factCheckJudge は Gemini プロバイダを返す', () => {
+		getPipelineModel('factCheckJudge');
+		expect(createGoogleGenerativeAI).toHaveBeenCalledWith({ apiKey: 'test-gemini-key' });
+		expect(mockGoogleModelFn).toHaveBeenCalledWith(PIPELINE_MODELS.factCheckJudge);
+		expect(anthropic).not.toHaveBeenCalled();
+	});
+
+	it('factCheckJudge は GEMINI_API_KEY 未設定なら Claude にフォールバック', () => {
+		delete process.env.GEMINI_API_KEY;
+		getPipelineModel('factCheckJudge');
+		expect(anthropic).toHaveBeenCalledWith(PERSONA_MODELS.claude);
+		expect(createGoogleGenerativeAI).not.toHaveBeenCalled();
+	});
 });
