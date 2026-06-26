@@ -2,11 +2,18 @@
 
 ## Summary
 - **Feature**: `fact-check-validity-improvement`
-- **Discovery Scope**: Extension（既存 `chapter-fact-check` の判定ロジック改良）
+- **Discovery Scope**: Extension（既存 `chapter-fact-check` の判定ロジック改良）／**design 再設計（要件回帰）**
 - **Key Findings**:
-  - 変更の中心は [fact-check-runner.ts](functions/src/pipeline/fact-check/fact-check-runner.ts) のプロンプト2種・Phase2 Zod スキーマ・post-processing の3点。実行制御（onCall→Cloud Task）・永続（repository）・逐次追記フローは不変。
+  - 変更の中心は [fact-check-runner.ts](functions/src/pipeline/fact-check/fact-check-runner.ts)。**断定ゲート（Phase0）を Phase1 検索の前に新設**し、非断定を grounding 検証に到達させない。実行制御（onCall→Cloud Task）・永続（repository）・逐次追記フロー・`FactCheckFinding` 契約は不変。
   - 入力シグナルは既存資産で充足：`DebateTurn.speechMode`（`opinion/fact/question`）はターンに保持済みだが runner 未使用。現在日時は `currentDateString()`（[prompt-formatters.ts](functions/src/utils/prompt-formatters.ts#L4)）を `FactCheckContext` に足すだけで時間軸検証に使える。
-  - 非断定の主張は**検証せず finding も生成しない**（軽量版＋抑制）。検証しない以上ファクトチェック判断を含む指摘は残せないため、別種の指摘（`contextual` 等）は設けない。結果として `FactCheckVerdict` / `FactCheckFinding` の契約は不変、変更は runner のプロンプトと `FactCheckContext` への現在日時追加に閉じる。
+  - 非断定の主張は**検証せず（grounding 検索にも掛けず）finding も生成しない**。検証しない以上ファクトチェック判断を含む指摘は残せないため、別種の指摘（`contextual` 等）は設けない。結果として `FactCheckVerdict` / `FactCheckFinding` の契約は不変。
+
+## 設計やり直しの経緯（requirements ⇔ design ズレの是正）
+
+- **発見されたズレ**: 旧 design.md:168 は「Phase1 で前提部分まで検索しても実コスト不変／Phase2 で非断定を落とす」とし、判定ゲートを Phase2（指摘段階）に置いていた。これは requirements **2.1/2.2/2.3「非断定は検証も指摘もしない」**を実装しておらず、「検証はするが指摘しない」へ実質ダウングレードしていた。
+- **実害**: Phase1 が問いの前提（loaded question の偽の前提、例「FSBがウクライナ市民を処罰する」）まで検索検証し、「それは誤り」という検証テキストを生成。これが Phase2／後段の修正適否ジャッジをすり抜ける**過検出の燃料**になっていた（運用ログで確認: 同一 claim がジャッジ実行ごとに skip/非skip でブレた）。
+- **是正方針**: 断定ゲートを **Phase1 検索の前（Phase0）** に置き、非断定は検索検証にも掛けない。requirements は正しいので据え置き、design のみ要件に整合させ直す。
+- **下流への波及**: 上流で非断定を断つため、後段 `fact-check-correction-worthiness`（修正適否ジャッジ）が拾うべき過検出が縮小する。当該ジャッジの要否・スコープは correction-worthiness スペックで別途再評価する（本スペックの Revalidation Trigger に明記）。
 
 ## Research Log
 
@@ -39,8 +46,8 @@
 
 | Option | Description | Strengths | Risks / Limitations | Notes |
 |--------|-------------|-----------|---------------------|-------|
-| A: runner 拡張（採用） | プロンプト・スキーマ・後処理に断定性判定を追加 | 1ファイル集中・既存ガード/フロー再利用・回帰範囲が狭い | プロンプトが長くなる | structure.md「過度な共通化をしない」に合致 |
-| B: 判定を独立 LLM ステップ化 | Phase1 前に断定性分類を別呼び出し | 判定責務の分離・テスト容易 | 発言×2→×3 で コスト/レイテンシ増・現状規模に過剰 | 不採用 |
+| A: Phase2 抑制（旧採用→**棄却**） | Phase1 で全文検索し Phase2 で非断定を落とす | 1ファイル集中・呼び出し数最小（×2） | **req 2.1「検証しない」を満たさない**／前提の検証テキストが過検出の燃料に | design.md:168 の旧方針。要件違反のため棄却 |
+| B→**D: Phase0 断定ゲート前置（採用）** | Phase1 検索の前に断定分類（Flash・grounding なし）を1段置き、非断定は検索に渡さない | **req 2.1/2.2/2.3 を文字通り満たす**・過検出の燃料を断つ・純粋な問いは Pro grounding を丸ごと省ける | 混在発言で呼び出し×2→×3（断定ゼロ発言は×1で早期 return） | 旧 research は「×3 でコスト過剰」と B を棄却したが、(1) 要件が「検証しない」を要求、(2) 非断定発言は重い grounding(Pro) を省けて純減もあり得る、で再評価し採用 |
 | C: verdict リラベル（不採用） | 非断定を `contextual` で残す | 除外根拠が見える | 検証しない軽量版では判断を含まずノイズ・契約変更が増える | ユーザー判断で不採用 |
 
 ## Design Decisions
@@ -56,12 +63,13 @@
 - **Trade-offs**: ✅ 最小変更・契約不変・回帰範囲が最小 / ❌ 非断定として除外した根拠は永続的には残らない（必要なら実行時ログで観察）。
 - **Follow-up**: 提示済み4例で回帰確認。判定精度の調整はプロンプトで行う。
 
-### Decision: 断定性は Phase1/Phase2 プロンプトで判定し、不確実なら検証側へ倒す
-- **Context**: 断定/非断定の判定はファジー。過剰抑制（見逃し）と過小抑制（誤検出）のバランス。
-- **Selected Approach**: Phase1 で「事実として断定された主張のみ検証、問い・前提・仮定・代弁は検証から除外」、Phase2 で incorrect/unverifiable/contextual に構造化。質問文中でも確定事実（過去の出来事・既成の状態）として述べた部分は検証する（3.3）。判定が不確実なら事実主張として検証（3.6）。`speechMode === 'question'` は手掛かりに留め、単独で一律除外しない（1.5）。
-- **Rationale**: 見逃し回避を優先しつつ、明確な非断定のみ contextual にすることで誤検出を抑える。
-- **Trade-offs**: ✅ 保守的で安全 / ❌ 判定精度がプロンプト品質依存。
-- **Follow-up**: 提示済み4例（停戦前提・国連/赤十字の仮定・W杯試合数・時間軸）を評価ケースに。
+### Decision（再設計・採用）: 断定ゲート（Phase0）を Phase1 検索の前に置き、非断定は検証しない
+- **Context**: 旧設計（Phase2 抑制）は req 2.1「非断定は検証しない」を満たさず、Phase1 が問いの前提まで検索検証して過検出の燃料を生んでいた。判定ゲートを検索の前へ移す。
+- **Selected Approach**: `checkTurn` の先頭に Phase0（`generateObject`・Flash・**grounding なし**）を新設し、発言から「検証すべき断定された事実主張」のみを抽出。抽出ゼロなら **Phase1/Phase2 を実行せず空配列を返す**。混在発言は断定主張のみを Phase1 へ渡す。質問内の確定事実は抽出して検証（3.3）。不確実なら断定として抽出（3.6・保守的デフォルト）。`speechMode` は手掛かりに留める（1.5）。
+- **Rationale**: 断定/非断定は発言テキストだけで判断でき grounding 不要。検索の前に落とせば (a) req 2.1/2.2/2.3 を文字通り満たし、(b) 過検出の燃料（前提の検証テキスト）が生まれず、(c) 純粋な問い・意見の発言では重い Pro grounding を丸ごと省ける。
+- **Trade-offs**: ✅ 要件準拠・過検出を根本で抑制・非断定発言はコスト純減 / ❌ 混在・断定発言は LLM 呼び出しが×2→×3、判定精度は Phase0 プロンプト依存。
+- **Failure Handling**: Phase0 が失敗したら見逃し回避を優先し全文を Phase1 にフォールバック（フェイルオープン）。
+- **Follow-up**: 提示済み4例（停戦前提・国連/赤十字の仮定・W杯試合数・時間軸）＋ loaded question（問いの中の偽前提）を評価ケースに。上流抑制の効果を踏まえ correction-worthiness（修正適否ジャッジ）の要否を再評価。
 
 ## Risks & Mitigations
 - 断定/非断定の LLM 判定精度がファジー — 3.6（不確実なら検証）を保守的デフォルトにし、4例で回帰確認。
