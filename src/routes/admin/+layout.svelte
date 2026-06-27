@@ -42,6 +42,7 @@
 	.admin-layout {
 		display: grid;
 		grid-template-rows: auto 1fr;
+		height: 100vh;
 	}
 
 	.admin-layout__header {

@@ -111,19 +111,20 @@
 
 <style>
 	.phase-panel {
-		display: grid;
-		grid-template-rows: auto 1fr;
 		height: 100%;
-		overflow: hidden;
+		overflow: auto;
 	}
 
 	.phase-panel__actions-pane {
+		position: sticky;
+		top: 0;
 		padding: 24px;
+		background-color: color-mix(in srgb, var(--base-50) 50%, transparent);
+		backdrop-filter: blur(20px);
 	}
 
 	.phase-panel__contents-pane {
 		padding: 0 24px 24px;
-		overflow: auto;
 	}
 
 	.phase-panel__actions {
