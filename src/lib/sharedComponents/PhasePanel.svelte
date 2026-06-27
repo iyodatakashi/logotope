@@ -19,7 +19,6 @@
 		onStop?: () => void;
 		restartLabel?: string; // stopped からの再開（フェーズ5）
 		onRestart?: () => void;
-		generateHint?: string;
 		content?: Snippet;
 		progress?: Snippet;
 	}
@@ -37,7 +36,6 @@
 		onStop,
 		restartLabel,
 		onRestart,
-		generateHint,
 		content,
 		progress
 	}: Props = $props();
@@ -48,9 +46,6 @@
 <div class="phase-panel">
 	<div class="phase-panel__actions-pane">
 		{#if logicalState === 'not_started'}
-			{#if generateHint}
-				<p class="hint">{generateHint}</p>
-			{/if}
 			<div class="phase-panel__actions">
 				<Button variant="filled" onclick={onGenerate}>{generateLabel}</Button>
 			</div>
@@ -131,15 +126,11 @@
 		overflow: auto;
 	}
 
-	.hint {
-		color: #555;
-		font-size: 0.9rem;
-		margin-bottom: 8px;
-	}
 	.phase-panel__actions {
 		display: flex;
 		gap: 8px;
 	}
+
 	.phase-panel__progress {
 		margin-bottom: 12px;
 	}

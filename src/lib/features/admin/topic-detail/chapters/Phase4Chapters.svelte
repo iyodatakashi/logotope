@@ -80,7 +80,6 @@
 <PhasePanel
 	{logicalState}
 	title="フェーズ 4: 章立て"
-	generateHint="取材結果をもとに討論の章立てを生成します。"
 	generateLabel="章立てを生成する"
 	approveLabel="承認して次へ進む"
 	regenerateLabel="再生成する"
@@ -193,20 +192,16 @@
 		list-style: disc;
 	}
 	.points li {
-		font-size: 0.8rem;
 		color: #888;
 		line-height: 1.5;
 	}
 	.issues {
-		margin-top: 24px;
 		border: 1px solid #e0e0e0;
 		border-radius: 6px;
 		padding: 12px;
 	}
 	.issues h3 {
 		margin: 0 0 12px;
-		font-size: 0.9rem;
-		color: #555;
 	}
 	.issues-grid {
 		display: grid;
@@ -215,54 +210,15 @@
 		padding-bottom: 12px;
 	}
 	.issues-col h4 {
-		font-size: 0.8rem;
-		color: #555;
-		margin: 0 0 8px;
-		font-weight: 600;
+		font-weight: bold;
 	}
+
 	.issues-col ol {
-		margin: 0;
-		padding-left: 20px;
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-	.issues-col li {
-		font-size: 0.8rem;
-		color: #444;
-		line-height: 1.5;
-	}
-	.grouping {
-		list-style: none;
-		margin: 0;
-		padding: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
-	.group {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-		font-size: 0.8rem;
-		line-height: 1.6;
-	}
-	.group-label {
-		font-weight: 700;
-		color: #1565c0;
-	}
-	.group-issues {
-		margin: 0;
-		padding-left: 16px;
-		list-style: disc;
-		color: #333;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-	.group-issue {
-		line-height: 1.5;
-	}
+
 	.scored-issues {
 		list-style: none;
 		margin: 0;
@@ -271,6 +227,7 @@
 		flex-direction: column;
 		gap: 6px;
 	}
+
 	.scored-issues li {
 		display: grid;
 		grid-template-columns: 2rem 3.5rem 1fr;
@@ -278,8 +235,6 @@
 		gap: 0 8px;
 		padding: 6px 8px;
 		border-radius: 4px;
-		font-size: 0.8rem;
-		line-height: 1.5;
 	}
 	.scored-issues li.selected {
 		background: #e8f5e9;
@@ -291,8 +246,6 @@
 	.score {
 		grid-row: 1 / 3;
 		align-self: center;
-		font-size: 1.1rem;
-		font-weight: 700;
 		text-align: center;
 	}
 	.selected .score {
@@ -302,17 +255,38 @@
 		color: #9e9e9e;
 	}
 	.issue-source {
-		font-size: 0.7rem;
 		color: #757575;
 		align-self: end;
 	}
 	.issue-text {
-		font-weight: 600;
 		color: #212121;
 	}
 	.reason {
 		grid-column: 3;
-		font-size: 0.75rem;
-		color: #616161;
+	}
+
+	.grouping {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.group {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.group-label {
+		font-weight: bold;
+	}
+	.group-issues {
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+	.group-issue {
+		font-weight: normal;
 	}
 </style>
