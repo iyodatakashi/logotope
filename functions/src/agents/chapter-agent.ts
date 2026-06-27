@@ -185,7 +185,7 @@ const groupIssues = async (
 		issueGroups[issueGroups.length - 1].issueIndexes.push(...unassigned);
 	}
 
-	return issueGroups;
+	return issueGroups.filter((group) => group.issueIndexes.length > 0);
 };
 
 const buildGroupingPrompt = (
