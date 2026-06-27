@@ -1,0 +1,87 @@
+# Implementation Plan
+
+- [ ] 1. Foundation: サーバ共通のフェーズ状態ヘルパー
+- [x] 1.1 フェーズ状態ヘルパー（完了確定と状態書込）を実装する
+  - `running` のときだけ `generated` へ遷移する冪等トランザクション（`confirmPhaseGenerated`）を用意し、`approved` 相当のフェーズ前進・`stopped`・既存 `generated` は上書きしない
+  - `running` / `stopped` のみ書ける状態書込関数（`setTopicPhaseStatus`）を用意し、`generated` は書けないインターフェースにする
+  - ドキュメント不存在時は no-op、複数回適用しても結果が変わらない（冪等）ことを確認できる
+  - 全フェーズ共通の状態遷移モデル（not_started → running → generated/stopped）を1箇所で担保する
+  - ヘルパー単体のユニットテストが通る（running→generated 遷移、それ以外で no-op、不存在 no-op）
+  - _Requirements: 2.1, 2.2, 2.4, 4.3, 5.1, 6.1_
+
+- [x] 2. (P) ステークホルダー（フェーズ1）の完了確定を共通ヘルパーへ移行する
+  - 既存のインライン `generated` 書込を共通の冪等確定（`confirmPhaseGenerated`）に置き換える
+  - 生成成功時に冪等に `generated` が確定し、既存のクライアント側ガード挙動はそのまま維持される
+  - _Requirements: 1.1, 2.1, 5.1_
+  - _Boundary: generateStakeholders onCall_
+  - _Depends: 1.1_
+
+- [x] 3. 章立て（フェーズ4）のサーバ権威化
+- [x] 3.1 (P) サーバが章立て永続化後に完了をサーバ確定する
+  - 既存の章立て永続化（章・分析）の成功後に、共通ヘルパーで `generated` を冪等確定する
+  - 生成中リロード後でもサーバ確定によりフェーズ4が完了状態になる
+  - _Requirements: 1.1, 2.1, 2.2_
+  - _Boundary: generateChapters onCall_
+  - _Depends: 1.1_
+- [x] 3.2 クライアントの章立て生成ハンドラをサーバ権威に合わせる
+  - 完了（`generated`）の自書込を撤去し、開始時の `running` 書込のみ残す
+  - 失敗時の `stopped` 書込をガード付きにし、サーバが既に `generated` 済みなら上書きしない
+  - 章立てはサーバ永続化＋サーバ確定を購読（onSnapshot）して反映し、完了時に「承認して次へ進む」が表示される
+  - _Requirements: 2.3, 3.1, 3.2, 3.3, 4.1, 4.2, 4.4, 6.1_
+  - _Boundary: createTopic client_
+  - _Depends: 3.1_
+
+- [x] 4. ペルソナ（フェーズ2）のサーバ権威化
+- [x] 4.1 (P) サーバがペルソナを永続化し完了をサーバ確定する
+  - 生成（in-memory 完了）後に、全ペルソナ文書を一括（batch）で永続化し、続けて `generated` を冪等確定する
+  - 生成途中の失敗では永続化を行わず、不完全な成果物を残さない（全件 or 未書込）
+  - callable は成果物を返さず空レスポンスにする（結果の Single Source of Truth は Firestore）
+  - _Requirements: 1.1, 1.2, 1.3, 2.1_
+  - _Boundary: generatePersonas onCall_
+  - _Depends: 1.1_
+- [x] 4.2 クライアントのペルソナ生成ハンドラをサーバ権威に合わせる
+  - クライアント側のペルソナ書込ループと完了（`generated`）自書込を撤去する
+  - 失敗時の `stopped` 書込をガード付きにし、サーバが `generated` 済みなら上書きしない
+  - 生成後、FE は onSnapshot のみでペルソナ一覧と完了状態を反映し「承認して次へ進む」が表示される
+  - _Requirements: 1.2, 2.3, 3.1, 3.2, 3.3, 4.1, 4.2, 4.4, 6.1_
+  - _Boundary: createTopic client_
+  - _Depends: 4.1_
+
+- [x] 5. 取材（フェーズ3）のサーバ権威化（クライアント並列呼び出しは維持）
+- [x] 5.1 (P) サーバが各ペルソナの取材結果・エラーを永続化する
+  - 取材成功時に当該ペルソナの取材記録と信念をサーバが永続化する
+  - 取材失敗時は当該ペルソナを `error` 状態で永続化したうえでエラーを呼び出し元へ返す
+  - callable は成果物を返さず空レスポンスにする（結果は Firestore に永続化済み）
+  - _Requirements: 1.4, 1.5, 2.1_
+  - _Boundary: runInterview onCall_
+  - _Depends: 1.1_
+- [x] 5.2 サーバが全ペルソナ完了を判定して完了をサーバ確定する
+  - 自ペルソナの完了永続化後に全ペルソナの取材状態を読み、件数>0 かつ全件 `completed` かつトピックが `running` のときだけ `generated` を冪等確定する
+  - `error` や未完了が残る間は `generated` にしない。並列呼び出しで多重実行されても冪等
+  - 完了判定はクライアントの逐次検知ではなくサーバ側で永続化状態から導出する
+  - _Requirements: 1.4, 5.2, 5.3, 5.4_
+  - _Boundary: interview-completion_
+  - _Depends: 5.1, 1.1_
+- [x] 5.3 クライアントの取材ストア・画面をサーバ権威に合わせる
+  - per-persona 呼び出しは開始時の即時クリア（in_progress 表示）を維持しつつ結果書込を撤去し、失敗（reject）を呼び出し元へ伝播する
+  - fanout は `Promise.allSettled` の `rejected` 有無で失敗を集約し、エラーありの場合のみガード付き `stopped`（`generated` 済みなら書かない）。完了（`generated`）の自書込は撤去する
+  - per-persona リトライは再実行前に `running` へ戻し、全件完了時にサーバ確定で `generated` へ到達できる
+  - 一部エラー時は `stopped`＋再取材導線、リトライ成功で `running`→全件完了→`generated`（承認ボタン表示）まで到達できる
+  - _Requirements: 2.3, 3.1, 3.2, 3.3, 4.1, 4.2, 4.4, 5.4, 6.3_
+  - _Boundary: personas store client, Phase3 interviews screen_
+  - _Depends: 5.1, 5.2_
+
+- [x] 6. 回帰・統合テスト
+- [x] 6.1 サーバ側の永続化・完了確定のユニットテストを追加する
+  - ペルソナ batch 永続化と完了確定の順序・失敗時未書込、章立て・ステークホルダーの完了確定呼び出しを検証する
+  - 取材の結果永続化／エラー永続化、全件完了判定の冪等（全件 completed で確定、未完了・error・件数0で no-op、stopped では確定しない）を検証する
+  - 追加したサーバ側テストがすべて通る
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.4, 5.2, 5.4_
+  - _Depends: 3.1, 4.1, 5.1, 5.2_
+- [x] 6.2 クライアント側テストを更新し管理操作の不変を回帰確認する
+  - createTopic（フェーズ2・4）が `generated` やペルソナ文書を書かず、ガード付き `stopped` のみ書くことを検証する
+  - 取材ストアが完了を書かず、`allSettled` のエラー検知時のみガード付き `stopped`、リトライ経路（stopped→running→generated）を検証する
+  - 承認・公開・リセット・再生成の既存クライアント挙動が変更されていないことを回帰確認する
+  - 更新したクライアント側テストがすべて通る
+  - _Requirements: 3.1, 3.2, 4.1, 4.2, 5.4, 6.2, 6.3, 7.1, 7.2_
+  - _Depends: 3.2, 4.2, 5.3_
