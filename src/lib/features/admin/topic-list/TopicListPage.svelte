@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { Button } from '@14ch/svelte-ui';
-	import { authStore } from '$lib/stores/auth.svelte';
 	import { topicsStore } from '$lib/stores/topics.svelte';
 	import { phaseDisplayLabel } from '$lib/models/phase/phase';
 	import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
@@ -18,7 +17,6 @@
 		<h1>管理ダッシュボード</h1>
 		<div class="actions">
 			<Button variant="filled" onclick={() => goto('/admin/topics/new')}>新しいテーマを作成</Button>
-			<Button variant="ghost" onclick={() => authStore.logout()}>ログアウト</Button>
 		</div>
 	</header>
 
