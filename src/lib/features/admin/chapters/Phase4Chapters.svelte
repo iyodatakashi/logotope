@@ -5,11 +5,24 @@
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
 	const PHASE = 4;
+	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
+	// 触れず、表示の即時フィードバックだけを担う。実状態(running)が反映されたら解除する。
+	let isStarting = $state(false);
 	const logicalState = $derived.by(() => {
+		if (isStarting) return 'running';
 		const topic = currentTopicStore.topic;
 		return topic
 			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
 			: 'not_started';
+	});
+	$effect(() => {
+		const topic = currentTopicStore.topic;
+		if (
+			topic &&
+			phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE) === 'running'
+		) {
+			isStarting = false;
+		}
 	});
 	const chapters = $derived(
 		currentTopicStore.chaptersStore.chapters.length
@@ -30,15 +43,30 @@
 			.toSorted((a, b) => (b.score ?? 0) - (a.score ?? 0)) ?? []
 	);
 
-	const generate = () => currentTopicStore.topic?.generateChapters();
+	const generate = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		isStarting = true;
+		try {
+			await topic.generateChapters();
+		} finally {
+			isStarting = false;
+		}
+	};
 
-	// 再生成: 章立てと下流（討論）を破棄してから作り直す
+	// 再生成: 章立てと下流（討論）を破棄してから作り直す。
+	// isStarting で押下直後に「実行中」表示へ切り替え、旧データを隠す（リセット完了を待たない）。
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
-		await topic.resetChapters();
-		await topic.resetDebate();
-		await topic.generateChapters();
+		isStarting = true;
+		try {
+			await topic.resetChapters();
+			await topic.resetDebate();
+			await topic.generateChapters();
+		} finally {
+			isStarting = false;
+		}
 	};
 
 	const approve = async () => {
@@ -66,79 +94,81 @@
 	onRegenerate={regenerate}
 >
 	{#snippet content()}
-		{#if chapterIssues?.issues?.length}
-			<section class="issues">
-				<h3>Step 1: 生成した切り口</h3>
-				<div class="issues-grid">
-					<div class="issues-col">
-						<h4>一般的な切り口（ペルソナなし）</h4>
-						<ol>
-							{#each generalIssues as issue (issue.text)}
-								<li>{issue.text}</li>
-							{/each}
-						</ol>
-					</div>
-					<div class="issues-col">
-						<h4>ペルソナ固有の切り口</h4>
-						<ol>
-							{#each personaIssues as issue (issue.text)}
-								<li>{issue.text}</li>
-							{/each}
-						</ol>
-					</div>
-				</div>
-			</section>
-		{/if}
-		{#if scoredIssues.length}
-			<section class="issues">
-				<h3>Step 2: 論点スコアリング結果</h3>
-				<ul class="scored-issues">
-					{#each scoredIssues as issue (issue.text)}
-						<li class:selected={issue.selected} class:rejected={!issue.selected}>
-							<span class="score">{issue.score}</span>
-							<span class="issue-source">{issue.source === 'general' ? '一般' : 'ペルソナ'}</span>
-							<span class="issue-text">{issue.text}</span>
-							<span class="reason">{issue.reason}</span>
-						</li>
-					{/each}
-				</ul>
-			</section>
-		{/if}
-		{#if chapterIssues?.issueGroups?.length}
-			<section class="issues">
-				<h3>Step 3: グループ化結果</h3>
-				<ul class="grouping">
-					{#each chapterIssues.issueGroups as group, i (i)}
-						<li class="group">
-							<span class="group-label">グループ {i + 1}</span>
-							<ul class="group-issues">
-								{#each group.issueIndexes as idx (idx)}
-									<li class="group-issue">{chapterIssues.issues[idx]?.text ?? ''}</li>
+		{#if !isStarting}
+			{#if chapterIssues?.issues?.length}
+				<section class="issues">
+					<h3>Step 1: 生成した切り口</h3>
+					<div class="issues-grid">
+						<div class="issues-col">
+							<h4>一般的な切り口（ペルソナなし）</h4>
+							<ol>
+								{#each generalIssues as issue (issue.text)}
+									<li>{issue.text}</li>
 								{/each}
-							</ul>
-						</li>
-					{/each}
-				</ul>
-			</section>
-		{/if}
-		{#if chapters}
-			<section class="issues">
-				<h3>Step 4: 論点精査結果</h3>
-				<ol class="chapters">
-					{#each chapters as chapter (chapter.title)}
-						<li>
-							<strong>{chapter.title}</strong>
-							{#if chapter.discussionPoints?.length}
-								<ul class="points">
-									{#each chapter.discussionPoints as point (point)}
-										<li>{point}</li>
+							</ol>
+						</div>
+						<div class="issues-col">
+							<h4>ペルソナ固有の切り口</h4>
+							<ol>
+								{#each personaIssues as issue (issue.text)}
+									<li>{issue.text}</li>
+								{/each}
+							</ol>
+						</div>
+					</div>
+				</section>
+			{/if}
+			{#if scoredIssues.length}
+				<section class="issues">
+					<h3>Step 2: 論点スコアリング結果</h3>
+					<ul class="scored-issues">
+						{#each scoredIssues as issue (issue.text)}
+							<li class:selected={issue.selected} class:rejected={!issue.selected}>
+								<span class="score">{issue.score}</span>
+								<span class="issue-source">{issue.source === 'general' ? '一般' : 'ペルソナ'}</span>
+								<span class="issue-text">{issue.text}</span>
+								<span class="reason">{issue.reason}</span>
+							</li>
+						{/each}
+					</ul>
+				</section>
+			{/if}
+			{#if chapterIssues?.issueGroups?.length}
+				<section class="issues">
+					<h3>Step 3: グループ化結果</h3>
+					<ul class="grouping">
+						{#each chapterIssues.issueGroups as group, i (i)}
+							<li class="group">
+								<span class="group-label">グループ {i + 1}</span>
+								<ul class="group-issues">
+									{#each group.issueIndexes as idx (idx)}
+										<li class="group-issue">{chapterIssues.issues[idx]?.text ?? ''}</li>
 									{/each}
 								</ul>
-							{/if}
-						</li>
-					{/each}
-				</ol>
-			</section>
+							</li>
+						{/each}
+					</ul>
+				</section>
+			{/if}
+			{#if chapters}
+				<section class="issues">
+					<h3>Step 4: 論点精査結果</h3>
+					<ol class="chapters">
+						{#each chapters as chapter (chapter.title)}
+							<li>
+								<strong>{chapter.title}</strong>
+								{#if chapter.discussionPoints?.length}
+									<ul class="points">
+										{#each chapter.discussionPoints as point (point)}
+											<li>{point}</li>
+										{/each}
+									</ul>
+								{/if}
+							</li>
+						{/each}
+					</ol>
+				</section>
+			{/if}
 		{/if}
 	{/snippet}
 </PhasePanel>

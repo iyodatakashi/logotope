@@ -8,22 +8,66 @@
 	import type { FactCheckFinding } from '$lib/models/factCheck/factCheck.types';
 
 	const PHASE = 5;
-	const generate = () => currentTopicStore.topic?.startDebate();
+	// 押下直後の楽観的な「実行中」表示用フラグ。討論は running をサーバが書くため
+	// callable 往復のあいだ表示が変わらない。その間を埋める表示専用のフラグ。
+	// isResetting はやり直し時に旧ターンを即時非表示にする（再開はターンを引き継ぐので消さない）。
+	let isStarting = $state(false);
+	let isResetting = $state(false);
+
+	const generate = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		isStarting = true;
+		try {
+			await topic.startDebate();
+		} finally {
+			isStarting = false;
+		}
+	};
 	const stop = () => currentTopicStore.topic?.stopDebate();
-	const restart = () => currentTopicStore.topic?.restartDebate();
+	const restart = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		isStarting = true;
+		try {
+			await topic.restartDebate();
+		} finally {
+			isStarting = false;
+		}
+	};
 
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
-		await topic.resetDebate();
-		await topic.startDebate();
+		isStarting = true;
+		isResetting = true;
+		try {
+			await topic.resetDebate();
+			await topic.startDebate();
+		} finally {
+			isStarting = false;
+			isResetting = false;
+		}
 	};
 
 	const logicalState = $derived.by(() => {
+		if (isStarting) return 'running';
 		const topic = currentTopicStore.topic;
 		return topic
 			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
 			: 'not_started';
+	});
+
+	// 実状態(running)がトピックに反映されたら楽観フラグを解除し、以降は実状態に委ねる。
+	$effect(() => {
+		const topic = currentTopicStore.topic;
+		if (
+			topic &&
+			phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE) === 'running'
+		) {
+			isStarting = false;
+			isResetting = false;
+		}
 	});
 
 	const personaMap = $derived(
@@ -91,7 +135,7 @@
 	onRestart={restart}
 >
 	{#snippet progress()}
-		{#if logicalState === 'running'}
+		{#if logicalState === 'running' && !isResetting}
 			{#if currentTopicStore.chaptersStore.currentChapter}
 				<p class="chapter-progress">
 					第{currentTopicStore.chaptersStore.currentChapter.chapterIndex + 1}章「{currentTopicStore
@@ -155,7 +199,7 @@
 			</ol>
 		{/if}
 
-		{#if turns.length > 0}
+		{#if !isResetting && turns.length > 0}
 			<div class="turns">
 				{#each turns as turn, i (turn.id)}
 					<div class="turn" class:facilitator={turn.speakerType === 'facilitator'}>

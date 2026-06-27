@@ -6,25 +6,53 @@
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 
 	const PHASE = 1;
+	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
+	// 触れず、表示の即時フィードバックだけを担う。実状態(running)が反映されたら解除する。
+	let isStarting = $state(false);
 	const logicalState = $derived.by(() => {
+		if (isStarting) return 'running';
 		const topic = currentTopicStore.topic;
 		return topic
 			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
 			: 'not_started';
 	});
+	$effect(() => {
+		const topic = currentTopicStore.topic;
+		if (
+			topic &&
+			phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE) === 'running'
+		) {
+			isStarting = false;
+		}
+	});
 	const stakeholders = $derived(currentTopicStore.stakeholdersStore.stakeholders);
 
-	const generate = () => currentTopicStore.topic?.generateStakeholders();
+	const generate = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		isStarting = true;
+		try {
+			await topic.generateStakeholders();
+		} finally {
+			isStarting = false;
+		}
+	};
 
-	// 再生成: ステークホルダーと下流（ペルソナ・章立て・討論）を破棄してから作り直す
+	// 再生成: ステークホルダーと下流（ペルソナ・章立て・討論）を破棄してから作り直す。
+	// isStarting で押下直後に「実行中」表示へ切り替え、旧データを隠す（リセット完了を待たない）。
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
-		await topic.resetStakeholders();
-		await topic.resetPersonas();
-		await topic.resetChapters();
-		await topic.resetDebate();
-		await topic.generateStakeholders();
+		isStarting = true;
+		try {
+			await topic.resetStakeholders();
+			await topic.resetPersonas();
+			await topic.resetChapters();
+			await topic.resetDebate();
+			await topic.generateStakeholders();
+		} finally {
+			isStarting = false;
+		}
 	};
 
 	const approve = async () => {
@@ -52,7 +80,7 @@
 	onRegenerate={regenerate}
 >
 	{#snippet content()}
-		{#if stakeholders.length > 0}
+		{#if !isStarting && stakeholders.length > 0}
 			<ul class="list">
 				{#each stakeholders as s, i (i)}
 					<li class="item">

@@ -22,11 +22,24 @@
 	];
 
 	const PHASE = 3;
+	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
+	// 触れず、表示の即時フィードバックだけを担う。実状態(running)が反映されたら解除する。
+	let isStarting = $state(false);
 	const logicalState = $derived.by(() => {
+		if (isStarting) return 'running';
 		const topic = currentTopicStore.topic;
 		return topic
 			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
 			: 'not_started';
+	});
+	$effect(() => {
+		const topic = currentTopicStore.topic;
+		if (
+			topic &&
+			phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE) === 'running'
+		) {
+			isStarting = false;
+		}
 	});
 	const personasStore = $derived(currentTopicStore.personasStore);
 
@@ -88,19 +101,30 @@
 	};
 
 	// 生成・やり直しは未完了ペルソナのみ取材。再生成は下流を破棄して全ペルソナを再取材する
-	const generate = () => {
+	const generate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		const topicContext = buildTopicContext(topic);
-		return personasStore.runInterviews(topic.title, topicContext);
+		isStarting = true;
+		try {
+			await personasStore.runInterviews(topic.title, topicContext);
+		} finally {
+			isStarting = false;
+		}
 	};
+	// isStarting で押下直後に「実行中」表示へ切り替え、旧データを隠す（リセット完了を待たない）。
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		const topicContext = buildTopicContext(topic);
-		await topic.resetChapters();
-		await topic.resetDebate();
-		await personasStore.runInterviews(topic.title, topicContext, true);
+		isStarting = true;
+		try {
+			await topic.resetChapters();
+			await topic.resetDebate();
+			await personasStore.runInterviews(topic.title, topicContext, true);
+		} finally {
+			isStarting = false;
+		}
 	};
 	const approve = async () => {
 		const topic = currentTopicStore.topic;
@@ -127,7 +151,7 @@
 	onRegenerate={regenerate}
 >
 	{#snippet progress()}
-		{#if totalCount > 0}
+		{#if !isStarting && totalCount > 0}
 			<div class="progress-summary">
 				<span class="count completed">{completedCount} 完了</span>
 				{#if pendingCount > 0}<span class="count pending">{pendingCount} 待機中</span>{/if}
@@ -137,7 +161,7 @@
 		{/if}
 	{/snippet}
 	{#snippet content()}
-		{#if interviews.length > 0}
+		{#if !isStarting && interviews.length > 0}
 			<ul class="list">
 				{#each interviews as iv (iv.personaId)}
 					<li
