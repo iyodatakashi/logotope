@@ -19,6 +19,9 @@ export const authStore = {
 	get loading() {
 		return loading;
 	},
+	get isLoggedIn() {
+		return user !== null;
+	},
 
 	async login(email: string, password: string): Promise<void> {
 		await signInWithEmailAndPassword(auth, email, password);

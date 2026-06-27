@@ -4,6 +4,7 @@
 	import type { Snippet } from 'svelte';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { topicsStore } from '$lib/stores/topics.svelte';
+	import { Button } from '@14ch/svelte-ui';
 
 	let { children }: { children: Snippet } = $props();
 
@@ -24,8 +25,38 @@
 	});
 </script>
 
-{#if authStore.loading}
-	<div class="loading">認証確認中...</div>
-{:else if authStore.user || isLoginPage}
-	{@render children()}
-{/if}
+<div class="admin-layout">
+	<div class="admin-layout__header">
+		<a href="/admin/topics" class="admin-layout__logo">logotope</a>
+		{#if authStore.isLoggedIn}
+			<Button variant="ghost" onclick={() => authStore.logout()}>ログアウト</Button>
+		{/if}
+	</div>
+
+	{#if authStore.loading}
+		<div class="loading">認証確認中...</div>
+	{:else if authStore.user || isLoginPage}
+		{@render children()}
+	{/if}
+</div>
+
+<style>
+	.admin-layout {
+		display: grid;
+		grid-template-rows: auto 1fr;
+	}
+
+	.admin-layout__header {
+		display: flex;
+		justify-content: space-between;
+		padding: 8px 24px;
+		background-color: var(--white);
+		border-bottom: solid 1px var(--svelte-ui-border-weak-color);
+	}
+
+	.admin-layout__logo {
+		font-size: 1.2rem;
+		font-weight: bold;
+		color: var(--svelte-ui-text-color);
+	}
+</style>
