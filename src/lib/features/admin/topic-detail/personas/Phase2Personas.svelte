@@ -4,6 +4,7 @@
 	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import PersonaItem from './PersonaItem.svelte';
+	import { Skeleton } from '@14ch/svelte-ui';
 
 	const PHASE = 2;
 	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
@@ -25,7 +26,7 @@
 			isStarting = false;
 		}
 	});
-	const personas = $derived(currentTopicStore.personasStore.personas);
+	const personas = currentTopicStore.personasStore.personas;
 
 	const generate = async () => {
 		const topic = currentTopicStore.topic;
@@ -79,7 +80,13 @@
 	onRegenerate={regenerate}
 >
 	{#snippet content()}
-		{#if !isStarting && personas.length > 0}
+		{#if logicalState === 'running'}
+			<Skeleton
+				patterns={[{ type: 'box', width: '100%', height: '96px' }]}
+				repeat={5}
+				repeatGap="8px"
+			/>
+		{:else if personas.length > 0}
 			<ul class="personas__list">
 				{#each personas as persona (persona.id)}
 					<PersonaItem {persona} />
