@@ -114,6 +114,15 @@ dataconnect/
 - **型定義**: PascalCase（例: `DebateSession`, `PersonaBelief`）
 - **GraphQL型**: PascalCase（例: `DebateTopic`, `PersonaProfile`）
 
+## CSS / スタイル記法
+
+- **BEM記法で書く**（Block・Element `__`・Modifier `--`）。
+  - 例: `.persona-item`（Block）、`.persona-item__header`（Element）、`.persona-item__badge--active`（Modifier）
+- **Block名はコンポーネントのPascalCase名をkebab-caseに変換する**。
+  - 例: `PersonaItem.svelte` → `.persona-item`、`PhasePanel.svelte` → `.phase-panel`
+- **`+page.svelte` / `+layout.svelte` はファイル名だけでは区別できないため、場所が分かるBlock名にする**。場所を表す接頭辞 + `-page` / `-layout` とする。
+  - 例: `admin/+layout.svelte` → `.admin-layout`、`admin/topics/[topicId]/+layout.svelte` → `.topic-detail-layout`
+
 ## Import Organization
 
 ```typescript
