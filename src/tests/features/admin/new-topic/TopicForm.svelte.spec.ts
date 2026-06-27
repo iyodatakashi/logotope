@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import TopicForm from '$lib/features/admin/new-topic/TopicForm.svelte';
+import TopicForm from '$lib/features/admin/new-topic-dialog/TopicForm.svelte';
 
 describe('TopicForm.svelte', () => {
 	it('renders title input and submit button', async () => {

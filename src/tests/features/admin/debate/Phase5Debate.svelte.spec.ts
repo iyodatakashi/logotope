@@ -120,7 +120,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	}
 }));
 
-import Phase5Debate from '$lib/features/admin/debate/Phase5Debate.svelte';
+import Phase5Debate from '$lib/features/admin/topic-detail/debate/Phase5Debate.svelte';
 
 const makeResult = (chapterId: string, status: string, findings: unknown[] = []) => ({
 	chapterId,

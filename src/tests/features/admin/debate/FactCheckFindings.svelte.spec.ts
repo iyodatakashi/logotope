@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser';
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import FactCheckFindings from '$lib/features/admin/debate/FactCheckFindings.svelte';
+import FactCheckFindings from '$lib/features/admin/topic-detail/debate/FactCheckFindings.svelte';
 import type { FactCheckFinding } from '$lib/models/factCheck/factCheck.types';
 
 const incorrectFinding: FactCheckFinding = {

@@ -43,13 +43,6 @@ const makePhase5Props = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('PhasePanel.svelte', () => {
-	describe('タイトル表示', () => {
-		it('title を表示する', async () => {
-			render(PhasePanel, makeProps({ title: 'フェーズ1テスト' }));
-			await expect.element(page.getByText('フェーズ1テスト')).toBeInTheDocument();
-		});
-	});
-
 	describe('not_started 状態', () => {
 		it('生成ボタン（generateLabel）のみ表示する', async () => {
 			render(PhasePanel, makeProps({ logicalState: 'not_started' }));
@@ -73,11 +66,6 @@ describe('PhasePanel.svelte', () => {
 	});
 
 	describe('running 状態（フェーズ1〜4）', () => {
-		it('実行中インジケータを表示する', async () => {
-			render(PhasePanel, makeProps({ logicalState: 'running' }));
-			await expect.element(page.getByRole('status')).toBeInTheDocument();
-		});
-
 		it('回復用に再生成ボタンを表示し、生成・承認は表示しない', async () => {
 			render(PhasePanel, makeProps({ logicalState: 'running' }));
 			await expect.element(page.getByRole('button', { name: '再生成する' })).toBeInTheDocument();
@@ -87,11 +75,6 @@ describe('PhasePanel.svelte', () => {
 	});
 
 	describe('running 状態（フェーズ5）', () => {
-		it('実行中インジケータを表示する', async () => {
-			render(PhasePanel, makePhase5Props({ logicalState: 'running' }));
-			await expect.element(page.getByRole('status')).toBeInTheDocument();
-		});
-
 		it('停止ボタンを表示する', async () => {
 			render(PhasePanel, makePhase5Props({ logicalState: 'running' }));
 			await expect

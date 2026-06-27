@@ -33,7 +33,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	}
 }));
 
-import Phase2Personas from '$lib/features/admin/personas/Phase2Personas.svelte';
+import Phase2Personas from '$lib/features/admin/topic-detail/personas/Phase2Personas.svelte';
 
 describe('Phase2Personas.svelte', () => {
 	it('ペルソナデータを表示する', async () => {
