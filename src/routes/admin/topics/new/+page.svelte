@@ -3,7 +3,7 @@
 	import { httpsCallable } from 'firebase/functions';
 	import { functions } from '$lib/firebase';
 	import { topicsStore } from '$lib/stores/topics.svelte';
-	import TopicForm from '$lib/features/admin/new-topic/TopicForm.svelte';
+	import TopicForm from '$lib/features/admin/new-topic-dialog/TopicForm.svelte';
 
 	let submitting = $state(false);
 	let error = $state('');
