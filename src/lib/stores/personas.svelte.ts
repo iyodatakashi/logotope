@@ -4,6 +4,7 @@ import {
 	query,
 	orderBy,
 	doc,
+	getDoc,
 	updateDoc,
 	writeBatch,
 	Timestamp
@@ -13,8 +14,7 @@ import { db, functions } from '$lib/firebase';
 import type {
 	PersonaForFirestore,
 	Persona,
-	PersonaForInterview,
-	DraftBelief
+	PersonaForInterview
 } from '$lib/models/persona/persona.types';
 import type { TopicContext } from '$lib/models/topic/topic.types';
 
@@ -82,16 +82,6 @@ export const createPersonasStore = (topicId: string) => {
 		});
 	};
 
-	// 全ペルソナの取材完了を FE が検知した時点で、フェーズ3を生成完了として1回だけ確定する。
-	// per-persona の進捗は永続化せず、リロード後は取材記録の有無から完了を再構築できる。
-	const markInterviewsComplete = async (): Promise<void> => {
-		await updateDoc(doc(db, 'topics', topicId), {
-			phase: 3,
-			phaseStatus: 'generated',
-			updatedAt: Timestamp.now()
-		});
-	};
-
 	// 取材失敗時にトピックを停止状態にする（実行中・完了は既存のまま）
 	const markInterviewsStopped = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId), {
@@ -101,8 +91,8 @@ export const createPersonasStore = (topicId: string) => {
 		});
 	};
 
-	// 取材フローの実行: 実行中→（未完了ペルソナの取材）→生成完了。
-	// 途中で失敗を捕捉した場合はトピックを停止状態にする。
+	// 取材フローの実行: 実行中→（未完了ペルソナを並列取材）。
+	// 結果の永続化と完了確定（generated）はサーバ権威で行うため、FE は完了を書かない。
 	// all=true で全ペルソナを再取材する（再生成・やり直し用）。
 	const runInterviews = async (
 		topicTitle: string,
@@ -110,13 +100,18 @@ export const createPersonasStore = (topicId: string) => {
 		all = false
 	): Promise<void> => {
 		await markInterviewsStarted();
-		try {
-			const targets = all ? personas : personas.filter((p) => p.interview?.status !== 'completed');
-			await Promise.all(targets.map((p) => runInterview(p.id, topicTitle, topicContext)));
-			await markInterviewsComplete();
-		} catch (e) {
-			await markInterviewsStopped();
-			throw e;
+		const targets = all ? personas : personas.filter((p) => p.interview?.status !== 'completed');
+		const results = await Promise.allSettled(
+			targets.map((p) => runInterview(p.id, topicTitle, topicContext))
+		);
+		// 失敗検知は rejected の有無で行う（onSnapshot の反映遅延に依存しない）。
+		const hasError = results.some((r) => r.status === 'rejected');
+		if (hasError) {
+			// サーバが既に generated を確定済み（reject はタイムアウト等）の場合は stopped に上書きしない。
+			const snap = await getDoc(doc(db, 'topics', topicId));
+			if (snap.data()?.phaseStatus !== 'generated') {
+				await markInterviewsStopped();
+			}
 		}
 	};
 
@@ -135,51 +130,33 @@ export const createPersonasStore = (topicId: string) => {
 			beliefs: []
 		});
 
-		try {
-			const fn = httpsCallable<
-				{ topicTitle: string; persona: PersonaForInterview; topicContext?: TopicContext },
-				{
-					draftBelief: DraftBelief;
-					verificationReport: string;
-					interviewRecord: string;
-					initialBelief: string;
-					sources: Array<{
-						query: string;
-						summary: string;
-						results: Array<{ title: string; url: string }>;
-					}>;
-				}
-			>(functions, 'runInterview', { timeout: 310000 });
-			const { data } = await fn({
-				topicTitle,
-				persona: {
-					name: persona.name,
-					age: persona.age,
-					occupation: persona.occupation,
-					stakeholderRole: persona.stakeholderRole,
-					specificRole: persona.specificRole ?? persona.stakeholderRole,
-					background: persona.background,
-					interests: persona.interests
-				},
-				...(topicContext && { topicContext })
-			});
-			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
-				interview: {
-					draftBelief: data.draftBelief,
-					verificationReport: data.verificationReport,
-					interviewRecord: data.interviewRecord,
-					sources: data.sources,
-					status: 'completed',
-					completedAt: Timestamp.now()
-				},
-				beliefs: [{ version: 0, content: data.initialBelief, createdAt: Timestamp.now() }]
-			});
-		} catch (e) {
-			const errorMessage = e instanceof Error ? e.message : 'エラーが発生しました';
-			await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
-				interview: { status: 'error', errorMessage }
-			}).catch(() => undefined);
-		}
+		// 取材結果の永続化（completed/error）はサーバ権威で行う。FE は結果を書かず onSnapshot で反映する。
+		// 呼び出しの reject は握りつぶさず呼び出し元へ伝播させ、fanout 側の失敗集約に委ねる。
+		const fn = httpsCallable<
+			{
+				topicId: string;
+				personaId: string;
+				topicTitle: string;
+				persona: PersonaForInterview;
+				topicContext?: TopicContext;
+			},
+			Record<string, never>
+		>(functions, 'runInterview', { timeout: 310000 });
+		await fn({
+			topicId,
+			personaId,
+			topicTitle,
+			persona: {
+				name: persona.name,
+				age: persona.age,
+				occupation: persona.occupation,
+				stakeholderRole: persona.stakeholderRole,
+				specificRole: persona.specificRole ?? persona.stakeholderRole,
+				background: persona.background,
+				interests: persona.interests
+			},
+			...(topicContext && { topicContext })
+		});
 	};
 
 	return {
@@ -196,7 +173,6 @@ export const createPersonasStore = (topicId: string) => {
 		approvePersonas,
 		resetPersonas,
 		markInterviewsStarted,
-		markInterviewsComplete,
 		markInterviewsStopped
 	};
 };

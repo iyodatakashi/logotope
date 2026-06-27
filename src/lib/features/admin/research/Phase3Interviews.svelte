@@ -76,10 +76,14 @@
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		const topicContext = buildTopicContext(topic);
-		await personasStore.runInterview(personaId, topic.title, topicContext);
-		const allDone = personasStore.personas.every((p) => p.interview?.status === 'completed');
-		if (allDone) {
-			await personasStore.markInterviewsComplete();
+		// 再実行前に stopped→running へ戻す。これがないとサーバの完了確定（running 限定）が
+		// no-op となり、全件完了しても generated に到達しない。完了確定はサーバ権威で行う。
+		await personasStore.markInterviewsStarted();
+		try {
+			await personasStore.runInterview(personaId, topic.title, topicContext);
+		} catch {
+			// サーバが当該ペルソナを error 永続化済み。再取材導線を出すため stopped に戻す。
+			await personasStore.markInterviewsStopped();
 		}
 	};
 

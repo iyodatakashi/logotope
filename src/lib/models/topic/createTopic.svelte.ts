@@ -1,8 +1,8 @@
 import {
 	doc,
 	updateDoc,
-	setDoc,
 	Timestamp,
+	getDoc,
 	getDocs,
 	collection,
 	deleteDoc
@@ -10,7 +10,6 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
 import type { TopicInput } from './topic.types';
-import type { PersonaData } from '../persona/persona.types';
 import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
 
 export const createTopicStates = (topicDoc: TopicInput) => {
@@ -111,14 +110,14 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 				Record<string, never>
 			>(functions, 'generateStakeholders', { timeout: 310000 });
 			await generateStakeholdersCallable({ topicId: id, title });
-
-			await updateDoc(doc(db, 'topics', id), {
-				phase: 1,
-				phaseStatus: 'generated',
-				updatedAt: Timestamp.now()
-			});
+			// 完了状態(phaseStatus='generated')はサーバが権威的に書くため、ここでは書かない。
 		} catch (e) {
-			await setPhaseStatus(1, 'stopped');
+			// サーバが既に generated を確定済み（クライアントのタイムアウト等で reject されただけ）の
+			// 場合は stopped に上書きしない。承認ボタンが消える不具合の再発を防ぐ。
+			const snap = await getDoc(doc(db, 'topics', id));
+			if (snap.data()?.phaseStatus !== 'generated') {
+				await setPhaseStatus(1, 'stopped');
+			}
 			throw e;
 		}
 	};
@@ -128,27 +127,18 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 		try {
 			const generatePersonasCallable = httpsCallable<
 				{ topicId: string; title: string },
-				{ personas: Array<PersonaData & { id: string }> }
+				Record<string, never>
 			>(functions, 'generatePersonas', { timeout: 310000 });
-			const { data } = await generatePersonasCallable({
-				topicId: id,
-				title: title
-			});
-
-			await Promise.all(
-				data.personas.map(({ id: personaId, ...persona }, index) =>
-					setDoc(doc(db, 'topics', id, 'personas', personaId), {
-						sortOrder: index,
-						approved: false,
-						beliefs: [],
-						createdAt: Timestamp.now(),
-						...persona
-					})
-				)
-			);
-			await setPhaseStatus(2, 'generated');
+			await generatePersonasCallable({ topicId: id, title });
+			// ペルソナ文書の永続化と完了状態(phaseStatus='generated')はサーバが権威的に書くため、
+			// ここでは書かない。FE は onSnapshot で一覧と完了状態を反映する。
 		} catch (e) {
-			await setPhaseStatus(2, 'stopped');
+			// サーバが既に generated を確定済み（クライアントのタイムアウト等で reject されただけ）の
+			// 場合は stopped に上書きしない。承認ボタンが消える不具合の再発を防ぐ。
+			const snap = await getDoc(doc(db, 'topics', id));
+			if (snap.data()?.phaseStatus !== 'generated') {
+				await setPhaseStatus(2, 'stopped');
+			}
 			throw e;
 		}
 	};
@@ -162,10 +152,14 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 				{ timeout: 540000 }
 			);
 			await generateChaptersCallable({ topicId: id });
-
-			await setPhaseStatus(4, 'generated');
+			// 完了状態(phaseStatus='generated')はサーバが権威的に書くため、ここでは書かない。
 		} catch (e) {
-			await setPhaseStatus(4, 'stopped');
+			// サーバが既に generated を確定済み（クライアントのタイムアウト等で reject されただけ）の
+			// 場合は stopped に上書きしない。承認ボタンが消える不具合の再発を防ぐ。
+			const snap = await getDoc(doc(db, 'topics', id));
+			if (snap.data()?.phaseStatus !== 'generated') {
+				await setPhaseStatus(4, 'stopped');
+			}
 			throw e;
 		}
 	};
