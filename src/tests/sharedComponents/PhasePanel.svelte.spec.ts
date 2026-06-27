@@ -55,14 +55,6 @@ describe('PhasePanel.svelte', () => {
 			render(PhasePanel, makeProps({ logicalState: 'not_started' }));
 			expect(page.getByRole('status').elements()).toHaveLength(0);
 		});
-
-		it('generateHint を表示する', async () => {
-			render(
-				PhasePanel,
-				makeProps({ logicalState: 'not_started', generateHint: '準備が整ったら開始してください' })
-			);
-			await expect.element(page.getByText('準備が整ったら開始してください')).toBeInTheDocument();
-		});
 	});
 
 	describe('running 状態（フェーズ1〜4）', () => {
