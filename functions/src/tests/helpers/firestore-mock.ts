@@ -71,9 +71,32 @@ export const createFirestoreMock = () => {
 		doc: (id: string) => makeDocRef(`${collPath}/${id}`)
 	});
 
+	const makeBatch = () => {
+		const ops: Array<() => void> = [];
+		const batch = {
+			set: (ref: { path: string }, val: DocData, opts?: { merge?: boolean }) => {
+				ops.push(() => applySet(ref.path, val, opts?.merge));
+				return batch;
+			},
+			update: (ref: { path: string }, patch: DocData) => {
+				ops.push(() => applyUpdate(ref.path, patch));
+				return batch;
+			},
+			delete: (ref: { path: string }) => {
+				ops.push(() => store.delete(ref.path));
+				return batch;
+			},
+			commit: async () => {
+				for (const op of ops) op();
+			}
+		};
+		return batch;
+	};
+
 	const firestore = {
 		doc: (path: string) => makeDocRef(path),
 		collection: (path: string) => makeQuery(path),
+		batch: makeBatch,
 		runTransaction: async (
 			fn: (tx: {
 				get: (ref: {

@@ -29,7 +29,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { httpsCallable } from 'firebase/functions';
-import { updateDoc, deleteDoc, getDoc, getDocs } from 'firebase/firestore';
+import { updateDoc, deleteDoc, setDoc, getDoc, getDocs } from 'firebase/firestore';
 import { createTopicStates } from '$lib/models/topic/createTopic.svelte';
 
 const TOPIC_PATH = { path: 'topics/t1' };
@@ -94,42 +94,46 @@ describe('createTopicStates', () => {
 	});
 
 	describe('生成の2軸遷移（生成のみ。旧データ削除は reset が担う）', () => {
-		it('generateStakeholders は (1, running)→生成成功で (1, generated)。削除はしない', async () => {
+		it('generateStakeholders は (1, running) のみ書き、generated はサーバ権威。削除はしない', async () => {
 			vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: {} }) as never);
 			const store = makeTopic({ title: 'T', id: 't1' });
 			await store.generateStakeholders();
 
 			const calls = updateCallsFor('topics/t1');
 			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 1, phaseStatus: 'running' }));
-			expect(calls.at(-1)?.[1]).toEqual(
-				expect.objectContaining({ phase: 1, phaseStatus: 'generated' })
-			);
+			// 完了状態(generated)はサーバ(generateStakeholders 関数)が書くため、クライアントは書かない
+			expect(
+				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'generated')
+			).toBe(false);
 			// 生成関数は削除を行わない
 			expect(mockBatch.delete).not.toHaveBeenCalled();
 			expect(deleteDoc).not.toHaveBeenCalled();
 		});
 
-		it('generatePersonas は (2, running)→生成成功後に (2, generated)', async () => {
-			vi.mocked(httpsCallable).mockReturnValue(
-				vi.fn().mockResolvedValue({ data: { personas: [{ name: 'p' }] } }) as never
-			);
+		it('generatePersonas は (2, running) のみ書き、generated もペルソナ文書もサーバ権威', async () => {
+			vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: {} }) as never);
 			const store = makeTopic({ title: 'T' });
 			await store.generatePersonas();
 			const calls = updateCallsFor('topics/t1');
 			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 2, phaseStatus: 'running' }));
-			expect(calls.at(-1)?.[1]).toEqual(
-				expect.objectContaining({ phase: 2, phaseStatus: 'generated' })
-			);
+			// 完了状態(generated)はサーバ(generatePersonas 関数)が書くため、クライアントは書かない
+			expect(
+				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'generated')
+			).toBe(false);
+			// ペルソナ文書の永続化もサーバ責務。クライアントは setDoc しない
+			expect(setDoc).not.toHaveBeenCalled();
 		});
 
-		it('generateChapters は (4, running)→生成成功後に (4, generated)', async () => {
+		it('generateChapters は (4, running) のみ書き、generated はサーバ権威', async () => {
+			vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: {} }) as never);
 			const store = makeTopic({ title: 'T' });
 			await store.generateChapters();
 			const calls = updateCallsFor('topics/t1');
 			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 4, phaseStatus: 'running' }));
-			expect(calls.at(-1)?.[1]).toEqual(
-				expect.objectContaining({ phase: 4, phaseStatus: 'generated' })
-			);
+			// 完了状態(generated)はサーバ(generateChapters 関数)が書くため、クライアントは書かない
+			expect(
+				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'generated')
+			).toBe(false);
 		});
 	});
 
@@ -157,6 +161,84 @@ describe('createTopicStates', () => {
 			expect(calls.at(-1)?.[1]).toEqual(
 				expect.objectContaining({ phase: 1, phaseStatus: 'stopped' })
 			);
+		});
+
+		it('callable が reject してもサーバが generated 済みなら stopped に上書きしない', async () => {
+			vi.mocked(httpsCallable).mockReturnValue(
+				vi.fn().mockRejectedValue(new Error('timeout')) as never
+			);
+			// サーバ側が既に完了を書き込んでいる状態を再現
+			vi.mocked(getDoc).mockResolvedValue({
+				exists: () => true,
+				data: () => ({ phaseStatus: 'generated' })
+			} as never);
+			const store = makeTopic({ title: 'T', id: 't1' });
+
+			await expect(store.generateStakeholders()).rejects.toThrow('timeout');
+			const calls = updateCallsFor('topics/t1');
+			expect(
+				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'stopped')
+			).toBe(false);
+		});
+
+		it('generatePersonas が失敗したらトピックを (2, stopped) にして再スローする', async () => {
+			vi.mocked(httpsCallable).mockReturnValue(
+				vi.fn().mockRejectedValue(new Error('生成失敗')) as never
+			);
+			const store = makeTopic({ title: 'T', id: 't1' });
+
+			await expect(store.generatePersonas()).rejects.toThrow('生成失敗');
+			const calls = updateCallsFor('topics/t1');
+			expect(calls.at(-1)?.[1]).toEqual(
+				expect.objectContaining({ phase: 2, phaseStatus: 'stopped' })
+			);
+		});
+
+		it('generatePersonas の callable が reject してもサーバが generated 済みなら stopped に上書きしない', async () => {
+			vi.mocked(httpsCallable).mockReturnValue(
+				vi.fn().mockRejectedValue(new Error('timeout')) as never
+			);
+			vi.mocked(getDoc).mockResolvedValue({
+				exists: () => true,
+				data: () => ({ phaseStatus: 'generated' })
+			} as never);
+			const store = makeTopic({ title: 'T', id: 't1' });
+
+			await expect(store.generatePersonas()).rejects.toThrow('timeout');
+			const calls = updateCallsFor('topics/t1');
+			expect(
+				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'stopped')
+			).toBe(false);
+		});
+
+		it('generateChapters が失敗したらトピックを (4, stopped) にして再スローする', async () => {
+			vi.mocked(httpsCallable).mockReturnValue(
+				vi.fn().mockRejectedValue(new Error('生成失敗')) as never
+			);
+			const store = makeTopic({ title: 'T', id: 't1' });
+
+			await expect(store.generateChapters()).rejects.toThrow('生成失敗');
+			const calls = updateCallsFor('topics/t1');
+			expect(calls.at(-1)?.[1]).toEqual(
+				expect.objectContaining({ phase: 4, phaseStatus: 'stopped' })
+			);
+		});
+
+		it('generateChapters の callable が reject してもサーバが generated 済みなら stopped に上書きしない', async () => {
+			vi.mocked(httpsCallable).mockReturnValue(
+				vi.fn().mockRejectedValue(new Error('timeout')) as never
+			);
+			vi.mocked(getDoc).mockResolvedValue({
+				exists: () => true,
+				data: () => ({ phaseStatus: 'generated' })
+			} as never);
+			const store = makeTopic({ title: 'T', id: 't1' });
+
+			await expect(store.generateChapters()).rejects.toThrow('timeout');
+			const calls = updateCallsFor('topics/t1');
+			expect(
+				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'stopped')
+			).toBe(false);
 		});
 	});
 

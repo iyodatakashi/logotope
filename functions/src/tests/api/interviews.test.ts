@@ -1,6 +1,22 @@
+/**
+ * runInterview onCall のユニットテスト（Task 5.1）。
+ * 取材成功時は当該ペルソナ文書へ interview（completed）と beliefs[0] をサーバ永続化し、
+ * 全件完了判定（confirmInterviewsGeneratedIfAllComplete）を起動して空レスポンス {} を返す。
+ * 取材失敗時は当該ペルソナを error 状態で永続化したうえで HttpsError(internal) を投げる。
+ */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createFirestoreMock } from '../helpers/firestore-mock.js';
 
 const mockRunInterviewAgent = vi.hoisted(() => vi.fn());
+const mockConfirmInterviews = vi.hoisted(() => vi.fn());
+
+const { holder } = vi.hoisted(() => ({
+	holder: {
+		mock: undefined as
+			| ReturnType<(typeof import('../helpers/firestore-mock.js'))['createFirestoreMock']>
+			| undefined
+	}
+}));
 
 vi.mock('firebase-functions/v2/https', () => ({
 	onCall: vi.fn((_opts: unknown, handler: unknown) => handler),
@@ -22,59 +38,109 @@ vi.mock('../../agents/interview-agent.js', () => ({
 	runInterview: mockRunInterviewAgent
 }));
 
-import { runInterview } from '../../api/interviews.js';
-import type { Persona } from '../../types/persona.types.js';
+vi.mock('../../pipeline/interviews/interview-completion.js', () => ({
+	confirmInterviewsGeneratedIfAllComplete: mockConfirmInterviews
+}));
 
-const mockPersona: Persona = {
-	id: 'p1',
-	topicId: 'topic1',
+vi.mock('firebase-admin/firestore', () => ({
+	getFirestore: () => holder.mock!.firestore,
+	Timestamp: { now: () => 'TS' }
+}));
+
+import { runInterview } from '../../api/interviews.js';
+
+const TOPIC_ID = 'topic1';
+const PERSONA_ID = 'p1';
+const TITLE = 'AIと社会';
+const makeRequest = (data: unknown) => ({ data, auth: { uid: 'user1' } });
+const handler = runInterview as unknown as (req: unknown) => Promise<unknown>;
+const persona = () => holder.mock!.store.get(`topics/${TOPIC_ID}/personas/${PERSONA_ID}`);
+
+const mockPersona = {
 	name: '田中太郎',
 	age: 40,
 	occupation: '会社員',
 	stakeholderRole: '一般',
 	specificRole: '会社員',
 	background: '東京在住',
-	interests: 'テクノロジー',
-	nationality: '日本',
-	engagementLevel: 'moderate',
-	llmType: 'claude',
-	approved: true,
-	sortOrder: 0,
-	interviewRecord: ''
+	interests: 'テクノロジー'
 };
 
-const makeRequest = (data: unknown) => ({ data, auth: { uid: 'user1' } });
-const handler = runInterview as unknown as (req: unknown) => Promise<unknown>;
+const validData = (overrides: Record<string, unknown> = {}) => ({
+	topicId: TOPIC_ID,
+	personaId: PERSONA_ID,
+	topicTitle: TITLE,
+	persona: mockPersona,
+	...overrides
+});
 
-describe('interviews.ts runInterview handler', () => {
-	beforeEach(() => vi.clearAllMocks());
+const agentOutput = {
+	draftBelief: { stanceAndGrounds: 's' },
+	verificationReport: 'report',
+	interviewRecord: 'record',
+	initialBelief: 'belief',
+	sources: [{ query: 'q', summary: 'sum', results: [] }]
+};
 
-	it('topicTitleがない場合はinvalid-argumentエラーを投げる', async () => {
-		await expect(handler(makeRequest({ persona: mockPersona }))).rejects.toMatchObject({
+beforeEach(() => {
+	vi.clearAllMocks();
+	holder.mock = createFirestoreMock();
+	holder.mock.store.set(`topics/${TOPIC_ID}/personas/${PERSONA_ID}`, { sortOrder: 0 });
+});
+
+describe('runInterview handler', () => {
+	it('topicId がない場合は invalid-argument エラーを投げる', async () => {
+		await expect(handler(makeRequest(validData({ topicId: undefined })))).rejects.toMatchObject({
 			code: 'invalid-argument'
 		});
 	});
 
-	it('personaがない場合はinvalid-argumentエラーを投げる', async () => {
-		await expect(handler(makeRequest({ topicTitle: 'AIと社会' }))).rejects.toMatchObject({
+	it('personaId がない場合は invalid-argument エラーを投げる', async () => {
+		await expect(handler(makeRequest(validData({ personaId: undefined })))).rejects.toMatchObject({
 			code: 'invalid-argument'
 		});
 	});
 
-	it('runInterviewAgentがエラー結果のときHttpsError(internal)を投げる', async () => {
+	it('topicTitle がない場合は invalid-argument エラーを投げる', async () => {
+		await expect(handler(makeRequest(validData({ topicTitle: undefined })))).rejects.toMatchObject({
+			code: 'invalid-argument'
+		});
+	});
+
+	it('persona がない場合は invalid-argument エラーを投げる', async () => {
+		await expect(handler(makeRequest(validData({ persona: undefined })))).rejects.toMatchObject({
+			code: 'invalid-argument'
+		});
+	});
+
+	it('取材成功時に interview(completed)と beliefs[0] を永続化し、全件確定を起動して {} を返す', async () => {
+		mockRunInterviewAgent.mockResolvedValueOnce({ ok: true, value: agentOutput });
+		mockConfirmInterviews.mockResolvedValueOnce(true);
+
+		const result = await handler(makeRequest(validData()));
+
+		expect(result).toEqual({});
+		expect(persona()?.interview).toMatchObject({
+			draftBelief: agentOutput.draftBelief,
+			verificationReport: 'report',
+			interviewRecord: 'record',
+			sources: agentOutput.sources,
+			status: 'completed',
+			completedAt: 'TS'
+		});
+		expect(persona()?.beliefs).toEqual([{ version: 0, content: 'belief', createdAt: 'TS' }]);
+		expect(mockConfirmInterviews).toHaveBeenCalledWith(TOPIC_ID);
+	});
+
+	it('取材失敗時は当該ペルソナを error 状態で永続化し HttpsError(internal) を投げる', async () => {
 		mockRunInterviewAgent.mockResolvedValueOnce({
 			ok: false,
 			error: { code: 'AI_API_ERROR', message: 'API failed', retryable: true }
 		});
-		await expect(
-			handler(makeRequest({ topicTitle: 'AIと社会', persona: mockPersona }))
-		).rejects.toMatchObject({ code: 'internal' });
-	});
 
-	it('runInterviewAgentが成功結果のときその値を返す', async () => {
-		const mockOutput = { interviewRecord: 'record', initialBelief: 'belief', sources: [] };
-		mockRunInterviewAgent.mockResolvedValueOnce({ ok: true, value: mockOutput });
-		const result = await handler(makeRequest({ topicTitle: 'AIと社会', persona: mockPersona }));
-		expect(result).toEqual(mockOutput);
+		await expect(handler(makeRequest(validData()))).rejects.toMatchObject({ code: 'internal' });
+
+		expect(persona()?.interview).toEqual({ status: 'error', errorMessage: 'API failed' });
+		expect(mockConfirmInterviews).not.toHaveBeenCalled();
 	});
 });
