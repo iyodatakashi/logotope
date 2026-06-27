@@ -37,7 +37,9 @@
 <div class="topic-detail-layout">
 	<div class="topic-detail-layout__header">
 		<div class="topic-detail-layout__title-row">
-			<IconButton ariaLabel="戻る" onclick={() => goto('/admin/topics')}>arrow_back</IconButton>
+			<IconButton ariaLabel="戻る" size={40} onclick={() => goto('/admin/topics')}
+				>arrow_back</IconButton
+			>
 			{#if currentTopicStore.topic}
 				<h2>{currentTopicStore.topic.title}</h2>
 			{/if}
@@ -49,9 +51,9 @@
 
 	<div class="topic-detail-layout__body">
 		{#if !topicsStore.isLoaded}
-			<p class="loading">読み込み中...</p>
+			<p class="topic-detail-layout__loading">読み込み中...</p>
 		{:else if !currentTopicStore.topic}
-			<div class="not-found">
+			<div class="topic-detail-layout__not-found">
 				<h2>テーマが見つかりません</h2>
 				<p>指定されたテーマは存在しないか、削除された可能性があります。</p>
 				<a href="/admin/topics">ダッシュボードへ戻る</a>
@@ -77,6 +79,7 @@
 		.topic-detail-layout__title-row {
 			display: flex;
 			align-items: center;
+			padding: 12px 16px;
 
 			h2 {
 				font-size: 1.5rem;
@@ -93,14 +96,14 @@
 		overflow: hidden;
 	}
 
-	.loading {
+	.topic-detail-layout__loading {
 		color: #555;
 		font-style: italic;
 	}
-	.not-found {
+	.topic-detail-layout__not-found {
 		margin-top: 24px;
 	}
-	.not-found p {
+	.topic-detail-layout__not-found p {
 		color: #555;
 		margin: 8px 0 16px;
 	}

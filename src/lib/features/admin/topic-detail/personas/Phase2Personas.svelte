@@ -2,7 +2,6 @@
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
-	import { engagementStyle } from '$lib/models/engagement/engagement.constants';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import PersonaItem from './PersonaItem.svelte';
 

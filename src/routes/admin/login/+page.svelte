@@ -32,7 +32,6 @@
 </script>
 
 <div class="login-container">
-	<h1>管理者ログイン</h1>
 	<form
 		onsubmit={(e) => {
 			e.preventDefault();

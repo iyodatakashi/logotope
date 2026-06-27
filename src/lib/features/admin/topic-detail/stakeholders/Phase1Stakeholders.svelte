@@ -2,9 +2,9 @@
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
-	import { engagementStyle } from '$lib/models/engagement/engagement.constants';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import StakeholderItem from './StakeholderItem.svelte';
+	import { Skeleton } from '@14ch/svelte-ui';
 
 	const PHASE = 1;
 	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
@@ -81,7 +81,13 @@
 	onRegenerate={regenerate}
 >
 	{#snippet content()}
-		{#if !isStarting && stakeholders.length > 0}
+		{#if logicalState === 'running'}
+			<Skeleton
+				patterns={[{ type: 'box', width: '100%', height: '96px' }]}
+				repeat={5}
+				repeatGap="8px"
+			/>
+		{:else if stakeholders.length > 0}
 			<ul class="stakeholders__list">
 				{#each stakeholders as stakeholder (stakeholder.id)}
 					<StakeholderItem {stakeholder} />

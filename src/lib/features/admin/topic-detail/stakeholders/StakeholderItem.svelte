@@ -22,7 +22,7 @@
 
 <style>
 	.item {
-		padding: 12px;
+		padding: 16px;
 		background-color: var(--white);
 		border: 1px solid var(--svelte-ui-border-weak-color);
 		border-radius: 4px;

@@ -26,7 +26,6 @@
 
 	let {
 		logicalState,
-		title,
 		generateLabel,
 		regenerateLabel,
 		regenerateConfirm,
@@ -52,11 +51,11 @@
 			{#if generateHint}
 				<p class="hint">{generateHint}</p>
 			{/if}
-			<div class="actions">
+			<div class="phase-panel__actions">
 				<Button variant="filled" onclick={onGenerate}>{generateLabel}</Button>
 			</div>
 		{:else if logicalState === 'running'}
-			<div class="actions">
+			<div class="phase-panel__actions">
 				{#if onStop}
 					<Button variant="outlined" onclick={onStop}>{stopLabel ?? '停止する'}</Button>
 				{:else}
@@ -66,7 +65,7 @@
 				{/if}
 			</div>
 		{:else if logicalState === 'stopped'}
-			<div class="actions">
+			<div class="phase-panel__actions">
 				{#if onRestart}
 					<Button variant="filled" onclick={onRestart}>{restartLabel ?? '再開する'}</Button>
 				{/if}
@@ -75,7 +74,7 @@
 				</Button>
 			</div>
 		{:else if logicalState === 'generated'}
-			<div class="actions">
+			<div class="phase-panel__actions">
 				<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
 					{regenerateLabel}
 				</Button>
@@ -84,7 +83,7 @@
 				{/if}
 			</div>
 		{:else if logicalState === 'approved'}
-			<div class="actions">
+			<div class="phase-panel__actions">
 				<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
 					{regenerateLabel}
 				</Button>
@@ -94,15 +93,13 @@
 
 	<div class="phase-panel__contents-pane">
 		{#if progress}
-			<div class="progress">
+			<div class="phase-panel__progress">
 				{@render progress()}
 			</div>
 		{/if}
 
 		{#if content}
-			<div class="content">
-				{@render content()}
-			</div>
+			{@render content()}
 		{/if}
 	</div>
 </div>
@@ -139,14 +136,11 @@
 		font-size: 0.9rem;
 		margin-bottom: 8px;
 	}
-	.actions {
+	.phase-panel__actions {
 		display: flex;
 		gap: 8px;
 	}
-	.progress {
+	.phase-panel__progress {
 		margin-bottom: 12px;
-	}
-	.content {
-		margin-top: 16px;
 	}
 </style>
