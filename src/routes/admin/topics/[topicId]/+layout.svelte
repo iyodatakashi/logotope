@@ -50,15 +50,7 @@
 	</div>
 
 	<div class="topic-detail-layout__body">
-		{#if !topicsStore.isLoaded}
-			<p class="topic-detail-layout__loading">読み込み中...</p>
-		{:else if !currentTopicStore.topic}
-			<div class="topic-detail-layout__not-found">
-				<h2>テーマが見つかりません</h2>
-				<p>指定されたテーマは存在しないか、削除された可能性があります。</p>
-				<a href="/admin/topics">ダッシュボードへ戻る</a>
-			</div>
-		{:else if pagePhase === null || pagePhase <= currentPhase}
+		{#if pagePhase === null || pagePhase <= currentPhase}
 			{@render children()}
 		{/if}
 	</div>
@@ -83,6 +75,7 @@
 
 			h2 {
 				font-size: 1.5rem;
+				font-weight: bold;
 			}
 		}
 
@@ -94,17 +87,5 @@
 	.topic-detail-layout__body {
 		background: var(--base-50);
 		overflow: hidden;
-	}
-
-	.topic-detail-layout__loading {
-		color: #555;
-		font-style: italic;
-	}
-	.topic-detail-layout__not-found {
-		margin-top: 24px;
-	}
-	.topic-detail-layout__not-found p {
-		color: #555;
-		margin: 8px 0 16px;
 	}
 </style>

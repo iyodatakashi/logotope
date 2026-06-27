@@ -33,9 +33,7 @@
 		{/if}
 	</div>
 
-	{#if authStore.loading}
-		<div class="loading">認証確認中...</div>
-	{:else if authStore.user || isLoginPage}
+	{#if authStore.user || isLoginPage}
 		{@render children()}
 	{/if}
 </div>
@@ -51,7 +49,6 @@
 		justify-content: space-between;
 		padding: 8px 24px;
 		background-color: var(--white);
-		border-bottom: solid 1px var(--svelte-ui-border-weak-color);
 	}
 
 	.admin-layout__logo {
