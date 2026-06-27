@@ -1,6 +1,7 @@
 <script lang="ts">
 	import favicon from '$lib/assets/favicon.svg';
 	import '@14ch/svelte-ui/styles';
+	import '$lib/assets/styles/import.scss';
 
 	let { children } = $props();
 </script>
