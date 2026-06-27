@@ -61,11 +61,3 @@ export const topicFromFirestore = (doc: TopicForFirestore): TopicInput => ({
 });
 
 export type EngagementLevel = 'high' | 'medium' | 'low';
-
-export type StakeholderForFirestore = {
-	role: string;
-	reason: string;
-	mainInterests: string[];
-	minorityLevel: string;
-	engagementLevel?: EngagementLevel;
-};

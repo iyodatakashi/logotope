@@ -4,6 +4,7 @@
 	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import { engagementStyle } from '$lib/models/engagement/engagement.constants';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import StakeholderItem from './StakeholderItem.svelte';
 
 	const PHASE = 1;
 	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
@@ -81,22 +82,9 @@
 >
 	{#snippet content()}
 		{#if !isStarting && stakeholders.length > 0}
-			<ul class="list">
-				{#each stakeholders as s, i (i)}
-					<li class="item">
-						<div class="item-header">
-							<strong>{s.role}</strong>
-							<span
-								class="engagement"
-								style:color={engagementStyle(s.engagementLevel).color}
-								style:background={engagementStyle(s.engagementLevel).bg}
-							>
-								{engagementStyle(s.engagementLevel).label}
-							</span>
-							<span class="minor">マイノリティ度: {s.minorityLevel}</span>
-						</div>
-						<p class="rationale">{s.reason}</p>
-					</li>
+			<ul class="stakeholders__list">
+				{#each stakeholders as stakeholder (stakeholder.id)}
+					<StakeholderItem {stakeholder} />
 				{/each}
 			</ul>
 		{/if}
@@ -104,35 +92,9 @@
 </PhasePanel>
 
 <style>
-	.list {
-		list-style: none;
-		padding: 0;
-	}
-	.item {
-		padding: 12px;
-		border: 1px solid #e0e0e0;
-		border-radius: 8px;
-		margin-bottom: 8px;
-	}
-	.item-header {
+	.stakeholders__list {
 		display: flex;
-		align-items: center;
+		flex-direction: column;
 		gap: 8px;
-		flex-wrap: wrap;
-	}
-	.engagement {
-		padding: 2px 8px;
-		border-radius: 12px;
-		font-size: 0.875rem;
-		font-weight: 600;
-	}
-	.minor {
-		color: #757575;
-		font-size: 0.875rem;
-	}
-	.rationale {
-		color: #555;
-		margin-top: 6px;
-		font-size: 0.875rem;
 	}
 </style>

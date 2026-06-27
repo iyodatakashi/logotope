@@ -46,65 +46,66 @@
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 </script>
 
-<section class="phase-panel">
-	<h2>{title}</h2>
-
-	{#if progress}
-		<div class="progress">
-			{@render progress()}
-		</div>
-	{/if}
-
-	{#if logicalState === 'not_started'}
-		{#if generateHint}
-			<p class="hint">{generateHint}</p>
-		{/if}
-		<div class="actions">
-			<Button variant="filled" onclick={onGenerate}>{generateLabel}</Button>
-		</div>
-	{:else if logicalState === 'running'}
-		<p class="indicator" role="status">実行中...</p>
-		<div class="actions">
-			{#if onStop}
-				<Button variant="outlined" onclick={onStop}>{stopLabel ?? '停止する'}</Button>
-			{:else}
+<div class="phase-panel">
+	<div class="phase-panel__actions-pane">
+		{#if logicalState === 'not_started'}
+			{#if generateHint}
+				<p class="hint">{generateHint}</p>
+			{/if}
+			<div class="actions">
+				<Button variant="filled" onclick={onGenerate}>{generateLabel}</Button>
+			</div>
+		{:else if logicalState === 'running'}
+			<div class="actions">
+				{#if onStop}
+					<Button variant="outlined" onclick={onStop}>{stopLabel ?? '停止する'}</Button>
+				{:else}
+					<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
+						{regenerateLabel}
+					</Button>
+				{/if}
+			</div>
+		{:else if logicalState === 'stopped'}
+			<div class="actions">
+				{#if onRestart}
+					<Button variant="filled" onclick={onRestart}>{restartLabel ?? '再開する'}</Button>
+				{/if}
 				<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
 					{regenerateLabel}
 				</Button>
-			{/if}
-		</div>
-	{:else if logicalState === 'stopped'}
-		<div class="actions">
-			{#if onRestart}
-				<Button variant="filled" onclick={onRestart}>{restartLabel ?? '再開する'}</Button>
-			{/if}
-			<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
-				{regenerateLabel}
-			</Button>
-		</div>
-	{:else if logicalState === 'generated'}
-		<div class="actions">
-			{#if approveLabel && onApprove}
-				<Button variant="filled" onclick={onApprove}>{approveLabel}</Button>
-			{/if}
-			<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
-				{regenerateLabel}
-			</Button>
-		</div>
-	{:else if logicalState === 'approved'}
-		<div class="actions">
-			<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
-				{regenerateLabel}
-			</Button>
-		</div>
-	{/if}
+			</div>
+		{:else if logicalState === 'generated'}
+			<div class="actions">
+				<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
+					{regenerateLabel}
+				</Button>
+				{#if approveLabel && onApprove}
+					<Button variant="filled" onclick={onApprove}>{approveLabel}</Button>
+				{/if}
+			</div>
+		{:else if logicalState === 'approved'}
+			<div class="actions">
+				<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
+					{regenerateLabel}
+				</Button>
+			</div>
+		{/if}
+	</div>
 
-	{#if content}
-		<div class="content">
-			{@render content()}
-		</div>
-	{/if}
-</section>
+	<div class="phase-panel__contents-pane">
+		{#if progress}
+			<div class="progress">
+				{@render progress()}
+			</div>
+		{/if}
+
+		{#if content}
+			<div class="content">
+				{@render content()}
+			</div>
+		{/if}
+	</div>
+</div>
 
 <ConfirmDialog
 	bind:this={regenerateDialog}
@@ -118,19 +119,27 @@
 
 <style>
 	.phase-panel {
-		padding: 16px;
+		display: grid;
+		grid-template-rows: auto 1fr;
+		height: 100%;
+		overflow: hidden;
 	}
-	.indicator {
-		color: #1565c0;
-		font-style: italic;
+
+	.phase-panel__actions-pane {
+		padding: 24px;
 	}
+
+	.phase-panel__contents-pane {
+		padding: 0 24px 24px;
+		overflow: auto;
+	}
+
 	.hint {
 		color: #555;
 		font-size: 0.9rem;
 		margin-bottom: 8px;
 	}
 	.actions {
-		margin-top: 16px;
 		display: flex;
 		gap: 8px;
 	}

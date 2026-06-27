@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { StakeholderForFirestore } from '$lib/models/topic/topic.types';
+import type { StakeholderForFirestore } from '$lib/models/stakeholder/stakeholder.types';
 
 let snapshotCb: ((snap: unknown) => void) | null = null;
 
@@ -34,7 +34,7 @@ describe('createStakeholdersStore', () => {
 		store.start();
 		fire([{ role: '医師', reason: '専門家', mainInterests: [], minorityLevel: 'low' }]);
 		expect(store.stakeholders).toEqual([
-			{ role: '医師', reason: '専門家', mainInterests: [], minorityLevel: 'low' }
+			{ id: '0', role: '医師', reason: '専門家', mainInterests: [], minorityLevel: 'low' }
 		]);
 	});
 

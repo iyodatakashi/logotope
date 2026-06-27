@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { IconButton } from '@14ch/svelte-ui';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
@@ -33,36 +34,65 @@
 	});
 </script>
 
-<div class="page">
-	<a href="/admin/topics">← ダッシュボードへ戻る</a>
-
-	{#if !topicsStore.isLoaded}
-		<p class="loading">読み込み中...</p>
-	{:else if !currentTopicStore.topic}
-		<div class="not-found">
-			<h1>テーマが見つかりません</h1>
-			<p>指定されたテーマは存在しないか、削除された可能性があります。</p>
-			<a href="/admin/topics">ダッシュボードへ戻る</a>
+<div class="topic-detail-layout">
+	<div class="topic-detail-layout__header">
+		<div class="topic-detail-layout__title-row">
+			<IconButton ariaLabel="戻る" onclick={() => goto('/admin/topics')}>arrow_back</IconButton>
+			{#if currentTopicStore.topic}
+				<h2>{currentTopicStore.topic.title}</h2>
+			{/if}
 		</div>
-	{:else}
-		<h1>{currentTopicStore.topic.title}</h1>
-		<StepNav {topicId} {currentPhase} />
-		{#if pagePhase === null || pagePhase <= currentPhase}
+		<div class="topic-detail-layout__step-navi">
+			<StepNav {topicId} {currentPhase} />
+		</div>
+	</div>
+
+	<div class="topic-detail-layout__body">
+		{#if !topicsStore.isLoaded}
+			<p class="loading">読み込み中...</p>
+		{:else if !currentTopicStore.topic}
+			<div class="not-found">
+				<h2>テーマが見つかりません</h2>
+				<p>指定されたテーマは存在しないか、削除された可能性があります。</p>
+				<a href="/admin/topics">ダッシュボードへ戻る</a>
+			</div>
+		{:else if pagePhase === null || pagePhase <= currentPhase}
 			{@render children()}
 		{/if}
-	{/if}
+	</div>
 </div>
 
 <style>
-	.page {
-		max-width: 800px;
-		margin: 0 auto;
-		padding: 24px;
+	.topic-detail-layout {
+		display: grid;
+		grid-template-rows: auto 1fr;
+		height: 100vh;
+		overflow: hidden;
+		background-color: var(--white);
 	}
-	a {
-		color: #1565c0;
-		text-decoration: none;
+
+	.topic-detail-layout__header {
+		border-bottom: solid 1px var(--svelte-ui-border-color);
+
+		.topic-detail-layout__title-row {
+			display: flex;
+			align-items: center;
+
+			h2 {
+				font-size: 1.5rem;
+			}
+		}
+
+		.topic-detail-layout__step-navi {
+			padding: 0 12px;
+		}
 	}
+
+	.topic-detail-layout__body {
+		background: var(--base-50);
+		overflow: hidden;
+	}
+
 	.loading {
 		color: #555;
 		font-style: italic;

@@ -59,11 +59,6 @@
 	header {
 		margin-bottom: 32px;
 	}
-	h1 {
-		font-size: 2rem;
-		font-weight: 700;
-		margin: 0 0 8px;
-	}
 	.tagline {
 		color: #555;
 		margin: 0;

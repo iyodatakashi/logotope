@@ -1,9 +1,12 @@
 import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '$lib/firebase';
-import type { StakeholderForFirestore } from '$lib/models/topic/topic.types';
+import type {
+	Stakeholder,
+	StakeholderForFirestore
+} from '$lib/models/stakeholder/stakeholder.types';
 
 export const createStakeholdersStore = (topicId: string) => {
-	let stakeholders = $state<StakeholderForFirestore[]>([]);
+	let stakeholders = $state<Stakeholder[]>([]);
 	let isLoaded = $state(false);
 	let unsubscribe: (() => void) | null = null;
 
@@ -12,7 +15,7 @@ export const createStakeholdersStore = (topicId: string) => {
 			const data = snap.exists()
 				? (snap.data() as { stakeholders: StakeholderForFirestore[] })
 				: null;
-			stakeholders = data?.stakeholders ?? [];
+			stakeholders = (data?.stakeholders ?? []).map((s, i) => ({ ...s, id: String(i) }));
 			isLoaded = true;
 		});
 	};
