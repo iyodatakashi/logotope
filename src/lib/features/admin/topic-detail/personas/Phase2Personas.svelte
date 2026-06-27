@@ -4,6 +4,7 @@
 	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import { engagementStyle } from '$lib/models/engagement/engagement.constants';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import PersonaItem from './PersonaItem.svelte';
 
 	const PHASE = 2;
 	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
@@ -80,29 +81,9 @@
 >
 	{#snippet content()}
 		{#if !isStarting && personas.length > 0}
-			<ul class="list">
-				{#each personas as p (p.id)}
-					<li class="item">
-						<div class="item-header">
-							<strong>{p.name}</strong>
-							<span class="age">{p.age}歳</span>
-							<span class="id">{p.id}</span>
-						</div>
-						<div class="meta">
-							<span class="badge">{p.specificRole ?? p.stakeholderRole}</span>
-							{#if p.occupation && p.occupation !== (p.specificRole ?? p.stakeholderRole)}
-								<span class="occupation">{p.occupation}</span>
-							{/if}
-							<span
-								class="engagement"
-								style:color={engagementStyle(p.engagementLevel).color}
-								style:background={engagementStyle(p.engagementLevel).bg}
-							>
-								{engagementStyle(p.engagementLevel).label}
-							</span>
-						</div>
-						<p class="bg">{p.background}</p>
-					</li>
+			<ul class="personas__list">
+				{#each personas as persona (persona.id)}
+					<PersonaItem {persona} />
 				{/each}
 			</ul>
 		{/if}
@@ -110,56 +91,9 @@
 </PhasePanel>
 
 <style>
-	.list {
-		list-style: none;
-		padding: 0;
-	}
-	.item {
-		padding: 12px;
-		border: 1px solid #e0e0e0;
-		border-radius: 8px;
-		margin-bottom: 8px;
-	}
-	.item-header {
+	.personas__list {
 		display: flex;
-		align-items: baseline;
+		flex-direction: column;
 		gap: 8px;
-	}
-	.age {
-		color: #757575;
-		font-size: 0.875rem;
-	}
-	.id {
-		margin-left: auto;
-		color: #9e9e9e;
-		font-size: 0.75rem;
-		font-family: monospace;
-		user-select: all;
-	}
-	.meta {
-		margin-top: 4px;
-		display: flex;
-		gap: 8px;
-	}
-	.badge {
-		padding: 2px 8px;
-		background: #e3f2fd;
-		border-radius: 12px;
-		font-size: 0.875rem;
-	}
-	.occupation {
-		color: #757575;
-		font-size: 0.875rem;
-	}
-	.engagement {
-		padding: 2px 8px;
-		border-radius: 12px;
-		font-size: 0.875rem;
-		font-weight: 600;
-	}
-	.bg {
-		color: #555;
-		margin-top: 6px;
-		font-size: 0.875rem;
 	}
 </style>
