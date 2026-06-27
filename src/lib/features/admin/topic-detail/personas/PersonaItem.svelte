@@ -5,75 +5,67 @@
 	let { persona }: { persona: Persona } = $props();
 </script>
 
-<li class="item">
-	<div class="item-header">
-		<strong>{persona.name}</strong>
-		<span class="age">{persona.age}歳</span>
-		<span class="id">{persona.id}</span>
+<li class="persona-item">
+	<div class="persona-item__header">
+		<span class="persona-item__name">{persona.name}</span>
+		<span class="persona-item__age">{persona.age}歳</span>
+		<span class="persona-item__badge">{persona.specificRole ?? persona.stakeholderRole}</span>
 	</div>
-	<div class="meta">
-		<span class="badge">{persona.specificRole ?? persona.stakeholderRole}</span>
+
+	<div class="persona-item__meta">
 		{#if persona.occupation && persona.occupation !== (persona.specificRole ?? persona.stakeholderRole)}
-			<span class="occupation">{persona.occupation}</span>
+			<span class="persona-item__occupation">{persona.occupation}</span>
 		{/if}
 		<span
-			class="engagement"
+			class="persona-item__engagement"
 			style:color={engagementStyle(persona.engagementLevel).color}
 			style:background={engagementStyle(persona.engagementLevel).bg}
 		>
 			{engagementStyle(persona.engagementLevel).label}
 		</span>
 	</div>
-	<p class="bg">{persona.background}</p>
+
+	<div class="persona-item__bg">{persona.background}</div>
 </li>
 
 <style>
-	.item {
+	.persona-item {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
 		padding: 16px;
 		background-color: var(--white);
 		border: 1px solid var(--svelte-ui-border-weak-color);
 		border-radius: 4px;
 	}
-	.item-header {
+
+	.persona-item__header {
 		display: flex;
 		align-items: baseline;
 		gap: 8px;
+
+		.persona-item__name {
+			font-weight: bold;
+		}
+
+		.persona-item__badge::before {
+			content: ' ... ';
+		}
 	}
-	.age {
-		color: #757575;
-		font-size: 0.875rem;
-	}
-	.id {
-		margin-left: auto;
-		color: #9e9e9e;
-		font-size: 0.75rem;
-		font-family: monospace;
-		user-select: all;
-	}
-	.meta {
-		margin-top: 4px;
+
+	.persona-item__meta {
 		display: flex;
 		gap: 8px;
 	}
-	.badge {
+	.persona-item__occupation {
+		font-size: var(--svelte-ui-font-size-sm);
+	}
+	.persona-item__engagement {
 		padding: 2px 8px;
-		background: #e3f2fd;
-		border-radius: 12px;
-		font-size: 0.875rem;
+		border-radius: 999px;
+		font-size: var(--svelte-ui-font-size-sm);
 	}
-	.occupation {
-		color: #757575;
-		font-size: 0.875rem;
-	}
-	.engagement {
-		padding: 2px 8px;
-		border-radius: 12px;
-		font-size: 0.875rem;
-		font-weight: 600;
-	}
-	.bg {
-		color: #555;
-		margin-top: 6px;
-		font-size: 0.875rem;
+	.persona-item__bg {
+		font-size: var(--svelte-ui-font-size-sm);
 	}
 </style>

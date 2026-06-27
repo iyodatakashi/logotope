@@ -5,47 +5,51 @@
 	let { stakeholder }: { stakeholder: Stakeholder } = $props();
 </script>
 
-<li class="item">
-	<div class="item-header">
-		<strong>{stakeholder.role}</strong>
+<li class="stakeholder-item">
+	<div class="stakeholder-item__header">
+		<div class="stakeholder-item__role">{stakeholder.role}</div>
 		<span
-			class="engagement"
+			class="stakeholder-item__engagement"
 			style:color={engagementStyle(stakeholder.engagementLevel).color}
 			style:background={engagementStyle(stakeholder.engagementLevel).bg}
 		>
 			{engagementStyle(stakeholder.engagementLevel).label}
 		</span>
-		<span class="minor">マイノリティ度: {stakeholder.minorityLevel}</span>
+		<span class="stakeholder-item__minor">マイノリティ度: {stakeholder.minorityLevel}</span>
 	</div>
-	<p class="rationale">{stakeholder.reason}</p>
+	<p class="stakeholder-item__rationale">{stakeholder.reason}</p>
 </li>
 
 <style>
-	.item {
+	.stakeholder-item {
 		padding: 16px;
 		background-color: var(--white);
 		border: 1px solid var(--svelte-ui-border-weak-color);
 		border-radius: 4px;
 	}
-	.item-header {
+	.stakeholder-item__header {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		flex-wrap: wrap;
 	}
-	.engagement {
+
+	.stakeholder-item__role {
+		font-weight: bold;
+	}
+
+	.stakeholder-item__engagement {
 		padding: 2px 8px;
-		border-radius: 12px;
-		font-size: 0.875rem;
-		font-weight: 600;
+		border-radius: 999px;
+		font-size: var(--svelte-ui-font-size-sm);
 	}
-	.minor {
-		color: #757575;
-		font-size: 0.875rem;
+	.stakeholder-item__minor {
+		color: var(--svelte-ui-text-subtle-color);
+		font-size: var(--svelte-ui-font-size-sm);
 	}
-	.rationale {
+	.stakeholder-item__rationale {
 		color: #555;
 		margin-top: 6px;
-		font-size: 0.875rem;
+		font-size: var(--svelte-ui-font-size-sm);
 	}
 </style>
