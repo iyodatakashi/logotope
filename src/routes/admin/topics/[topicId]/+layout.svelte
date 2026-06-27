@@ -59,7 +59,7 @@
 	.topic-detail-layout {
 		display: grid;
 		grid-template-rows: auto 1fr;
-		height: 100vh;
+		height: 100%;
 		overflow: hidden;
 		background-color: var(--white);
 	}
