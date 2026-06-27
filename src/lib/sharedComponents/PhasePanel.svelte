@@ -45,45 +45,35 @@
 
 <div class="phase-panel">
 	<div class="phase-panel__actions-pane">
-		{#if logicalState === 'not_started'}
-			<div class="phase-panel__actions">
+		<div class="phase-panel__actions">
+			{#if logicalState === 'not_started'}
 				<Button variant="filled" onclick={onGenerate}>{generateLabel}</Button>
-			</div>
-		{:else if logicalState === 'running'}
-			<div class="phase-panel__actions">
+			{:else if logicalState === 'running'}
 				{#if onStop}
 					<Button variant="outlined" onclick={onStop}>{stopLabel ?? '停止する'}</Button>
 				{:else}
-					<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
-						{regenerateLabel}
-					</Button>
+					<Button variant="filled" loading onclick={onGenerate}>{generateLabel}</Button>
 				{/if}
-			</div>
-		{:else if logicalState === 'stopped'}
-			<div class="phase-panel__actions">
+			{:else if logicalState === 'stopped'}
 				{#if onRestart}
 					<Button variant="filled" onclick={onRestart}>{restartLabel ?? '再開する'}</Button>
 				{/if}
-				<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
+				<Button variant="filled" onclick={() => regenerateDialog?.open()}>
 					{regenerateLabel}
 				</Button>
-			</div>
-		{:else if logicalState === 'generated'}
-			<div class="phase-panel__actions">
-				<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
+			{:else if logicalState === 'generated'}
+				<Button variant="filled" onclick={() => regenerateDialog?.open()}>
 					{regenerateLabel}
 				</Button>
 				{#if approveLabel && onApprove}
 					<Button variant="filled" onclick={onApprove}>{approveLabel}</Button>
 				{/if}
-			</div>
-		{:else if logicalState === 'approved'}
-			<div class="phase-panel__actions">
-				<Button variant="outlined" onclick={() => regenerateDialog?.open()}>
+			{:else if logicalState === 'approved'}
+				<Button variant="filled" onclick={() => regenerateDialog?.open()}>
 					{regenerateLabel}
 				</Button>
-			</div>
-		{/if}
+			{/if}
+		</div>
 	</div>
 
 	<div class="phase-panel__contents-pane">

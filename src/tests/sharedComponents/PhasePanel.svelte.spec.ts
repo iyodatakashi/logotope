@@ -58,10 +58,9 @@ describe('PhasePanel.svelte', () => {
 	});
 
 	describe('running 状態（フェーズ1〜4）', () => {
-		it('回復用に再生成ボタンを表示し、生成・承認は表示しない', async () => {
+		it('生成ボタンをローディング（無効）表示し、承認は表示しない', async () => {
 			render(PhasePanel, makeProps({ logicalState: 'running' }));
-			await expect.element(page.getByRole('button', { name: '再生成する' })).toBeInTheDocument();
-			expect(page.getByRole('button', { name: '調査を開始する' }).elements()).toHaveLength(0);
+			await expect.element(page.getByRole('button', { name: '調査を開始する' })).toBeDisabled();
 			expect(page.getByRole('button', { name: '承認して次へ進む' }).elements()).toHaveLength(0);
 		});
 	});
