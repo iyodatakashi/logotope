@@ -8,7 +8,6 @@
 	import { type Phase } from '$lib/models/phase/phase.types';
 	import StepNav from '$lib/sharedComponents/StepNav.svelte';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { topicsStore } from '$lib/stores/topics.svelte';
 
 	let { children }: { children: Snippet } = $props();
 
