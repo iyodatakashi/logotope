@@ -12,8 +12,8 @@ importers:
   .:
     dependencies:
       '@14ch/svelte-ui':
-        specifier: ^0.0.42
-        version: 0.0.42(svelte@5.55.1)
+        specifier: ^0.0.46
+        version: 0.0.46(svelte@5.55.1)
       firebase:
         specifier: ^12.14.0
         version: 12.14.0
@@ -93,8 +93,8 @@ importers:
 
 packages:
 
-  '@14ch/svelte-ui@0.0.42':
-    resolution: {integrity: sha512-lciUFSljbpXocLOJCub9qkBw+s2JThjJRC2wFGMBs5meuumXdFcRcaLcBXubJ0d9GBFVrxSedMMzieyFgEF4AQ==}
+  '@14ch/svelte-ui@0.0.46':
+    resolution: {integrity: sha512-dAWRTFakSGId+JVrC53c2NRxGFLCHMC+u/fDtTYJp0B+Hk0at6aRZ3sqtuj9ULMabL1Re6YEERTDWhtiSJq7Ag==}
     peerDependencies:
       svelte: ^5.0.0
 
@@ -1184,9 +1184,6 @@ packages:
   dompurify@3.4.11:
     resolution: {integrity: sha512-zhlUV12GsaRzMsf9q5M254YhA4+VuF0fG+QFqu6aYpoGlKtz+w8//jBcGVYBgQkR5GHjUomejY84AV+/uPbWdw==}
 
-  dompurify@3.4.8:
-    resolution: {integrity: sha512-yb1cEmaOum7wFvOCSQxyfgVlv5D47Rc30iZWoMpbDIWTnJ6grDDQyu2KFJzB2k7u0pMuJcQ1zphH//fFnw2tjQ==}
-
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
 
@@ -1964,10 +1961,10 @@ packages:
 
 snapshots:
 
-  '@14ch/svelte-ui@0.0.42(svelte@5.55.1)':
+  '@14ch/svelte-ui@0.0.46(svelte@5.55.1)':
     dependencies:
       dayjs: 1.11.21
-      dompurify: 3.4.8
+      dompurify: 3.4.11
       sass: 1.100.0
       svelte: 5.55.1
 
@@ -3003,10 +3000,6 @@ snapshots:
   devalue@5.6.4: {}
 
   dompurify@3.4.11:
-    optionalDependencies:
-      '@types/trusted-types': 2.0.7
-
-  dompurify@3.4.8:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
 
