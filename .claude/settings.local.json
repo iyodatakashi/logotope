@@ -5,12 +5,23 @@
     ]
   },
   "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "touch /Users/iyoda/Documents/workspace/Web_Workspace/logotope/.git/assistant-edited"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/iyoda/Documents/workspace/Web_Workspace/logotope/.claude/scripts/quality-check.sh",
+            "command": "/Users/iyoda/Documents/workspace/Web_Workspace/logotope/.claude/scripts/quality-check-guard.sh",
             "timeout": 240,
             "statusMessage": "品質チェック中（型・テスト・lint）...",
             "asyncRewake": true
