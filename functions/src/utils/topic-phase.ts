@@ -11,9 +11,11 @@ export type GeneratePhase = 1 | 2 | 3 | 4;
 const db = () => getFirestore();
 
 /**
- * phaseStatus が running のときだけ generated へ遷移させる（冪等・終端）。
- * 既に generated・stopped・承認等で phase 前進済みの場合は上書きしない（no-op）。
- * ドキュメント不存在時も no-op。遷移したら true、しなければ false を返す。
+ * phaseStatus が running または stopped のときに generated へ遷移させる（冪等・終端）。
+ * 呼び出し側が「全件完了」を確認済みのため、クライアントのタイムアウト等で stopped が付いた
+ * 場合でも、完了が真実なら generated に確定してよい（running 限定だと全件完了でも stopped に
+ * 固着し承認へ進めない不具合があった）。ただし phase が対象から前進済み（承認等）なら巻き戻さない。
+ * generated・not_started は対象外。ドキュメント不存在時も no-op。遷移したら true、しなければ false。
  */
 export const confirmPhaseGenerated = async (
 	topicId: string,
@@ -23,8 +25,10 @@ export const confirmPhaseGenerated = async (
 	return db().runTransaction(async (tx) => {
 		const snap = await tx.get(ref);
 		if (!snap.exists) return false;
-		const data = snap.data() as { phaseStatus?: string };
-		if (data.phaseStatus !== 'running') return false;
+		const data = snap.data() as { phase?: number; phaseStatus?: string };
+		// 対象フェーズから前進済み（承認で phase が進んだ等）なら触らない＝巻き戻し防止
+		if (data.phase !== phase) return false;
+		if (data.phaseStatus !== 'running' && data.phaseStatus !== 'stopped') return false;
 		tx.update(ref, { phase, phaseStatus: 'generated', updatedAt: Timestamp.now() });
 		return true;
 	});

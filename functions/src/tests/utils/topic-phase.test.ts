@@ -49,16 +49,17 @@ describe('confirmPhaseGenerated', () => {
 		expect(topic()?.phaseStatus).toBe('generated');
 	});
 
-	it('stopped は上書きしない（no-op・false）', async () => {
+	it('stopped でも対象フェーズのままなら generated へ確定し true を返す', async () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 2, phaseStatus: 'stopped' });
 
 		const changed = await confirmPhaseGenerated(TOPIC_ID, 2);
 
-		expect(changed).toBe(false);
-		expect(topic()?.phaseStatus).toBe('stopped');
+		expect(changed).toBe(true);
+		expect(topic()?.phaseStatus).toBe('generated');
+		expect(topic()?.phase).toBe(2);
 	});
 
-	it('承認済み（phase 前進・not_started 相当）など running 以外は上書きしない', async () => {
+	it('承認済み（phase 前進・not_started 相当）は上書きしない', async () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 3, phaseStatus: 'not_started' });
 
 		const changed = await confirmPhaseGenerated(TOPIC_ID, 2);
@@ -66,6 +67,16 @@ describe('confirmPhaseGenerated', () => {
 		expect(changed).toBe(false);
 		expect(topic()?.phaseStatus).toBe('not_started');
 		expect(topic()?.phase).toBe(3);
+	});
+
+	it('phase が前進済みなら stopped でも巻き戻さない（no-op・false）', async () => {
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 4, phaseStatus: 'stopped' });
+
+		const changed = await confirmPhaseGenerated(TOPIC_ID, 3);
+
+		expect(changed).toBe(false);
+		expect(topic()?.phaseStatus).toBe('stopped');
+		expect(topic()?.phase).toBe(4);
 	});
 
 	it('ドキュメント不存在時は no-op で false を返す', async () => {

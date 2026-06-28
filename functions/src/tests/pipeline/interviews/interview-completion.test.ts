@@ -92,14 +92,14 @@ describe('confirmInterviewsGeneratedIfAllComplete', () => {
 		expect(topic()?.phaseStatus).toBe('running');
 	});
 
-	it('topic が stopped のときは全件 completed でも generated にしない（running 限定）', async () => {
+	it('topic が stopped でも全件 completed なら generated に確定する', async () => {
 		setTopic('stopped');
 		setPersona('p1', 'completed', 0);
 
 		const changed = await confirmInterviewsGeneratedIfAllComplete(TOPIC_ID);
 
-		expect(changed).toBe(false);
-		expect(topic()?.phaseStatus).toBe('stopped');
+		expect(changed).toBe(true);
+		expect(topic()?.phaseStatus).toBe('generated');
 	});
 
 	it('並列の多重呼び出しでも冪等（2回目以降は false）', async () => {

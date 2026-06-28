@@ -72,13 +72,13 @@ describe('generateChapters handler', () => {
 		expect(topic()?.phaseStatus).toBe('generated');
 	});
 
-	it('phaseStatus が running 以外なら generated を上書きしない（冪等・ガード）', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 4, phaseStatus: 'stopped' });
+	it('phaseStatus が not_started なら generated を上書きしない（未開始ガード）', async () => {
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 4, phaseStatus: 'not_started' });
 		mockPlanChapters.mockResolvedValueOnce(undefined);
 
 		await handler(makeRequest({ topicId: TOPIC_ID }));
 
-		expect(topic()?.phaseStatus).toBe('stopped');
+		expect(topic()?.phaseStatus).toBe('not_started');
 	});
 
 	it('planChapters が失敗したらHttpsError(internal)を投げ、generated を確定しない', async () => {

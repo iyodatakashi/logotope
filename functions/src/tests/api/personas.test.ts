@@ -105,15 +105,15 @@ describe('generatePersonas handler', () => {
 		expect(topic()?.phaseStatus).toBe('generated');
 	});
 
-	it('phaseStatus が running 以外なら generated を上書きしない（冪等・ガード）', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 2, phaseStatus: 'stopped' });
+	it('phaseStatus が not_started なら generated を上書きしない（未開始ガード）', async () => {
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 2, phaseStatus: 'not_started' });
 		seedStakeholders();
 		mockRunPersonaGeneration.mockResolvedValueOnce(generatedPersonas());
 
 		await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
 
 		expect(persona('p1')).toBeDefined();
-		expect(topic()?.phaseStatus).toBe('stopped');
+		expect(topic()?.phaseStatus).toBe('not_started');
 	});
 
 	it('生成エラー時はHttpsError(internal)を投げ、ペルソナを永続化せず generated も確定しない', async () => {
