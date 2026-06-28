@@ -1,5 +1,6 @@
 import { Timestamp } from 'firebase-admin/firestore';
 import { evaluateTopicDrift, evaluateStallIntervention } from '../../agents/facilitator-agent.js';
+import { markIntroduced, getActiveDiscussionPoint } from './discussion-points.js';
 import { hasHighEngagement } from './speaker-selection.js';
 import { addQueuedIntents } from './queued-intents.js';
 import { addTurn } from './turn.js';
@@ -129,9 +130,10 @@ export const tryIntervention = async ({
 		| { content: string; targetPersonaId?: string; selectedDiscussionPointIndex?: number }
 		| undefined;
 
-	// まだ消化しきれていない（addressed でない）論点。介入時にファシリテーターへ提示候補として渡す
-	const unaddressedDiscussionPoints = state.discussionPoints
-		.filter((p) => p.status !== 'addressed')
+	// まだ提示していない（untouched）論点。介入時にファシリテーターへ投入候補として渡す。
+	// 提示済み（introduced）を除くことで論点の再提示を防ぎ、markIntroduced の index 空間とそろえる。
+	const untouchedDiscussionPoints = state.discussionPoints
+		.filter((p) => p.status === 'untouched')
 		.map((p) => p.point);
 
 	// クールダウン（前回ファシリテーター発言から十分なペルソナ発言が経過）を満たすときだけ介入を評価する
@@ -142,27 +144,27 @@ export const tryIntervention = async ({
 		)
 	) {
 		if (trigger.kind === 'persona-chain') {
-			// 指名チェーン中: drift のみ評価。未完了論点は常に渡し（空化しない）、出尽くし時の次論点投入を可能にする。
+			// 指名チェーン中: drift のみ評価。未提示論点は常に渡し（空化しない）、出尽くし時の次論点投入を可能にする。
 			// chainLength を発展性が尽きているソフトシグナルとして drift に渡す。
 			intervention = await tryTopicDriftIntervention({
 				personas,
 				chapter,
 				chapterTurns: currentChapterTurns,
 				state,
-				unaddressedDiscussionPoints,
+				untouchedDiscussionPoints,
 				chainLength: trigger.chainLength
 			});
 		} else {
 			// no-target: 従来挙動。高意欲者（score >= STALL_INTERVENTION_THRESHOLD_SCORE）がいる場合、
-			// 論点投入を抑止して明確な逸脱のみ検出させる（未完了論点リストを渡さないことで option 2 を封じる）
-			const driftPoints = hasHighEngagement(engagements) ? [] : unaddressedDiscussionPoints;
+			// 論点投入を抑止して明確な逸脱のみ検出させる（未提示論点リストを渡さないことで option 2 を封じる）
+			const driftPoints = hasHighEngagement(engagements) ? [] : untouchedDiscussionPoints;
 			// 介入は2段カスケード: まず論点ずれ介入を試し、起きなければ出尽くし(スタール)介入を試す
 			intervention = await tryTopicDriftIntervention({
 				personas,
 				chapter,
 				chapterTurns: currentChapterTurns,
 				state,
-				unaddressedDiscussionPoints: driftPoints
+				untouchedDiscussionPoints: driftPoints
 			});
 			if (!intervention) {
 				intervention = await tryStallIntervention({
@@ -171,23 +173,16 @@ export const tryIntervention = async ({
 					chapterTurns: currentChapterTurns,
 					state,
 					engagements,
-					unaddressedDiscussionPoints
+					untouchedDiscussionPoints
 				});
 			}
 		}
 	}
 	if (!intervention) return false;
 
-	// 介入が論点を1つ提示した場合、その論点を introduced（提示済み）に更新する
-	if (
-		intervention.selectedDiscussionPointIndex !== undefined &&
-		intervention.selectedDiscussionPointIndex >= 0 &&
-		intervention.selectedDiscussionPointIndex < unaddressedDiscussionPoints.length
-	) {
-		const introducedPoint = unaddressedDiscussionPoints[intervention.selectedDiscussionPointIndex];
-		const target = state.discussionPoints.find((p) => p.point === introducedPoint);
-		if (target) target.status = 'introduced';
-	}
+	// 介入が論点を1つ投入した場合、markIntroduced 経由で introduced 化し introducedOrder を採番する。
+	// selectedDiscussionPointIndex は untouched 候補リスト上の index で、markIntroduced の index 空間と一致する。
+	markIntroduced(state, intervention.selectedDiscussionPointIndex);
 
 	// 介入ターンの直前時点で意欲の高かった他ペルソナの意図をキューに積んでおく
 	// （speakerSelection.personaId='' は「除外する話者なし」を意味する）
@@ -218,24 +213,27 @@ const tryTopicDriftIntervention = async ({
 	chapter,
 	chapterTurns,
 	state,
-	unaddressedDiscussionPoints,
+	untouchedDiscussionPoints,
 	chainLength
 }: {
 	personas: Persona[];
 	chapter: Chapter;
 	chapterTurns: DebateTurn[];
 	state: DebateState;
-	unaddressedDiscussionPoints: string[];
+	untouchedDiscussionPoints: string[];
 	chainLength?: number;
 }): Promise<
 	{ content: string; targetPersonaId: string; selectedDiscussionPointIndex?: number } | undefined
 > => {
+	// 判断軸はアクティブ論点（不在時は章タイトル）。アクティブ論点も title も無ければ undefined のまま渡す（7.3）
+	const activeFocus = getActiveDiscussionPoint(state) ?? chapter.title;
 	const result = await evaluateTopicDrift(
 		chapterTurns,
 		personas,
 		state.speakCount,
 		chapter,
-		unaddressedDiscussionPoints.length > 0 ? unaddressedDiscussionPoints : undefined,
+		activeFocus,
+		untouchedDiscussionPoints.length > 0 ? untouchedDiscussionPoints : undefined,
 		chainLength !== undefined ? { chainLength } : undefined
 	);
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
@@ -256,24 +254,26 @@ const tryStallIntervention = async ({
 	chapterTurns,
 	state,
 	engagements,
-	unaddressedDiscussionPoints
+	untouchedDiscussionPoints
 }: {
 	personas: Persona[];
 	chapter: Chapter;
 	chapterTurns: DebateTurn[];
 	state: DebateState;
 	engagements: Engagement[];
-	unaddressedDiscussionPoints: string[];
+	untouchedDiscussionPoints: string[];
 }): Promise<
 	{ content: string; targetPersonaId?: string; selectedDiscussionPointIndex?: number } | undefined
 > => {
 	if (hasHighEngagement(engagements)) return undefined;
+	const activeFocus = getActiveDiscussionPoint(state) ?? chapter.title;
 	const result = await evaluateStallIntervention(
 		chapterTurns,
 		personas,
 		state.speakCount,
 		chapter,
-		unaddressedDiscussionPoints.length > 0 ? unaddressedDiscussionPoints : undefined
+		activeFocus,
+		untouchedDiscussionPoints.length > 0 ? untouchedDiscussionPoints : undefined
 	);
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 	if (!result.value.content) return undefined;

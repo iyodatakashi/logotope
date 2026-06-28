@@ -119,7 +119,7 @@ const makeSpeakerSelection = (override?: Partial<SpeakerSelection>): SpeakerSele
 	...override
 });
 
-const mockChapter: Chapter = { id: 'ch1', title: 'テスト章', focusQuestion: 'テスト？' };
+const mockChapter: Chapter = { id: 'ch1', title: 'テスト章' };
 
 const makeDebateState = () => ({
 	turns: [] as Array<Record<string, unknown>>,
@@ -537,7 +537,8 @@ describe('generatePersonaTurn', () => {
 		expect(arg.draft.content).toBe('ドラフト本文');
 		expect(arg.factCheckContext.topicTitle).toBe('テーマ名');
 		expect(arg.factCheckContext.chapterTitle).toBe('テスト章');
-		expect(arg.factCheckContext.focusQuestion).toBe('テスト？');
+		// アクティブ論点不在のため discussionScope は章タイトルにフォールバックする
+		expect(arg.factCheckContext.discussionScope).toBe('テスト章');
 	});
 
 	it('補正後に採用された発言（再生成）の内容・発言モード・指名先で正式登録する', async () => {

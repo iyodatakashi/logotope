@@ -17,7 +17,6 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 							id: 'ch1',
 							chapterIndex: 0,
 							title: 'はじめに',
-							focusQuestion: '問題の本質は何か？',
 							discussionPoints: [],
 							turns: [],
 							status: 'pending'

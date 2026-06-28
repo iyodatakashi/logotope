@@ -95,7 +95,6 @@ const seed = () => {
 	holder.mock.store.set(`topics/${TOPIC_ID}/chapters/ch1`, {
 		chapterIndex: 0,
 		title: '章0',
-		focusQuestion: '?',
 		discussionPoints: [],
 		turns: [{ id: 'opening', speakerType: 'facilitator', content: 'opening', createdAt: 'TS' }],
 		status: 'running'

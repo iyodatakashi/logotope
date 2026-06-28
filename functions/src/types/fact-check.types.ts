@@ -20,7 +20,7 @@ export type FactCheckFinding = {
 export type FactCheckContext = {
 	topicTitle: string;
 	chapterTitle: string;
-	focusQuestion: string;
+	discussionScope: string; // 話題スコープ補足（インライン: アクティブ論点 ?? 章タイトル, 章バッチ: 章タイトル）
 	currentDate: string; // 時間軸検証の基準（currentDateString() 由来＝実行開始時刻, 3.5）
 };
 

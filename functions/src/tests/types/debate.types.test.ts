@@ -58,7 +58,7 @@ describe('debate.types - questionモード型定義', () => {
 	it('TurnGenerationContext に otherPersonas フィールドが含まれる', () => {
 		const context: TurnGenerationContext = {
 			chapterTurns: [],
-			chapter: { id: 'ch1', title: 'テスト', focusQuestion: 'テスト？' },
+			chapter: { id: 'ch1', title: 'テスト' },
 			otherPersonas: [{ id: 'p2', name: 'ペルソナB' }]
 		};
 		expect(context.otherPersonas).toHaveLength(1);
@@ -68,7 +68,7 @@ describe('debate.types - questionモード型定義', () => {
 	it('TurnGenerationContext.otherPersonas は空配列も受け入れる', () => {
 		const context: TurnGenerationContext = {
 			chapterTurns: [],
-			chapter: { id: 'ch1', title: 'テスト', focusQuestion: 'テスト？' },
+			chapter: { id: 'ch1', title: 'テスト' },
 			otherPersonas: []
 		};
 		expect(context.otherPersonas).toHaveLength(0);
@@ -114,7 +114,6 @@ describe('debate.types - 論点追跡型定義', () => {
 		const chapter: Chapter = {
 			id: 'ch1',
 			title: 'テスト章',
-			focusQuestion: 'テスト？',
 			discussionPoints: ['論点A', '論点B', '論点C']
 		};
 		expect(chapter.discussionPoints).toHaveLength(3);
@@ -126,7 +125,6 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
-			focusQuestion: 'この問題の核心は何か？',
 			discussionPoints: ['論点A', '論点B'],
 			turns: [],
 			status: 'pending'
@@ -140,7 +138,6 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 1,
 			title: '核心',
-			focusQuestion: '最も意見が分かれる点は？',
 			discussionPoints: ['論点A'],
 			turns: [],
 			discussionPointStatuses: [{ point: '論点A', status: 'introduced' }],
@@ -168,7 +165,6 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
-			focusQuestion: 'テスト？',
 			discussionPoints: ['論点A'],
 			turns: [],
 			quietStreak: 2,
@@ -181,7 +177,6 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
-			focusQuestion: 'テスト？',
 			discussionPoints: ['論点A'],
 			turns: [],
 			status: 'pending'

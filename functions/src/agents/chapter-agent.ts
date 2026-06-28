@@ -50,7 +50,6 @@ const chapterResultSchema = z.object({
 	chapters: z.array(
 		z.object({
 			title: z.string(),
-			focusQuestion: z.string(),
 			discussionPoints: z.array(z.string())
 		})
 	)
@@ -197,14 +196,14 @@ const buildGroupingPrompt = (
 	const issueList = selectedIssues
 		.map((issue, i) => `${i}. [${issue.source}] ${issue.text}`)
 		.join('\n');
-	return `テーマ「${topicTitle}」の採用論点を意味的な近さでグループ化してください。タイトル・フォーカス問いは生成しない。
+	return `テーマ「${topicTitle}」の採用論点を意味的な近さでグループ化してください。タイトルは生成しない。
 
 【採用論点（index: 論点テキスト）】
 ${issueList}
 
 【グループ化のルール】
 - 意味的に近い論点を同じグループにまとめる
-- index の配列のみを返す。タイトル・フォーカス問いは不要
+- index の配列のみを返す。タイトルは不要
 - 採用論点が収束している場合、グループ数1を許容する
 
 各グループの issueIndexes（論点の index 配列）を返してください。全論点がいずれかのグループに割り当てられるよう漏れなく配置してください。${contextSection}`;
@@ -234,7 +233,6 @@ const buildChapters = async (
 		return {
 			id: nanoid(),
 			title: authored?.title ?? topicTitle,
-			focusQuestion: authored?.focusQuestion ?? '',
 			discussionPoints: authored?.discussionPoints ?? fallbackPoints
 		};
 	});
@@ -253,18 +251,19 @@ const buildBuildingPrompt = (
 			return `## グループ ${i + 1}\n${issueTexts}`;
 		})
 		.join('\n\n');
-	return `テーマ「${topicTitle}」の各グループについて、割り当て論点を素材に章タイトル・フォーカス問い・discussionPoints を生成してください。
+	return `テーマ「${topicTitle}」の各グループについて、割り当て論点を素材に章タイトルと discussionPoints を生成してください。
 
 【グループと論点】
 ${groupList}
 
 【再構成のルール】
-- 各グループに対応する章の title、focusQuestion、discussionPoints（3〜5件）を生成する
+- 各グループに対応する章の title と discussionPoints（3〜5件）を生成する
+- 各 discussionPoint は、専門知識のない一般の人々が日常感覚で理解できる「問いの形」で書く（例:「〜なのはなぜか」「どこまでなら許されるか」）
+- 第1章の論点は特に平易で日常的な表現にする
 - 意味的に重複する論点を1つに統合する
-- 第1章は専門知識のない一般の人々が日常感覚で理解できるタイトルとフォーカス問いにする
 - 特定のペルソナ名・発言を前提にしない汎用的な問いの形で生成する
 
-入力のグループ順のまま、各グループの title、focusQuestion、discussionPoints（文字列配列）を返してください。${contextSection}`;
+入力のグループ順のまま、各グループの title と discussionPoints（文字列配列）を返してください。${contextSection}`;
 };
 
 export const sortChaptersByGeneralIssueCount = (

@@ -34,10 +34,10 @@ const buildJudgePrompt = (
 	findings: FactCheckFinding[],
 	context: FactCheckContext
 ): string => {
-	const focus = context.focusQuestion ? `（${context.focusQuestion}）` : '';
+	const scope = context.discussionScope ? `（${context.discussionScope}）` : '';
 	const findingList = findings.map((f) => `- id: ${f.id}\n  該当箇所: ${f.claim}`).join('\n');
 	return `【討論のテーマ】${context.topicTitle}
-【この章で議論していること】${context.chapterTitle}${focus}
+【この章で議論していること】${context.chapterTitle}${scope}
 【本日】${context.currentDate}
 
 これは多様な立場の人々が意見・提案・問いを交わす討論です。以下の発言に対して検出された「事実誤認の指摘」を見直し、その指摘が本当に修正に値するかを id ごとに判定してください。

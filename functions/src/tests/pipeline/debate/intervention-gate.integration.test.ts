@@ -121,7 +121,6 @@ const seedChapter = (turns: Array<Record<string, unknown>>) => {
 	holder.mock.store.set(`topics/${TOPIC_ID}/chapters/ch1`, {
 		chapterIndex: 0,
 		title: '章0',
-		focusQuestion: '?',
 		discussionPoints: ['論点A'],
 		turns,
 		status: 'running'
@@ -254,7 +253,6 @@ describe('回帰: drift 非発火でもハードキャップで終端する', ()
 		holder.mock.store.set(`topics/${TOPIC_ID}/chapters/ch1`, {
 			chapterIndex: 0,
 			title: '章0',
-			focusQuestion: '?',
 			discussionPoints: [],
 			turns: [],
 			status: 'pending'

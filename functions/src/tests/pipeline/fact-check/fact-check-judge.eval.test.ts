@@ -21,7 +21,7 @@ const ENABLED = process.env.RUN_JUDGE_EVAL === '1' && !!process.env.GEMINI_API_K
 const context: FactCheckContext = {
 	topicTitle: 'ウクライナ停戦と人道回廊',
 	chapterTitle: '誰が停戦監視・通行保証を担えるか',
-	focusQuestion: '停戦監視の担い手と合意文書に書くべき条項',
+	discussionScope: '停戦監視の担い手と合意文書に書くべき条項',
 	currentDate: '2026年6月26日'
 };
 

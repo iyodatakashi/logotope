@@ -48,7 +48,6 @@ const mockPersona: Persona = {
 const makeChapter = (overrides: Partial<Chapter> = {}): Chapter => ({
 	id: 'ch1',
 	title: 'テスト章',
-	focusQuestion: 'テスト問い？',
 	discussionPoints: [],
 	...overrides
 });
@@ -174,10 +173,14 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 		});
 
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
-		await evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), [
-			'未消化論点A',
-			'未消化論点B'
-		]);
+		await evaluateTopicDrift(
+			[makeTurn('発言')],
+			[mockPersona],
+			new Map(),
+			makeChapter(),
+			'アクティブ論点',
+			['未消化論点A', '未消化論点B']
+		);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		expect(callArgs.messages[0].content).toContain('未消化論点A');
@@ -191,9 +194,14 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 		});
 
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
-		await evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), [
-			'論点1'
-		]);
+		await evaluateTopicDrift(
+			[makeTurn('発言')],
+			[mockPersona],
+			new Map(),
+			makeChapter(),
+			'アクティブ論点',
+			['論点1']
+		);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		const content = callArgs.messages[0].content;
@@ -215,6 +223,7 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 			[mockPersona],
 			new Map(),
 			makeChapter(),
+			'アクティブ論点',
 			['論点1', '論点2']
 		);
 
@@ -232,7 +241,14 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 		});
 
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
-		await evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), []);
+		await evaluateTopicDrift(
+			[makeTurn('発言')],
+			[mockPersona],
+			new Map(),
+			makeChapter(),
+			'アクティブ論点',
+			[]
+		);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		expect(callArgs.messages[0].content).not.toContain('未完了論点');
@@ -262,7 +278,14 @@ describe('evaluateTopicDrift - 出尽くし判断軸と chainLength シグナル
 	it('未完了論点ありの場合、出尽くし（発展性なし）の判断軸がプロンプトに含まれる', async () => {
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
 		const content = await captureContent(() =>
-			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'])
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				['論点1']
+			)
 		);
 		expect(content).toContain('発展性');
 	});
@@ -270,7 +293,14 @@ describe('evaluateTopicDrift - 出尽くし判断軸と chainLength シグナル
 	it('未完了論点なしの場合でも、出尽くし（発展性なし）の判断軸がプロンプトに含まれる', async () => {
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
 		const content = await captureContent(() =>
-			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), [])
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				[]
+			)
 		);
 		expect(content).toContain('発展性');
 	});
@@ -278,9 +308,17 @@ describe('evaluateTopicDrift - 出尽くし判断軸と chainLength シグナル
 	it('chainLength を渡すと、その回数と出尽くしを疑う旨がプロンプトに含まれる', async () => {
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
 		const content = await captureContent(() =>
-			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'], {
-				chainLength: 5
-			})
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				['論点1'],
+				{
+					chainLength: 5
+				}
+			)
 		);
 		expect(content).toContain('5');
 		expect(content).toMatch(/連続|続いて/);
@@ -289,7 +327,14 @@ describe('evaluateTopicDrift - 出尽くし判断軸と chainLength シグナル
 	it('options 省略時は chainLength シグナルの文言を含めない（後方互換）', async () => {
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
 		const content = await captureContent(() =>
-			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'])
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				['論点1']
+			)
 		);
 		expect(content).not.toMatch(/補足シグナル|回連続/);
 	});
@@ -297,9 +342,17 @@ describe('evaluateTopicDrift - 出尽くし判断軸と chainLength シグナル
 	it('chainLength=0 はシグナルとして扱わず文言を含めない', async () => {
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
 		const content = await captureContent(() =>
-			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'], {
-				chainLength: 0
-			})
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				['論点1'],
+				{
+					chainLength: 0
+				}
+			)
 		);
 		expect(content).not.toMatch(/補足シグナル|回連続/);
 	});
@@ -307,7 +360,14 @@ describe('evaluateTopicDrift - 出尽くし判断軸と chainLength シグナル
 	it('論点がひととおり出尽くしたら次論点へ前進させる中庸な判断軸が含まれる', async () => {
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
 		const content = await captureContent(() =>
-			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'])
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				['論点1']
+			)
 		);
 		expect(content).toMatch(/ひととおり|前進/);
 	});
@@ -315,7 +375,14 @@ describe('evaluateTopicDrift - 出尽くし判断軸と chainLength シグナル
 	it('まだ新しい視点が出ている間は見送る旨が含まれる', async () => {
 		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
 		const content = await captureContent(() =>
-			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'])
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				['論点1']
+			)
 		);
 		expect(content).toMatch(/新しい(視点|内容).*(見送|深ま|介入しない)/);
 	});
@@ -338,9 +405,14 @@ describe('evaluateStallIntervention - 未完了論点対応', () => {
 		});
 
 		const { evaluateStallIntervention } = await import('../../agents/facilitator-agent.js');
-		await evaluateStallIntervention([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), [
-			'未消化論点'
-		]);
+		await evaluateStallIntervention(
+			[makeTurn('発言')],
+			[mockPersona],
+			new Map(),
+			makeChapter(),
+			'アクティブ論点',
+			['未消化論点']
+		);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		const content = callArgs.messages[0].content;
@@ -363,6 +435,7 @@ describe('evaluateStallIntervention - 未完了論点対応', () => {
 			[mockPersona],
 			new Map(),
 			makeChapter(),
+			'アクティブ論点',
 			['論点1']
 		);
 
@@ -370,6 +443,124 @@ describe('evaluateStallIntervention - 未完了論点対応', () => {
 		if (result.ok) {
 			expect(result.value.selectedDiscussionPointIndex).toBe(0);
 		}
+	});
+});
+
+describe('介入評価の判断軸 - アクティブ論点（2.1）', () => {
+	let generateObject: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		const aiMod = await import('ai');
+		generateObject = vi.mocked(aiMod.generateObject);
+	});
+
+	const captureContent = async (fn: () => Promise<unknown>): Promise<string> => {
+		const capturedArgs: unknown[] = [];
+		generateObject.mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return makeObjectResult({});
+		});
+		await fn();
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		return callArgs.messages[0].content;
+	};
+
+	it('evaluateTopicDrift: プロンプトにアクティブ論点が含まれ、focusQuestion 文言を含まない', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const chapter = makeChapter({});
+		const content = await captureContent(() =>
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				chapter,
+				'いま向き合う論点',
+				['論点1']
+			)
+		);
+		expect(content).toContain('いま向き合う論点');
+		expect(content).not.toContain('フォーカス問いの文言');
+		expect(content).not.toContain('フォーカス問い');
+	});
+
+	it('evaluateTopicDrift: アクティブ論点が undefined なら章タイトルを判断軸にする', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const chapter = makeChapter({ title: '章タイトルZ' });
+		const content = await captureContent(() =>
+			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), chapter, undefined, [
+				'論点1'
+			])
+		);
+		expect(content).toContain('章タイトルZ');
+		expect(content).not.toContain('フォーカス問い');
+	});
+
+	it('evaluateStallIntervention: プロンプトにアクティブ論点が含まれ、focusQuestion 文言を含まない', async () => {
+		const { evaluateStallIntervention } = await import('../../agents/facilitator-agent.js');
+		const chapter = makeChapter({});
+		const content = await captureContent(() =>
+			evaluateStallIntervention(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				chapter,
+				'出尽くし論点',
+				['論点1']
+			)
+		);
+		expect(content).toContain('出尽くし論点');
+		expect(content).not.toContain('フォーカス問い');
+	});
+});
+
+describe('章導入の入口一本化 - 二重提示の解消（2.2）', () => {
+	let generateObject: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		const aiMod = await import('ai');
+		generateObject = vi.mocked(aiMod.generateObject);
+	});
+
+	const captureContent = async (fn: () => Promise<unknown>): Promise<string> => {
+		const capturedArgs: unknown[] = [];
+		generateObject.mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return makeObjectResult({ targetPersonaId: 'p1', content: '導入' });
+		});
+		await fn();
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		return callArgs.messages[0].content;
+	};
+
+	it('generateOpening: 先頭論点を入口にし focusQuestion を二重提示しない', async () => {
+		const { generateOpening } = await import('../../agents/facilitator-agent.js');
+		const chapter = makeChapter({
+			discussionPoints: ['先頭論点XYZ', '論点2']
+		});
+		const content = await captureContent(() => generateOpening('テーマ', [mockPersona], chapter));
+		expect(content).toContain('先頭論点XYZ');
+		expect(content).not.toContain('フォーカス問いの文言');
+		expect(content).not.toContain('フォーカス');
+	});
+
+	it('generateOpening: 論点を持たない章は章タイトルを入口にする', async () => {
+		const { generateOpening } = await import('../../agents/facilitator-agent.js');
+		const chapter = makeChapter({ title: '入口タイトル', discussionPoints: [] });
+		const content = await captureContent(() => generateOpening('テーマ', [mockPersona], chapter));
+		expect(content).toContain('入口タイトル');
+	});
+
+	it('generateChapterIntroduction: 先頭論点を入口にし focusQuestion を二重提示しない', async () => {
+		const { generateChapterIntroduction } = await import('../../agents/facilitator-agent.js');
+		const chapter = makeChapter({
+			discussionPoints: ['先頭論点XYZ', '論点2']
+		});
+		const content = await captureContent(() => generateChapterIntroduction(chapter, [mockPersona]));
+		expect(content).toContain('先頭論点XYZ');
+		expect(content).not.toContain('フォーカス問いの文言');
+		expect(content).not.toContain('フォーカス');
 	});
 });
 

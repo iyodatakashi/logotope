@@ -69,6 +69,7 @@ export type AppendResult =
 export type TurnGenerationContext = {
 	chapterTurns: ReadonlyArray<DebateTurn>;
 	chapter: Chapter;
+	activeDiscussionPoint?: string;
 	queuedTrigger?: { speakerName: string; content: string };
 	targetedBy?: 'facilitator' | 'persona';
 	otherPersonas?: ReadonlyArray<{ id: string; name: string }>;

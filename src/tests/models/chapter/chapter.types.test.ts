@@ -13,7 +13,6 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
-			focusQuestion: 'この問題の核心は何か？',
 			discussionPoints: ['論点A', '論点B'],
 			turns: [],
 			status: 'pending'
@@ -32,7 +31,6 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 1,
 			title: '核心',
-			focusQuestion: '最も意見が分かれる点は？',
 			discussionPoints: ['論点A'],
 			turns: [turn],
 			discussionPointStatuses: [{ point: '論点A', status: 'introduced' }],

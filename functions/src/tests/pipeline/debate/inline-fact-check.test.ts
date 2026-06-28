@@ -20,12 +20,11 @@ import type { Chapter } from '../../../types/chapter.types.js';
 
 const persona = { id: 'p1', name: '田中太郎' } as Persona;
 const personas: ReadonlyArray<Persona> = [persona];
-const chapter = { id: 'ch1', title: '章', focusQuestion: 'Q', discussionPoints: [] } as Chapter;
+const chapter = { id: 'ch1', title: '章', discussionPoints: [] } as Chapter;
 const context: TurnGenerationContext = { chapterTurns: [], chapter };
 const factCheckContext: FactCheckContext = {
 	topicTitle: 'T',
 	chapterTitle: '章',
-	focusQuestion: 'Q',
 	currentDate: '2026年6月25日'
 };
 const engagement: Engagement = { personaId: 'p1', score: 4, mode: 'opinion' };

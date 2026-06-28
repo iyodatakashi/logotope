@@ -47,7 +47,6 @@ const makeChapterDoc = (id: string, turns: { id: string }[] = []) => ({
 	data: () => ({
 		chapterIndex: 0,
 		title: 'テスト章',
-		focusQuestion: 'テスト？',
 		turns,
 		status: 'running'
 	})

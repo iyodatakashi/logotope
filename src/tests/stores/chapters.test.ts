@@ -22,7 +22,6 @@ const makeChapter = (
 	id: 'ch1',
 	chapterIndex: 0,
 	title: 'テスト章',
-	focusQuestion: 'テスト？',
 	discussionPoints: [],
 	turns: [],
 	status: 'pending',

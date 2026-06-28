@@ -12,7 +12,6 @@ const db = () => getFirestore();
 type ChapterDocData = {
 	chapterIndex: number;
 	title: string;
-	focusQuestion: string;
 	discussionPoints?: string[];
 	turns?: Array<{
 		id: string;
@@ -31,7 +30,6 @@ const toChapterEntry = (id: string, data: ChapterDocData): ChapterEntry => ({
 	id,
 	chapterIndex: data.chapterIndex,
 	title: data.title,
-	focusQuestion: data.focusQuestion,
 	discussionPoints: data.discussionPoints ?? [],
 	turns: (data.turns ?? []).map((t) => ({
 		id: t.id,

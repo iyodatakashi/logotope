@@ -15,7 +15,7 @@ import type { FactCheckFinding, FactCheckContext } from '../../../types/fact-che
 const context: FactCheckContext = {
 	topicTitle: 'ウクライナ情勢と医療',
 	chapterTitle: '人道回廊の通行保証',
-	focusQuestion: '誰が通行保証を担えるか',
+	discussionScope: '誰が通行保証を担えるか',
 	currentDate: '2026年6月26日'
 };
 

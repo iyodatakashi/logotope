@@ -12,7 +12,6 @@ export type DiscussionPointState = {
 export type ChapterForFirestore = {
 	chapterIndex: number;
 	title: string;
-	focusQuestion: string;
 	discussionPoints: string[];
 	turns: TurnForFirestore[];
 	discussionPointStatuses?: DiscussionPointState[];

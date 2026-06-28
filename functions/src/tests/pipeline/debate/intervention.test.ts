@@ -294,7 +294,7 @@ import type { Persona } from '../../../types/persona.types.js';
 import type { Chapter } from '../../../types/chapter.types.js';
 
 const mockPersonas: Persona[] = [{ id: 'p1', name: 'テスト' } as Persona];
-const mockChapter: Chapter = { id: 'ch1', title: '章', focusQuestion: '?', discussionPoints: [] };
+const mockChapter: Chapter = { id: 'ch1', title: '章', discussionPoints: [] };
 const mockEngagements: Engagement[] = [];
 
 describe('tryIntervention - 論点ステータスのマーク', () => {
@@ -391,7 +391,7 @@ describe('tryIntervention - 論点ステータスのマーク', () => {
 		expect(state.discussionPoints[0].status).toBe('untouched');
 	});
 
-	it('未完了論点（addressed 以外）のみを介入関数に渡す', async () => {
+	it('未提示論点（untouched）のみを介入関数に渡し、提示済み論点は候補から除外する', async () => {
 		evaluateTopicDrift.mockResolvedValueOnce({
 			ok: true,
 			value: {}
@@ -422,14 +422,47 @@ describe('tryIntervention - 論点ステータスのマーク', () => {
 			trigger: { kind: 'no-target' }
 		});
 
+		// 5番目に activeFocus（introduced の論点C）、6番目に untouched 候補リスト、7番目に options
 		expect(evaluateTopicDrift).toHaveBeenCalledWith(
 			expect.anything(),
 			expect.anything(),
 			expect.anything(),
 			expect.anything(),
-			['論点A', '論点C'],
+			'論点C',
+			['論点A'],
 			undefined
 		);
+	});
+
+	it('介入投入論点が markIntroduced 経由で introducedOrder を採番される', async () => {
+		evaluateTopicDrift.mockResolvedValueOnce({
+			ok: true,
+			value: { content: '論点投入', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
+		});
+
+		const state = makeState(
+			[makeTurn('facilitator', 'f1'), makeTurn('persona', 'p1'), makeTurn('persona', 'p2')],
+			[
+				{ point: '論点A', status: 'introduced', introducedOrder: 1 },
+				{ point: '論点B', status: 'untouched' }
+			]
+		);
+
+		const { tryIntervention: tryIntervention_ } =
+			await import('../../../pipeline/debate/intervention.js');
+		await tryIntervention_({
+			topicId: 'topic1',
+			personas: mockPersonas,
+			chapter: mockChapter,
+			state,
+			engagements: mockEngagements,
+			interventionCooldown: 2,
+			trigger: { kind: 'no-target' }
+		});
+
+		// untouched 候補 [論点B] の index 0 が introduced 化し、最新の introducedOrder を持つ
+		expect(state.discussionPoints[1].status).toBe('introduced');
+		expect(state.discussionPoints[1].introducedOrder).toBe(2);
 	});
 });
 
@@ -492,11 +525,13 @@ describe('tryIntervention - トリガー分岐', () => {
 			trigger: { kind: 'no-target' }
 		});
 
+		// activeFocus は introduced 不在のため章タイトル '章'、untouched 候補は空化され undefined
 		expect(evaluateTopicDrift).toHaveBeenCalledWith(
 			expect.anything(),
 			expect.anything(),
 			expect.anything(),
 			expect.anything(),
+			'章',
 			undefined,
 			undefined
 		);
@@ -537,11 +572,13 @@ describe('tryIntervention - トリガー分岐', () => {
 			trigger: { kind: 'persona-chain', chainLength: 4 }
 		});
 
+		// activeFocus は introduced 不在のため章タイトル '章'、untouched 候補 ['論点A']、options に chainLength
 		expect(evaluateTopicDrift).toHaveBeenCalledWith(
 			expect.anything(),
 			expect.anything(),
 			expect.anything(),
 			expect.anything(),
+			'章',
 			['論点A'],
 			{ chainLength: 4 }
 		);

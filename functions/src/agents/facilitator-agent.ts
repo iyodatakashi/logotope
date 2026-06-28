@@ -39,11 +39,14 @@ const runInterventionCheck = async (
 	turns: DebateTurn[],
 	personas: Persona[],
 	currentChapter: Chapter | undefined,
+	activeFocus: string | undefined,
 	criteriaSection: string
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	try {
+		// 判断軸は呼び出し側が解決したアクティブ論点（不在時は章タイトル）。不在なら章タイトルへフォールバック
+		const focus = activeFocus ?? currentChapter?.title;
 		const chapterContext = currentChapter
-			? `\n\n【この章のミッション】「${currentChapter.title}」\nフォーカス問い: ${currentChapter.focusQuestion}\n司会の役割: この章の間、会話が常にこのフォーカス問いに関連するよう誘導する。`
+			? `\n\n【この章のミッション】「${currentChapter.title}」\nいまの論点: ${focus}\n司会の役割: この章の間、会話が常にこのいまの論点に関連するよう誘導する。`
 			: '';
 
 		const result = await generateObject({
@@ -72,14 +75,13 @@ export const generateOpening = async (
 	firstChapter?: Chapter
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	try {
-		const chapterContext = firstChapter
-			? `\n\n第1章「${firstChapter.title}」のフォーカス: ${firstChapter.focusQuestion}`
-			: '';
 		const hasPoints = (firstChapter?.discussionPoints?.length ?? 0) > 0;
-		const firstPointContext =
-			hasPoints && firstChapter
-				? `\n\nこの章の最初の論点: ${firstChapter.discussionPoints[0]}。この論点を最初の問いかけの切り口として使ってください。`
-				: '';
+		// 入口は先頭論点を唯一の切り口にする。論点を持たない章は章タイトルを入口にする
+		const entryPoint =
+			hasPoints && firstChapter ? firstChapter.discussionPoints[0] : firstChapter?.title;
+		const entryContext = entryPoint
+			? `\n\n第1章「${firstChapter!.title}」の入口となる問い: ${entryPoint}。この問いを最初の問いかけの切り口として使ってください。`
+			: '';
 
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
@@ -88,7 +90,7 @@ export const generateOpening = async (
 			messages: [
 				{
 					role: 'user',
-					content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${firstPointContext}\n\n冒頭発言（2〜3文）の構成：\n1. 第1章のフォーカス問いの趣旨に沿って、「このテーマに詳しくない人でも感覚的に答えられる」オープンな問いかけをする。固有名詞（特定の映像作品・企業名・人名・統計）や専門用語を使わないこと。誰もが「自分の立場から答えられそう」と感じる入口となる問いにする。\n2. 最初の発言者にその問いを向ける\n\n「議論を始めましょう」などの抽象的な言葉は禁止。専門知識なしでも答えられる具体的な問いで始める。targetPersonaIdには必ず上記リストのIDを使用してください。`
+					content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${entryContext}\n\n冒頭発言（2〜3文）の構成：\n1. 上記の入口となる問いの趣旨に沿って、「このテーマに詳しくない人でも感覚的に答えられる」オープンな問いかけをする。固有名詞（特定の映像作品・企業名・人名・統計）や専門用語を使わないこと。誰もが「自分の立場から答えられそう」と感じる入口となる問いにする。\n2. 最初の発言者にその問いを向ける\n\n「議論を始めましょう」などの抽象的な言葉は禁止。専門知識なしでも答えられる具体的な問いで始める。targetPersonaIdには必ず上記リストのIDを使用してください。`
 				}
 			]
 		});
@@ -110,21 +112,23 @@ export const evaluateTopicDrift = async (
 	personas: Persona[],
 	speakCount: Map<string, number> = new Map(),
 	currentChapter?: Chapter,
-	unaddressedDiscussionPoints?: string[],
+	activeFocus?: string,
+	untouchedDiscussionPoints?: string[],
 	options?: { chainLength?: number }
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	const speakCountInfo = personas
 		.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
 		.join(', ');
 
-	const hasPoints = (unaddressedDiscussionPoints?.length ?? 0) > 0;
+	const focus = activeFocus ?? currentChapter?.title;
+	const hasPoints = (untouchedDiscussionPoints?.length ?? 0) > 0;
 	const pointsContext = hasPoints
-		? `\n\n【未完了論点リスト（インデックス順）】\n${unaddressedDiscussionPoints!.map((p, i) => `${i}. ${p}`).join('\n')}\n\n【三択判断】会話の流れを踏まえ、次のいずれかを選んでください:\n1. 会話がフォーカス問いから明確に逸脱している（別の話題に流れている）→ 引き戻す（content・targetPersonaId を指定。selectedDiscussionPointIndex は省略）\n2. 現在の論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）→ 未完了論点を1件投入して議論を前進させる（content・targetPersonaId・selectedDiscussionPointIndex を指定）。投入すべき未完了論点が無ければフォーカス問いへ引き戻し・振り直す\n3. まだ新しい視点・反論・具体例が出ており、本題に沿って議論が深まっている最中 → 介入しない（content・targetPersonaId を省略）\n\n論点を投入する場合は selectedDiscussionPointIndex に上記リストのインデックスを指定してください。`
+		? `\n\n【未提示論点リスト（インデックス順）】\n${untouchedDiscussionPoints!.map((p, i) => `${i}. ${p}`).join('\n')}\n\n【三択判断】会話の流れを踏まえ、次のいずれかを選んでください:\n1. 会話がいまの論点から明確に逸脱している（別の話題に流れている）→ 引き戻す（content・targetPersonaId を指定。selectedDiscussionPointIndex は省略）\n2. いまの論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）→ 未提示論点を1件投入して議論を前進させる（content・targetPersonaId・selectedDiscussionPointIndex を指定）。投入すべき未提示論点が無ければいまの論点へ引き戻し・振り直す\n3. まだ新しい視点・反論・具体例が出ており、本題に沿って議論が深まっている最中 → 介入しない（content・targetPersonaId を省略）\n\n論点を投入する場合は selectedDiscussionPointIndex に上記リストのインデックスを指定してください。`
 		: '';
 
 	const fallbackCriteria = hasPoints
 		? ''
-		: '\n\n会話の流れを踏まえ、次のいずれかに当てはまる場合に介入してください。(1) 会話がこの章のフォーカス問いから明確に逸脱している（別の話題に流れている）。(2) 現在の論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）。まだ新しい視点・反論・具体例が出て議論が深まっている最中なら介入せず、content と targetPersonaId は省略してください。\n\n介入する場合は、フォーカス問いに引き戻す論点を決め、ふさわしい参加者を1人選んで targetPersonaId に設定してください。content は、まず話が逸れている／堂々巡りになっていることに触れて「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻し・振り直しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。';
+		: '\n\n会話の流れを踏まえ、次のいずれかに当てはまる場合に介入してください。(1) 会話がいまの論点から明確に逸脱している（別の話題に流れている）。(2) いまの論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）。まだ新しい視点・反論・具体例が出て議論が深まっている最中なら介入せず、content と targetPersonaId は省略してください。\n\n介入する場合は、いまの論点に引き戻す問いを決め、ふさわしい参加者を1人選んで targetPersonaId に設定してください。content は、まず話が逸れている／堂々巡りになっていることに触れて「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻し・振り直しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。';
 
 	const chainLength = options?.chainLength ?? 0;
 	const chainSignal =
@@ -133,7 +137,7 @@ export const evaluateTopicDrift = async (
 			: '';
 
 	const criteria = `\n\n累計発言数: ${speakCountInfo}${pointsContext}${fallbackCriteria}${chainSignal}`;
-	return runInterventionCheck(turns, personas, currentChapter, criteria);
+	return runInterventionCheck(turns, personas, currentChapter, focus, criteria);
 };
 
 /** B（出尽くし）: 今の論点で議論が落ち着いたとき、まだ議論されていない新しい論点に切り替えて次の話者を振る */
@@ -142,19 +146,21 @@ export const evaluateStallIntervention = async (
 	personas: Persona[],
 	speakCount: Map<string, number> = new Map(),
 	currentChapter?: Chapter,
-	unaddressedDiscussionPoints?: string[]
+	activeFocus?: string,
+	untouchedDiscussionPoints?: string[]
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	const speakCountInfo = personas
 		.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
 		.join(', ');
 
-	const hasPoints = (unaddressedDiscussionPoints?.length ?? 0) > 0;
+	const focus = activeFocus ?? currentChapter?.title;
+	const hasPoints = (untouchedDiscussionPoints?.length ?? 0) > 0;
 	const pointsContext = hasPoints
-		? `\n\n【未完了論点リスト（インデックス順）】\n${unaddressedDiscussionPoints!.map((p, i) => `${i}. ${p}`).join('\n')}\n\n流れが有効な方向に進んでいればそれを優先してください。流れが落ち着いていれば未完了論点から最適な1件を投入し、selectedDiscussionPointIndex に該当インデックスを指定してください。1介入1論点です。`
+		? `\n\n【未提示論点リスト（インデックス順）】\n${untouchedDiscussionPoints!.map((p, i) => `${i}. ${p}`).join('\n')}\n\n流れが有効な方向に進んでいればそれを優先してください。流れが落ち着いていれば未提示論点から最適な1件を投入し、selectedDiscussionPointIndex に該当インデックスを指定してください。1介入1論点です。`
 		: '';
 
-	const criteria = `\n\n累計発言数: ${speakCountInfo}${pointsContext}\n\nこの章の今の論点は議論が出尽くし、落ち着いています。まだ十分に議論されていない新しい論点に切り替えて、特定の参加者に振ってください。章をいつ終えるかはあなたの判断対象外です。\n\n手順：\n(1) この章のフォーカス問いに沿って、まだ十分に議論されていない新しい論点を決める。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。基準: 関連性が高い人。同程度なら発言数の少ない人を優先。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。\n\n適切な切り替え先が無ければ content と targetPersonaId は省略してください。`;
-	return runInterventionCheck(turns, personas, currentChapter, criteria);
+	const criteria = `\n\n累計発言数: ${speakCountInfo}${pointsContext}\n\nいまの論点「${focus}」は議論が出尽くし、落ち着いています。まだ十分に議論されていない新しい論点に切り替えて、特定の参加者に振ってください。章をいつ終えるかはあなたの判断対象外です。\n\n手順：\n(1) この章の趣旨に沿って、まだ十分に議論されていない新しい論点を決める。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。基準: 関連性が高い人。同程度なら発言数の少ない人を優先。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。\n\n適切な切り替え先が無ければ content と targetPersonaId は省略してください。`;
+	return runInterventionCheck(turns, personas, currentChapter, focus, criteria);
 };
 
 export const generateClosing = async (
@@ -217,9 +223,9 @@ export const generateChapterIntroduction = async (
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	try {
 		const hasPoints = (nextChapter.discussionPoints?.length ?? 0) > 0;
-		const firstPointContext = hasPoints
-			? `\n\nこの章の最初の論点: ${nextChapter.discussionPoints[0]}。この論点を導入の問いかけの切り口として使ってください。`
-			: '';
+		// 入口は先頭論点を唯一の切り口にする。論点を持たない章は章タイトルを入口にする
+		const entryPoint = hasPoints ? nextChapter.discussionPoints[0] : nextChapter.title;
+		const entryContext = `\n\nこの章の入口となる問い: ${entryPoint}。この問いを導入の問いかけの切り口として使ってください。`;
 
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
@@ -228,7 +234,7 @@ export const generateChapterIntroduction = async (
 			messages: [
 				{
 					role: 'user',
-					content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、このフォーカス問いについて参加者に問いかける形で始めてください。最初に発言させるペルソナIDも指定してください。\n\nフォーカス: ${nextChapter.focusQuestion}${firstPointContext}\n\n参加者:\n${formatPersonas(personas)}\n\ntargetPersonaIdには必ず上記リストのIDを使用してください。`
+					content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、この入口となる問いについて参加者に問いかける形で始めてください。最初に発言させるペルソナIDも指定してください。${entryContext}\n\n参加者:\n${formatPersonas(personas)}\n\ntargetPersonaIdには必ず上記リストのIDを使用してください。`
 				}
 			]
 		});

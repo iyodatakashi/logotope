@@ -155,7 +155,6 @@
 				{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.title)}
 					<li class:current={chapter === currentTopicStore.chaptersStore.currentChapter}>
 						<strong>{chapter.title}</strong>
-						<span class="focus">{chapter.focusQuestion}</span>
 						{#if chapter.status === 'completed'}
 							{@const fcStatus = currentTopicStore.factCheckStore.resultsMap.get(
 								chapter.id
@@ -191,6 +190,12 @@
 										>
 										{dp.point}
 									</li>
+								{/each}
+							</ul>
+						{:else if chapter.discussionPoints?.length}
+							<ul class="points">
+								{#each chapter.discussionPoints as point (point)}
+									<li class="point">{point}</li>
 								{/each}
 							</ul>
 						{/if}
@@ -293,15 +298,6 @@
 	.point[data-status='addressed'] .status-badge {
 		background: #e8f5e9;
 		color: #2e7d32;
-	}
-	.focus {
-		margin-left: 8px;
-		font-weight: normal;
-		color: #aaa;
-		font-size: 0.85rem;
-	}
-	.chapters li.current .focus {
-		color: #5c8fd6;
 	}
 	.turns {
 		display: flex;

@@ -60,9 +60,7 @@ const makeGroupingResult = (issueGroups: unknown[] = [{ issueIndexes: [0] }]) =>
 	object: { issueGroups }
 });
 const makeBuildResult = (
-	chapters: unknown[] = [
-		{ title: '第1章', focusQuestion: '問い1', discussionPoints: ['論点A', '論点B', '論点C'] }
-	]
+	chapters: unknown[] = [{ title: '第1章', discussionPoints: ['論点A', '論点B', '論点C'] }]
 ) => ({ object: { chapters } });
 
 describe('generateChapters - discussionPoints', () => {
@@ -87,8 +85,8 @@ describe('generateChapters - discussionPoints', () => {
 			.mockResolvedValueOnce(makeGroupingResult([{ issueIndexes: [0] }, { issueIndexes: [1] }]))
 			.mockResolvedValueOnce(
 				makeBuildResult([
-					{ title: '第1章', focusQuestion: '問い1', discussionPoints: ['論点A', '論点B', '論点C'] },
-					{ title: '第2章', focusQuestion: '問い2', discussionPoints: ['論点D', '論点E'] }
+					{ title: '第1章', discussionPoints: ['論点A', '論点B', '論点C'] },
+					{ title: '第2章', discussionPoints: ['論点D', '論点E'] }
 				])
 			);
 
@@ -108,9 +106,7 @@ describe('generateChapters - discussionPoints', () => {
 			.mockResolvedValueOnce(makeIssuesResult(['issue2']))
 			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
 			.mockResolvedValueOnce(makeGroupingResult([{ issueIndexes: [0] }]))
-			.mockResolvedValueOnce(
-				makeBuildResult([{ title: '第1章', focusQuestion: '問い1', discussionPoints: [] }])
-			);
+			.mockResolvedValueOnce(makeBuildResult([{ title: '第1章', discussionPoints: [] }]));
 
 		const { generateChapters } = await import('../../agents/chapter-agent.js');
 		const result = await generateChapters('テストテーマ', [mockPersona]);
@@ -613,8 +609,8 @@ describe('Task 2.1: groupIssues - グループ化フォールバック', () => {
 			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
 				capturedBuilding.push(args.messages[0].content);
 				return makeBuildResult([
-					{ title: '章1', focusQuestion: '問い1', discussionPoints: ['dp1'] },
-					{ title: '章2', focusQuestion: '問い2', discussionPoints: ['dp2'] }
+					{ title: '章1', discussionPoints: ['dp1'] },
+					{ title: '章2', discussionPoints: ['dp2'] }
 				]);
 			});
 
@@ -684,7 +680,6 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 				makeBuildResult([
 					{
 						title: '章1',
-						focusQuestion: '問い1',
 						discussionPoints: ['再構成1', '再構成2', '再構成3']
 					}
 					// 章2 欠落 → per1 (issues[1].text) をそのまま流用
@@ -703,7 +698,7 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 		}
 	});
 
-	it('各章に nanoid が付与され title/focusQuestion が生成される', async () => {
+	it('各章に nanoid・title・discussionPoints が付与される（focusQuestion は廃止）', async () => {
 		generateObject
 			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
 			.mockResolvedValueOnce(makeIssuesResult(['per1']))
@@ -718,7 +713,6 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 				makeBuildResult([
 					{
 						title: '固有タイトル',
-						focusQuestion: '固有フォーカス問い',
 						discussionPoints: ['dp1', 'dp2', 'dp3']
 					}
 				])
@@ -732,9 +726,35 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 			const chapter = result.value[0];
 			expect(chapter.id).toBe('test-id'); // nanoid mock
 			expect(chapter.title).toBe('固有タイトル');
-			expect(chapter.focusQuestion).toBe('固有フォーカス問い');
 			expect(chapter.discussionPoints).toEqual(['dp1', 'dp2', 'dp3']);
 		}
+	});
+
+	it('章生成プロンプトが focusQuestion を要求せず、論点を平易な問いの形で生成するよう指示する', async () => {
+		const capturedBuilding: string[] = [];
+		generateObject
+			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
+			.mockResolvedValueOnce(makeIssuesResult(['per1']))
+			.mockResolvedValueOnce(
+				makeScoringResult([
+					{ index: 0, score: 8, reason: '良い' },
+					{ index: 1, score: 7, reason: '良い' }
+				])
+			)
+			.mockResolvedValueOnce(makeGroupingResult([{ issueIndexes: [0, 1] }]))
+			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
+				capturedBuilding.push(args.messages[0].content);
+				return makeBuildResult();
+			});
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona]);
+
+		const content = capturedBuilding[0];
+		expect(content).not.toContain('focusQuestion');
+		expect(content).not.toContain('フォーカス問い');
+		expect(content).toContain('問いの形');
+		expect(content).toContain('日常感覚');
 	});
 
 	it('章生成プロンプトに各グループの論点テキストが含まれる', async () => {
@@ -780,9 +800,9 @@ describe('Task 2.3: sortChaptersByGeneralIssueCount - 並べ替え純粋関数',
 			{ issueIndexes: [0] } // 1 general
 		];
 		const chapters = [
-			{ id: 'c0', title: '章0', focusQuestion: '?', discussionPoints: [] },
-			{ id: 'c1', title: '章1', focusQuestion: '?', discussionPoints: [] },
-			{ id: 'c2', title: '章2', focusQuestion: '?', discussionPoints: [] }
+			{ id: 'c0', title: '章0', discussionPoints: [] },
+			{ id: 'c1', title: '章1', discussionPoints: [] },
+			{ id: 'c2', title: '章2', discussionPoints: [] }
 		];
 
 		const sorted = sortChaptersByGeneralIssueCount(chapters, issueGroups, issues);
@@ -804,8 +824,8 @@ describe('Task 2.3: sortChaptersByGeneralIssueCount - 並べ替え純粋関数',
 			{ issueIndexes: [0, 2] } // 1 general (同数)
 		];
 		const chapters = [
-			{ id: 'c0', title: '章0', focusQuestion: '?', discussionPoints: [] },
-			{ id: 'c1', title: '章1', focusQuestion: '?', discussionPoints: [] }
+			{ id: 'c0', title: '章0', discussionPoints: [] },
+			{ id: 'c1', title: '章1', discussionPoints: [] }
 		];
 
 		const sorted = sortChaptersByGeneralIssueCount(chapters, issueGroups, issues);
@@ -827,8 +847,8 @@ describe('Task 2.3: sortChaptersByGeneralIssueCount - 並べ替え純粋関数',
 			{ issueIndexes: [0] } // 1 general
 		];
 		const chapters = [
-			{ id: 'c0', title: '章0', focusQuestion: '?', discussionPoints: [] },
-			{ id: 'c1', title: '章1', focusQuestion: '?', discussionPoints: [] }
+			{ id: 'c0', title: '章0', discussionPoints: [] },
+			{ id: 'c1', title: '章1', discussionPoints: [] }
 		];
 		const originalChapters = [...chapters];
 		const originalGroups = [...issueGroups];

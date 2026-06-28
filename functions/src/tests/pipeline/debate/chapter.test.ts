@@ -16,13 +16,13 @@ vi.mock('firebase-admin/firestore', () => ({
 import {
 	loadChapterProgress,
 	getChaptersByTopicId,
-	getDebateTurnsByTopicId
+	getDebateTurnsByTopicId,
+	getChapterById
 } from '../../../pipeline/debate/chapter.js';
 
 const makeChapter = (discussionPoints: string[] = []): Chapter => ({
 	id: 'ch1',
 	title: 'テスト章',
-	focusQuestion: 'テスト？',
 	discussionPoints
 });
 
@@ -103,7 +103,6 @@ describe('turns 復元で targetedBy を保持する', () => {
 		data: () => ({
 			chapterIndex: 0,
 			title: 'テスト章',
-			focusQuestion: 'テスト？',
 			turns: [
 				{
 					id: 'turn1',
@@ -130,5 +129,37 @@ describe('turns 復元で targetedBy を保持する', () => {
 		const chapters = await getChaptersByTopicId('t1');
 		expect(chapters[0].turns[0].targetPersonaId).toBe('p2');
 		expect(chapters[0].turns[0].targetedBy).toBe('persona');
+	});
+});
+
+/**
+ * 回帰: focusQuestion を持つ既存ドキュメントを読み出してもエラーにならず、
+ * title / discussionPoints のみで ChapterEntry を構成する（後方互換, 1.4）。
+ */
+describe('回帰: focusQuestion を持つ既存データの読み出し', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('legacy focusQuestion フィールドは無視され、title / discussionPoints で読み出せる', async () => {
+		mockGet.mockResolvedValue({
+			exists: true,
+			data: () => ({
+				chapterIndex: 0,
+				title: 'レガシー章',
+				focusQuestion: '廃止されたフォーカス問い',
+				discussionPoints: ['論点A', '論点B'],
+				turns: [],
+				status: 'completed'
+			})
+		});
+
+		const entry = await getChapterById('t1', 'ch1');
+
+		expect(entry).not.toBeNull();
+		expect(entry!.title).toBe('レガシー章');
+		expect(entry!.discussionPoints).toEqual(['論点A', '論点B']);
+		// focusQuestion はランタイム型から廃止済みのため ChapterEntry には現れない
+		expect((entry as Record<string, unknown>).focusQuestion).toBeUndefined();
 	});
 });

@@ -60,9 +60,9 @@ ${content}`;
 
 const buildContextSection = (context?: FactCheckContext): string => {
 	if (!context) return '';
-	const focus = context.focusQuestion ? `（${context.focusQuestion}）` : '';
+	const scope = context.discussionScope ? `（${context.discussionScope}）` : '';
 	return `【討論のテーマ】${context.topicTitle}
-【この章で議論していること】${context.chapterTitle}${focus}
+【この章で議論していること】${context.chapterTitle}${scope}
 【本日】${context.currentDate}
 
 この発言は上記テーマの討論の一部です。一般論ではなく、このテーマ・状況に即して事実性を検証してください。
@@ -306,7 +306,7 @@ export const checkChapter = async (
 	const context: FactCheckContext = {
 		topicTitle: topic?.title ?? '',
 		chapterTitle: chapter.title,
-		focusQuestion: chapter.focusQuestion,
+		discussionScope: chapter.title,
 		currentDate: currentDateString()
 	};
 

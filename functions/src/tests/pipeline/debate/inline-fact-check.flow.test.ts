@@ -146,7 +146,7 @@ const makePersona = (id: string, name: string): Persona => ({
 });
 
 const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
-const chapter: Chapter = { id: 'ch1', title: '戦時下の医療', focusQuestion: '医療は誰を守るのか' };
+const chapter: Chapter = { id: 'ch1', title: '戦時下の医療' };
 const speakerSelection: SpeakerSelection = { personaId: 'p1', reason: 'score' };
 const engagement: Engagement = { personaId: 'p1', score: 4, mode: 'opinion' };
 const makeState = () => ({
@@ -321,7 +321,6 @@ describe('後追い検証との非重複（インライン検証済みターン�
 			id: 'ch1',
 			chapterIndex: 0,
 			title: '戦時下の医療',
-			focusQuestion: '医療は誰を守るのか',
 			discussionPoints: [],
 			status: 'completed',
 			turns: [

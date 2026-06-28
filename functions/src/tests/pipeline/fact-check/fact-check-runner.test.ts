@@ -161,7 +161,7 @@ describe('checkTurn', () => {
 		await checkTurn(makeTurn(), {
 			topicTitle: 'ウクライナ情勢と医療',
 			chapterTitle: '戦時下の医療中立性',
-			focusQuestion: '医療は誰を守るのか',
+			discussionScope: '医療は誰を守るのか',
 			currentDate: '2026年6月25日'
 		});
 		const args = mockGenerateText.mock.calls[0][0] as { messages: Array<{ content: string }> };
@@ -177,7 +177,7 @@ describe('checkTurn', () => {
 		await checkTurn(makeTurn(), {
 			topicTitle: 'T',
 			chapterTitle: 'C',
-			focusQuestion: 'F',
+			discussionScope: 'F',
 			currentDate: '2026年6月25日'
 		});
 		const args = mockGenerateText.mock.calls[0][0] as { messages: Array<{ content: string }> };
@@ -597,7 +597,7 @@ describe('checkTurn Phase0 断定ゲート', () => {
 		const result = await checkTurn(makeTurn({ content: '意見にすぎない話です' }), {
 			topicTitle: 'T',
 			chapterTitle: 'C',
-			focusQuestion: 'F',
+			discussionScope: 'F',
 			currentDate: '2026年6月25日'
 		});
 		expect(result.ok).toBe(true);
@@ -610,7 +610,7 @@ describe('checkTurn 修正適否フィルタ（共通フィルタ）', () => {
 	const ctx = {
 		topicTitle: 'ウクライナ情勢と医療',
 		chapterTitle: '戦時下の医療中立性',
-		focusQuestion: '医療は誰を守るのか',
+		discussionScope: '医療は誰を守るのか',
 		currentDate: '2026年6月25日'
 	};
 	const oneFinding = () =>
@@ -671,7 +671,6 @@ describe('checkChapter', () => {
 			id: 'c1',
 			chapterIndex: 0,
 			title: 't',
-			focusQuestion: 'f',
 			discussionPoints: [],
 			turns: [makeTurn()],
 			status: 'completed'
@@ -688,7 +687,6 @@ describe('checkChapter', () => {
 			id: 'c1',
 			chapterIndex: 0,
 			title: 't',
-			focusQuestion: 'f',
 			discussionPoints: [],
 			turns: [
 				makeTurn({ id: 'tp', speakerType: 'persona', content: 'ペルソナの誤り主張' }),
@@ -734,7 +732,6 @@ describe('checkChapter', () => {
 			id: 'c1',
 			chapterIndex: 0,
 			title: 't',
-			focusQuestion: 'f',
 			discussionPoints: [],
 			turns: [
 				makeTurn({ id: 'tp', speakerType: 'persona', content: 'ペルソナの誤り主張' }),
@@ -786,7 +783,6 @@ describe('checkChapter', () => {
 			id: 'c1',
 			chapterIndex: 0,
 			title: 't',
-			focusQuestion: 'f',
 			discussionPoints: [],
 			turns: [
 				makeTurn({ id: 'tp', content: 'ペルソナの誤り主張' }),
@@ -830,7 +826,6 @@ describe('checkChapter', () => {
 			id: 'c1',
 			chapterIndex: 0,
 			title: 't',
-			focusQuestion: 'f',
 			discussionPoints: [],
 			turns: [makeTurn({ id: 'tp' })],
 			status: 'completed'
@@ -848,7 +843,6 @@ describe('checkChapter', () => {
 			id: 'c1',
 			chapterIndex: 0,
 			title: '戦時下の医療中立性',
-			focusQuestion: '医療は誰を守るのか',
 			discussionPoints: [],
 			turns: [makeTurn({ id: 'tp', content: '名簿を出せと言われたら拒む' })],
 			status: 'completed'
@@ -870,7 +864,6 @@ describe('checkChapter', () => {
 			id: 'c1',
 			chapterIndex: 0,
 			title: '戦時下の医療中立性',
-			focusQuestion: '医療は誰を守るのか',
 			discussionPoints: [],
 			turns: [makeTurn({ id: 'tp', content: '名簿を出せと言われたら拒む' })],
 			status: 'completed'
@@ -903,7 +896,6 @@ describe('checkChapter インライン検証済みターンの再グラウンデ
 		id: 'c1',
 		chapterIndex: 0,
 		title: 't',
-		focusQuestion: 'f',
 		discussionPoints: [],
 		turns,
 		status: 'completed'
@@ -1067,7 +1059,7 @@ describe('checkTurn 判定妥当性（シナリオ）', () => {
 	const ctx = {
 		topicTitle: 'ウクライナ情勢と医療',
 		chapterTitle: '戦時下の医療中立性',
-		focusQuestion: '医療は誰を守るのか',
+		discussionScope: '医療は誰を守るのか',
 		currentDate: '2026年6月25日'
 	};
 	const phase1Prompt = () =>

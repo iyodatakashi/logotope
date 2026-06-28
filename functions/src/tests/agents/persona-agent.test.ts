@@ -47,7 +47,6 @@ const mockPersona: Persona = {
 const mockChapter: Chapter = {
 	id: 'ch1',
 	title: 'テスト章',
-	focusQuestion: 'テスト質問？',
 	discussionPoints: []
 };
 
@@ -169,6 +168,48 @@ describe('generateTurn', () => {
 		const userContent = callArgs.messages[0].content;
 		expect(userContent).toContain('佐藤さんの意見の根拠を確認したい');
 		expect(userContent).toContain('targetPersonaId');
+	});
+
+	it('activeDiscussionPoint があるとき論点がプロンプトに注入される', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(
+			mockPersona,
+			makeContext({ activeDiscussionPoint: '在宅勤務は生産性を上げるか' }),
+			makeEngagement({ mode: 'opinion', intentSummary: '意見を述べたい' })
+		);
+
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		expect(callArgs.messages[0].content).toContain('在宅勤務は生産性を上げるか');
+		expect(callArgs.messages[0].content).toContain('いま向き合う論点');
+		// 発言者文脈に focusQuestion を含めない（5.2）
+		expect(callArgs.messages[0].content).not.toContain('テスト質問？');
+	});
+
+	it('activeDiscussionPoint が無いとき章タイトルを場のテーマとして提示し、focusQuestion は含めない', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(mockPersona, makeContext(), makeEngagement({ mode: 'opinion' }));
+
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		const content = callArgs.messages[0].content;
+		expect(content).not.toContain('いま向き合う論点');
+		// アクティブ論点不在時は章タイトルがテーマとして入る
+		expect(content).toContain('テスト章');
+		// focusQuestion は提示しない
+		expect(content).not.toContain('テスト質問？');
 	});
 
 	it('question モードのとき speechMode: question を返す', async () => {

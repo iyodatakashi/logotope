@@ -110,7 +110,6 @@ describe('Task 5.2: チャプター生成で discussionPoints が返される', 
 					chapters: [
 						{
 							title: '第1章',
-							focusQuestion: '日常的な問いかけ？',
 							discussionPoints: ['論点A', '論点B', '論点C']
 						}
 					]
@@ -147,7 +146,7 @@ describe('Task 5.2: チャプター生成で discussionPoints が返される', 
 				capturedArgs.push(args);
 				return {
 					object: {
-						chapters: [{ title: '第1章', focusQuestion: '問い', discussionPoints: ['論点1'] }]
+						chapters: [{ title: '第1章', discussionPoints: ['論点1'] }]
 					}
 				} as never;
 			});
@@ -186,7 +185,6 @@ describe('Task 5.2: 開幕発言に論点1が反映される（論点あり章�
 		await generateOpening('統合テストテーマ', [mockPersona], {
 			id: 'ch1',
 			title: '第1章',
-			focusQuestion: 'テスト？',
 			discussionPoints: ['日常感覚の問い', '具体的な論点']
 		});
 
@@ -225,7 +223,6 @@ describe('Task 5.2: 介入経路で未完了論点が渡され着手へ更新さ
 			chapter: {
 				id: 'ch1',
 				title: '章',
-				focusQuestion: '?',
 				discussionPoints: ['未消化論点X', '未消化論点Y']
 			},
 			state,
@@ -234,11 +231,13 @@ describe('Task 5.2: 介入経路で未完了論点が渡され着手へ更新さ
 			trigger: { kind: 'no-target' }
 		});
 
+		// 5番目は activeFocus（introduced 不在のため章タイトル '章'）、6番目が untouched 候補リスト
 		expect(driftSpy).toHaveBeenCalledWith(
 			expect.anything(),
 			expect.anything(),
 			expect.anything(),
 			expect.anything(),
+			'章',
 			['未消化論点X', '未消化論点Y'],
 			undefined
 		);

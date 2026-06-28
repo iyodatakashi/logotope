@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import { generateTurn } from '../../agents/persona-agent.js';
 import { generateChapterSummary, generateClosing } from '../../agents/facilitator-agent.js';
 import { verifyAndReviseDraft } from './inline-fact-check.js';
+import { getActiveDiscussionPoint } from './discussion-points.js';
 import { getLatestBelief } from './belief.js';
 import { isDebateActive } from './debate-lifecycle.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
@@ -196,10 +197,14 @@ export const generatePersonaTurn = async ({
 		.filter((p) => p.id !== persona.id)
 		.map((p) => ({ id: p.id, name: p.name }));
 
+	// ファシリテーターが直近に提示した（introduced）論点を、発言者が踏まえられるよう渡す
+	const activeDiscussionPoint = getActiveDiscussionPoint(state);
+
 	// 補正モジュールが再生成時に再利用できるよう、生成文脈とエンゲージメントを一度組み立てる
 	const generationContext: TurnGenerationContext = {
 		chapterTurns,
 		chapter,
+		activeDiscussionPoint,
 		queuedTrigger,
 		targetedBy:
 			speakerSelection.reason === 'targeted_by_facilitator' ||
@@ -226,7 +231,7 @@ export const generatePersonaTurn = async ({
 	const factCheckContext: FactCheckContext = {
 		topicTitle,
 		chapterTitle: chapter.title,
-		focusQuestion: chapter.focusQuestion,
+		discussionScope: activeDiscussionPoint ?? chapter.title,
 		currentDate: currentDateString()
 	};
 	const { reply, trace } = await verifyAndReviseDraft({

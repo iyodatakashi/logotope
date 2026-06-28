@@ -3,7 +3,6 @@ import type { DebateTurn } from './turn.types.js';
 export type Chapter = {
 	id: string;
 	title: string;
-	focusQuestion: string;
 	discussionPoints: string[];
 };
 
@@ -31,6 +30,7 @@ export type DiscussionPointStatus = 'untouched' | 'introduced' | 'addressed';
 export type DiscussionPointState = {
 	point: string;
 	status: DiscussionPointStatus;
+	introducedOrder?: number;
 };
 
 export type ChapterProgressStatus = 'pending' | 'running' | 'completed';
@@ -38,7 +38,6 @@ export type ChapterProgressStatus = 'pending' | 'running' | 'completed';
 export type ChapterForFirestore = {
 	chapterIndex: number;
 	title: string;
-	focusQuestion: string;
 	discussionPoints: string[];
 	turns: DebateTurn[];
 	discussionPointStatuses?: DiscussionPointState[];
@@ -59,7 +58,6 @@ export type ChapterEntry = {
 	id: string;
 	chapterIndex: number;
 	title: string;
-	focusQuestion: string;
 	discussionPoints: string[];
 	turns: DebateTurn[];
 	status: 'pending' | 'running' | 'completed';

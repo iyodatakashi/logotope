@@ -50,7 +50,6 @@ export const planChapters = async (topicId: string): Promise<void> => {
 				.set({
 					chapterIndex: i,
 					title: chapter.title,
-					focusQuestion: chapter.focusQuestion,
 					discussionPoints: chapter.discussionPoints ?? [],
 					turns: [],
 					status: 'pending'

@@ -105,7 +105,6 @@ const seedStore = (chapters: SeedChapter[]) => {
 		holder.mock.store.set(`topics/${TOPIC_ID}/chapters/${ch.id}`, {
 			chapterIndex: ch.chapterIndex,
 			title: `章${ch.chapterIndex}`,
-			focusQuestion: '?',
 			discussionPoints: ch.discussionPoints,
 			turns: [],
 			status: 'pending'

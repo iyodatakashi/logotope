@@ -62,7 +62,6 @@ const completedChapter = {
 	id: 'c1',
 	chapterIndex: 0,
 	title: 't',
-	focusQuestion: 'f',
 	discussionPoints: [],
 	turns: [],
 	status: 'completed' as const
