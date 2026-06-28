@@ -26,17 +26,17 @@
 			isStarting = false;
 		}
 	});
-	const personasStore = currentTopicStore.personasStore;
-	const personas = personasStore.personas;
-
 	const completedCount = $derived(
-		personasStore.personas.filter((p) => p.interview?.status === 'completed').length
+		currentTopicStore.personasStore.personas.filter((p) => p.interview?.status === 'completed')
+			.length
 	);
 	const errorCount = $derived(
-		personasStore.personas.filter((p) => p.interview?.status === 'error').length
+		currentTopicStore.personasStore.personas.filter((p) => p.interview?.status === 'error').length
 	);
-	const pendingCount = $derived(personasStore.personas.filter((p) => p.interview == null).length);
-	const totalCount = $derived(personasStore.personas.length);
+	const pendingCount = $derived(
+		currentTopicStore.personasStore.personas.filter((p) => p.interview == null).length
+	);
+	const totalCount = $derived(currentTopicStore.personasStore.personas.length);
 
 	const buildTopicContext = (topic: {
 		description?: string;
@@ -55,7 +55,7 @@
 		const topicContext = buildTopicContext(topic);
 		isStarting = true;
 		try {
-			await personasStore.runInterviews(topic.title, topicContext);
+			await currentTopicStore.personasStore.runInterviews(topic.title, topicContext);
 		} finally {
 			isStarting = false;
 		}
@@ -69,7 +69,7 @@
 		try {
 			await topic.resetChapters();
 			await topic.resetDebate();
-			await personasStore.runInterviews(topic.title, topicContext, true);
+			await currentTopicStore.personasStore.runInterviews(topic.title, topicContext, true);
 		} finally {
 			isStarting = false;
 		}
@@ -109,9 +109,9 @@
 		{/if}
 	{/snippet}
 	{#snippet content()}
-		{#if !isStarting && personas.length > 0}
+		{#if !isStarting && currentTopicStore.personasStore.personas.length > 0}
 			<ul class="list">
-				{#each personas as persona (persona.id)}
+				{#each currentTopicStore.personasStore.personas as persona (persona.id)}
 					<InterviewItem {persona} />
 				{/each}
 			</ul>
