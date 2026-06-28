@@ -26,7 +26,6 @@
 			isStarting = false;
 		}
 	});
-	const stakeholders = $derived(currentTopicStore.stakeholdersStore.stakeholders);
 
 	const generate = async () => {
 		const topic = currentTopicStore.topic;
@@ -87,9 +86,9 @@
 				repeat={5}
 				repeatGap="8px"
 			/>
-		{:else if stakeholders.length > 0}
+		{:else if currentTopicStore.stakeholdersStore.stakeholders.length > 0}
 			<ul class="stakeholders__list">
-				{#each stakeholders as stakeholder (stakeholder.id)}
+				{#each currentTopicStore.stakeholdersStore.stakeholders as stakeholder (stakeholder.id)}
 					<StakeholderItem {stakeholder} />
 				{/each}
 			</ul>

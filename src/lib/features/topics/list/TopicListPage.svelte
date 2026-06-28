@@ -13,7 +13,6 @@
 					(a.publishedAt?.getTime() ?? a.updatedAt.getTime())
 			)
 	);
-	const loaded = $derived(topicsStore.isLoaded);
 
 	onMount(() => {
 		topicsStore.start();
@@ -37,7 +36,7 @@
 		<p class="tagline">AIが多様な立場の意見を公平に可視化する討論プラットフォーム</p>
 	</header>
 
-	{#if !loaded}
+	{#if !topicsStore.isLoaded}
 		<p class="empty">読み込み中...</p>
 	{:else if topics.length === 0}
 		<p class="empty">公開された討論はまだありません。</p>

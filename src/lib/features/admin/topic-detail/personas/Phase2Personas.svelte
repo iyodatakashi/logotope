@@ -26,7 +26,6 @@
 			isStarting = false;
 		}
 	});
-	const personas = currentTopicStore.personasStore.personas;
 
 	const generate = async () => {
 		const topic = currentTopicStore.topic;
@@ -86,9 +85,9 @@
 				repeat={5}
 				repeatGap="8px"
 			/>
-		{:else if personas.length > 0}
+		{:else if currentTopicStore.personasStore.personas.length > 0}
 			<ul class="personas__list">
-				{#each personas as persona (persona.id)}
+				{#each currentTopicStore.personasStore.personas as persona (persona.id)}
 					<PersonaItem {persona} />
 				{/each}
 			</ul>
