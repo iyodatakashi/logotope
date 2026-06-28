@@ -253,6 +253,59 @@ describe('generatePersonaTurn', () => {
 		expect(getWrittenTurn().speechMode).toBe('opinion');
 	});
 
+	it('自己 target（発話者自身を指名）は無効化し targetPersonaId/targetedBy を保存しない', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: {
+				content: '自分を指名',
+				speechMode: 'question',
+				beliefChange: null,
+				targetPersonaId: 'p1' // speakerSelection.personaId と同一（自己指名）
+			}
+		});
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement()
+		});
+
+		const written = getWrittenTurn();
+		expect(written.targetPersonaId).toBeUndefined();
+		expect(written.targetedBy).toBeUndefined();
+		// 自己指名は validPersonaId を経由する前に弾かれる
+		expect(mockValidPersonaId).not.toHaveBeenCalled();
+	});
+
+	it('不正な target（存在しない ID）は validPersonaId が無効化し保存しない', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: {
+				content: '不明を指名',
+				speechMode: 'question',
+				beliefChange: null,
+				targetPersonaId: 'unknown'
+			}
+		});
+		mockValidPersonaId.mockReturnValue(undefined);
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement()
+		});
+
+		const written = getWrittenTurn();
+		expect(written.targetPersonaId).toBeUndefined();
+		expect(written.targetedBy).toBeUndefined();
+	});
+
 	it('opinion モードは speechMode: opinion のままターンを保存する', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,

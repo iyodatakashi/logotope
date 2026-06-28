@@ -239,6 +239,88 @@ describe('evaluateTopicDrift - 未完了論点対応', () => {
 	});
 });
 
+describe('evaluateTopicDrift - 出尽くし判断軸と chainLength シグナル', () => {
+	let generateObject: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		const aiMod = await import('ai');
+		generateObject = vi.mocked(aiMod.generateObject);
+	});
+
+	const captureContent = async (fn: () => Promise<unknown>): Promise<string> => {
+		const capturedArgs: unknown[] = [];
+		generateObject.mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return makeObjectResult({});
+		});
+		await fn();
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		return callArgs.messages[0].content;
+	};
+
+	it('未完了論点ありの場合、出尽くし（発展性なし）の判断軸がプロンプトに含まれる', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'])
+		);
+		expect(content).toContain('発展性');
+	});
+
+	it('未完了論点なしの場合でも、出尽くし（発展性なし）の判断軸がプロンプトに含まれる', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), [])
+		);
+		expect(content).toContain('発展性');
+	});
+
+	it('chainLength を渡すと、その回数と出尽くしを疑う旨がプロンプトに含まれる', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'], {
+				chainLength: 5
+			})
+		);
+		expect(content).toContain('5');
+		expect(content).toMatch(/連続|続いて/);
+	});
+
+	it('options 省略時は chainLength シグナルの文言を含めない（後方互換）', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'])
+		);
+		expect(content).not.toMatch(/補足シグナル|回連続/);
+	});
+
+	it('chainLength=0 はシグナルとして扱わず文言を含めない', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'], {
+				chainLength: 0
+			})
+		);
+		expect(content).not.toMatch(/補足シグナル|回連続/);
+	});
+
+	it('論点がひととおり出尽くしたら次論点へ前進させる中庸な判断軸が含まれる', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'])
+		);
+		expect(content).toMatch(/ひととおり|前進/);
+	});
+
+	it('まだ新しい視点が出ている間は見送る旨が含まれる', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift([makeTurn('発言')], [mockPersona], new Map(), makeChapter(), ['論点1'])
+		);
+		expect(content).toMatch(/新しい(視点|内容).*(見送|深ま|介入しない)/);
+	});
+});
+
 describe('evaluateStallIntervention - 未完了論点対応', () => {
 	let generateObject: ReturnType<typeof vi.fn>;
 

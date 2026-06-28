@@ -226,6 +226,55 @@ describe('generateTurn', () => {
 		expect(userContent).toContain('p2');
 	});
 
+	it('opinion モードで、既定は指名せず場全体へ話す旨（過剰指名抑制 R6.1）がプロンプトに含まれる', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(
+			mockPersona,
+			makeContext(),
+			makeEngagement({ mode: 'opinion', intentSummary: '意見を述べたい' })
+		);
+
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		expect(callArgs.messages[0].content).toMatch(/既定は未指定|場全体/);
+	});
+
+	it('ペルソナに指名された発言では、直前話者への再指名が往復を固定する旨の注意（R6.2）が含まれる', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(
+			mockPersona,
+			makeContext({
+				targetedBy: 'persona',
+				chapterTurns: [
+					{
+						id: 't0',
+						speakerType: 'persona',
+						personaId: 'p2',
+						content: '佐藤の発言',
+						createdAt: ''
+					}
+				]
+			}),
+			makeEngagement({ mode: 'opinion', intentSummary: '意見を述べたい' })
+		);
+
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		expect(callArgs.messages[0].content).toMatch(/往復|固定/);
+	});
+
 	it('generateTurn が formatTurns に personas を渡す', async () => {
 		const formatMod = await import('../../utils/prompt-formatters.js');
 		const aiMod = await import('ai');

@@ -104,13 +104,14 @@ export const generateOpening = async (
 	}
 };
 
-/** A（論点ずれ）: 会話がフォーカス問いから逸脱しているときだけ介入し、論点を引き戻す。指名済みターンでも上書きしうる */
+/** A（論点ずれ＋出尽くし）: 会話の逸脱、または応酬の発展性が尽きたときに介入し、論点を引き戻す／次論点を投入する。指名済みターンでも上書きしうる */
 export const evaluateTopicDrift = async (
 	turns: DebateTurn[],
 	personas: Persona[],
 	speakCount: Map<string, number> = new Map(),
 	currentChapter?: Chapter,
-	unaddressedDiscussionPoints?: string[]
+	unaddressedDiscussionPoints?: string[],
+	options?: { chainLength?: number }
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	const speakCountInfo = personas
 		.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
@@ -118,13 +119,20 @@ export const evaluateTopicDrift = async (
 
 	const hasPoints = (unaddressedDiscussionPoints?.length ?? 0) > 0;
 	const pointsContext = hasPoints
-		? `\n\n【未完了論点リスト（インデックス順）】\n${unaddressedDiscussionPoints!.map((p, i) => `${i}. ${p}`).join('\n')}\n\n【三択判断】以下のいずれかを選択してください（流れ最優先）:\n1. 会話がフォーカス問いから逸脱している → 引き戻す（content・targetPersonaId を指定。selectedDiscussionPointIndex は省略）\n2. 逸脱していないが現在の論点が一段落しており、未完了論点へ自然に移れる → 未完了論点を1件投入する（content・targetPersonaId・selectedDiscussionPointIndex を指定）\n3. 流れが深まっている最中 → 介入しない（content・targetPersonaId を省略）\n\n論点を投入する場合は selectedDiscussionPointIndex に上記リストのインデックスを指定してください。`
+		? `\n\n【未完了論点リスト（インデックス順）】\n${unaddressedDiscussionPoints!.map((p, i) => `${i}. ${p}`).join('\n')}\n\n【三択判断】会話の流れを踏まえ、次のいずれかを選んでください:\n1. 会話がフォーカス問いから明確に逸脱している（別の話題に流れている）→ 引き戻す（content・targetPersonaId を指定。selectedDiscussionPointIndex は省略）\n2. 現在の論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）→ 未完了論点を1件投入して議論を前進させる（content・targetPersonaId・selectedDiscussionPointIndex を指定）。投入すべき未完了論点が無ければフォーカス問いへ引き戻し・振り直す\n3. まだ新しい視点・反論・具体例が出ており、本題に沿って議論が深まっている最中 → 介入しない（content・targetPersonaId を省略）\n\n論点を投入する場合は selectedDiscussionPointIndex に上記リストのインデックスを指定してください。`
 		: '';
 
 	const fallbackCriteria = hasPoints
 		? ''
-		: '\n\n会話がこの章のフォーカス問いから明確に逸脱している（別の話題に流れている）場合のみ介入してください。逸脱していなければ content と targetPersonaId は省略してください。\n\n介入する場合は、フォーカス問いに引き戻す論点を決め、ふさわしい参加者を1人選んで targetPersonaId に設定してください。content は、まず話が逸れていることに触れて「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。';
-	const criteria = `\n\n累計発言数: ${speakCountInfo}${pointsContext}${fallbackCriteria}`;
+		: '\n\n会話の流れを踏まえ、次のいずれかに当てはまる場合に介入してください。(1) 会話がこの章のフォーカス問いから明確に逸脱している（別の話題に流れている）。(2) 現在の論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）。まだ新しい視点・反論・具体例が出て議論が深まっている最中なら介入せず、content と targetPersonaId は省略してください。\n\n介入する場合は、フォーカス問いに引き戻す論点を決め、ふさわしい参加者を1人選んで targetPersonaId に設定してください。content は、まず話が逸れている／堂々巡りになっていることに触れて「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻し・振り直しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。';
+
+	const chainLength = options?.chainLength ?? 0;
+	const chainSignal =
+		chainLength > 0
+			? `\n\n【補足シグナル】同じ相手への指名が ${chainLength} 回連続しています。同じ主張の往復が続いていないか、新しい視点・反論・具体例が加わっているかを、出尽くし判断の参考にしてください。`
+			: '';
+
+	const criteria = `\n\n累計発言数: ${speakCountInfo}${pointsContext}${fallbackCriteria}${chainSignal}`;
 	return runInterventionCheck(turns, personas, currentChapter, criteria);
 };
 

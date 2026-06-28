@@ -252,7 +252,7 @@ export const generateTurn = async (
 				? `\n【参加者一覧（targetPersonaId に使用するID）】\n${otherPersonas.map((p) => `- ${p.name}: ${p.id}`).join('\n')}`
 				: '';
 		const excludeNote = lastSpeakerName ? `（直前の発言者${lastSpeakerName}は除く）` : '';
-		const targetingGuide = `まず自分が何を言いたいか・何を聞きたいかを決めてから、その内容に立場・職業・経験から最も関係しそうな参加者${excludeNote}がいれば targetPersonaId を指定する。特定の参加者と直接関係しない話であれば targetPersonaId は指定しない。${personaList}`;
+		const targetingGuide = `まず自分が何を言いたいか・何を聞きたいかを決める。指名（targetPersonaId の指定）は、特定の相手の発言に直接反論・確認する明確な必要があるときだけにとどめ、それ以外は場全体への発言として targetPersonaId を指定しない（既定は未指定）。指定する場合のみ、その内容に立場・職業・経験から最も関係する参加者${excludeNote}を選ぶ。${personaList}`;
 		const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。${targetingGuide}`;
 		const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。${targetingGuide}`;
 		const questionInstruction =
@@ -262,7 +262,7 @@ export const generateTurn = async (
 		const antiSycophancyNote = `\n【重要】発言の書き出しは、前の話者への同意・共感ではなく、自分が言いたいこと・引っかかっていること・疑問から始めること。前の話者の意見に同意であっても、自分の立場・経験から別の角度・ズレを持ち込む。`;
 		const targetBiasNote =
 			targetedBy === 'persona' && lastSpeakerName
-				? `\n\n【注意】今回は${lastSpeakerName}にターゲットされての発言です。${lastSpeakerName}への再targetは直接確認・反論が必要な場合のみです。`
+				? `\n\n【注意】今回は${lastSpeakerName}にターゲットされての発言です。ここで${lastSpeakerName}へ再び targetPersonaId を指定すると、同じ二人の往復が続いて議論が固定化します。直接の確認・反論がどうしても必要な場合を除き、再 target せず場全体に向けて話してください。`
 				: '';
 		const instruction =
 			(isQuestion && questionInstruction

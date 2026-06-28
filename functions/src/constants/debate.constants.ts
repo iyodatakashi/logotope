@@ -18,6 +18,12 @@ export const CONTINUE_CHAPTER_THRESHOLD = 4;
 /** 介入クールダウン既定ターン数（ドリフト・スタール共通） */
 export const DEFAULT_INTERVENTION_COOLDOWN = 3;
 
+/**
+ * ペルソナ指名チェーン中の介入クールダウン（既定より長い）。
+ * 指名チェーン経路は no-target 経路より介入評価を間引き、3ターン周期の機械的介入を避ける。
+ */
+export const PERSONA_CHAIN_INTERVENTION_COOLDOWN = 5;
+
 /** 1章あたりの目標ターン数（既定） */
 export const TURNS_PER_CHAPTER = 15;
 

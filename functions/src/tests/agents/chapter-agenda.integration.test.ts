@@ -230,7 +230,8 @@ describe('Task 5.2: 介入経路で未完了論点が渡され着手へ更新さ
 			},
 			state,
 			engagements: [],
-			interventionCooldown: 2
+			interventionCooldown: 2,
+			trigger: { kind: 'no-target' }
 		});
 
 		expect(driftSpy).toHaveBeenCalledWith(
@@ -238,7 +239,8 @@ describe('Task 5.2: 介入経路で未完了論点が渡され着手へ更新さ
 			expect.anything(),
 			expect.anything(),
 			expect.anything(),
-			['未消化論点X', '未消化論点Y']
+			['未消化論点X', '未消化論点Y'],
+			undefined
 		);
 
 		expect(state.discussionPoints[0].status).toBe('introduced');

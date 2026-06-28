@@ -14,6 +14,7 @@ vi.mock('firebase-admin/firestore', () => ({
 import {
 	shouldEvaluateIntervention,
 	countPersonaTurnsSinceFacilitator,
+	countConsecutivePersonaTargets,
 	persistInterventionTurn
 } from '../../../pipeline/debate/intervention.js';
 
@@ -22,6 +23,26 @@ const makeTurn = (speakerType: 'persona' | 'facilitator', id: string): DebateTur
 	speakerType,
 	content: 'test',
 	createdAt: ''
+});
+
+/** ペルソナ間指名ターン（targetedBy='persona'）を作る */
+const makePersonaTargetTurn = (id: string, targetPersonaId = 'pX'): DebateTurn => ({
+	id,
+	speakerType: 'persona',
+	content: 'test',
+	createdAt: '',
+	targetPersonaId,
+	targetedBy: 'persona'
+});
+
+/** ファシリテーターによる指名ターン（targetedBy='facilitator'）を作る */
+const makeFacilitatorTargetTurn = (id: string, targetPersonaId = 'pX'): DebateTurn => ({
+	id,
+	speakerType: 'persona',
+	content: 'test',
+	createdAt: '',
+	targetPersonaId,
+	targetedBy: 'facilitator'
 });
 
 const makeState = (
@@ -79,6 +100,69 @@ describe('countPersonaTurnsSinceFacilitator', () => {
 
 	it('空の履歴の場合は 0 を返す', () => {
 		expect(countPersonaTurnsSinceFacilitator([])).toBe(0);
+	});
+});
+
+describe('countConsecutivePersonaTargets', () => {
+	it('空の履歴の場合は 0 を返す', () => {
+		expect(countConsecutivePersonaTargets([])).toBe(0);
+	});
+
+	it('末尾がファシリテーター発言の場合は 0 を返す', () => {
+		const turns = [makePersonaTargetTurn('t1'), makeTurn('facilitator', 't2')];
+		expect(countConsecutivePersonaTargets(turns)).toBe(0);
+	});
+
+	it('末尾が指名なしペルソナ発言の場合は 0 を返す', () => {
+		const turns = [makePersonaTargetTurn('t1'), makeTurn('persona', 't2')];
+		expect(countConsecutivePersonaTargets(turns)).toBe(0);
+	});
+
+	it('末尾が targetedBy=facilitator の指名の場合は 0 を返す', () => {
+		const turns = [makePersonaTargetTurn('t1'), makeFacilitatorTargetTurn('t2')];
+		expect(countConsecutivePersonaTargets(turns)).toBe(0);
+	});
+
+	it('連続するペルソナ間指名が N 件続く場合は N を返す', () => {
+		const turns = [
+			makePersonaTargetTurn('t1'),
+			makePersonaTargetTurn('t2'),
+			makePersonaTargetTurn('t3')
+		];
+		expect(countConsecutivePersonaTargets(turns)).toBe(3);
+	});
+
+	it('途中の指名なしペルソナ発言で打ち切る（それ以降のみカウント）', () => {
+		const turns = [
+			makePersonaTargetTurn('t1'),
+			makeTurn('persona', 't2'),
+			makePersonaTargetTurn('t3'),
+			makePersonaTargetTurn('t4')
+		];
+		expect(countConsecutivePersonaTargets(turns)).toBe(2);
+	});
+
+	it('途中のファシリテーター発言で打ち切る', () => {
+		const turns = [
+			makePersonaTargetTurn('t1'),
+			makeFacilitatorTargetTurn('t2'),
+			makePersonaTargetTurn('t3')
+		];
+		expect(countConsecutivePersonaTargets(turns)).toBe(1);
+	});
+
+	it('targetPersonaId のないペルソナ指名（targetedBy のみ）は打ち切る', () => {
+		const turns = [
+			makePersonaTargetTurn('t1'),
+			{
+				id: 't2',
+				speakerType: 'persona',
+				content: 'x',
+				createdAt: '',
+				targetedBy: 'persona'
+			} as DebateTurn
+		];
+		expect(countConsecutivePersonaTargets(turns)).toBe(0);
 	});
 });
 
@@ -246,7 +330,8 @@ describe('tryIntervention - 論点ステータスのマーク', () => {
 			chapter: mockChapter,
 			state,
 			engagements: mockEngagements,
-			interventionCooldown: 2
+			interventionCooldown: 2,
+			trigger: { kind: 'no-target' }
 		});
 
 		expect(state.discussionPoints[0].status).toBe('introduced');
@@ -273,7 +358,8 @@ describe('tryIntervention - 論点ステータスのマーク', () => {
 			chapter: mockChapter,
 			state,
 			engagements: mockEngagements,
-			interventionCooldown: 2
+			interventionCooldown: 2,
+			trigger: { kind: 'no-target' }
 		});
 
 		expect(state.discussionPoints[0].status).toBe('untouched');
@@ -298,7 +384,8 @@ describe('tryIntervention - 論点ステータスのマーク', () => {
 			chapter: mockChapter,
 			state,
 			engagements: mockEngagements,
-			interventionCooldown: 2
+			interventionCooldown: 2,
+			trigger: { kind: 'no-target' }
 		});
 
 		expect(state.discussionPoints[0].status).toBe('untouched');
@@ -331,7 +418,8 @@ describe('tryIntervention - 論点ステータスのマーク', () => {
 			chapter: mockChapter,
 			state,
 			engagements: mockEngagements,
-			interventionCooldown: 2
+			interventionCooldown: 2,
+			trigger: { kind: 'no-target' }
 		});
 
 		expect(evaluateTopicDrift).toHaveBeenCalledWith(
@@ -339,7 +427,146 @@ describe('tryIntervention - 論点ステータスのマーク', () => {
 			expect.anything(),
 			expect.anything(),
 			expect.anything(),
-			['論点A', '論点C']
+			['論点A', '論点C'],
+			undefined
 		);
+	});
+});
+
+describe('tryIntervention - トリガー分岐', () => {
+	let evaluateTopicDrift: ReturnType<typeof vi.fn>;
+	let evaluateStallIntervention: ReturnType<typeof vi.fn>;
+	let hasHighEngagement: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.clearAllMocks();
+		vi.resetModules();
+		const facMod = await import('../../../agents/facilitator-agent.js');
+		evaluateTopicDrift = vi.mocked(facMod.evaluateTopicDrift);
+		evaluateStallIntervention = vi.mocked(facMod.evaluateStallIntervention);
+		const speakerMod = await import('../../../pipeline/debate/speaker-selection.js');
+		hasHighEngagement = vi.mocked(speakerMod.hasHighEngagement);
+		hasHighEngagement.mockReturnValue(false);
+	});
+
+	const cooldownReadyState = () =>
+		makeState(
+			[makeTurn('facilitator', 'f1'), makeTurn('persona', 'p1'), makeTurn('persona', 'p2')],
+			[{ point: '論点A', status: 'untouched' }]
+		);
+
+	it('no-target: drift が見送りなら stall も評価する', async () => {
+		evaluateTopicDrift.mockResolvedValueOnce({ ok: true, value: {} });
+		evaluateStallIntervention.mockResolvedValueOnce({ ok: true, value: {} });
+
+		const { tryIntervention: tryIntervention_ } =
+			await import('../../../pipeline/debate/intervention.js');
+		await tryIntervention_({
+			topicId: 'topic1',
+			personas: mockPersonas,
+			chapter: mockChapter,
+			state: cooldownReadyState(),
+			engagements: mockEngagements,
+			interventionCooldown: 2,
+			trigger: { kind: 'no-target' }
+		});
+
+		expect(evaluateTopicDrift).toHaveBeenCalledTimes(1);
+		expect(evaluateStallIntervention).toHaveBeenCalledTimes(1);
+	});
+
+	it('no-target: hasHighEngagement のとき drift に未完了論点を渡さない（undefined）', async () => {
+		hasHighEngagement.mockReturnValue(true);
+		evaluateTopicDrift.mockResolvedValueOnce({ ok: true, value: {} });
+		evaluateStallIntervention.mockResolvedValueOnce({ ok: true, value: {} });
+
+		const { tryIntervention: tryIntervention_ } =
+			await import('../../../pipeline/debate/intervention.js');
+		await tryIntervention_({
+			topicId: 'topic1',
+			personas: mockPersonas,
+			chapter: mockChapter,
+			state: cooldownReadyState(),
+			engagements: mockEngagements,
+			interventionCooldown: 2,
+			trigger: { kind: 'no-target' }
+		});
+
+		expect(evaluateTopicDrift).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			undefined,
+			undefined
+		);
+	});
+
+	it('persona-chain: stall は評価せず drift のみ評価する', async () => {
+		evaluateTopicDrift.mockResolvedValueOnce({ ok: true, value: {} });
+
+		const { tryIntervention: tryIntervention_ } =
+			await import('../../../pipeline/debate/intervention.js');
+		await tryIntervention_({
+			topicId: 'topic1',
+			personas: mockPersonas,
+			chapter: mockChapter,
+			state: cooldownReadyState(),
+			engagements: mockEngagements,
+			interventionCooldown: 2,
+			trigger: { kind: 'persona-chain', chainLength: 4 }
+		});
+
+		expect(evaluateTopicDrift).toHaveBeenCalledTimes(1);
+		expect(evaluateStallIntervention).not.toHaveBeenCalled();
+	});
+
+	it('persona-chain: hasHighEngagement でも未完了論点を空化せず渡し、chainLength も渡す', async () => {
+		hasHighEngagement.mockReturnValue(true);
+		evaluateTopicDrift.mockResolvedValueOnce({ ok: true, value: {} });
+
+		const { tryIntervention: tryIntervention_ } =
+			await import('../../../pipeline/debate/intervention.js');
+		await tryIntervention_({
+			topicId: 'topic1',
+			personas: mockPersonas,
+			chapter: mockChapter,
+			state: cooldownReadyState(),
+			engagements: mockEngagements,
+			interventionCooldown: 2,
+			trigger: { kind: 'persona-chain', chainLength: 4 }
+		});
+
+		expect(evaluateTopicDrift).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+			['論点A'],
+			{ chainLength: 4 }
+		);
+	});
+
+	it('クールダウン未達は drift も stall も評価しない', async () => {
+		const state = makeState(
+			[makeTurn('facilitator', 'f1'), makeTurn('persona', 'p1')],
+			[{ point: '論点A', status: 'untouched' }]
+		);
+
+		const { tryIntervention: tryIntervention_ } =
+			await import('../../../pipeline/debate/intervention.js');
+		const fired = await tryIntervention_({
+			topicId: 'topic1',
+			personas: mockPersonas,
+			chapter: mockChapter,
+			state,
+			engagements: mockEngagements,
+			interventionCooldown: 2,
+			trigger: { kind: 'persona-chain', chainLength: 4 }
+		});
+
+		expect(fired).toBe(false);
+		expect(evaluateTopicDrift).not.toHaveBeenCalled();
+		expect(evaluateStallIntervention).not.toHaveBeenCalled();
 	});
 });

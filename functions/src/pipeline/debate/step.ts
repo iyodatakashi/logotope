@@ -20,7 +20,8 @@ import { selectSpeaker } from './speaker-selection.js';
 import {
 	QUIET_STREAK_LIMIT,
 	EARLY_END_PROGRESS_RATIO,
-	CONTINUE_CHAPTER_THRESHOLD
+	CONTINUE_CHAPTER_THRESHOLD,
+	PERSONA_CHAIN_INTERVENTION_COOLDOWN
 } from '../../constants/debate.constants.js';
 import { evaluateEngagements, evaluateEngagementWithFallback } from './engagement.js';
 import { expireQueuedIntents, addQueuedIntents, consumeQueuedIntent } from './queued-intents.js';
@@ -31,7 +32,11 @@ import {
 	saveDiscussionPointStatuses,
 	deleteDiscussionPointStatuses
 } from './discussion-points.js';
-import { tryIntervention } from './intervention.js';
+import {
+	tryIntervention,
+	countConsecutivePersonaTargets,
+	type InterventionTrigger
+} from './intervention.js';
 import { applyBeliefChange } from './belief.js';
 import { updateSpeakerStats } from './debate-state.js';
 import { persistPostDebateComments } from './post-debate-comments.js';
@@ -192,8 +197,22 @@ const executeTurn = async ({
 		chapterTurns: getChapterTurns()
 	});
 
-	// ファシリテーター介入（target がない場合のみ）。介入は継続扱いで quietStreak を 0 にする
-	if (!targetPersona) {
+	// ファシリテーター介入を試みるトリガーを構築する。介入は継続扱いで quietStreak を 0 にする。
+	// - target なし: 従来どおり no-target（drift→stall）。
+	// - ペルソナ指名チェーン中: persona-chain（drift のみ・チェーン長をシグナルに）。
+	// - facilitator 指名（章導入・前回介入の指名先）: 割り込まず指名先に応答させる（trigger なし）。
+	const interventionTrigger: InterventionTrigger | undefined = !targetPersona
+		? { kind: 'no-target' }
+		: targetPersona.targetedBy === 'persona'
+			? { kind: 'persona-chain', chainLength: countConsecutivePersonaTargets(getChapterTurns()) }
+			: undefined;
+
+	if (interventionTrigger) {
+		// 指名チェーン経路は評価頻度を間引く（既定より長いクールダウン）。no-target は既定どおり。
+		const triggerCooldown =
+			interventionTrigger.kind === 'persona-chain'
+				? PERSONA_CHAIN_INTERVENTION_COOLDOWN
+				: interventionCooldown;
 		const intervened = await tryIntervention({
 			topicId,
 			personas,
@@ -201,7 +220,8 @@ const executeTurn = async ({
 			chapterId,
 			state,
 			engagements,
-			interventionCooldown,
+			interventionCooldown: triggerCooldown,
+			trigger: interventionTrigger,
 			chapterTurns: getChapterTurns(),
 			chapterTurnStartIndex: chapterTurnStartInState,
 			progressPatch: { quietStreak: 0 }

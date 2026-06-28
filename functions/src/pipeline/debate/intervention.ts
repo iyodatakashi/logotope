@@ -15,6 +15,24 @@ export const shouldEvaluateIntervention = (
 	cooldownTurns: number
 ): boolean => personaTurnsSinceFacilitator >= cooldownTurns;
 
+/**
+ * 章ローカル永続ターン列の末尾から、連続するペルソナ間指名（targetedBy='persona'）の数を返す。
+ * ファシリテーター発言・指名なしペルソナ発言・targetedBy='facilitator' 指名に当たった時点で打ち切る。
+ * 出尽くしを疑わせるソフトシグナルとして evaluateTopicDrift に渡す（決定的・I/O なし）。
+ */
+export const countConsecutivePersonaTargets = (chapterTurns: readonly DebateTurn[]): number => {
+	let count = 0;
+	for (let i = chapterTurns.length - 1; i >= 0; i--) {
+		const turn = chapterTurns[i];
+		if (turn.speakerType === 'persona' && turn.targetedBy === 'persona' && turn.targetPersonaId) {
+			count++;
+		} else {
+			break;
+		}
+	}
+	return count;
+};
+
 /** 直近のファシリテーターターン以降のペルソナターン数を返す（論点ずれ介入クールダウン判定用） */
 export const countPersonaTurnsSinceFacilitator = (history: readonly DebateTurn[]): number => {
 	const lastFacilitatorIdx = history.reduce(
@@ -73,6 +91,11 @@ export const persistInterventionTurn = async ({
 		: undefined;
 };
 
+/** 介入評価のトリガー種別。step 層が末尾指名から構築する */
+export type InterventionTrigger =
+	| { kind: 'no-target' }
+	| { kind: 'persona-chain'; chainLength: number };
+
 /** 介入が必要か評価し、発火した場合は state を更新して true を返す */
 export const tryIntervention = async ({
 	topicId,
@@ -82,6 +105,7 @@ export const tryIntervention = async ({
 	state,
 	engagements,
 	interventionCooldown,
+	trigger,
 	chapterTurns,
 	chapterTurnStartIndex = 0,
 	progressPatch
@@ -93,6 +117,7 @@ export const tryIntervention = async ({
 	state: DebateState;
 	engagements: Engagement[];
 	interventionCooldown: number;
+	trigger: InterventionTrigger;
 	chapterTurns?: DebateTurn[];
 	chapterTurnStartIndex?: number;
 	progressPatch?: ProgressPatch;
@@ -116,26 +141,39 @@ export const tryIntervention = async ({
 			interventionCooldown
 		)
 	) {
-		// 高意欲者（score >= STALL_INTERVENTION_THRESHOLD_SCORE）がいる場合、論点投入を抑止して
-		// 明確な逸脱のみ検出させる（未完了論点リストを渡さないことで option 2 を封じる）
-		const driftPoints = hasHighEngagement(engagements) ? [] : unaddressedDiscussionPoints;
-		// 介入は2段カスケード: まず論点ずれ介入を試し、起きなければ出尽くし(スタール)介入を試す
-		intervention = await tryTopicDriftIntervention({
-			personas,
-			chapter,
-			chapterTurns: currentChapterTurns,
-			state,
-			unaddressedDiscussionPoints: driftPoints
-		});
-		if (!intervention) {
-			intervention = await tryStallIntervention({
+		if (trigger.kind === 'persona-chain') {
+			// 指名チェーン中: drift のみ評価。未完了論点は常に渡し（空化しない）、出尽くし時の次論点投入を可能にする。
+			// chainLength を発展性が尽きているソフトシグナルとして drift に渡す。
+			intervention = await tryTopicDriftIntervention({
 				personas,
 				chapter,
 				chapterTurns: currentChapterTurns,
 				state,
-				engagements,
-				unaddressedDiscussionPoints
+				unaddressedDiscussionPoints,
+				chainLength: trigger.chainLength
 			});
+		} else {
+			// no-target: 従来挙動。高意欲者（score >= STALL_INTERVENTION_THRESHOLD_SCORE）がいる場合、
+			// 論点投入を抑止して明確な逸脱のみ検出させる（未完了論点リストを渡さないことで option 2 を封じる）
+			const driftPoints = hasHighEngagement(engagements) ? [] : unaddressedDiscussionPoints;
+			// 介入は2段カスケード: まず論点ずれ介入を試し、起きなければ出尽くし(スタール)介入を試す
+			intervention = await tryTopicDriftIntervention({
+				personas,
+				chapter,
+				chapterTurns: currentChapterTurns,
+				state,
+				unaddressedDiscussionPoints: driftPoints
+			});
+			if (!intervention) {
+				intervention = await tryStallIntervention({
+					personas,
+					chapter,
+					chapterTurns: currentChapterTurns,
+					state,
+					engagements,
+					unaddressedDiscussionPoints
+				});
+			}
 		}
 	}
 	if (!intervention) return false;
@@ -174,19 +212,21 @@ export const tryIntervention = async ({
 	return true;
 };
 
-/** 論点ずれチェック: 逸脱していれば介入内容を返す。クールダウン通過後かつ指名なし時のみ評価する */
+/** 論点ずれ＋出尽くしチェック: 介入すべきなら介入内容を返す。chainLength は出尽くしを疑うソフトシグナル */
 const tryTopicDriftIntervention = async ({
 	personas,
 	chapter,
 	chapterTurns,
 	state,
-	unaddressedDiscussionPoints
+	unaddressedDiscussionPoints,
+	chainLength
 }: {
 	personas: Persona[];
 	chapter: Chapter;
 	chapterTurns: DebateTurn[];
 	state: DebateState;
 	unaddressedDiscussionPoints: string[];
+	chainLength?: number;
 }): Promise<
 	{ content: string; targetPersonaId: string; selectedDiscussionPointIndex?: number } | undefined
 > => {
@@ -195,7 +235,8 @@ const tryTopicDriftIntervention = async ({
 		personas,
 		state.speakCount,
 		chapter,
-		unaddressedDiscussionPoints.length > 0 ? unaddressedDiscussionPoints : undefined
+		unaddressedDiscussionPoints.length > 0 ? unaddressedDiscussionPoints : undefined,
+		chainLength !== undefined ? { chainLength } : undefined
 	);
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 	if (!result.value.content) return undefined;
