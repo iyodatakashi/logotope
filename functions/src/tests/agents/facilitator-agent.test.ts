@@ -629,6 +629,258 @@ describe('evaluateDiscussionPointCoverage', () => {
 	});
 });
 
+describe('論点投入時の関連参加者返却（3.1）', () => {
+	let generateObject: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		const aiMod = await import('ai');
+		generateObject = vi.mocked(aiMod.generateObject);
+	});
+
+	const captureContent = async (fn: () => Promise<unknown>): Promise<string> => {
+		const capturedArgs: unknown[] = [];
+		generateObject.mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return makeObjectResult({ targetPersonaId: 'p1', content: '発言' });
+		});
+		await fn();
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		return callArgs.messages[0].content;
+	};
+
+	it('generateOpening: 返却に relevantPersonaIds を含める', async () => {
+		generateObject.mockResolvedValueOnce(
+			makeObjectResult({
+				targetPersonaId: 'p1',
+				content: '問いかけ',
+				relevantPersonaIds: ['p1', 'p2']
+			})
+		);
+		const { generateOpening } = await import('../../agents/facilitator-agent.js');
+		const result = await generateOpening(
+			'テーマ',
+			[mockPersona],
+			makeChapter({ discussionPoints: ['論点1'] })
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.relevantPersonaIds).toEqual(['p1', 'p2']);
+		}
+	});
+
+	it('generateOpening: 関連参加者を全員一律に含めない旨の指示がプロンプトに含まれる', async () => {
+		const content = await captureContent(() =>
+			import('../../agents/facilitator-agent.js').then(({ generateOpening }) =>
+				generateOpening('テーマ', [mockPersona], makeChapter({ discussionPoints: ['論点1'] }))
+			)
+		);
+		expect(content).toContain('relevantPersonaIds');
+		expect(content).toMatch(/立場を聞くべき|一律に含めない|絞っ/);
+	});
+
+	it('evaluateTopicDrift: 返却に relevantPersonaIds を含める', async () => {
+		generateObject.mockResolvedValueOnce(
+			makeObjectResult({
+				targetPersonaId: 'p1',
+				content: '論点投入',
+				selectedDiscussionPointIndex: 0,
+				relevantPersonaIds: ['p2', 'p3']
+			})
+		);
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const result = await evaluateTopicDrift(
+			[makeTurn('発言')],
+			[mockPersona],
+			new Map(),
+			makeChapter(),
+			'アクティブ論点',
+			['論点1']
+		);
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.relevantPersonaIds).toEqual(['p2', 'p3']);
+		}
+	});
+
+	it('evaluateTopicDrift: 論点投入時の関連参加者指定の指示がプロンプトに含まれる', async () => {
+		const content = await captureContent(() =>
+			import('../../agents/facilitator-agent.js').then(({ evaluateTopicDrift }) =>
+				evaluateTopicDrift(
+					[makeTurn('発言')],
+					[mockPersona],
+					new Map(),
+					makeChapter(),
+					'アクティブ論点',
+					['論点1']
+				)
+			)
+		);
+		expect(content).toContain('relevantPersonaIds');
+		expect(content).toMatch(/立場を聞くべき|一律に含めない|絞っ/);
+	});
+});
+
+describe('出尽くし二軸化と未発言者の引き込み（3.2）', () => {
+	let generateObject: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		const aiMod = await import('ai');
+		generateObject = vi.mocked(aiMod.generateObject);
+	});
+
+	const captureContent = async (fn: () => Promise<unknown>): Promise<string> => {
+		const capturedArgs: unknown[] = [];
+		generateObject.mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return makeObjectResult({});
+		});
+		await fn();
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		return callArgs.messages[0].content;
+	};
+
+	it('evaluateTopicDrift: 未発言の関連参加者を渡すと、その名前と引き込み指示が含まれる', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				[],
+				{
+					unheardRelevant: ['田中', '佐藤']
+				}
+			)
+		);
+		expect(content).toContain('田中');
+		expect(content).toContain('佐藤');
+		expect(content).toMatch(/立場/);
+		expect(content).toMatch(/いまの論点を維持|新しい論点を投入せず|新論点/);
+	});
+
+	it('evaluateTopicDrift: 未発言者が残る間は新規性のなさだけで前進させない旨が含まれる', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				[],
+				{
+					unheardRelevant: ['田中']
+				}
+			)
+		);
+		expect(content).toMatch(/出尽くし|新規性|発展性/);
+		expect(content).toMatch(/前進させ|進めない/);
+	});
+
+	it('evaluateTopicDrift: 未発言者が空なら引き込みセクションを含めない', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				['論点1'],
+				{
+					unheardRelevant: []
+				}
+			)
+		);
+		expect(content).not.toContain('立場カバレッジ');
+	});
+
+	it('evaluateStallIntervention: 未発言の関連参加者を渡すと引き込み指示が含まれる', async () => {
+		const { evaluateStallIntervention } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateStallIntervention(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				[],
+				{
+					unheardRelevant: ['山田']
+				}
+			)
+		);
+		expect(content).toContain('山田');
+		expect(content).toMatch(/立場/);
+	});
+});
+
+describe('chainLength シグナルの解釈是正（3.3）', () => {
+	let generateObject: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		const aiMod = await import('ai');
+		generateObject = vi.mocked(aiMod.generateObject);
+	});
+
+	const captureContent = async (fn: () => Promise<unknown>): Promise<string> => {
+		const capturedArgs: unknown[] = [];
+		generateObject.mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return makeObjectResult({});
+		});
+		await fn();
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		return callArgs.messages[0].content;
+	};
+
+	it('未発言者が残るとき、チェーン長は引き込み優先のシグナルとして提示される', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				[],
+				{
+					chainLength: 5,
+					unheardRelevant: ['田中']
+				}
+			)
+		);
+		expect(content).toContain('5');
+		expect(content).toMatch(/引き込み|未発言/);
+		expect(content).not.toMatch(/出尽くしのサイン|出尽くし判断の参考/);
+	});
+
+	it('未発言者が残らないとき、チェーン長は従来どおり出尽くし判断の参考として提示される', async () => {
+		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
+		const content = await captureContent(() =>
+			evaluateTopicDrift(
+				[makeTurn('発言')],
+				[mockPersona],
+				new Map(),
+				makeChapter(),
+				'アクティブ論点',
+				['論点1'],
+				{
+					chainLength: 5,
+					unheardRelevant: []
+				}
+			)
+		);
+		expect(content).toContain('5');
+		expect(content).toMatch(/出尽くし/);
+	});
+});
+
 describe('generateClosing - personas 引き渡し', () => {
 	beforeEach(async () => {
 		vi.resetModules();

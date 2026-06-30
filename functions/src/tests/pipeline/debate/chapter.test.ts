@@ -69,6 +69,45 @@ describe('loadChapterProgress', () => {
 		]);
 	});
 
+	it('discussionPointStatuses の2集合（発言済み・関連参加者）を復元する', async () => {
+		mockGet.mockResolvedValue({
+			exists: true,
+			data: () => ({
+				discussionPointStatuses: [
+					{
+						point: '論点A',
+						status: 'introduced',
+						introducedOrder: 1,
+						spokenPersonaIds: ['p1'],
+						relevantPersonaIds: ['p1', 'p2']
+					}
+				]
+			})
+		});
+		const progress = await loadChapterProgress('t1', 'ch1', makeChapter(['論点A']));
+		expect(progress.discussionPointStatuses).toEqual([
+			{
+				point: '論点A',
+				status: 'introduced',
+				introducedOrder: 1,
+				spokenPersonaIds: ['p1'],
+				relevantPersonaIds: ['p1', 'p2']
+			}
+		]);
+	});
+
+	it('2集合が欠損する既存データでも例外なく復元する', async () => {
+		mockGet.mockResolvedValue({
+			exists: true,
+			data: () => ({
+				discussionPointStatuses: [{ point: '論点A', status: 'introduced', introducedOrder: 1 }]
+			})
+		});
+		const progress = await loadChapterProgress('t1', 'ch1', makeChapter(['論点A']));
+		expect(progress.discussionPointStatuses[0].spokenPersonaIds).toBeUndefined();
+		expect(progress.discussionPointStatuses[0].relevantPersonaIds).toBeUndefined();
+	});
+
 	it('論点のない章では空配列を返す', async () => {
 		mockGet.mockResolvedValue({ exists: true, data: () => ({}) });
 		const progress = await loadChapterProgress('t1', 'ch1', makeChapter([]));

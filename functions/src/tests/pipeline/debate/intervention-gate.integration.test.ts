@@ -240,6 +240,161 @@ describe('介入ゲート: facilitator 指名は介入せず指名先が応答',
 	});
 });
 
+// 章ドキュメントに論点ステータス（2集合付き）を仕込んで seed する（loadChapterProgress が復元する）
+type SeedStatus = {
+	point: string;
+	status: string;
+	introducedOrder?: number;
+	relevantPersonaIds?: string[];
+	spokenPersonaIds?: string[];
+};
+const seedCoverage = (
+	turns: Array<Record<string, unknown>>,
+	discussionPoints: string[],
+	discussionPointStatuses: SeedStatus[]
+) => {
+	holder.mock = createFirestoreMock();
+	holder.mock.store.set(`topics/${TOPIC_ID}`, {
+		phase: 5,
+		phaseStatus: 'running',
+		runId: RUN_ID,
+		title: 'T'
+	});
+	holder.mock.store.set(`topics/${TOPIC_ID}/chapters/ch1`, {
+		chapterIndex: 0,
+		title: '章0',
+		discussionPoints,
+		turns,
+		status: 'running',
+		discussionPointStatuses
+	});
+	stepQueue.length = 0;
+	enqueuedKeys.clear();
+};
+
+const persistedStatuses = (): SeedStatus[] =>
+	(holder.mock!.store.get(`topics/${TOPIC_ID}/chapters/ch1`)?.discussionPointStatuses ??
+		[]) as SeedStatus[];
+
+describe('カバレッジ・ゲート結合（6.2）', () => {
+	it('未発言の関連参加者が残る間は次論点が introduced 化されず引き込み介入のみ保存される', async () => {
+		seedCoverage(
+			chainTurns(5),
+			['論点A', '論点B'],
+			[
+				{
+					point: '論点A',
+					status: 'introduced',
+					introducedOrder: 1,
+					relevantPersonaIds: ['p1', 'p2'],
+					spokenPersonaIds: ['p1']
+				},
+				{ point: '論点B', status: 'untouched' }
+			]
+		);
+		// LLM は論点投入（index 0 = 論点B）を返すが、未発言 p2 が残るためゲートが前進を阻止し引き込みに留める
+		mockEvaluateTopicDrift.mockResolvedValue({
+			ok: true,
+			value: { content: 'p2さんはどう？', targetPersonaId: 'p2', selectedDiscussionPointIndex: 0 }
+		});
+
+		await advanceDebate(turnPayload(6));
+
+		const turns = chapterTurns();
+		expect(turns).toHaveLength(7);
+		expect(turns[6].speakerType).toBe('facilitator'); // ファシリテーターのみ保存（応答は次ターン）
+		expect(mockGenerateTurn).not.toHaveBeenCalled();
+		expect(persistedStatuses().find((s) => s.point === '論点B')?.status).toBe('untouched');
+	});
+
+	it('引き込み先が未発言の関連参加者でない介入は採用せず指名先が応答する', async () => {
+		seedCoverage(
+			chainTurns(5),
+			['論点A', '論点B'],
+			[
+				{
+					point: '論点A',
+					status: 'introduced',
+					introducedOrder: 1,
+					relevantPersonaIds: ['p1', 'p2'],
+					spokenPersonaIds: ['p1']
+				},
+				{ point: '論点B', status: 'untouched' }
+			]
+		);
+		// 指名先 p1 は発言済み（未発言 [p2] に属さない）→ 不採用、通常フローへ
+		mockEvaluateTopicDrift.mockResolvedValue({
+			ok: true,
+			value: { content: 'p1さん再度', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
+		});
+
+		await advanceDebate(turnPayload(6));
+
+		const turns = chapterTurns();
+		expect(turns[6].speakerType).toBe('persona');
+		expect(persistedStatuses().find((s) => s.point === '論点B')?.status).toBe('untouched');
+	});
+
+	it('関連参加者が全員表明済みなら次論点への前進が起こり関連参加者が記録される', async () => {
+		seedCoverage(
+			chainTurns(5),
+			['論点A', '論点B'],
+			[
+				{
+					point: '論点A',
+					status: 'introduced',
+					introducedOrder: 1,
+					relevantPersonaIds: ['p1', 'p2'],
+					spokenPersonaIds: ['p1', 'p2']
+				},
+				{ point: '論点B', status: 'untouched' }
+			]
+		);
+		// 未発言者なし → ゲート不活性。論点投入が成立する
+		mockEvaluateTopicDrift.mockResolvedValue({
+			ok: true,
+			value: {
+				content: '論点Bへ移ります',
+				targetPersonaId: 'p2',
+				selectedDiscussionPointIndex: 0,
+				relevantPersonaIds: ['p1']
+			}
+		});
+
+		await advanceDebate(turnPayload(6));
+
+		const pointB = persistedStatuses().find((s) => s.point === '論点B');
+		expect(pointB?.status).toBe('introduced');
+		expect(pointB?.relevantPersonaIds).toEqual(['p1']);
+		expect(pointB?.spokenPersonaIds).toEqual([]);
+	});
+
+	it('resume 後の発言者記録は集合のため二重化しない', async () => {
+		seedCoverage(
+			chainTurns(5),
+			['論点A'],
+			[
+				{
+					point: '論点A',
+					status: 'introduced',
+					introducedOrder: 1,
+					relevantPersonaIds: ['p2'],
+					spokenPersonaIds: ['p2']
+				}
+			]
+		);
+		// drift 見送り → 指名先 p2（既に発言済み）が応答する
+
+		await advanceDebate(turnPayload(6));
+
+		const turns = chapterTurns();
+		expect(turns[6].speakerType).toBe('persona');
+		expect(turns[6].personaId).toBe('p2');
+		// 既に記録済みの p2 を再記録しても集合は二重化しない
+		expect(persistedStatuses().find((s) => s.point === '論点A')?.spokenPersonaIds).toEqual(['p2']);
+	});
+});
+
 describe('回帰: drift 非発火でもハードキャップで終端する', () => {
 	it('ペルソナが相互指名し続け drift が一度も発火しなくても討論はハードキャップで終端する', async () => {
 		// 章を pending で用意し open ステップから全チェーンを駆動する

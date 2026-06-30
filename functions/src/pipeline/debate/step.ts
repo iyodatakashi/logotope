@@ -29,6 +29,7 @@ import {
 	initDiscussionPoints,
 	markIntroduced,
 	markAddressed,
+	recordSpeakerOnActivePoint,
 	saveDiscussionPointStatuses,
 	deleteDiscussionPointStatuses
 } from './discussion-points.js';
@@ -60,6 +61,12 @@ import type { Persona } from '../../types/persona.types.js';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const db = () => getFirestore();
+
+/** 関連参加者IDを参加者リストの有効IDへフィルタする（記録前の前処理。未指定は undefined のまま） */
+const filterValidPersonaIds = (
+	ids: string[] | undefined,
+	personas: Persona[]
+): string[] | undefined => ids?.filter((id) => personas.some((p) => p.id === id));
 
 /** 末尾ターンが誰かを指名（直接質問）していれば、その指名先と指名元を返す。なければ undefined */
 const getLastTargetPersona = (
@@ -95,6 +102,10 @@ const finalizeCommittedTurn = async ({
 		queuedEntries: reply.queuedEntries
 	});
 	updateSpeakerStats({ state, personas, personaId: reply.personaId });
+	// 立場カバレッジ: 現アクティブ論点の発言済み集合へ話者を冪等記録し、永続型からそのまま書き出す
+	// （Partial転送形を介さず state ベースで永続化。集合のため resume 後も二重化しない）
+	recordSpeakerOnActivePoint(state, reply.personaId);
+	await saveDiscussionPointStatuses(topicId, chapterId, state);
 	if (reply.beliefChange)
 		await applyBeliefChange({
 			topicId,
@@ -298,7 +309,11 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 			chapterTurnStartIndex: chapterTurnStartInState
 		});
 		if (fac.status === 'committed') {
-			markIntroduced(state, openingResult.value.selectedDiscussionPointIndex);
+			markIntroduced(
+				state,
+				openingResult.value.selectedDiscussionPointIndex,
+				filterValidPersonaIds(openingResult.value.relevantPersonaIds, personas)
+			);
 			await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
 		}
 	} else {
@@ -313,7 +328,11 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 				chapterTurnStartIndex: chapterTurnStartInState
 			});
 			if (fac.status === 'committed') {
-				markIntroduced(state, introResult.value.selectedDiscussionPointIndex);
+				markIntroduced(
+					state,
+					introResult.value.selectedDiscussionPointIndex,
+					filterValidPersonaIds(introResult.value.relevantPersonaIds, personas)
+				);
 				await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
 			}
 		}
