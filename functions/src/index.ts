@@ -16,3 +16,4 @@ export { generateChapters } from './api/chapters.js';
 export { startDebate, restartDebate, resetDebate, runStep } from './api/debates.js';
 export { fetchSourceContents } from './api/source-contents.js';
 export { runFactCheck, runFactCheckTask } from './api/fact-check.js';
+export { startEditing, resetEditing, runEditingStep } from './api/editing.js';

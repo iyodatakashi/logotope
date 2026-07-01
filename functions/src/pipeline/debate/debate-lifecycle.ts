@@ -5,6 +5,7 @@ import { rollbackBeliefsForRemovedTurns } from './belief.js';
 import { deleteChapterEngagements } from './engagement.js';
 import { clearPostDebateComments } from './post-debate-comments.js';
 import { deleteFactCheckResult } from '../fact-check/fact-check-repository.js';
+import { clearEditedArtifact } from '../editing/edited-repository.js';
 
 const db = () => getFirestore();
 
@@ -50,6 +51,9 @@ const discardChaptersWithSideData = async (
 	for (const chapter of discardChapters) {
 		await deleteFactCheckResult(topicId, chapter.id);
 	}
+
+	// 原本（章のターン）が再生成されるため、編集成果物も破棄して原本との不整合を残さない（Req 5.6）
+	await clearEditedArtifact(topicId);
 };
 
 /** 指定章以降を破棄して付随データを消し、新しい世代で再開（running）する */
