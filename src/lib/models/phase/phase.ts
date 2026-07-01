@@ -33,6 +33,6 @@ export const phaseDisplayLabel = (current: {
 	if (phaseStatus === 'running') return { label: RUNNING_LABEL[phase], styleKey: 'running' };
 	if (phaseStatus === 'stopped') return { label: STOPPED_LABEL[phase], styleKey: 'stopped' };
 	if (phaseStatus === 'generated')
-		return { label: GENERATED_LABEL[phase], styleKey: phase === 5 ? 'completed' : 'ready' };
+		return { label: GENERATED_LABEL[phase], styleKey: phase === 6 ? 'completed' : 'ready' };
 	return { label: NOT_STARTED_LABEL[phase], styleKey: 'pending' };
 };

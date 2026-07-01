@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
+	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState } from '$lib/models/phase/phase';
+	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import EngagementList from './EngagementList.svelte';
 	import FactCheckFindings from './FactCheckFindings.svelte';
@@ -48,6 +49,14 @@
 			isStarting = false;
 			isResetting = false;
 		}
+	};
+
+	// 討論を確定して編集フェーズ（Phase 6）へ前進する。generated のときのみ PhasePanel が表示する。
+	const approve = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		await topic.approveDebate();
+		goto(phasePath(topic.id, 6));
 	};
 
 	const logicalState = $derived.by(() => {
@@ -129,10 +138,12 @@
 	}}
 	stopLabel="討論を停止する"
 	restartLabel="討論を再開する"
+	approveLabel="討論を確定して編集へ"
 	onGenerate={generate}
 	onRegenerate={regenerate}
 	onStop={stop}
 	onRestart={restart}
+	onApprove={approve}
 >
 	{#snippet progress()}
 		{#if logicalState === 'running' && !isResetting}

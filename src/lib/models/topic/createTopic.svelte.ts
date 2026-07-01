@@ -49,6 +49,34 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 		});
 	};
 
+	// 討論を確定して編集フェーズ（Phase 6）へ前進させる。討論 generated のときのみ画面から到達できる。
+	const approveDebate = async (): Promise<void> => {
+		await updateDoc(doc(db, 'topics', id), {
+			phase: 6,
+			phaseStatus: 'not_started',
+			updatedAt: Timestamp.now()
+		});
+	};
+
+	// 編集を開始する（既存成果物破棄→実行中化→章チェーン投入はサーバ責務）。
+	const startEditing = async (): Promise<void> => {
+		const startEditingCallable = httpsCallable<{ topicId: string }, { topicId: string }>(
+			functions,
+			'startEditing',
+			{ timeout: 60000 }
+		);
+		await startEditingCallable({ topicId: id });
+	};
+
+	// 編集を未実行状態へ戻す（成果物破棄＋編集フェーズを not_started に）。原本は不変。
+	const resetEditing = async (): Promise<void> => {
+		const resetEditingCallable = httpsCallable<{ topicId: string }, { topicId: string }>(
+			functions,
+			'resetEditing'
+		);
+		await resetEditingCallable({ topicId: id });
+	};
+
 	const publishDebate = async (): Promise<void> => {
 		const personasSnap = await getDocs(collection(db, 'topics', id, 'personas'));
 		const personaCount = personasSnap.size;
@@ -240,6 +268,9 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 		approveStakeholders,
 		approveInterviews,
 		approveChapters,
+		approveDebate,
+		startEditing,
+		resetEditing,
 		publishDebate
 	};
 };

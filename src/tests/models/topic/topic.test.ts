@@ -82,6 +82,15 @@ describe('createTopicStates', () => {
 			);
 		});
 
+		it('approveDebate は (6, not_started) へ前進する（討論確定→編集）', async () => {
+			const store = makeTopic();
+			await store.approveDebate();
+			expect(updateDoc).toHaveBeenCalledWith(
+				TOPIC_PATH,
+				expect.objectContaining({ phase: 6, phaseStatus: 'not_started' })
+			);
+		});
+
 		it('承認操作は旧 status を書き込まない', async () => {
 			const store = makeTopic();
 			await store.approveChapters();
@@ -90,6 +99,32 @@ describe('createTopicStates', () => {
 				unknown
 			>;
 			expect(call).not.toHaveProperty('status');
+		});
+	});
+
+	describe('編集フェーズの起動・再実行 (task 6.2)', () => {
+		it('startEditing は startEditing onCall を topicId 付きで呼ぶ', async () => {
+			const callable = vi.fn().mockResolvedValue({ data: { topicId: 't1' } });
+			vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+			const store = makeTopic();
+			await store.startEditing();
+
+			expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'startEditing', {
+				timeout: 60000
+			});
+			expect(callable).toHaveBeenCalledWith({ topicId: 't1' });
+		});
+
+		it('resetEditing は resetEditing onCall を topicId 付きで呼ぶ', async () => {
+			const callable = vi.fn().mockResolvedValue({ data: { topicId: 't1' } });
+			vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+			const store = makeTopic();
+			await store.resetEditing();
+
+			expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'resetEditing');
+			expect(callable).toHaveBeenCalledWith({ topicId: 't1' });
 		});
 	});
 

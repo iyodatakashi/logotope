@@ -8,14 +8,20 @@ const { fcHolder } = vi.hoisted(() => ({
 	fcHolder: {
 		map: new Map<string, unknown>(),
 		runStates: new Map<string, { pending: boolean; error: string | null }>(),
-		runFactCheck: vi.fn()
+		runFactCheck: vi.fn(),
+		approveDebate: vi.fn()
 	}
 }));
 
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get topic() {
-			return { id: 'test-topic', phase: 5, phaseStatus: 'generated' };
+			return {
+				id: 'test-topic',
+				phase: 5,
+				phaseStatus: 'generated',
+				approveDebate: fcHolder.approveDebate
+			};
 		},
 		get factCheckStore() {
 			return {
@@ -145,6 +151,16 @@ describe('Phase5Debate.svelte', () => {
 		vi.clearAllMocks();
 		fcHolder.map = new Map();
 		fcHolder.runStates = new Map();
+	});
+
+	it('討論 generated 時に「討論を確定して編集へ」ボタンを表示し、押下で approveDebate を呼ぶ', async () => {
+		render(Phase5Debate);
+
+		const approveButton = page.getByRole('button', { name: '討論を確定して編集へ' });
+		await expect.element(approveButton).toBeInTheDocument();
+
+		await approveButton.click();
+		expect(fcHolder.approveDebate).toHaveBeenCalled();
 	});
 
 	it('ターンの発言内容を表示する', async () => {

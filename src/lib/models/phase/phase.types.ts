@@ -1,6 +1,12 @@
-export type Phase = 1 | 2 | 3 | 4 | 5;
+export type Phase = 1 | 2 | 3 | 4 | 5 | 6;
 
-export type PhaseSlug = 'stakeholders' | 'personas' | 'interviews' | 'chapters' | 'debate';
+export type PhaseSlug =
+	| 'stakeholders'
+	| 'personas'
+	| 'interviews'
+	| 'chapters'
+	| 'debate'
+	| 'editing';
 
 // 永続する状態（stopped は全フェーズ共通の失敗・停止状態。error は stopped に集約）
 export type PhaseStatus = 'not_started' | 'running' | 'generated' | 'stopped';
