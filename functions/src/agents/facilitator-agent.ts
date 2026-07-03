@@ -2,11 +2,26 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic';
 import { AI_MODELS } from '../constants/ai.constants.js';
-import { formatTurns, formatPersonas, currentDateString } from '../utils/prompt-formatters.js';
+import {
+	formatTurns,
+	formatPersonas,
+	currentDateString,
+	formatFactBaseSection
+} from '../utils/prompt-formatters.js';
 import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { FacilitatorReply } from '../types/debate.types.js';
 import type { Chapter } from '../types/chapter.types.js';
+import type { FactBase } from '../types/topic.types.js';
+
+// ファシリテーター向けの事実基盤（共通前提）注記。問いかけは平易・オープンに保ち、事実の羅列や
+// 固有名詞の列挙を促さない（背景把握のみ）。事実が無ければ空文字を返す（R8.1）。
+const facilitatorFactBaseNote = (factBase?: FactBase): string => {
+	const section = formatFactBaseSection(factBase);
+	return section
+		? `${section}\n（上記は背景として把握するための共通前提です。問いかけ自体は平易でオープンに保ち、事実の羅列や固有名詞の列挙はしないこと。）`
+		: '';
+};
 import type { Result, PipelineError } from '../types/common.types.js';
 
 export const buildNeutralitySystemPrompt = (): string =>
@@ -83,7 +98,8 @@ const runInterventionCheck = async (
 export const generateOpening = async (
 	topicTitle: string,
 	personas: Persona[],
-	firstChapter?: Chapter
+	firstChapter?: Chapter,
+	factBase?: FactBase
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	try {
 		const hasPoints = (firstChapter?.discussionPoints?.length ?? 0) > 0;
@@ -93,6 +109,7 @@ export const generateOpening = async (
 		const entryContext = entryPoint
 			? `\n\n第1章「${firstChapter!.title}」の入口となる問い: ${entryPoint}。この問いを最初の問いかけの切り口として使ってください。`
 			: '';
+		const factNote = facilitatorFactBaseNote(factBase);
 
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
@@ -101,7 +118,7 @@ export const generateOpening = async (
 			messages: [
 				{
 					role: 'user',
-					content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${entryContext}\n\n冒頭発言（2〜3文）の構成：\n1. 上記の入口となる問いの趣旨に沿って、「このテーマに詳しくない人でも感覚的に答えられる」オープンな問いかけをする。固有名詞（特定の映像作品・企業名・人名・統計）や専門用語を使わないこと。誰もが「自分の立場から答えられそう」と感じる入口となる問いにする。\n2. 最初の発言者にその問いを向ける\n3. relevantPersonaIds に、この入口となる問いについて特に立場を聞くべき参加者のIDを列挙する。全員を一律に含めず、その論点に関係する参加者に絞ってください。\n\n「議論を始めましょう」などの抽象的な言葉は禁止。専門知識なしでも答えられる具体的な問いで始める。targetPersonaIdには必ず上記リストのIDを使用してください。`
+					content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${entryContext}${factNote}\n\n冒頭発言（2〜3文）の構成：\n1. 上記の入口となる問いの趣旨に沿って、「このテーマに詳しくない人でも感覚的に答えられる」オープンな問いかけをする。固有名詞（特定の映像作品・企業名・人名・統計）や専門用語を使わないこと。誰もが「自分の立場から答えられそう」と感じる入口となる問いにする。\n2. 最初の発言者にその問いを向ける\n3. relevantPersonaIds に、この入口となる問いについて特に立場を聞くべき参加者のIDを列挙する。全員を一律に含めず、その論点に関係する参加者に絞ってください。\n\n「議論を始めましょう」などの抽象的な言葉は禁止。専門知識なしでも答えられる具体的な問いで始める。targetPersonaIdには必ず上記リストのIDを使用してください。`
 				}
 			]
 		});
@@ -252,13 +269,15 @@ export const generateChapterSummary = async (
 
 export const generateChapterIntroduction = async (
 	nextChapter: Chapter,
-	personas: Persona[]
+	personas: Persona[],
+	factBase?: FactBase
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	try {
 		const hasPoints = (nextChapter.discussionPoints?.length ?? 0) > 0;
 		// 入口は先頭論点を唯一の切り口にする。論点を持たない章は章タイトルを入口にする
 		const entryPoint = hasPoints ? nextChapter.discussionPoints[0] : nextChapter.title;
 		const entryContext = `\n\nこの章の入口となる問い: ${entryPoint}。この問いを導入の問いかけの切り口として使ってください。`;
+		const factNote = facilitatorFactBaseNote(factBase);
 
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
@@ -267,7 +286,7 @@ export const generateChapterIntroduction = async (
 			messages: [
 				{
 					role: 'user',
-					content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、この入口となる問いについて参加者に問いかける形で始めてください。最初に発言させるペルソナIDも指定してください。${entryContext}\n\n参加者:\n${formatPersonas(personas)}\n\ntargetPersonaIdには必ず上記リストのIDを使用してください。`
+					content: `次の章「${nextChapter.title}」を始める導入発言を生成してください。前の章には触れず、この入口となる問いについて参加者に問いかける形で始めてください。最初に発言させるペルソナIDも指定してください。${entryContext}${factNote}\n\n参加者:\n${formatPersonas(personas)}\n\ntargetPersonaIdには必ず上記リストのIDを使用してください。`
 				}
 			]
 		});

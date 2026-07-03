@@ -23,7 +23,14 @@ vi.mock('../../search/search-service.js', () => ({
 
 vi.mock('../../utils/prompt-formatters.js', () => ({
 	formatTurns: vi.fn(() => '【過去の発言なし】'),
-	currentDateString: vi.fn(() => '2026-06-19')
+	currentDateString: vi.fn(() => '2026-06-19'),
+	// 事実節整形の実体は prompt-formatters.test.ts で検証する。ここでは generateTurn が
+	// これを呼び出して結果をプロンプトに含める配線だけを検証するため、最小の整形を返す。
+	formatFactBaseSection: vi.fn((factBase?: { facts: { statement: string }[] }) =>
+		factBase?.facts?.length
+			? `\n\n【確定した客観的事実（共通前提）】\n${factBase.facts.map((f) => f.statement).join('\n')}`
+			: ''
+	)
 }));
 
 const mockPersona: Persona = {
@@ -190,6 +197,49 @@ describe('generateTurn', () => {
 		expect(callArgs.messages[0].content).toContain('いま向き合う論点');
 		// 発言者文脈に focusQuestion を含めない（5.2）
 		expect(callArgs.messages[0].content).not.toContain('テスト質問？');
+	});
+
+	it('factBase を共通前提として注入し、件数ノルマなし・暗唱回避の関与指針を添える（R8）', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(
+			mockPersona,
+			makeContext({
+				factBase: {
+					facts: [{ statement: '日本は1回戦で敗退した', sources: [] }],
+					generatedAt: new Date('2026-07-03T00:00:00Z')
+				}
+			}),
+			makeEngagement({ mode: 'opinion', intentSummary: '意見を述べたい' })
+		);
+
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		expect(userContent).toContain('【確定した客観的事実（共通前提）】');
+		expect(userContent).toContain('日本は1回戦で敗退した');
+		expect(userContent).toContain('件数ノルマもありません');
+	});
+
+	it('factBase が無いとき事実節を注入しない（従来どおり）', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(mockPersona, makeContext(), makeEngagement({ mode: 'opinion' }));
+
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		expect(userContent).not.toContain('【確定した客観的事実（共通前提）】');
 	});
 
 	it('activeDiscussionPoint が無いとき章タイトルを場のテーマとして提示し、focusQuestion は含めない', async () => {

@@ -15,6 +15,11 @@ vi.mock('../../../pipeline/topics/topics.js', () => ({
 	getTopicById: (...args: unknown[]) => mockGetTopicById(...args)
 }));
 
+const mockGetTopicContext = vi.fn();
+vi.mock('../../../pipeline/topics/topic-context.js', () => ({
+	getTopicContext: (...args: unknown[]) => mockGetTopicContext(...args)
+}));
+
 const mockGetPersonasByTopicId = vi.fn();
 vi.mock('../../../pipeline/personas/personas.js', () => ({
 	getPersonasByTopicId: (...args: unknown[]) => mockGetPersonasByTopicId(...args)
@@ -85,6 +90,7 @@ describe('planChapters', () => {
 		vi.clearAllMocks();
 		mockDoc.mockReturnValue({ set: mockSet, update: mockUpdate, delete: mockDelete });
 		mockGetPersonasByTopicId.mockResolvedValue([{ id: 'p1', approved: true }]);
+		mockGetTopicContext.mockResolvedValue({});
 		mockGenerateChapters.mockImplementation(makeGenerateChaptersMock());
 	});
 
@@ -175,36 +181,42 @@ describe('planChapters', () => {
 		expect(sessionDocCalls).toHaveLength(0);
 	});
 
-	it('topicContextなしでgenerateChaptersを呼ぶ（後方互換）', async () => {
+	it('getTopicContext の結果（空）をそのまま generateChapters に渡す（後方互換）', async () => {
 		const topic: Topic = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
 		mockGetTopicById.mockResolvedValue(topic);
+		mockGetTopicContext.mockResolvedValue({});
 
 		await planChapters('topic1');
 
 		expect(mockGenerateChapters).toHaveBeenCalledWith(
 			'テーマ',
 			expect.any(Array),
-			undefined,
+			{},
 			expect.any(Function)
 		);
 	});
 
-	it('descriptionがあればtopicContextを組み立ててgenerateChaptersに渡す', async () => {
-		const topic: Topic = {
-			id: 'topic1',
-			title: 'テーマ',
-			description: 'テーマの詳細説明',
-			createdAt: '',
-			updatedAt: ''
-		};
+	it('BE 権威経路 getTopicContext で合成した共有コンテキスト（説明・事実基盤）を generateChapters に渡す', async () => {
+		const topic: Topic = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
 		mockGetTopicById.mockResolvedValue(topic);
+		mockGetTopicContext.mockResolvedValue({
+			description: 'テーマの詳細説明',
+			factBase: {
+				facts: [{ statement: '確定事実', sources: [] }],
+				generatedAt: new Date('2026-07-03T00:00:00Z')
+			}
+		});
 
 		await planChapters('topic1');
 
+		expect(mockGetTopicContext).toHaveBeenCalledWith('topic1');
 		expect(mockGenerateChapters).toHaveBeenCalledWith(
 			'テーマ',
 			expect.any(Array),
-			expect.objectContaining({ description: 'テーマの詳細説明' }),
+			expect.objectContaining({
+				description: 'テーマの詳細説明',
+				factBase: expect.objectContaining({ facts: [{ statement: '確定事実', sources: [] }] })
+			}),
 			expect.any(Function)
 		);
 	});

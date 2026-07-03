@@ -9,6 +9,7 @@ import { createFirestoreMock } from '../helpers/firestore-mock.js';
 
 const mockRunInterviewAgent = vi.hoisted(() => vi.fn());
 const mockConfirmInterviews = vi.hoisted(() => vi.fn());
+const mockGetTopicContext = vi.hoisted(() => vi.fn());
 
 const { holder } = vi.hoisted(() => ({
 	holder: {
@@ -36,6 +37,10 @@ vi.mock('../../utils/auth.js', () => ({
 
 vi.mock('../../agents/interview-agent.js', () => ({
 	runInterview: mockRunInterviewAgent
+}));
+
+vi.mock('../../pipeline/topics/topic-context.js', () => ({
+	getTopicContext: mockGetTopicContext
 }));
 
 vi.mock('../../pipeline/interviews/interview-completion.js', () => ({
@@ -86,6 +91,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	holder.mock = createFirestoreMock();
 	holder.mock.store.set(`topics/${TOPIC_ID}/personas/${PERSONA_ID}`, { sortOrder: 0 });
+	mockGetTopicContext.mockResolvedValue({});
 });
 
 describe('runInterview handler', () => {
@@ -130,6 +136,27 @@ describe('runInterview handler', () => {
 		});
 		expect(persona()?.beliefs).toEqual([{ version: 0, content: 'belief', createdAt: 'TS' }]);
 		expect(mockConfirmInterviews).toHaveBeenCalledWith(TOPIC_ID);
+	});
+
+	it('事実基盤を含む共有コンテキストをサーバ権威（getTopicContext）で取得し取材に渡す（FEからは渡さない）', async () => {
+		const serverContext = {
+			factBase: {
+				facts: [{ statement: '確定事実', sources: [] }],
+				generatedAt: new Date('2026-07-03T00:00:00Z')
+			}
+		};
+		mockGetTopicContext.mockResolvedValueOnce(serverContext);
+		mockRunInterviewAgent.mockResolvedValueOnce({ ok: true, value: agentOutput });
+		mockConfirmInterviews.mockResolvedValueOnce(true);
+
+		// FE が factBase 付きの topicContext を渡しても、サーバは getTopicContext の値を使う
+		await handler(
+			makeRequest(validData({ topicContext: { factBase: { facts: [], generatedAt: new Date() } } }))
+		);
+
+		expect(mockGetTopicContext).toHaveBeenCalledWith(TOPIC_ID);
+		const [, , passedContext] = mockRunInterviewAgent.mock.calls[0];
+		expect(passedContext).toEqual(serverContext);
 	});
 
 	it('取材失敗時は当該ペルソナを error 状態で永続化し HttpsError(internal) を投げる', async () => {

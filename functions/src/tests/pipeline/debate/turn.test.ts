@@ -7,7 +7,7 @@ import type { Chapter } from '../../../types/chapter.types.js';
 // 非トランザクション get（isDebateActive 等）と書き込み
 const mockGet = vi.fn().mockResolvedValue({
 	exists: true,
-	data: () => ({ phase: 5, phaseStatus: 'running' })
+	data: () => ({ phase: 'debate', phaseStatus: 'running' })
 });
 const mockUpdate = vi.fn().mockResolvedValue(undefined);
 const mockSet = vi.fn().mockResolvedValue(undefined);
@@ -58,6 +58,11 @@ vi.mock('../../../pipeline/debate/inline-fact-check.js', () => ({
 
 vi.mock('../../../utils/prompt-formatters.js', () => ({
 	currentDateString: vi.fn(() => '2026年6月25日')
+}));
+
+// 事実基盤の供給はサーバ権威経路。ここでは空コンテキストを返し、ターン生成配線のみ検証する。
+vi.mock('../../../pipeline/topics/topic-context.js', () => ({
+	getTopicContext: vi.fn(async () => ({}))
 }));
 
 import {
@@ -161,7 +166,7 @@ describe('generatePersonaTurn', () => {
 		setupTxDocs();
 		mockGet.mockResolvedValue({
 			exists: true,
-			data: () => ({ phase: 5, phaseStatus: 'running' })
+			data: () => ({ phase: 'debate', phaseStatus: 'running' })
 		});
 		mockDoc.mockImplementation((path: string) => ({
 			path,
@@ -646,7 +651,7 @@ describe('generatePersonaTurn', () => {
 		});
 		mockGet.mockResolvedValue({
 			exists: true,
-			data: () => ({ phase: 5, phaseStatus: 'stopped' })
+			data: () => ({ phase: 'debate', phaseStatus: 'stopped' })
 		});
 
 		const result = await generatePersonaTurn({

@@ -8,8 +8,10 @@ import { createPersonasStore } from '$lib/stores/personas.svelte';
 import { createEngagementsStore } from '$lib/stores/engagements.svelte';
 import { createStakeholdersStore } from '$lib/stores/stakeholders.svelte';
 import { createFactCheckStore } from '$lib/stores/factCheck.svelte';
+import { createFactBaseStore } from '$lib/stores/factBase.svelte';
 
 const create = () => {
+	let factBaseStore = $state(createFactBaseStore(''));
 	let chaptersStore = $state(createChaptersStore(''));
 	let editedChaptersStore = $state(createEditedChaptersStore(''));
 	let chapterAnalysisStore = $state(createChapterAnalysisStore(''));
@@ -22,6 +24,9 @@ const create = () => {
 	return {
 		get topic() {
 			return topicsStore.topics.find((t) => t.id === page.params.topicId);
+		},
+		get factBaseStore() {
+			return factBaseStore;
 		},
 		get chaptersStore() {
 			return chaptersStore;
@@ -48,6 +53,7 @@ const create = () => {
 			return factCheckStore;
 		},
 		start(topicId: string) {
+			const factBase = createFactBaseStore(topicId);
 			const chapters = createChaptersStore(topicId);
 			const editedChapters = createEditedChaptersStore(topicId);
 			const analysis = createChapterAnalysisStore(topicId);
@@ -56,6 +62,7 @@ const create = () => {
 			const engagements = createEngagementsStore(topicId);
 			const stakeholders = createStakeholdersStore(topicId);
 			const factCheck = createFactCheckStore(topicId);
+			factBase.start();
 			chapters.start();
 			editedChapters.start();
 			analysis.start();
@@ -64,6 +71,7 @@ const create = () => {
 			engagements.start();
 			stakeholders.start();
 			factCheck.start();
+			factBaseStore = factBase;
 			chaptersStore = chapters;
 			editedChaptersStore = editedChapters;
 			chapterAnalysisStore = analysis;
@@ -73,6 +81,7 @@ const create = () => {
 			stakeholdersStore = stakeholders;
 			factCheckStore = factCheck;
 			return () => {
+				factBase.stop();
 				chapters.stop();
 				editedChapters.stop();
 				analysis.stop();

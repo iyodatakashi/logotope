@@ -3,7 +3,7 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { AI_MODELS } from '../constants/ai.constants.js';
-import { formatPersonas } from '../utils/prompt-formatters.js';
+import { formatPersonas, formatFactBaseSection } from '../utils/prompt-formatters.js';
 import { buildNeutralitySystemPrompt } from './facilitator-agent.js';
 import type { Chapter, Issue, IssueGroup } from '../types/chapter.types.js';
 import type { Persona } from '../types/persona.types.js';
@@ -22,6 +22,7 @@ const buildTopicContextSection = (topicContext?: TopicContext): string => {
 			.join('\n\n');
 		parts.push(`\n\n【参考資料】\n${sources}`);
 	}
+	parts.push(formatFactBaseSection(topicContext.factBase));
 	return parts.join('');
 };
 

@@ -55,6 +55,27 @@ describe('PhasePanel.svelte', () => {
 			render(PhasePanel, makeProps({ logicalState: 'not_started' }));
 			expect(page.getByRole('status').elements()).toHaveLength(0);
 		});
+
+		it('emptyApprove プロップ未指定なら「実行せず承認」ボタンは表示しない（既定フェーズ不変）', async () => {
+			render(PhasePanel, makeProps({ logicalState: 'not_started' }));
+			expect(page.getByRole('button', { name: '実行せず承認' }).elements()).toHaveLength(0);
+		});
+
+		it('emptyApproveLabel/onEmptyApprove を渡すと「実行せず承認」ボタンを表示し押下で発火する', async () => {
+			const onEmptyApprove = vi.fn();
+			render(
+				PhasePanel,
+				makeProps({
+					logicalState: 'not_started',
+					emptyApproveLabel: '実行せず承認',
+					onEmptyApprove
+				})
+			);
+			const button = page.getByRole('button', { name: '実行せず承認' });
+			await expect.element(button).toBeInTheDocument();
+			await button.click();
+			expect(onEmptyApprove).toHaveBeenCalledOnce();
+		});
 	});
 
 	describe('running 状態（フェーズ1〜4）', () => {

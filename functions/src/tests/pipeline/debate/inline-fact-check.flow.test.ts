@@ -12,7 +12,7 @@ import type { Chapter } from '../../../types/chapter.types.js';
 // --- Firestore（addTurn の冪等トランザクション + isDebateActive の get）---
 const mockGet = vi.fn().mockResolvedValue({
 	exists: true,
-	data: () => ({ phase: 5, phaseStatus: 'running' })
+	data: () => ({ phase: 'debate', phaseStatus: 'running' })
 });
 const mockTxGet = vi.fn();
 const mockTxUpdate = vi.fn();
@@ -44,6 +44,10 @@ const mockValidPersonaId = vi.fn((id: string | undefined) => id);
 vi.mock('../../../pipeline/debate/utils.js', () => ({
 	pipelineErrorMessage: vi.fn((e: unknown) => String(e)),
 	validPersonaId: (id: string | undefined, _personas: unknown[]) => mockValidPersonaId(id)
+}));
+
+vi.mock('../../../pipeline/topics/topic-context.js', () => ({
+	getTopicContext: vi.fn(async () => ({}))
 }));
 
 vi.mock('../../../utils/prompt-formatters.js', () => ({
@@ -188,7 +192,10 @@ beforeEach(() => {
 		}
 		return { exists: true, data: () => ({}) };
 	});
-	mockGet.mockResolvedValue({ exists: true, data: () => ({ phase: 5, phaseStatus: 'running' }) });
+	mockGet.mockResolvedValue({
+		exists: true,
+		data: () => ({ phase: 'debate', phaseStatus: 'running' })
+	});
 	mockDoc.mockImplementation((path: string) => ({ path, get: mockGet }));
 	mockValidPersonaId.mockImplementation((id: string | undefined) => id);
 	mockGetGoogleProvider.mockReturnValue(mockGoogleProvider);

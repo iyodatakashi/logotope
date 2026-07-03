@@ -52,13 +52,25 @@ describe('createTopicStates', () => {
 	});
 
 	describe('承認操作の2軸遷移 (task 3.1)', () => {
+		it('approveFactResearch は (stakeholders, not_started) へ前進し事実リサーチを承認する', async () => {
+			const store = makeTopic();
+			await store.approveFactResearch();
+			expect(updateDoc).toHaveBeenCalledWith(
+				TOPIC_PATH,
+				expect.objectContaining({
+					phase: 'stakeholders',
+					phaseStatus: 'not_started'
+				})
+			);
+		});
+
 		it('approveStakeholders は (2, not_started) へ前進しステークホルダーを承認する', async () => {
 			const store = makeTopic();
 			await store.approveStakeholders();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
 				expect.objectContaining({
-					phase: 2,
+					phase: 'personas',
 					phaseStatus: 'not_started'
 				})
 			);
@@ -69,7 +81,7 @@ describe('createTopicStates', () => {
 			await store.approveInterviews();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
-				expect.objectContaining({ phase: 4, phaseStatus: 'not_started' })
+				expect.objectContaining({ phase: 'chapters', phaseStatus: 'not_started' })
 			);
 		});
 
@@ -78,7 +90,7 @@ describe('createTopicStates', () => {
 			await store.approveChapters();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
-				expect.objectContaining({ phase: 5, phaseStatus: 'not_started' })
+				expect.objectContaining({ phase: 'debate', phaseStatus: 'not_started' })
 			);
 		});
 
@@ -87,7 +99,7 @@ describe('createTopicStates', () => {
 			await store.approveDebate();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
-				expect.objectContaining({ phase: 6, phaseStatus: 'not_started' })
+				expect.objectContaining({ phase: 'editing', phaseStatus: 'not_started' })
 			);
 		});
 
@@ -129,13 +141,33 @@ describe('createTopicStates', () => {
 	});
 
 	describe('生成の2軸遷移（生成のみ。旧データ削除は reset が担う）', () => {
+		it('generateFactResearch は (fact-research, running) のみ書き、generated はサーバ権威', async () => {
+			vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: {} }) as never);
+			const store = makeTopic({ title: 'T', id: 't1' });
+			await store.generateFactResearch();
+
+			expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'generateFactResearch', {
+				timeout: 310000
+			});
+			const calls = updateCallsFor('topics/t1');
+			expect(calls[0][1]).toEqual(
+				expect.objectContaining({ phase: 'fact-research', phaseStatus: 'running' })
+			);
+			// 完了状態(generated)はサーバが書くため、クライアントは書かない
+			expect(
+				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'generated')
+			).toBe(false);
+		});
+
 		it('generateStakeholders は (1, running) のみ書き、generated はサーバ権威。削除はしない', async () => {
 			vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: {} }) as never);
 			const store = makeTopic({ title: 'T', id: 't1' });
 			await store.generateStakeholders();
 
 			const calls = updateCallsFor('topics/t1');
-			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 1, phaseStatus: 'running' }));
+			expect(calls[0][1]).toEqual(
+				expect.objectContaining({ phase: 'stakeholders', phaseStatus: 'running' })
+			);
 			// 完了状態(generated)はサーバ(generateStakeholders 関数)が書くため、クライアントは書かない
 			expect(
 				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'generated')
@@ -150,7 +182,9 @@ describe('createTopicStates', () => {
 			const store = makeTopic({ title: 'T' });
 			await store.generatePersonas();
 			const calls = updateCallsFor('topics/t1');
-			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 2, phaseStatus: 'running' }));
+			expect(calls[0][1]).toEqual(
+				expect.objectContaining({ phase: 'personas', phaseStatus: 'running' })
+			);
 			// 完了状態(generated)はサーバ(generatePersonas 関数)が書くため、クライアントは書かない
 			expect(
 				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'generated')
@@ -164,7 +198,9 @@ describe('createTopicStates', () => {
 			const store = makeTopic({ title: 'T' });
 			await store.generateChapters();
 			const calls = updateCallsFor('topics/t1');
-			expect(calls[0][1]).toEqual(expect.objectContaining({ phase: 4, phaseStatus: 'running' }));
+			expect(calls[0][1]).toEqual(
+				expect.objectContaining({ phase: 'chapters', phaseStatus: 'running' })
+			);
 			// 完了状態(generated)はサーバ(generateChapters 関数)が書くため、クライアントは書かない
 			expect(
 				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'generated')
@@ -194,7 +230,7 @@ describe('createTopicStates', () => {
 			await expect(store.generateStakeholders()).rejects.toThrow('生成失敗');
 			const calls = updateCallsFor('topics/t1');
 			expect(calls.at(-1)?.[1]).toEqual(
-				expect.objectContaining({ phase: 1, phaseStatus: 'stopped' })
+				expect.objectContaining({ phase: 'stakeholders', phaseStatus: 'stopped' })
 			);
 		});
 
@@ -225,7 +261,7 @@ describe('createTopicStates', () => {
 			await expect(store.generatePersonas()).rejects.toThrow('生成失敗');
 			const calls = updateCallsFor('topics/t1');
 			expect(calls.at(-1)?.[1]).toEqual(
-				expect.objectContaining({ phase: 2, phaseStatus: 'stopped' })
+				expect.objectContaining({ phase: 'personas', phaseStatus: 'stopped' })
 			);
 		});
 
@@ -255,7 +291,7 @@ describe('createTopicStates', () => {
 			await expect(store.generateChapters()).rejects.toThrow('生成失敗');
 			const calls = updateCallsFor('topics/t1');
 			expect(calls.at(-1)?.[1]).toEqual(
-				expect.objectContaining({ phase: 4, phaseStatus: 'stopped' })
+				expect.objectContaining({ phase: 'chapters', phaseStatus: 'stopped' })
 			);
 		});
 

@@ -18,7 +18,14 @@ vi.mock('../../constants/ai.constants.js', () => ({
 
 vi.mock('../../utils/prompt-formatters.js', () => ({
 	formatPersonas: vi.fn(() => '- p1: テスト'),
-	currentDateString: vi.fn(() => '2026-06-19')
+	currentDateString: vi.fn(() => '2026-06-19'),
+	// 事実節整形の実体は prompt-formatters.test.ts で検証する。ここでは chapter-agent が
+	// これを呼び出して結果をプロンプトに含める配線だけを検証するため、最小の整形を返す。
+	formatFactBaseSection: vi.fn((factBase?: { facts: { statement: string }[] }) =>
+		factBase?.facts?.length
+			? `\n\n【確定した客観的事実（共通前提）】\n${factBase.facts.map((f) => f.statement).join('\n')}`
+			: ''
+	)
 }));
 
 vi.mock('../../agents/facilitator-agent.js', () => ({
@@ -228,6 +235,56 @@ describe('generateChapters - topicContext対応', () => {
 			(m: unknown) => (m as { role: string }).role === 'user'
 		) as { content: string };
 		expect(msg.content).toContain('参考記事のテキスト');
+	});
+
+	it('topicContext.factBase を「確定した客観的事実（共通前提）」節として generalIssues プロンプトに含める', async () => {
+		const capturedGeneralIssues: unknown[] = [];
+		generateObject
+			.mockImplementationOnce(async (args: { messages: unknown[] }) => {
+				capturedGeneralIssues.push(...args.messages);
+				return makeIssuesResult(['i1']);
+			})
+			.mockResolvedValueOnce(makeIssuesResult(['i2']))
+			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeGroupingResult())
+			.mockResolvedValueOnce(makeBuildResult());
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona], {
+			factBase: {
+				facts: [{ statement: '日本は1回戦で敗退した', sources: [] }],
+				generatedAt: new Date('2026-07-03T00:00:00Z')
+			}
+		});
+
+		const msg = capturedGeneralIssues.find(
+			(m: unknown) => (m as { role: string }).role === 'user'
+		) as { content: string };
+		expect(msg.content).toContain('【確定した客観的事実（共通前提）】');
+		expect(msg.content).toContain('日本は1回戦で敗退した');
+	});
+
+	it('topicContext.factBase が空のとき事実節を出力しない（後方互換）', async () => {
+		const captured: unknown[] = [];
+		generateObject
+			.mockImplementationOnce(async (args: { messages: unknown[] }) => {
+				captured.push(...args.messages);
+				return makeIssuesResult(['i1']);
+			})
+			.mockResolvedValueOnce(makeIssuesResult(['i2']))
+			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeGroupingResult())
+			.mockResolvedValueOnce(makeBuildResult());
+
+		const { generateChapters } = await import('../../agents/chapter-agent.js');
+		await generateChapters('テーマ', [mockPersona], {
+			factBase: { facts: [], generatedAt: new Date() }
+		});
+
+		const msg = captured.find((m: unknown) => (m as { role: string }).role === 'user') as {
+			content: string;
+		};
+		expect(msg.content).not.toContain('【確定した客観的事実（共通前提）】');
 	});
 
 	it('topicContextなしで既存プロンプトと同一動作（後方互換）', async () => {

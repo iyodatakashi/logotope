@@ -33,6 +33,9 @@ vi.mock('../../../pipeline/debate/turn.js', () => ({
 vi.mock('../../../pipeline/debate/chapter.js', () => ({
 	updateChapterStatus: vi.fn().mockResolvedValue(undefined)
 }));
+vi.mock('../../../pipeline/topics/topic-context.js', () => ({
+	getTopicContext: vi.fn(async () => ({}))
+}));
 vi.mock('../../../pipeline/debate/engagement.js', () => ({
 	evaluateEngagements: vi.fn().mockResolvedValue([]),
 	evaluateEngagementWithFallback: vi

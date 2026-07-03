@@ -2,7 +2,11 @@ import { generateText, generateObject, jsonSchema, Output, stepCountIs } from 'a
 import { z } from 'zod';
 import { getPersonaModel } from '../llm/models.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
-import { formatTurns, currentDateString } from '../utils/prompt-formatters.js';
+import {
+	formatTurns,
+	currentDateString,
+	formatFactBaseSection
+} from '../utils/prompt-formatters.js';
 import type {
 	PersonaReply,
 	BeliefChangeEvent,
@@ -275,6 +279,11 @@ export const generateTurn = async (
 					: opinionInstruction) +
 			antiSycophancyNote +
 			targetBiasNote;
+		// 事実基盤（共通前提）。件数ノルマを課さず、暗唱・羅列を避け、自分の立場からの反応にする（R8.2〜8.5）。
+		const factSection = formatFactBaseSection(context.factBase);
+		const factBaseNote = factSection
+			? `${factSection}\n【事実への関与】上記はこのテーマの共通前提です。全てに触れる必要はなく、言及の件数ノルマもありません。自分のプロフィール・関心度に応じて自然に関与し、暗唱・羅列ではなく自分の立場・経験からの反応として述べてください。関心が薄いテーマなら詳細に立ち入らず概括的に反応してよい（知ったかぶりはしない）。`
+			: '';
 		// 事実確認の指摘フィードバック（補正再生成）。未指定なら従来どおりの生成（3.1〜3.4）
 		const factCheckFeedback = context.factCheckFeedback ?? [];
 		const factCheckNote =
@@ -289,7 +298,7 @@ export const generateTurn = async (
 							'\n'
 						)}\n【修正の方針】\n- 自分の立場・口調・論旨の方向性・指名（targetPersonaId）の整合は維持する（ただし事実の訂正によって主張の結論が変わることは許容する）\n- 誤り（incorrect）の主張は発言に含めず、訂正後の事実に基づいて組み立て直す\n- 検証不能（unverifiable）の主張は、不確実性を含む表現に改めるか取り下げる`
 				: '';
-		const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterFocusNote}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}${factCheckNote}`;
+		const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterFocusNote}${factBaseNote}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}${factCheckNote}`;
 		const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 			generateText({
 				model,

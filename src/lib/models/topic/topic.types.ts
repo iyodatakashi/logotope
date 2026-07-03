@@ -1,5 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
-import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
+import type { PhaseSlug, PhaseStatus } from '$lib/models/phase/phase.types';
+import type { FactBase } from '$lib/models/factBase/factBase.types';
 
 export type FetchedSourceContentForFirestore = {
 	url: string;
@@ -16,6 +17,8 @@ export type FetchedSourceContent = {
 export type TopicContext = {
 	description?: string;
 	sourceContents?: string[];
+	// 承認済み事実基盤（共通前提）。ユーザー提供資料（sourceContents）とは別データ。
+	factBase?: FactBase;
 };
 
 type TopicBaseForFirestore = {
@@ -25,7 +28,7 @@ type TopicBaseForFirestore = {
 	sourceUrls?: string[];
 	fetchedSourceContents?: FetchedSourceContentForFirestore[];
 	sourceContentsFetchedAt?: Timestamp;
-	phase: Phase;
+	phase: PhaseSlug;
 	phaseStatus: PhaseStatus;
 	personaCount?: number;
 };

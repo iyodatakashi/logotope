@@ -2,9 +2,9 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { requireAuth } from '../utils/auth.js';
 import { runInterview as runInterviewAgent } from '../agents/interview-agent.js';
+import { getTopicContext } from '../pipeline/topics/topic-context.js';
 import { confirmInterviewsGeneratedIfAllComplete } from '../pipeline/interviews/interview-completion.js';
 import type { Persona } from '../types/persona.types.js';
-import type { TopicContext } from '../types/topic.types.js';
 
 const db = () => getFirestore();
 
@@ -12,12 +12,11 @@ const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY'];
 
 export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, async (request) => {
 	requireAuth(request);
-	const { topicId, personaId, topicTitle, persona, topicContext } = request.data as {
+	const { topicId, personaId, topicTitle, persona } = request.data as {
 		topicId: string;
 		personaId: string;
 		topicTitle: string;
 		persona: Persona;
-		topicContext?: TopicContext;
 	};
 	if (!topicId?.trim()) throw new HttpsError('invalid-argument', 'topicId is required');
 	if (!personaId?.trim()) throw new HttpsError('invalid-argument', 'personaId is required');
@@ -25,6 +24,9 @@ export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, as
 	if (!persona?.name) throw new HttpsError('invalid-argument', 'persona is required');
 
 	const personaRef = db().doc(`topics/${topicId}/personas/${personaId}`);
+	// 共有コンテキスト（事実基盤を含む）はサーバ権威の getTopicContext で供給する。
+	// FE からは factBase を渡さない（stale 排除・R9.3）。
+	const topicContext = await getTopicContext(topicId);
 	const result = await runInterviewAgent(topicTitle, persona, topicContext);
 	if (!result.ok) {
 		console.error('[runInterview] error', result.error);

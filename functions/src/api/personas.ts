@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { requireAuth } from '../utils/auth.js';
 import { generatePersonas as runPersonaGeneration } from '../agents/persona-generator-agent.js';
+import { getTopicContext } from '../pipeline/topics/topic-context.js';
 import { confirmPhaseGenerated } from '../utils/topic-phase.js';
 import type { Stakeholder } from '../types/stakeholder.types.js';
 
@@ -22,7 +23,8 @@ export const generatePersonas = onCall(
 		const stakeholders = (snap.data() as { stakeholders: Stakeholder[] }).stakeholders;
 
 		try {
-			const { personas } = await runPersonaGeneration(title, stakeholders, topicId);
+			const topicContext = await getTopicContext(topicId);
+			const { personas } = await runPersonaGeneration(title, stakeholders, topicId, topicContext);
 			// 全ペルソナ文書を一括（batch）で永続化する。途中失敗では未コミット（全件 or 未書込）と
 			// なり、不完全な成果物を残さない。結果の Single Source of Truth は Firestore。
 			const batch = db().batch();
@@ -39,7 +41,7 @@ export const generatePersonas = onCall(
 			await batch.commit();
 			// 永続化成功後、完了状態はサーバ権威で確定する。クライアントの生存や callable の
 			// タイムアウトに依存せず、running のときだけ generated へ冪等遷移させる。
-			await confirmPhaseGenerated(topicId, 2);
+			await confirmPhaseGenerated(topicId, 'personas');
 			return {};
 		} catch (err) {
 			console.error('[generatePersonas] error', { topicId, title }, err);

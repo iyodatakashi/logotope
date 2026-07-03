@@ -11,6 +11,7 @@
  * その更新後の状態を基に orchestrator が次ステップを enqueue する（frontier 算出も orchestrator 側）。
  */
 import { updateChapterStatus } from './chapter.js';
+import { getTopicContext } from '../topics/topic-context.js';
 import {
 	generateOpening,
 	generateChapterIntroduction,
@@ -296,9 +297,12 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 	state.discussionPoints = initDiscussionPoints(chapter);
 	await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
 
+	// 事実基盤（共通前提）はサーバ権威の getTopicContext で供給し、ファシリテーターの導入に背景として渡す（R8.1）。
+	const { factBase } = await getTopicContext(topicId);
+
 	// 第1章は討論全体のオープニング、それ以外は章の導入をファシリテーターに生成させる
 	if (chapterIndex === 0) {
-		const openingResult = await generateOpening(topicTitle, personas, chapter);
+		const openingResult = await generateOpening(topicTitle, personas, chapter, factBase);
 		if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
 		const fac = await generateFacilitatorTurn({
 			topicId,
@@ -317,7 +321,7 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 			await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
 		}
 	} else {
-		const introResult = await generateChapterIntroduction(chapter, personas);
+		const introResult = await generateChapterIntroduction(chapter, personas, factBase);
 		if (introResult.ok) {
 			const fac = await generateFacilitatorTurn({
 				topicId,

@@ -1,6 +1,7 @@
 import type { Timestamp } from 'firebase-admin/firestore';
 import type { Chapter, DiscussionPointState } from './chapter.types.js';
 import type { FactCheckFinding, FactCheckVerdict } from './fact-check.types.js';
+import type { FactBase } from './topic.types.js';
 
 // インライン検証・補正の監査トレース。対象発言（ターン）に co-located で埋め込む。
 export type TurnFactCheckTrace = {
@@ -74,4 +75,6 @@ export type TurnGenerationContext = {
 	targetedBy?: 'facilitator' | 'persona';
 	otherPersonas?: ReadonlyArray<{ id: string; name: string }>;
 	factCheckFeedback?: TurnFactCheckFeedback;
+	// 承認済み事実基盤（共通前提）。件数ノルマは課さず、関与濃淡はプロフィール・関心度に委ねる（R8）。
+	factBase?: FactBase;
 };

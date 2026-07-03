@@ -4,6 +4,7 @@ export const AI_MODELS = {
 } as const;
 
 export const PIPELINE_MODELS = {
+	factResearch: 'gemini-2.5-pro',
 	stakeholderAnalyzer: 'gemini-2.5-pro',
 	personaGenerator: 'gpt-5.5',
 	personaInterview: 'gemini-2.5-pro',

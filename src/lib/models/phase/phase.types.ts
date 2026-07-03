@@ -1,6 +1,5 @@
-export type Phase = 1 | 2 | 3 | 4 | 5 | 6;
-
 export type PhaseSlug =
+	| 'fact-research'
 	| 'stakeholders'
 	| 'personas'
 	| 'interviews'
@@ -14,10 +13,11 @@ export type PhaseStatus = 'not_started' | 'running' | 'generated' | 'stopped';
 // 表示用の論理状態（approved は phase 比較で導出するのみで永続しない）
 export type PhaseLogicalState = PhaseStatus | 'approved';
 
-// フェーズの基本属性（ルーティングとステップナビで使う）。
+// フェーズの基本属性（ルーティング・ステップナビ・バッジラベルで使う）。
+// 配列順が進行順の唯一の真実。状態別ラベルを内包する（番号キー Record は持たない）。
 // ボタン文言などUIラベルは各フェーズ画面が持つ（ここには置かない）。
 export type PhaseDef = {
-	phase: Phase;
-	slug: PhaseSlug;
-	label: string;
+	key: PhaseSlug;
+	label: string; // ステップ名（StepNav 用）
+	statusLabels: Record<PhaseStatus, string>; // バッジ表示
 };

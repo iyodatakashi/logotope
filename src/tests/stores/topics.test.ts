@@ -31,14 +31,14 @@ describe('topicsStore.addTopic (task 3.3)', () => {
 		vi.clearAllMocks();
 	});
 
-	it('新規トピックを (1, not_started) で明示初期化する', async () => {
+	it('新規トピックを (fact-research, not_started) で明示初期化する', async () => {
 		await topicsStore.addTopic('新しい題名');
 		expect(setDoc).toHaveBeenCalledWith(
 			{ path: 'topics/new-id' },
 			expect.objectContaining({
 				id: 'new-id',
 				title: '新しい題名',
-				phase: 1,
+				phase: 'fact-research',
 				phaseStatus: 'not_started'
 			})
 		);

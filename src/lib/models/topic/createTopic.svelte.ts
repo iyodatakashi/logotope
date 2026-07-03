@@ -10,12 +10,13 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
 import type { TopicInput } from './topic.types';
-import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
+import type { PhaseSlug, PhaseStatus } from '$lib/models/phase/phase.types';
+import { nextPhase } from '$lib/models/phase/phase';
 
 export const createTopicStates = (topicDoc: TopicInput) => {
 	const id: string = $state(topicDoc.id);
 	const title: string = $state(topicDoc.title);
-	const phase: Phase = $state(topicDoc.phase);
+	const phase: PhaseSlug = $state(topicDoc.phase);
 	const phaseStatus: PhaseStatus = $state(topicDoc.phaseStatus);
 	const description: string | undefined = $state(topicDoc.description);
 	const sourceUrls: string[] | undefined = $state(topicDoc.sourceUrls);
@@ -25,37 +26,38 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 	const updatedAt: Date = topicDoc.updatedAt;
 	const publishedAt: Date | undefined = topicDoc.publishedAt;
 
-	const approveStakeholders = async (): Promise<void> => {
+	// 現在フェーズを承認し、定義配列の次フェーズへ前進させる（最終フェーズでは前進しない）。
+	const advancePhase = async (currentKey: PhaseSlug): Promise<void> => {
+		const next = nextPhase(currentKey);
+		if (!next) return;
 		await updateDoc(doc(db, 'topics', id), {
-			phase: 2,
+			phase: next,
 			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
 		});
+	};
+
+	// 事実リサーチを確定してステークホルダーフェーズへ前進させる。
+	// 実行せず承認した場合も空の事実基盤（factBase/0 不在＝空）で同じ前進経路を通る。
+	const approveFactResearch = async (): Promise<void> => {
+		await advancePhase('fact-research');
+	};
+
+	const approveStakeholders = async (): Promise<void> => {
+		await advancePhase('stakeholders');
 	};
 
 	const approveInterviews = async (): Promise<void> => {
-		await updateDoc(doc(db, 'topics', id), {
-			phase: 4,
-			phaseStatus: 'not_started',
-			updatedAt: Timestamp.now()
-		});
+		await advancePhase('interviews');
 	};
 
 	const approveChapters = async (): Promise<void> => {
-		await updateDoc(doc(db, 'topics', id), {
-			phase: 5,
-			phaseStatus: 'not_started',
-			updatedAt: Timestamp.now()
-		});
+		await advancePhase('chapters');
 	};
 
-	// 討論を確定して編集フェーズ（Phase 6）へ前進させる。討論 generated のときのみ画面から到達できる。
+	// 討論を確定して編集フェーズへ前進させる。討論 generated のときのみ画面から到達できる。
 	const approveDebate = async (): Promise<void> => {
-		await updateDoc(doc(db, 'topics', id), {
-			phase: 6,
-			phaseStatus: 'not_started',
-			updatedAt: Timestamp.now()
-		});
+		await advancePhase('debate');
 	};
 
 	// 編集を開始する（既存成果物破棄→実行中化→章チェーン投入はサーバ責務）。
@@ -89,7 +91,7 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 	};
 
 	// フェーズ状態（実行中・生成完了・停止）をトピックに書く小さなヘルパー。
-	const setPhaseStatus = async (phase: 1 | 2 | 3 | 4 | 5, phaseStatus: string): Promise<void> => {
+	const setPhaseStatus = async (phase: PhaseSlug, phaseStatus: string): Promise<void> => {
 		await updateDoc(doc(db, 'topics', id), {
 			phase,
 			phaseStatus,
@@ -130,8 +132,28 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 
 	// --- 生成（各 generate は生成と書き込みのみ。旧データの削除は上の reset が担う） ---
 
+	const generateFactResearch = async (): Promise<void> => {
+		await setPhaseStatus('fact-research', 'running');
+		try {
+			const generateFactResearchCallable = httpsCallable<
+				{ topicId: string; title: string },
+				Record<string, never>
+			>(functions, 'generateFactResearch', { timeout: 310000 });
+			await generateFactResearchCallable({ topicId: id, title });
+			// 完了状態(phaseStatus='generated')はサーバが権威的に書くため、ここでは書かない。
+		} catch (e) {
+			// サーバが既に generated を確定済み（クライアントのタイムアウト等で reject されただけ）の
+			// 場合は stopped に上書きしない。承認ボタンが消える不具合の再発を防ぐ。
+			const snap = await getDoc(doc(db, 'topics', id));
+			if (snap.data()?.phaseStatus !== 'generated') {
+				await setPhaseStatus('fact-research', 'stopped');
+			}
+			throw e;
+		}
+	};
+
 	const generateStakeholders = async (): Promise<void> => {
-		await setPhaseStatus(1, 'running');
+		await setPhaseStatus('stakeholders', 'running');
 		try {
 			const generateStakeholdersCallable = httpsCallable<
 				{ topicId: string; title: string },
@@ -144,14 +166,14 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 			// 場合は stopped に上書きしない。承認ボタンが消える不具合の再発を防ぐ。
 			const snap = await getDoc(doc(db, 'topics', id));
 			if (snap.data()?.phaseStatus !== 'generated') {
-				await setPhaseStatus(1, 'stopped');
+				await setPhaseStatus('stakeholders', 'stopped');
 			}
 			throw e;
 		}
 	};
 
 	const generatePersonas = async (): Promise<void> => {
-		await setPhaseStatus(2, 'running');
+		await setPhaseStatus('personas', 'running');
 		try {
 			const generatePersonasCallable = httpsCallable<
 				{ topicId: string; title: string },
@@ -165,14 +187,14 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 			// 場合は stopped に上書きしない。承認ボタンが消える不具合の再発を防ぐ。
 			const snap = await getDoc(doc(db, 'topics', id));
 			if (snap.data()?.phaseStatus !== 'generated') {
-				await setPhaseStatus(2, 'stopped');
+				await setPhaseStatus('personas', 'stopped');
 			}
 			throw e;
 		}
 	};
 
 	const generateChapters = async (): Promise<void> => {
-		await setPhaseStatus(4, 'running');
+		await setPhaseStatus('chapters', 'running');
 		try {
 			const generateChaptersCallable = httpsCallable<{ topicId: string }, unknown>(
 				functions,
@@ -186,7 +208,7 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 			// 場合は stopped に上書きしない。承認ボタンが消える不具合の再発を防ぐ。
 			const snap = await getDoc(doc(db, 'topics', id));
 			if (snap.data()?.phaseStatus !== 'generated') {
-				await setPhaseStatus(4, 'stopped');
+				await setPhaseStatus('chapters', 'stopped');
 			}
 			throw e;
 		}
@@ -255,6 +277,7 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 			return fetchedSourceContents;
 		},
 
+		generateFactResearch,
 		generateStakeholders,
 		generatePersonas,
 		generateChapters,
@@ -265,6 +288,7 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 		resetPersonas,
 		resetChapters,
 		resetDebate,
+		approveFactResearch,
 		approveStakeholders,
 		approveInterviews,
 		approveChapters,

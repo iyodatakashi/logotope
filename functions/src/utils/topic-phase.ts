@@ -1,12 +1,17 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import type { PhaseKey } from '../types/topic.types.js';
 
 /**
- * フェーズ1〜4の生成完了確定と状態書込をサーバ側で一元化するヘルパー。
+ * 生成確定を持つフェーズ（fact-research/stakeholders/personas/interviews/chapters）の生成完了確定と
+ * 状態書込をサーバ側で一元化するヘルパー。
  * 全フェーズで not_started → running → generated/stopped の状態遷移を1箇所で担保し、
  * 完了（generated）は running 限定の冪等トランザクションでのみ確定する
  * （討論フェーズの persistPostDebateComments と同じ規範）。
  */
-export type GeneratePhase = 1 | 2 | 3 | 4;
+export type GeneratePhase = Extract<
+	PhaseKey,
+	'fact-research' | 'stakeholders' | 'personas' | 'interviews' | 'chapters'
+>;
 
 const db = () => getFirestore();
 
@@ -25,7 +30,7 @@ export const confirmPhaseGenerated = async (
 	return db().runTransaction(async (tx) => {
 		const snap = await tx.get(ref);
 		if (!snap.exists) return false;
-		const data = snap.data() as { phase?: number; phaseStatus?: string };
+		const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string };
 		// 対象フェーズから前進済み（承認で phase が進んだ等）なら触らない＝巻き戻し防止
 		if (data.phase !== phase) return false;
 		if (data.phaseStatus !== 'running' && data.phaseStatus !== 'stopped') return false;

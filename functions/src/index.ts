@@ -9,6 +9,7 @@ setGlobalOptions({
 	secrets: ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY']
 });
 
+export { generateFactResearch } from './api/fact-research.js';
 export { generateStakeholders } from './api/stakeholders.js';
 export { generatePersonas } from './api/personas.js';
 export { runInterview } from './api/interviews.js';

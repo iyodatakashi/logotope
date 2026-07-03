@@ -8,6 +8,7 @@ import {
 	type GroundingMetadata,
 	type SearchSource
 } from '../search/grounding.js';
+import { formatFactBaseSection } from '../utils/prompt-formatters.js';
 import type { Persona } from '../types/persona.types.js';
 import type { TopicContext } from '../types/topic.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
@@ -53,14 +54,20 @@ export const runInterview = async (
 	const draftResult = await generateDraftBelief(topicTitle, persona, topicContext);
 	if (!draftResult.ok) return draftResult;
 
-	const verifyResult = await verifyWithGrounding(topicTitle, persona, draftResult.value);
+	const verifyResult = await verifyWithGrounding(
+		topicTitle,
+		persona,
+		draftResult.value,
+		topicContext
+	);
 	if (!verifyResult.ok) return verifyResult;
 
 	const finalResult = await generateFinalBelief(
 		topicTitle,
 		persona,
 		draftResult.value,
-		verifyResult.value.verificationReport
+		verifyResult.value.verificationReport,
+		topicContext
 	);
 	if (!finalResult.ok) return finalResult;
 
@@ -127,7 +134,8 @@ const generateDraftBelief = async (
 const verifyWithGrounding = async (
 	topicTitle: string,
 	persona: Persona,
-	draft: DraftBelief
+	draft: DraftBelief,
+	topicContext?: TopicContext
 ): Promise<Result<{ verificationReport: string; sources: SearchSource[] }, PipelineError>> => {
 	const google = getGoogleProvider();
 	if (!google) {
@@ -136,6 +144,8 @@ const verifyWithGrounding = async (
 			error: { code: 'AI_API_ERROR', message: 'GEMINI_API_KEY is not set', retryable: false }
 		};
 	}
+
+	const factSection = formatFactBaseSection(topicContext?.factBase);
 
 	try {
 		const result = await generateText({
@@ -148,10 +158,12 @@ const verifyWithGrounding = async (
 					role: 'user',
 					content: `テーマ「${topicTitle}」に対するペルソナ「${persona.name}」（${persona.age}歳、${persona.occupation}）の信念ドラフトについて、各項目が誤り・実態と異なる証拠を優先的に探してください（反証起点）。
 
-【検証の姿勢】
+【検索の対象（重要）】
+- 検索するのは「このペルソナ固有の信念（立場・価値観・懸念）」の反証だけに限定する
+- テーマの一般的・客観的事実は下記の【確定した客観的事実（共通前提）】で既に共有済みなので、それらを重ねて検索しない（重複検索の禁止）
 - 「このステレオタイプは本当に正しいか」「実態が異なる証拠はないか」を主軸に検索する
 - ドラフトの主張を確認するのではなく、それを否定・修正しうる情報を優先的に探す
-- 当事者の証言・統計・実態調査を検索で探し、ドラフトとの乖離を記録する
+- 当事者の証言・統計・実態調査を検索で探し、ドラフトとの乖離を記録する${factSection}
 
 【ドラフト信念】
 - 立場と根拠: ${draft.stanceAndGrounds}
@@ -187,16 +199,11 @@ const verifyWithGrounding = async (
 			| undefined;
 		const groundingMetadata = googleMeta?.groundingMetadata;
 
+		// テーマ事実の収集責務は共有事実基盤へ移管したため、信念反証の検索が空でもエラーにしない（R6.3/6.5）。
+		// 得られた範囲の検証レポートで後続フェーズを続行する（出典は空）。
 		if (!groundingMetadata || !groundingMetadata.groundingChunks?.length) {
-			console.error('[runInterview] Phase2 (verifyWithGrounding) error: groundingChunks empty');
-			return {
-				ok: false,
-				error: {
-					code: 'AI_API_ERROR',
-					message: 'Grounding returned no sources. Cannot verify draft belief.',
-					retryable: true
-				}
-			};
+			console.info('[runInterview] Phase2 (verifyWithGrounding): no belief-refutation sources');
+			return { ok: true, value: { verificationReport: result.text, sources: [] } };
 		}
 
 		const sources = extractSources(groundingMetadata, result.text.slice(0, 500));
@@ -220,8 +227,10 @@ const generateFinalBelief = async (
 	topicTitle: string,
 	persona: Persona,
 	draft: DraftBelief,
-	verificationReport: string
+	verificationReport: string,
+	topicContext?: TopicContext
 ): Promise<Result<{ initialBelief: string; interviewRecord: string }, PipelineError>> => {
+	const factSection = formatFactBaseSection(topicContext?.factBase);
 	try {
 		const result = await generateObject({
 			model: getPipelineModel('personaInterview'),
@@ -236,6 +245,7 @@ const generateFinalBelief = async (
 - 検証レポートで判明したギャップ・新発見を最大限反映する
 - ステレオタイプの一般論ではなく、このペルソナ固有の経験・葛藤・価値観を描く
 - 取材記録は1000字以上の具体的な質疑応答形式で書く
+- 【確定した客観的事実（共通前提）】がある場合、このペルソナに関連する具体的事実は一般論に薄めず具体的に反映する。関連する事実が無ければ無理に盛り込まない${factSection}
 
 【比較参照：ドラフト信念（ステレオタイプ仮説）】
 - 立場と根拠: ${draft.stanceAndGrounds}
@@ -311,5 +321,6 @@ const buildTopicContextSection = (topicContext?: TopicContext): string => {
 			.join('\n\n');
 		parts.push(`\n【参考資料】\n${sources}`);
 	}
+	parts.push(formatFactBaseSection(topicContext.factBase));
 	return parts.join('\n');
 };

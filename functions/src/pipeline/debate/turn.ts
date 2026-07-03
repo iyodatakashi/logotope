@@ -4,6 +4,7 @@ import { generateTurn } from '../../agents/persona-agent.js';
 import { generateChapterSummary, generateClosing } from '../../agents/facilitator-agent.js';
 import { verifyAndReviseDraft } from './inline-fact-check.js';
 import { getActiveDiscussionPoint } from './discussion-points.js';
+import { getTopicContext } from '../topics/topic-context.js';
 import { getLatestBelief } from './belief.js';
 import { isDebateActive } from './debate-lifecycle.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
@@ -200,6 +201,9 @@ export const generatePersonaTurn = async ({
 	// ファシリテーターが直近に提示した（introduced）論点を、発言者が踏まえられるよう渡す
 	const activeDiscussionPoint = getActiveDiscussionPoint(state);
 
+	// 事実基盤（共通前提）はサーバ権威の getTopicContext で供給し、全ペルソナへ同一値を渡す（R8.1/9.3）。
+	const { factBase } = await getTopicContext(topicId);
+
 	// 補正モジュールが再生成時に再利用できるよう、生成文脈とエンゲージメントを一度組み立てる
 	const generationContext: TurnGenerationContext = {
 		chapterTurns,
@@ -213,7 +217,8 @@ export const generatePersonaTurn = async ({
 					? 'facilitator'
 					: 'persona'
 				: undefined,
-		otherPersonas
+		otherPersonas,
+		factBase
 	};
 	const turnEngagement: Engagement = {
 		...engagement,

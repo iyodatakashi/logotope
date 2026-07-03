@@ -3,9 +3,9 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
-	import { phasePath } from '$lib/models/phase/phase';
+	import { phasePath, phaseOrder } from '$lib/models/phase/phase';
 	import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
-	import { type Phase } from '$lib/models/phase/phase.types';
+	import { type PhaseSlug } from '$lib/models/phase/phase.types';
 	import StepNav from '$lib/sharedComponents/StepNav.svelte';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 
@@ -17,17 +17,21 @@
 		return currentTopicStore.start(page.params.topicId as string);
 	});
 
-	const currentPhase = $derived<Phase>(currentTopicStore.topic?.phase ?? 1);
+	const currentPhase = $derived<PhaseSlug>(currentTopicStore.topic?.phase ?? 'fact-research');
 
 	// 現在URLのフェーズ（/admin/topics/[id] 直下のリダイレクトページでは null）
-	const pagePhase = $derived.by(() => {
+	const pagePhase = $derived.by((): PhaseSlug | null => {
 		const slug = page.route.id?.split('/').at(-1);
-		return PHASE_DEFS.find((d) => d.slug === slug)?.phase ?? null;
+		return PHASE_DEFS.find((d) => d.key === slug)?.key ?? null;
 	});
 
 	// 未到達フェーズへのアクセスのみ現在フェーズへリダイレクト（到達済みフェーズの閲覧では遷移しない）
 	$effect(() => {
-		if (currentTopicStore.topic && pagePhase !== null && pagePhase > currentPhase) {
+		if (
+			currentTopicStore.topic &&
+			pagePhase !== null &&
+			phaseOrder(pagePhase) > phaseOrder(currentPhase)
+		) {
 			goto(phasePath(topicId, currentPhase), { replaceState: true });
 		}
 	});
@@ -49,7 +53,7 @@
 	</div>
 
 	<div class="topic-detail-layout__body">
-		{#if pagePhase === null || pagePhase <= currentPhase}
+		{#if pagePhase === null || phaseOrder(pagePhase) <= phaseOrder(currentPhase)}
 			{@render children()}
 		{/if}
 	</div>

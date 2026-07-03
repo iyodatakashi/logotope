@@ -15,6 +15,8 @@
 		onRegenerate: () => void; // generated/approved/stopped/running(固着) からのやり直し。確認ダイアログ付き
 		approveLabel?: string; // generated での前進ボタン（フェーズ5は前進なし）
 		onApprove?: () => void;
+		emptyApproveLabel?: string; // not_started での「実行せず承認」（事実リサーチのみ・実行任意）
+		onEmptyApprove?: () => void;
 		stopLabel?: string; // running 中の停止（フェーズ5）
 		onStop?: () => void;
 		restartLabel?: string; // stopped からの再開（フェーズ5）
@@ -32,6 +34,8 @@
 		onRegenerate,
 		approveLabel,
 		onApprove,
+		emptyApproveLabel,
+		onEmptyApprove,
 		stopLabel,
 		onStop,
 		restartLabel,
@@ -48,6 +52,9 @@
 		<div class="phase-panel__actions">
 			{#if logicalState === 'not_started'}
 				<Button variant="filled" onclick={onGenerate}>{generateLabel}</Button>
+				{#if emptyApproveLabel && onEmptyApprove}
+					<Button variant="outlined" onclick={onEmptyApprove}>{emptyApproveLabel}</Button>
+				{/if}
 			{:else if logicalState === 'running'}
 				{#if onStop}
 					<Button variant="outlined" onclick={onStop}>{stopLabel ?? '停止する'}</Button>

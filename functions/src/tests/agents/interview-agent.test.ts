@@ -139,21 +139,26 @@ describe('runInterview', () => {
 			expect(args.tools?.['google_search']).toBeDefined();
 		});
 
-		it('groundingChunksが空のときResult.errorを返す', async () => {
-			mockGenerateObject.mockResolvedValueOnce({ object: makeDraftBeliefObject() });
+		it('groundingChunksが空でもエラーにせず、空の出典で後続フェーズを続行する（R6.3/6.5）', async () => {
+			mockGenerateObject
+				.mockResolvedValueOnce({ object: makeDraftBeliefObject() })
+				.mockResolvedValueOnce({ object: makeFinalBeliefObject() });
 			mockGenerateText.mockResolvedValueOnce(makeGroundingResult([]));
 			const result = await runInterview('AIと社会', mockPersona);
-			expect(result.ok).toBe(false);
-			if (!result.ok) expect(result.error.code).toBe('AI_API_ERROR');
-			// Phase3は実行されない
-			expect(mockGenerateObject).toHaveBeenCalledOnce();
+			expect(result.ok).toBe(true);
+			if (result.ok) expect(result.value.sources).toEqual([]);
+			// Phase3（最終信念生成）も実行される
+			expect(mockGenerateObject).toHaveBeenCalledTimes(2);
 		});
 
-		it('groundingMetadataがないときResult.errorを返す', async () => {
-			mockGenerateObject.mockResolvedValueOnce({ object: makeDraftBeliefObject() });
+		it('groundingMetadataがなくてもエラーにせず後続フェーズを続行する', async () => {
+			mockGenerateObject
+				.mockResolvedValueOnce({ object: makeDraftBeliefObject() })
+				.mockResolvedValueOnce({ object: makeFinalBeliefObject() });
 			mockGenerateText.mockResolvedValueOnce({ text: 'report', providerMetadata: {} });
 			const result = await runInterview('AIと社会', mockPersona);
-			expect(result.ok).toBe(false);
+			expect(result.ok).toBe(true);
+			if (result.ok) expect(result.value.sources).toEqual([]);
 		});
 
 		it('generateText失敗時はResult.errorを返す', async () => {
@@ -293,6 +298,54 @@ describe('runInterview', () => {
 			const prompt = args.messages[0].content;
 			expect(prompt).toContain('x'.repeat(3000));
 			expect(prompt).not.toContain('x'.repeat(3001));
+		});
+
+		it('共有事実基盤を Phase1（ドラフト）に共通前提として注入する', async () => {
+			setupSuccessfulMocks();
+			const context: TopicContext = {
+				factBase: {
+					facts: [{ statement: '日本は1回戦で敗退した', sources: [] }],
+					generatedAt: new Date('2026-07-03T00:00:00Z')
+				}
+			};
+			await runInterview('AIと社会', mockPersona, context);
+			const prompt = (
+				mockGenerateObject.mock.calls[0][0] as { messages: Array<{ content: string }> }
+			).messages[0].content;
+			expect(prompt).toContain('【確定した客観的事実（共通前提）】');
+			expect(prompt).toContain('日本は1回戦で敗退した');
+		});
+
+		it('グラウンディング検証はテーマ事実を再検索しない旨を明記し、事実基盤を共通前提として渡す', async () => {
+			setupSuccessfulMocks();
+			const context: TopicContext = {
+				factBase: {
+					facts: [{ statement: '確定事実X', sources: [] }],
+					generatedAt: new Date('2026-07-03T00:00:00Z')
+				}
+			};
+			await runInterview('AIと社会', mockPersona, context);
+			const verifyPrompt = (
+				mockGenerateText.mock.calls[0][0] as { messages: Array<{ content: string }> }
+			).messages[0].content;
+			expect(verifyPrompt).toContain('重複検索の禁止');
+			expect(verifyPrompt).toContain('確定事実X');
+		});
+
+		it('最終信念生成に事実基盤を渡し、関連事実を薄めず反映するよう指示する', async () => {
+			setupSuccessfulMocks();
+			const context: TopicContext = {
+				factBase: {
+					facts: [{ statement: '確定事実Y', sources: [] }],
+					generatedAt: new Date('2026-07-03T00:00:00Z')
+				}
+			};
+			await runInterview('AIと社会', mockPersona, context);
+			const finalPrompt = (
+				mockGenerateObject.mock.calls[1][0] as { messages: Array<{ content: string }> }
+			).messages[0].content;
+			expect(finalPrompt).toContain('一般論に薄めず');
+			expect(finalPrompt).toContain('確定事実Y');
 		});
 	});
 });

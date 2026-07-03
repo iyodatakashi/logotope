@@ -24,7 +24,13 @@ vi.mock('../../constants/ai.constants.js', () => ({
 vi.mock('../../utils/prompt-formatters.js', () => ({
 	formatTurns: vi.fn(() => '【ターン履歴】'),
 	formatPersonas: vi.fn(() => '- p1: テスト'),
-	currentDateString: vi.fn(() => '2026-06-19')
+	currentDateString: vi.fn(() => '2026-06-19'),
+	// 事実節整形の実体は prompt-formatters.test.ts で検証。ここでは呼び出し配線のみ検証する。
+	formatFactBaseSection: vi.fn((factBase?: { facts: { statement: string }[] }) =>
+		factBase?.facts?.length
+			? `\n\n【確定した客観的事実（共通前提）】\n${factBase.facts.map((f) => f.statement).join('\n')}`
+			: ''
+	)
 }));
 
 const mockPersona: Persona = {
@@ -83,6 +89,42 @@ describe('generateOpening - 論点対応', () => {
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		expect(callArgs.messages[0].content).toContain('自由とは何か');
+	});
+
+	it('factBase を背景の共通前提として注入し、問いかけは平易に保つ注記を添える（R8.1）', async () => {
+		const capturedArgs: unknown[] = [];
+		generateObject.mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return makeObjectResult({ targetPersonaId: 'p1', content: '開幕' });
+		});
+
+		const { generateOpening } = await import('../../agents/facilitator-agent.js');
+		const chapter = makeChapter({ discussionPoints: ['論点1'] });
+		await generateOpening('テーマ', [mockPersona], chapter, {
+			facts: [{ statement: '日本は1回戦で敗退した', sources: [] }],
+			generatedAt: new Date('2026-07-03T00:00:00Z')
+		});
+
+		const content = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		expect(content).toContain('【確定した客観的事実（共通前提）】');
+		expect(content).toContain('日本は1回戦で敗退した');
+		expect(content).toContain('背景として把握');
+	});
+
+	it('factBase 未指定なら事実節を注入しない（従来どおり）', async () => {
+		const capturedArgs: unknown[] = [];
+		generateObject.mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return makeObjectResult({ targetPersonaId: 'p1', content: '開幕' });
+		});
+
+		const { generateOpening } = await import('../../agents/facilitator-agent.js');
+		await generateOpening('テーマ', [mockPersona], makeChapter({ discussionPoints: ['論点1'] }));
+
+		const content = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		expect(content).not.toContain('【確定した客観的事実（共通前提）】');
 	});
 
 	it('discussionPoints がある章で selectedDiscussionPointIndex: 0 を返す', async () => {

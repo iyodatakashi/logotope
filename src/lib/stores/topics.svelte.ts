@@ -47,7 +47,7 @@ const create = () => {
 			title,
 			...(description?.trim() && { description }),
 			...(sourceUrls?.length && { sourceUrls }),
-			phase: 1,
+			phase: 'fact-research',
 			phaseStatus: 'not_started',
 			createdAt: now,
 			updatedAt: now

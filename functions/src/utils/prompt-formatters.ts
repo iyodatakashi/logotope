@@ -1,5 +1,22 @@
 import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
+import type { FactBase } from '../types/topic.types.js';
+
+// 事実基盤を「確定した客観的事実（共通前提）」としてプロンプトに整形する。
+// 事実が無い（factBase 未設定・facts 空）なら空文字を返し、消費者は従来どおり動作する。
+// 参考資料（sourceContents）とは区別し、全消費者で同一の共通前提として提示する（R9.3）。
+export const formatFactBaseSection = (factBase?: FactBase): string => {
+	if (!factBase?.facts.length) return '';
+	const facts = factBase.facts
+		.map((fact, i) => {
+			const sources = fact.sources.length
+				? `（出典: ${fact.sources.map((s) => s.title || s.url).join(', ')}）`
+				: '';
+			return `${i + 1}. ${fact.statement}${sources}`;
+		})
+		.join('\n');
+	return `\n\n【確定した客観的事実（共通前提）】\nこのテーマについて確認された客観的事実です。参考資料とは別に、全員が共有する確定した前提として扱ってください。\n${facts}`;
+};
 
 export const currentDateString = (): string => {
 	const d = new Date();

@@ -2,6 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore } from 'firebase-admin/firestore';
 import { requireAuth } from '../utils/auth.js';
 import { generateStakeholders as runStakeholderGeneration } from '../agents/stakeholder-agent.js';
+import { getTopicContext } from '../pipeline/topics/topic-context.js';
 import { confirmPhaseGenerated } from '../utils/topic-phase.js';
 
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
@@ -17,11 +18,12 @@ export const generateStakeholders = onCall(
 		if (!title?.trim()) throw new HttpsError('invalid-argument', 'title is required');
 
 		try {
-			const { stakeholders } = await runStakeholderGeneration(title);
+			const topicContext = await getTopicContext(topicId);
+			const { stakeholders } = await runStakeholderGeneration(title, topicContext);
 			await db().doc(`topics/${topicId}/stakeholders/0`).set({ stakeholders });
 			// 完了状態はサーバ権威で確定する。クライアントの生存（リロード・タブ閉じ）や
 			// callable のタイムアウトに依存せず、running のときだけ generated へ冪等遷移させる。
-			await confirmPhaseGenerated(topicId, 1);
+			await confirmPhaseGenerated(topicId, 'stakeholders');
 			return {};
 		} catch (err) {
 			console.error('[generateStakeholders] error', { topicId, title }, err);

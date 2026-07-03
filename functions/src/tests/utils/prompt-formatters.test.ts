@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { formatTurns } from '../../utils/prompt-formatters.js';
+import { formatTurns, formatFactBaseSection } from '../../utils/prompt-formatters.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
+import type { FactBase } from '../../types/topic.types.js';
 
 const makePersona = (
 	id: string,
@@ -78,5 +79,38 @@ describe('formatTurns', () => {
 		expect(formatTurns(turns, personas)).toBe(
 			'[ファシリテーター()]: 開会します。\n[田中太郎(医師)(ID:p1)]: 賛成です。'
 		);
+	});
+});
+
+describe('formatFactBaseSection', () => {
+	const factBase = (facts: FactBase['facts']): FactBase => ({
+		facts,
+		generatedAt: new Date('2026-07-03T00:00:00Z')
+	});
+
+	it('factBase 未指定なら空文字を返す', () => {
+		expect(formatFactBaseSection(undefined)).toBe('');
+	});
+
+	it('facts が空なら空文字を返す（従来どおり動作）', () => {
+		expect(formatFactBaseSection(factBase([]))).toBe('');
+	});
+
+	it('事実を「確定した客観的事実（共通前提）」節として整形し、参考資料と区別する', () => {
+		const section = formatFactBaseSection(
+			factBase([
+				{ statement: '日本は1回戦で敗退した', sources: [{ title: '報知', url: 'https://a' }] }
+			])
+		);
+		expect(section).toContain('【確定した客観的事実（共通前提）】');
+		expect(section).toContain('日本は1回戦で敗退した');
+		expect(section).toContain('参考資料とは別に');
+		expect(section).toContain('報知');
+	});
+
+	it('出典が無い事実は出典表記なしで列挙する', () => {
+		const section = formatFactBaseSection(factBase([{ statement: '事実のみ', sources: [] }]));
+		expect(section).toContain('事実のみ');
+		expect(section).not.toContain('出典:');
 	});
 });

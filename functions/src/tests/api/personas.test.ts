@@ -86,7 +86,7 @@ describe('generatePersonas handler', () => {
 	});
 
 	it('生成成功時にペルソナを batch 永続化し、confirmPhaseGenerated で generated を確定して {} を返す', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 2, phaseStatus: 'running' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'running' });
 		seedStakeholders();
 		mockRunPersonaGeneration.mockResolvedValueOnce(generatedPersonas());
 
@@ -101,12 +101,40 @@ describe('generatePersonas handler', () => {
 			createdAt: 'TS'
 		});
 		expect(persona('p2')).toMatchObject({ name: '花子', sortOrder: 1 });
-		expect(topic()?.phase).toBe(2);
+		expect(topic()?.phase).toBe('personas');
 		expect(topic()?.phaseStatus).toBe('generated');
 	});
 
+	it('承認済み事実基盤が存在すれば topicContext.factBase を生成に渡す', async () => {
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'running' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}/factBase/0`, {
+			facts: [{ statement: '確定事実', sources: [] }],
+			generatedAt: { toDate: () => new Date('2026-07-03T00:00:00Z') }
+		});
+		seedStakeholders();
+		mockRunPersonaGeneration.mockResolvedValueOnce(generatedPersonas());
+
+		await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
+
+		const [passedTitle, , passedTopicId, topicContext] = mockRunPersonaGeneration.mock.calls[0];
+		expect(passedTitle).toBe(TITLE);
+		expect(passedTopicId).toBe(TOPIC_ID);
+		expect(topicContext.factBase.facts).toEqual([{ statement: '確定事実', sources: [] }]);
+	});
+
+	it('事実基盤が無ければ factBase 未設定の topicContext を渡す（従来どおり動作）', async () => {
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'running' });
+		seedStakeholders();
+		mockRunPersonaGeneration.mockResolvedValueOnce(generatedPersonas());
+
+		await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
+
+		const [, , , topicContext] = mockRunPersonaGeneration.mock.calls[0];
+		expect(topicContext.factBase).toBeUndefined();
+	});
+
 	it('phaseStatus が not_started なら generated を上書きしない（未開始ガード）', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 2, phaseStatus: 'not_started' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'not_started' });
 		seedStakeholders();
 		mockRunPersonaGeneration.mockResolvedValueOnce(generatedPersonas());
 
@@ -117,7 +145,7 @@ describe('generatePersonas handler', () => {
 	});
 
 	it('生成エラー時はHttpsError(internal)を投げ、ペルソナを永続化せず generated も確定しない', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 2, phaseStatus: 'running' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'running' });
 		seedStakeholders();
 		mockRunPersonaGeneration.mockRejectedValueOnce(new Error('AI failed'));
 
