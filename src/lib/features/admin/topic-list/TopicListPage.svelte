@@ -3,10 +3,10 @@
 	import { Button } from '@14ch/svelte-ui';
 	import { topicsStore } from '$lib/stores/topics.svelte';
 	import { phaseDisplayLabel } from '$lib/models/phase/phase';
-	import type { Phase, PhaseStatus } from '$lib/models/phase/phase.types';
+	import type { PhaseSlug, PhaseStatus } from '$lib/models/phase/phase.types';
 
 	const getBadge = (topic: {
-		phase: Phase;
+		phase: PhaseSlug;
 		phaseStatus: PhaseStatus;
 	}): { label: string; styleKey: string } =>
 		phaseDisplayLabel({ phase: topic.phase, phaseStatus: topic.phaseStatus });

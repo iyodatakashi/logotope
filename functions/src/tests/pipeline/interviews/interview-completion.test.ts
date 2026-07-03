@@ -25,7 +25,7 @@ import { confirmInterviewsGeneratedIfAllComplete } from '../../../pipeline/inter
 const TOPIC_ID = 'topic1';
 const topic = () => holder.mock!.store.get(`topics/${TOPIC_ID}`);
 const setTopic = (phaseStatus: string) =>
-	holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 3, phaseStatus });
+	holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'interviews', phaseStatus });
 const setPersona = (id: string, status?: string, sortOrder = 0) =>
 	holder.mock!.store.set(`topics/${TOPIC_ID}/personas/${id}`, {
 		sortOrder,
@@ -47,7 +47,7 @@ describe('confirmInterviewsGeneratedIfAllComplete', () => {
 
 		expect(changed).toBe(true);
 		expect(topic()?.phaseStatus).toBe('generated');
-		expect(topic()?.phase).toBe(3);
+		expect(topic()?.phase).toBe('interviews');
 	});
 
 	it('1件でも error が残るときは no-op で false を返す', async () => {

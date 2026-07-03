@@ -1,6 +1,7 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { clearEditedArtifact, readEditedChapters } from './edited-repository.js';
+import type { PhaseKey } from '../../types/topic.types.js';
 
 // 編集ランのライフサイクル: 開始（破棄＋実行中化＋新世代）と完了確定（全章成功→generated / 失敗残存→stopped）。
 // 生ディベートは読み取りのみ。編集フェーズ（phase 6）の phaseStatus と runId のみを更新する。
@@ -16,7 +17,7 @@ export const startEditingRun = async (topicId: string): Promise<string> => {
 	const runId = nanoid();
 	await db()
 		.doc(`topics/${topicId}`)
-		.update({ phase: 6, phaseStatus: 'running', runId, updatedAt: Timestamp.now() });
+		.update({ phase: 'editing', phaseStatus: 'running', runId, updatedAt: Timestamp.now() });
 	return runId;
 };
 
@@ -28,7 +29,7 @@ export const resetEditingRun = async (topicId: string): Promise<void> => {
 	await clearEditedArtifact(topicId);
 	await db()
 		.doc(`topics/${topicId}`)
-		.update({ phase: 6, phaseStatus: 'not_started', updatedAt: Timestamp.now() });
+		.update({ phase: 'editing', phaseStatus: 'not_started', updatedAt: Timestamp.now() });
 };
 
 /**
@@ -40,8 +41,8 @@ export const stopEditingRun = async (topicId: string, runId: string): Promise<vo
 	await db().runTransaction(async (tx) => {
 		const snap = await tx.get(ref);
 		if (!snap.exists) return;
-		const data = snap.data() as { phase?: number; phaseStatus?: string; runId?: string };
-		if (data.phase !== 6 || data.runId !== runId || data.phaseStatus !== 'running') return;
+		const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string; runId?: string };
+		if (data.phase !== 'editing' || data.runId !== runId || data.phaseStatus !== 'running') return;
 		tx.update(ref, { phaseStatus: 'stopped', updatedAt: Timestamp.now() });
 	});
 };
@@ -50,8 +51,8 @@ export const stopEditingRun = async (topicId: string, runId: string): Promise<vo
 export const isEditingActive = async (topicId: string, runId: string): Promise<boolean> => {
 	const snap = await db().doc(`topics/${topicId}`).get();
 	if (!snap.exists) return false;
-	const data = snap.data() as { phase?: number; phaseStatus?: string; runId?: string };
-	return data.phase === 6 && data.phaseStatus === 'running' && data.runId === runId;
+	const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string; runId?: string };
+	return data.phase === 'editing' && data.phaseStatus === 'running' && data.runId === runId;
 };
 
 /**
@@ -71,9 +72,9 @@ export const finalizeEditingRun = async (
 	return await db().runTransaction(async (tx) => {
 		const snap = await tx.get(ref);
 		if (!snap.exists) return 'noop';
-		const data = snap.data() as { phase?: number; phaseStatus?: string; runId?: string };
+		const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string; runId?: string };
 		if (
-			data.phase !== 6 ||
+			data.phase !== 'editing' ||
 			data.runId !== runId ||
 			(data.phaseStatus !== 'running' && data.phaseStatus !== 'stopped')
 		) {

@@ -7,7 +7,7 @@ import type { Topic } from '$lib/models/topic/createTopic.svelte';
 const topic = {
 	id: 'debate-1',
 	title: '消費税増税について',
-	phase: 5 as const,
+	phase: 'debate' as const,
 	phaseStatus: 'generated' as const,
 	personaCount: 5,
 	publishedAt: new Date('2026-06-01T00:00:00.000Z'),

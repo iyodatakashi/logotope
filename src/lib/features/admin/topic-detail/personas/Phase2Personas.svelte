@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
+	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
+	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import PersonaItem from './PersonaItem.svelte';
 	import { Skeleton } from '@14ch/svelte-ui';
 
-	const PHASE = 2;
+	const PHASE: PhaseSlug = 'personas';
 	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
 	// 触れず、表示の即時フィードバックだけを担う。実状態(running)が反映されたら解除する。
 	let isStarting = $state(false);
@@ -58,7 +59,8 @@
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		await currentTopicStore.personasStore.approvePersonas();
-		goto(phasePath(topic.id, 3));
+		const next = nextPhase(PHASE);
+		if (next) goto(phasePath(topic.id, next));
 	};
 </script>
 

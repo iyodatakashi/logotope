@@ -18,13 +18,13 @@ vi.mock('$lib/stores/topics.svelte.js', () => ({
 				{
 					id: 't1',
 					title: '実行中のテーマ',
-					phase: 3,
+					phase: 'interviews',
 					phaseStatus: 'running'
 				},
 				{
 					id: 't2',
 					title: '停止したテーマ',
-					phase: 5,
+					phase: 'debate',
 					phaseStatus: 'stopped'
 				}
 			];

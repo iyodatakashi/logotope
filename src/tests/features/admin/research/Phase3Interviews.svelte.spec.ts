@@ -39,7 +39,7 @@ let personaList: ReturnType<typeof makePersona>[] = [makePersona()];
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get topic() {
-			return { id: 't1', title: 'テストテーマ', phase: 3, phaseStatus: 'generated' };
+			return { id: 't1', title: 'テストテーマ', phase: 'interviews', phaseStatus: 'generated' };
 		},
 		get personasStore() {
 			return {

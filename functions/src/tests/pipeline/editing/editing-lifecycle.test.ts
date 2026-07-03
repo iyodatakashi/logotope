@@ -40,7 +40,7 @@ beforeEach(() => {
 
 describe('startEditingRun', () => {
 	it('既存の編集成果物を破棄し、phase6・running・新 runId を設定する', async () => {
-		holder.mock!.store.set('topics/t1', { phase: 6, phaseStatus: 'not_started' });
+		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'not_started' });
 		holder.mock!.store.set(chapterPath('c1'), makeChapter(0, 'completed'));
 
 		const runId = await startEditingRun('t1');
@@ -49,7 +49,7 @@ describe('startEditingRun', () => {
 		expect(runId.length).toBeGreaterThan(0);
 		expect(holder.mock!.store.has(chapterPath('c1'))).toBe(false);
 		expect(holder.mock!.store.get('topics/t1')).toMatchObject({
-			phase: 6,
+			phase: 'editing',
 			phaseStatus: 'running',
 			runId
 		});
@@ -58,24 +58,28 @@ describe('startEditingRun', () => {
 
 describe('isEditingActive', () => {
 	it('phase6・running・runId 一致なら true', async () => {
-		holder.mock!.store.set('topics/t1', { phase: 6, phaseStatus: 'running', runId: 'r1' });
+		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'running', runId: 'r1' });
 		expect(await isEditingActive('t1', 'r1')).toBe(true);
 	});
 
 	it('runId 不一致（旧世代）なら false', async () => {
-		holder.mock!.store.set('topics/t1', { phase: 6, phaseStatus: 'running', runId: 'r1' });
+		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'running', runId: 'r1' });
 		expect(await isEditingActive('t1', 'r2')).toBe(false);
 	});
 
 	it('phaseStatus が running でなければ false', async () => {
-		holder.mock!.store.set('topics/t1', { phase: 6, phaseStatus: 'generated', runId: 'r1' });
+		holder.mock!.store.set('topics/t1', {
+			phase: 'editing',
+			phaseStatus: 'generated',
+			runId: 'r1'
+		});
 		expect(await isEditingActive('t1', 'r1')).toBe(false);
 	});
 });
 
 describe('finalizeEditingRun', () => {
 	beforeEach(() => {
-		holder.mock!.store.set('topics/t1', { phase: 6, phaseStatus: 'running', runId: 'r1' });
+		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'running', runId: 'r1' });
 	});
 
 	it('全章 completed なら generated に遷移する', async () => {
@@ -102,7 +106,11 @@ describe('finalizeEditingRun', () => {
 	});
 
 	it('既に generated（前進済み）は巻き戻さず noop', async () => {
-		holder.mock!.store.set('topics/t1', { phase: 6, phaseStatus: 'generated', runId: 'r1' });
+		holder.mock!.store.set('topics/t1', {
+			phase: 'editing',
+			phaseStatus: 'generated',
+			runId: 'r1'
+		});
 		holder.mock!.store.set(chapterPath('c1'), makeChapter(0, 'failed'));
 
 		expect(await finalizeEditingRun('t1', 'r1')).toBe('noop');

@@ -217,7 +217,7 @@ describe('runChapterEditStep', () => {
 
 describe('runCommentsEditStep', () => {
 	beforeEach(() => {
-		holder.mock!.store.set('topics/t1', { phase: 6, phaseStatus: 'running', runId: 'r1' });
+		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'running', runId: 'r1' });
 		holder.mock!.store.set('topics/t1/personas/p1', {
 			topicId: 't1',
 			name: 'p1',

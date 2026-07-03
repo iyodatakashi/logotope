@@ -61,19 +61,19 @@ describe('generateChapters handler', () => {
 	});
 
 	it('章立て永続化の成功後に confirmPhaseGenerated で generated を確定し { topicId } を返す', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 4, phaseStatus: 'running' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'chapters', phaseStatus: 'running' });
 		mockPlanChapters.mockResolvedValueOnce(undefined);
 
 		const result = await handler(makeRequest({ topicId: TOPIC_ID }));
 
 		expect(mockPlanChapters).toHaveBeenCalledWith(TOPIC_ID);
 		expect(result).toEqual({ topicId: TOPIC_ID });
-		expect(topic()?.phase).toBe(4);
+		expect(topic()?.phase).toBe('chapters');
 		expect(topic()?.phaseStatus).toBe('generated');
 	});
 
 	it('phaseStatus が not_started なら generated を上書きしない（未開始ガード）', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 4, phaseStatus: 'not_started' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'chapters', phaseStatus: 'not_started' });
 		mockPlanChapters.mockResolvedValueOnce(undefined);
 
 		await handler(makeRequest({ topicId: TOPIC_ID }));
@@ -82,7 +82,7 @@ describe('generateChapters handler', () => {
 	});
 
 	it('planChapters が失敗したらHttpsError(internal)を投げ、generated を確定しない', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 4, phaseStatus: 'running' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'chapters', phaseStatus: 'running' });
 		mockPlanChapters.mockRejectedValueOnce(new Error('plan failed'));
 
 		await expect(handler(makeRequest({ topicId: TOPIC_ID }))).rejects.toMatchObject({

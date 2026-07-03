@@ -132,7 +132,7 @@ describe('createPersonasStore', () => {
 		);
 		expect(mockBatch.update).toHaveBeenCalledWith(
 			TOPIC_PATH,
-			expect.objectContaining({ phase: 3, phaseStatus: 'not_started' })
+			expect.objectContaining({ phase: 'interviews', phaseStatus: 'not_started' })
 		);
 	});
 
@@ -144,7 +144,7 @@ describe('createPersonasStore', () => {
 		expect(mockBatch.delete).toHaveBeenCalledWith({ path: 'topics/t1/personas/p1' });
 		expect(mockBatch.update).toHaveBeenCalledWith(
 			TOPIC_PATH,
-			expect.objectContaining({ phase: 2, phaseStatus: 'not_started' })
+			expect.objectContaining({ phase: 'personas', phaseStatus: 'not_started' })
 		);
 	});
 
@@ -154,7 +154,7 @@ describe('createPersonasStore', () => {
 
 		expect(updateDoc).toHaveBeenCalledWith(
 			TOPIC_PATH,
-			expect.objectContaining({ phase: 3, phaseStatus: 'running' })
+			expect.objectContaining({ phase: 'interviews', phaseStatus: 'running' })
 		);
 	});
 

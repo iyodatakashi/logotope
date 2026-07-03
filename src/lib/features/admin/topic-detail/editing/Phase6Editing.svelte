@@ -2,6 +2,7 @@
 	import { Checkbox } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState } from '$lib/models/phase/phase';
+	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import FactCheckFindings from '$lib/features/admin/topic-detail/debate/FactCheckFindings.svelte';
 	import DiffText from './DiffText.svelte';
@@ -9,7 +10,7 @@
 	import type { FactCheckFinding } from '$lib/models/factCheck/factCheck.types';
 	import type { EditedChapterDisplayStatus } from '$lib/models/editedChapter/editedChapter.types';
 
-	const PHASE = 6;
+	const PHASE: PhaseSlug = 'editing';
 	// 編集後ターンで原本との差分（削除＝赤取消線 / 追加＝緑）を強調表示するかどうか。
 	// 既定は ON にし、「何が変わったか」を開いた直後に把握できるようにする。
 	let showDiff = $state(true);

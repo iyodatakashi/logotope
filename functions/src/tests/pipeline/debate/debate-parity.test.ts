@@ -96,7 +96,7 @@ type SeedChapter = { id: string; chapterIndex: number; discussionPoints: string[
 const seedStore = (chapters: SeedChapter[]) => {
 	holder.mock = createFirestoreMock();
 	holder.mock.store.set(`topics/${TOPIC_ID}`, {
-		phase: 5,
+		phase: 'debate',
 		phaseStatus: 'running',
 		runId: RUN_ID,
 		title: 'テストテーマ'

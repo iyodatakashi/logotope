@@ -7,7 +7,7 @@ vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get topic() {
-			return { id: 't1', title: 'テストテーマ', phase: 4, phaseStatus: 'generated' };
+			return { id: 't1', title: 'テストテーマ', phase: 'chapters', phaseStatus: 'generated' };
 		},
 		get chaptersStore() {
 			return {

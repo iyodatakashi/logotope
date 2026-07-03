@@ -10,7 +10,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 			return {
 				id: 't1',
 				title: 'テストテーマ',
-				phase: 1,
+				phase: 'stakeholders',
 				phaseStatus: 'generated'
 			};
 		},

@@ -5,7 +5,7 @@ import StepNav from '$lib/sharedComponents/StepNav.svelte';
 
 describe('StepNav.svelte', () => {
 	it('全フェーズのラベルを表示する', async () => {
-		render(StepNav, { topicId: 't1', currentPhase: 1 });
+		render(StepNav, { topicId: 't1', currentPhase: 'stakeholders' });
 
 		await expect.element(page.getByText('ステークホルダー調査')).toBeInTheDocument();
 		await expect.element(page.getByText('ペルソナ生成')).toBeInTheDocument();
@@ -15,7 +15,7 @@ describe('StepNav.svelte', () => {
 	});
 
 	it('到達済みフェーズはリンクとして遷移可能', async () => {
-		render(StepNav, { topicId: 't1', currentPhase: 3 });
+		render(StepNav, { topicId: 't1', currentPhase: 'interviews' });
 
 		await expect
 			.element(page.getByRole('link', { name: 'ステークホルダー調査' }))
@@ -29,7 +29,7 @@ describe('StepNav.svelte', () => {
 	});
 
 	it('未到達フェーズはリンクにならず無効化表示される', async () => {
-		render(StepNav, { topicId: 't1', currentPhase: 2 });
+		render(StepNav, { topicId: 't1', currentPhase: 'personas' });
 
 		expect(page.getByRole('link', { name: '取材' }).elements()).toHaveLength(0);
 		expect(page.getByRole('link', { name: '章立て' }).elements()).toHaveLength(0);

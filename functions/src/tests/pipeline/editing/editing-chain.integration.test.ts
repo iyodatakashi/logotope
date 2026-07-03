@@ -50,7 +50,7 @@ const EDITED_COMMENTS_PATH = 'topics/t1/editedPostDebateComments/0';
 
 const seedTopic = () => {
 	const mock = holder.mock!;
-	mock.store.set('topics/t1', { phase: 6, phaseStatus: 'not_started' });
+	mock.store.set('topics/t1', { phase: 'editing', phaseStatus: 'not_started' });
 	mock.store.set('topics/t1/personas/p1', {
 		topicId: 't1',
 		name: 'p1',
@@ -249,7 +249,7 @@ describe('リセット整合（原本再生成との不整合を残さない）'
 
 	it('再実行（startEditingRun）で旧成果物が即時破棄され、新世代 runId になる', async () => {
 		seedTopic();
-		holder.mock!.store.set('topics/t1', { phase: 6, phaseStatus: 'stopped', runId: 'old' });
+		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'stopped', runId: 'old' });
 		holder.mock!.store.set(editedChapterPath('c1'), {
 			chapterIndex: 0,
 			status: 'failed',
@@ -262,7 +262,7 @@ describe('リセット整合（原本再生成との不整合を残さない）'
 		expect(holder.mock!.store.has(editedChapterPath('c1'))).toBe(false);
 		expect(holder.mock!.store.get(EDITED_COMMENTS_PATH)).toEqual({ comments: [] });
 		expect(holder.mock!.store.get('topics/t1')).toMatchObject({
-			phase: 6,
+			phase: 'editing',
 			phaseStatus: 'running',
 			runId
 		});

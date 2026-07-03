@@ -87,7 +87,7 @@ const RUN_ID = 'run1';
 const seed = () => {
 	holder.mock = createFirestoreMock();
 	holder.mock.store.set(`topics/${TOPIC_ID}`, {
-		phase: 5,
+		phase: 'debate',
 		phaseStatus: 'running',
 		runId: RUN_ID,
 		title: 'T'

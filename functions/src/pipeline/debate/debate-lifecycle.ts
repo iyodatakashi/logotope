@@ -6,6 +6,7 @@ import { deleteChapterEngagements } from './engagement.js';
 import { clearPostDebateComments } from './post-debate-comments.js';
 import { deleteFactCheckResult } from '../fact-check/fact-check-repository.js';
 import { clearEditedArtifact } from '../editing/edited-repository.js';
+import type { PhaseKey } from '../../types/topic.types.js';
 
 const db = () => getFirestore();
 
@@ -20,16 +21,16 @@ export const updateDebatePhaseStatus = async (
 	const runId = nanoid();
 	await db()
 		.doc(`topics/${topicId}`)
-		.update({ phase: 5, phaseStatus: status, runId, updatedAt: Timestamp.now() });
+		.update({ phase: 'debate', phaseStatus: status, runId, updatedAt: Timestamp.now() });
 	return runId;
 };
 
-/** 討論が稼働中（phase 5 かつ phaseStatus running）かを判定する */
+/** 討論が稼働中（phase debate かつ phaseStatus running）かを判定する */
 export const isDebateActive = async (topicId: string): Promise<boolean> => {
 	const snap = await db().doc(`topics/${topicId}`).get();
 	if (!snap.exists) return false;
-	const data = snap.data() as { phase?: number; phaseStatus?: string };
-	return data.phase === 5 && data.phaseStatus === 'running';
+	const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string };
+	return data.phase === 'debate' && data.phaseStatus === 'running';
 };
 
 /**

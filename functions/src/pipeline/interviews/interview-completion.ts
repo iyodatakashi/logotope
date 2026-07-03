@@ -18,5 +18,5 @@ export const confirmInterviewsGeneratedIfAllComplete = async (
 		(d) => (d.data() as { interview?: { status?: string } }).interview?.status === 'completed'
 	);
 	if (!allCompleted) return false;
-	return confirmPhaseGenerated(topicId, 3);
+	return confirmPhaseGenerated(topicId, 'interviews');
 };

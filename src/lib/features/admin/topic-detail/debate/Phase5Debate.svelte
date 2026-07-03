@@ -2,13 +2,14 @@
 	import { Button } from '@14ch/svelte-ui';
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
+	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
+	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import EngagementList from './EngagementList.svelte';
 	import FactCheckFindings from './FactCheckFindings.svelte';
 	import type { FactCheckFinding } from '$lib/models/factCheck/factCheck.types';
 
-	const PHASE = 5;
+	const PHASE: PhaseSlug = 'debate';
 	// 押下直後の楽観的な「実行中」表示用フラグ。討論は running をサーバが書くため
 	// callable 往復のあいだ表示が変わらない。その間を埋める表示専用のフラグ。
 	// isResetting はやり直し時に旧ターンを即時非表示にする（再開はターンを引き継ぐので消さない）。
@@ -51,12 +52,13 @@
 		}
 	};
 
-	// 討論を確定して編集フェーズ（Phase 6）へ前進する。generated のときのみ PhasePanel が表示する。
+	// 討論を確定して編集フェーズへ前進する。generated のときのみ PhasePanel が表示する。
 	const approve = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		await topic.approveDebate();
-		goto(phasePath(topic.id, 6));
+		const next = nextPhase(PHASE);
+		if (next) goto(phasePath(topic.id, next));
 	};
 
 	const logicalState = $derived.by(() => {

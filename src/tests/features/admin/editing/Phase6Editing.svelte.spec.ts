@@ -6,7 +6,7 @@ vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
 const { holder } = vi.hoisted(() => ({
 	holder: {
-		phase: 6,
+		phase: 'editing',
 		phaseStatus: 'generated',
 		startEditing: vi.fn(),
 		resetEditing: vi.fn(),
@@ -74,7 +74,7 @@ const persona = (id: string, name: string) => ({
 describe('Phase6Editing.svelte', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		holder.phase = 6;
+		holder.phase = 'editing';
 		holder.phaseStatus = 'generated';
 		holder.chapters = [];
 		holder.editedByChapter = new Map();

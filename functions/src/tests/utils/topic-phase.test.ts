@@ -31,67 +31,70 @@ beforeEach(() => {
 
 describe('confirmPhaseGenerated', () => {
 	it('phaseStatus が running のときだけ generated へ遷移し true を返す', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 2, phaseStatus: 'running' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'running' });
 
-		const changed = await confirmPhaseGenerated(TOPIC_ID, 2);
+		const changed = await confirmPhaseGenerated(TOPIC_ID, 'personas');
 
 		expect(changed).toBe(true);
 		expect(topic()?.phaseStatus).toBe('generated');
-		expect(topic()?.phase).toBe(2);
+		expect(topic()?.phase).toBe('personas');
 	});
 
 	it('冪等: 既に generated なら no-op で false を返す', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 2, phaseStatus: 'generated' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'generated' });
 
-		const changed = await confirmPhaseGenerated(TOPIC_ID, 2);
+		const changed = await confirmPhaseGenerated(TOPIC_ID, 'personas');
 
 		expect(changed).toBe(false);
 		expect(topic()?.phaseStatus).toBe('generated');
 	});
 
 	it('stopped でも対象フェーズのままなら generated へ確定し true を返す', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 2, phaseStatus: 'stopped' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'stopped' });
 
-		const changed = await confirmPhaseGenerated(TOPIC_ID, 2);
+		const changed = await confirmPhaseGenerated(TOPIC_ID, 'personas');
 
 		expect(changed).toBe(true);
 		expect(topic()?.phaseStatus).toBe('generated');
-		expect(topic()?.phase).toBe(2);
+		expect(topic()?.phase).toBe('personas');
 	});
 
 	it('承認済み（phase 前進・not_started 相当）は上書きしない', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 3, phaseStatus: 'not_started' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, {
+			phase: 'interviews',
+			phaseStatus: 'not_started'
+		});
 
-		const changed = await confirmPhaseGenerated(TOPIC_ID, 2);
+		const changed = await confirmPhaseGenerated(TOPIC_ID, 'personas');
 
 		expect(changed).toBe(false);
 		expect(topic()?.phaseStatus).toBe('not_started');
-		expect(topic()?.phase).toBe(3);
+		expect(topic()?.phase).toBe('interviews');
 	});
 
 	it('phase が前進済みなら stopped でも巻き戻さない（no-op・false）', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 4, phaseStatus: 'stopped' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'chapters', phaseStatus: 'stopped' });
 
-		const changed = await confirmPhaseGenerated(TOPIC_ID, 3);
+		const changed = await confirmPhaseGenerated(TOPIC_ID, 'interviews');
 
 		expect(changed).toBe(false);
 		expect(topic()?.phaseStatus).toBe('stopped');
-		expect(topic()?.phase).toBe(4);
+		expect(topic()?.phase).toBe('chapters');
 	});
 
 	it('ドキュメント不存在時は no-op で false を返す', async () => {
-		const changed = await confirmPhaseGenerated(TOPIC_ID, 2);
+		const changed = await confirmPhaseGenerated(TOPIC_ID, 'personas');
 
 		expect(changed).toBe(false);
 		expect(topic()).toBeUndefined();
 	});
 
 	it('複数回適用しても結果が変わらない（冪等・終端）', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 4, phaseStatus: 'running' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'chapters', phaseStatus: 'running' });
 
-		expect(await confirmPhaseGenerated(TOPIC_ID, 4)).toBe(true);
-		expect(await confirmPhaseGenerated(TOPIC_ID, 4)).toBe(false);
-		expect(await confirmPhaseGenerated(TOPIC_ID, 4)).toBe(false);
+		expect(await confirmPhaseGenerated(TOPIC_ID, 'chapters')).toBe(true);
+		expect(await confirmPhaseGenerated(TOPIC_ID, 'chapters')).toBe(false);
+		expect(await confirmPhaseGenerated(TOPIC_ID, 'chapters')).toBe(false);
 		expect(topic()?.phaseStatus).toBe('generated');
 	});
 });
@@ -100,17 +103,17 @@ describe('setTopicPhaseStatus', () => {
 	it('running を phase 付きで書き込む', async () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 0, phaseStatus: 'not_started' });
 
-		await setTopicPhaseStatus(TOPIC_ID, 2, 'running');
+		await setTopicPhaseStatus(TOPIC_ID, 'personas', 'running');
 
-		expect(topic()?.phase).toBe(2);
+		expect(topic()?.phase).toBe('personas');
 		expect(topic()?.phaseStatus).toBe('running');
 		expect(topic()?.updatedAt).toBe('TS');
 	});
 
 	it('stopped を書き込む', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 2, phaseStatus: 'running' });
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'running' });
 
-		await setTopicPhaseStatus(TOPIC_ID, 2, 'stopped');
+		await setTopicPhaseStatus(TOPIC_ID, 'personas', 'stopped');
 
 		expect(topic()?.phaseStatus).toBe('stopped');
 	});

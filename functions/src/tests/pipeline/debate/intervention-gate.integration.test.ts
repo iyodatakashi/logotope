@@ -113,7 +113,7 @@ const facilitatorTarget = (id: string, target: string): Record<string, unknown> 
 const seedChapter = (turns: Array<Record<string, unknown>>) => {
 	holder.mock = createFirestoreMock();
 	holder.mock.store.set(`topics/${TOPIC_ID}`, {
-		phase: 5,
+		phase: 'debate',
 		phaseStatus: 'running',
 		runId: RUN_ID,
 		title: 'T'
@@ -255,7 +255,7 @@ const seedCoverage = (
 ) => {
 	holder.mock = createFirestoreMock();
 	holder.mock.store.set(`topics/${TOPIC_ID}`, {
-		phase: 5,
+		phase: 'debate',
 		phaseStatus: 'running',
 		runId: RUN_ID,
 		title: 'T'
@@ -400,7 +400,7 @@ describe('回帰: drift 非発火でもハードキャップで終端する', ()
 		// 章を pending で用意し open ステップから全チェーンを駆動する
 		holder.mock = createFirestoreMock();
 		holder.mock.store.set(`topics/${TOPIC_ID}`, {
-			phase: 5,
+			phase: 'debate',
 			phaseStatus: 'running',
 			runId: RUN_ID,
 			title: 'T'

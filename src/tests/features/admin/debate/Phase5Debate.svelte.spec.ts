@@ -18,7 +18,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 		get topic() {
 			return {
 				id: 'test-topic',
-				phase: 5,
+				phase: 'debate',
 				phaseStatus: 'generated',
 				approveDebate: fcHolder.approveDebate
 			};

@@ -16,7 +16,7 @@ export const generateChapters = onCall(
 			await planChapters(topicId);
 			// 章立て永続化の成功後、完了状態はサーバ権威で確定する。クライアントの生存や
 			// callable のタイムアウトに依存せず、running のときだけ generated へ冪等遷移させる。
-			await confirmPhaseGenerated(topicId, 4);
+			await confirmPhaseGenerated(topicId, 'chapters');
 		} catch (err) {
 			console.error('[generateChapters] error', { topicId }, err);
 			throw new HttpsError('internal', err instanceof Error ? err.message : String(err));

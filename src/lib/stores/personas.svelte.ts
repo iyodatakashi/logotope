@@ -54,7 +54,7 @@ export const createPersonasStore = (topicId: string) => {
 			batch.update(doc(db, 'topics', topicId, 'personas', p.id), { approved: true });
 		});
 		batch.update(doc(db, 'topics', topicId), {
-			phase: 3,
+			phase: 'interviews',
 			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
 		});
@@ -67,7 +67,7 @@ export const createPersonasStore = (topicId: string) => {
 			batch.delete(doc(db, 'topics', topicId, 'personas', p.id));
 		});
 		batch.update(doc(db, 'topics', topicId), {
-			phase: 2,
+			phase: 'personas',
 			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
 		});
@@ -76,7 +76,7 @@ export const createPersonasStore = (topicId: string) => {
 
 	const markInterviewsStarted = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId), {
-			phase: 3,
+			phase: 'interviews',
 			phaseStatus: 'running',
 			updatedAt: Timestamp.now()
 		});
@@ -85,7 +85,7 @@ export const createPersonasStore = (topicId: string) => {
 	// 取材失敗時にトピックを停止状態にする（実行中・完了は既存のまま）
 	const markInterviewsStopped = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId), {
-			phase: 3,
+			phase: 'interviews',
 			phaseStatus: 'stopped',
 			updatedAt: Timestamp.now()
 		});
