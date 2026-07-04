@@ -79,28 +79,12 @@
 	// 原本ターン id → そのターンを聞いて得た気づき（triggeredByTurnId で紐づく）
 	const awarenessesByTurn = $derived.by(() => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const map = new Map<
-			string,
-			{
-				personaName: string;
-				kind: 'reception' | 'self';
-				content: string;
-				sourceName: string | null;
-			}[]
-		>();
+		const map = new Map<string, { personaName: string; content: string }[]>();
 		for (const persona of currentTopicStore.personasStore.personas) {
 			for (const awareness of persona.awarenesses ?? []) {
-				const sourceName = awareness.sourcePersonaId
-					? (personaMap.get(awareness.sourcePersonaId)?.name ?? null)
-					: null;
 				map.set(awareness.triggeredByTurnId, [
 					...(map.get(awareness.triggeredByTurnId) ?? []),
-					{
-						personaName: persona.name,
-						kind: awareness.kind,
-						content: awareness.content,
-						sourceName
-					}
+					{ personaName: persona.name, content: awareness.content }
 				]);
 			}
 		}
@@ -131,12 +115,7 @@
 		// 編集で発言ごとカットされた原本ターン（差分表示時のみ取消線で見せる）。
 		removed: boolean;
 		findings: FactCheckFinding[];
-		awarenesses: {
-			personaName: string;
-			kind: 'reception' | 'self';
-			content: string;
-			sourceName: string | null;
-		}[];
+		awarenesses: { personaName: string; content: string }[];
 	};
 
 	const displayChapters = $derived.by(() => {
@@ -291,11 +270,7 @@
 										{#if turn.awarenesses.length > 0}
 											<ul class="awarenesses">
 												{#each turn.awarenesses as awareness, i (i)}
-													<li>
-														💡 {awareness.kind === 'reception' && awareness.sourceName
-															? `${awareness.sourceName}の視点を聞いて${awareness.personaName}が気づいた`
-															: `${awareness.personaName}が気づいた`}: {awareness.content}
-													</li>
+													<li>💡 {awareness.personaName}: {awareness.content}</li>
 												{/each}
 											</ul>
 										{/if}

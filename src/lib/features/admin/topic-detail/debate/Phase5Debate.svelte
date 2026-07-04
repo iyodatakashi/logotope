@@ -121,14 +121,7 @@
 				awarenessesTriggered: currentTopicStore.personasStore.personas.flatMap((p) =>
 					(p.awarenesses ?? [])
 						.filter((a) => a.triggeredByTurnId === t.id)
-						.map((a) => ({
-							personaName: p.name,
-							kind: a.kind,
-							content: a.content,
-							sourceName: a.sourcePersonaId
-								? (personaMap.get(a.sourcePersonaId)?.name ?? null)
-								: null
-						}))
+						.map((a) => ({ personaName: p.name, content: a.content }))
 				)
 			};
 		})
@@ -255,11 +248,7 @@
 						{#if turn.awarenessesTriggered.length > 0}
 							<ul class="awarenesses">
 								{#each turn.awarenessesTriggered as aw, awIdx (awIdx)}
-									<li>
-										💡 {aw.kind === 'reception' && aw.sourceName
-											? `${aw.sourceName}の視点を聞いて${aw.personaName}が気づいた`
-											: `${aw.personaName}が気づいた`}: {aw.content}
-									</li>
+									<li>💡 {aw.personaName}: {aw.content}</li>
 								{/each}
 							</ul>
 						{/if}
