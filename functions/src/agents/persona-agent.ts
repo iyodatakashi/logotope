@@ -377,8 +377,8 @@ export const evaluateEngagement = async (
 			otherPersonaNames.length > 0 ? `\n他の参加者: ${otherPersonaNames.join('、')}` : '';
 		// 既存の気づきを傾聴の入力（文脈）としても読む（聞く→気づく→話すの連続性）
 		const awarenessSection = formatAwarenessSection(persona.awarenesses);
-		// score/mode の主判定とは分節した、付随的な気づき検出タスク（低干渉・厳格な閾値）
-		const awarenessDetectionNote = `\n\n---\n【別タスク：気づきの検出】\n上の score / mode の評価とは切り離して、ここまでの会話を聞いた結果、あなたの中に生じた「気づき」があれば awareness に記録してください。気づきとは、(a) 他者の視点を「それは一理ある」と本当に受け止めた受容（kind: reception）、または (b) 自分の観点から新たに明確に生じた気づき（kind: self）です。\n\n【厳格な閾値】単なる同意・相槌（「そうですね」「なるほど」程度）は気づきではありません。自分の立場・経験に照らして本当に受け止めたこと、または明確に新しく生じた気づきだけを記録してください。該当が無ければ awareness を null にしてください（大半のターンでは null になります）。\n- content: 何に気づいたかを一文で書く\n- sourcePersonaId: reception のとき、その発言をした参加者のID（会話中の「(ID:...)」を使う）。self のときは null\n\nこの気づき検出はあくまで付随的なものであり、上の score / mode の判定を変えてはいけません。`;
+		// score/mode の主判定とは分節した、付随的な気づき検出タスク（低干渉・厳格な閾値・簡潔にしてコスト抑制）
+		const awarenessDetectionNote = `\n\n---\n【気づき検出】score/mode の評価とは別に行う。会話を聞いて自分の見方が実際に変わった、または見落としていた視点に本当に気づいたときだけ awareness に記録する。reception=他者の発言で気づいた／self=自分の中で新たに生じた。content は一文、sourcePersonaId は reception なら発言者ID（会話中の「(ID:...)」）・self は null。\n次は記録しない（null）：単なる同意・共感・言い換え・既存見解の再確認、および【討論中に得た気づき】に既出の内容やその繰り返し。該当なしは null（ほとんどは null）。この検出は score/mode の判定を変えない。`;
 		const result = await generateObject({
 			model: getPersonaModel(persona.llmType ?? 'claude'),
 			system: buildPersonaSystemPrompt(

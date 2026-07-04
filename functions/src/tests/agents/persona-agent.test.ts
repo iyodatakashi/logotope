@@ -251,11 +251,16 @@ describe('evaluateEngagement', () => {
 
 		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
 			.content;
-		// 閾値：単なる同意・相槌は気づきにしない
-		expect(userContent).toContain('相槌');
-		expect(userContent).toContain('一理');
-		// score/mode 判定と分節し、主判定を変えない旨
-		expect(userContent).toMatch(/判定を変え|独立|切り離/);
+		// 閾値：単なる同意・共感・言い換え・再確認は気づきにしない
+		expect(userContent).toContain('同意');
+		expect(userContent).toContain('共感');
+		expect(userContent).toContain('言い換え');
+		// 重複防止：既出の気づきは再記録しない
+		expect(userContent).toContain('既出');
+		// 過剰検出を防ぐ既定（該当なし/ほとんどは null）。回数ノルマは設けない
+		expect(userContent).toMatch(/該当なしは null|ほとんどは null/);
+		// score/mode の主判定を変えない
+		expect(userContent).toMatch(/判定を変え|独立|切り離|別に行う/);
 	});
 
 	it('既存の気づきを傾聴の入力（文脈）として注入する', async () => {
