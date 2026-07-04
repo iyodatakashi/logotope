@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button } from '@14ch/svelte-ui';
+	import { Button, Checkbox } from '@14ch/svelte-ui';
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
@@ -15,13 +15,15 @@
 	// isResetting はやり直し時に旧ターンを即時非表示にする（再開はターンを引き継ぐので消さない）。
 	let isStarting = $state(false);
 	let isResetting = $state(false);
+	// 討論を1章で終了するか最後の章まで続けるかの制御。開始/再開/やり直し時にサーバへ渡す。
+	let singleChapterMode = $state(true);
 
 	const generate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		isStarting = true;
 		try {
-			await topic.startDebate();
+			await topic.startDebate(singleChapterMode);
 		} finally {
 			isStarting = false;
 		}
@@ -32,7 +34,7 @@
 		if (!topic) return;
 		isStarting = true;
 		try {
-			await topic.restartDebate();
+			await topic.restartDebate(singleChapterMode);
 		} finally {
 			isStarting = false;
 		}
@@ -48,7 +50,7 @@
 			// startDebate を最後に呼ぶことで phase が debate へ戻る（resetEditing の phase 書込より後勝ち）。
 			await topic.resetDebate();
 			await topic.resetEditing();
-			await topic.startDebate();
+			await topic.startDebate(singleChapterMode);
 		} finally {
 			isStarting = false;
 			isResetting = false;
@@ -163,6 +165,11 @@
 		{/if}
 	{/snippet}
 	{#snippet content()}
+		{#if logicalState !== 'running'}
+			<div class="debate-options">
+				<Checkbox bind:value={singleChapterMode}>1章で討論を終了する</Checkbox>
+			</div>
+		{/if}
 		{#if currentTopicStore.chaptersStore.chapters.length}
 			<ol class="chapters">
 				{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.title)}
@@ -260,6 +267,9 @@
 </PhasePanel>
 
 <style>
+	.debate-options {
+		margin-bottom: 12px;
+	}
 	.chapter-progress {
 		color: #1565c0;
 		font-size: 0.95rem;

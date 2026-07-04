@@ -214,22 +214,20 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 		}
 	};
 
-	const startDebate = async (): Promise<void> => {
+	const startDebate = async (singleChapterMode?: boolean): Promise<void> => {
 		const startDebateCallable = httpsCallable<
 			{ topicId: string; singleChapterMode?: boolean },
 			unknown
 		>(functions, 'startDebate', { timeout: 600000 });
-		const singleChapterMode = import.meta.env.VITE_SINGLE_CHAPTER_MODE === 'true';
 		await startDebateCallable({ topicId: id, singleChapterMode: singleChapterMode || undefined });
 	};
 
 	// 停止した討論を currentChapterIndex から再開する。
-	const restartDebate = async (): Promise<void> => {
+	const restartDebate = async (singleChapterMode?: boolean): Promise<void> => {
 		const restartDebateCallable = httpsCallable<
 			{ topicId: string; singleChapterMode?: boolean },
 			unknown
 		>(functions, 'restartDebate', { timeout: 60000 });
-		const singleChapterMode = import.meta.env.VITE_SINGLE_CHAPTER_MODE === 'true';
 		await restartDebateCallable({ topicId: id, singleChapterMode: singleChapterMode || undefined });
 	};
 
