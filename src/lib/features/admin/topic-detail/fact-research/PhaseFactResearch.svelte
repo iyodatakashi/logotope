@@ -81,10 +81,7 @@
 		});
 	};
 
-	// 出典は grounding が自動収集した URL。手編集・追加はせず、不要な出典の削除のみ許可する。
-	const removeSource = (factIndex: number, sourceIndex: number) => {
-		draftFacts[factIndex].sources.splice(sourceIndex, 1);
-	};
+	// 出典は grounding が自動収集した URL。表示のみで手編集はしない（是正は事実単位の削除で行う）。
 	const removeFact = (factIndex: number) => {
 		draftFacts.splice(factIndex, 1);
 	};
@@ -145,11 +142,6 @@
 										href={source.url}
 										target="_blank"
 										rel="noopener noreferrer">{source.url}</a
-									>
-									<Button
-										type="button"
-										variant="ghost"
-										onclick={() => removeSource(factIndex, sourceIndex)}>削除</Button
 									>
 								</div>
 							{/each}
