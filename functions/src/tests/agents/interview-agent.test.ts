@@ -58,7 +58,8 @@ const makeDraftBeliefObject = () => ({
 	concerns: 'draft-concerns',
 	values: 'draft-values',
 	compromisePoints: 'draft-compromise',
-	changePotential: 'draft-change'
+	changePotential: 'draft-change',
+	perceivedFacts: 'draft-perceived-facts'
 });
 
 const makeFinalBeliefObject = () => ({
@@ -346,6 +347,97 @@ describe('runInterview', () => {
 			).messages[0].content;
 			expect(finalPrompt).toContain('一般論に薄めず');
 			expect(finalPrompt).toContain('確定事実Y');
+		});
+	});
+
+	// --- Task 2.1: 立場から見た事実（層②）のドラフトスロット ---
+	describe('層②ドラフトスロット（Task 2.1 / R8.1）', () => {
+		it('ドラフト生成プロンプトが「立場から見た事実（ペルソナ固有の事実認識）」の推定を指示する', async () => {
+			setupSuccessfulMocks();
+			await runInterview('AIと社会', mockPersona);
+			const draftPrompt = (
+				mockGenerateObject.mock.calls[0][0] as { messages: Array<{ content: string }> }
+			).messages[0].content;
+			expect(draftPrompt).toContain('perceivedFacts');
+			expect(draftPrompt).toContain('立場から見た事実');
+		});
+
+		it('ドラフト生成の schema に perceivedFacts が含まれる', async () => {
+			setupSuccessfulMocks();
+			await runInterview('AIと社会', mockPersona);
+			const schema = (mockGenerateObject.mock.calls[0][0] as { schema: { shape?: unknown } })
+				.schema;
+			expect((schema as { shape: Record<string, unknown> }).shape).toHaveProperty('perceivedFacts');
+		});
+	});
+
+	// --- Task 2.2: グラウンディングの実態志向への再定位（A/B 分離） ---
+	describe('グラウンディング再定位（Task 2.2 / R8.1-8.3・6 非破壊）', () => {
+		const getVerifyPrompt = async () => {
+			setupSuccessfulMocks();
+			await runInterview('AIと社会', mockPersona);
+			return (mockGenerateText.mock.calls[0][0] as { messages: Array<{ content: string }> })
+				.messages[0].content;
+		};
+
+		it('検証を「実態・立場から見た事実」の把握に再定位し、真偽の裁定・矯正に使わない旨を含む', async () => {
+			const verifyPrompt = await getVerifyPrompt();
+			expect(verifyPrompt).toContain('実態');
+			expect(verifyPrompt).toContain('立場から見た事実');
+			expect(verifyPrompt).toMatch(/裁定|矯正/);
+		});
+
+		it('(A) 人物描写の実在感接地を事実認識以外の全次元で維持し紋切り型を外す旨を含む', async () => {
+			const verifyPrompt = await getVerifyPrompt();
+			expect(verifyPrompt).toContain('紋切り型');
+		});
+
+		it('(B) 事実認識を共通見解へ矯正せず層②として帰属保持する旨を含む', async () => {
+			const verifyPrompt = await getVerifyPrompt();
+			expect(verifyPrompt).toMatch(/共通見解|コンセンサス/);
+			expect(verifyPrompt).toContain('帰属');
+		});
+
+		it('共有事実の再収集はしない（重複検索の禁止）を維持する', async () => {
+			const verifyPrompt = await getVerifyPrompt();
+			expect(verifyPrompt).toContain('重複検索の禁止');
+		});
+	});
+
+	// --- Task 2.3: 最終信念への層②節生成と耐性なし反映 ---
+	describe('層②節の生成と耐性なし反映（Task 2.3 / R8.2・8.4-8.6）', () => {
+		const getFinalPrompt = async () => {
+			setupSuccessfulMocks();
+			await runInterview('AIと社会', mockPersona);
+			return (mockGenerateObject.mock.calls[1][0] as { messages: Array<{ content: string }> })
+				.messages[0].content;
+		};
+
+		it('信念ドキュメントに「立場から見た事実」節を生成する指示を含む', async () => {
+			const finalPrompt = await getFinalPrompt();
+			expect(finalPrompt).toContain('前提としている事実（立場から見た事実）');
+		});
+
+		it('乖離を「システムの推定違いの是正」として耐性なく反映する指示を含む', async () => {
+			const finalPrompt = await getFinalPrompt();
+			expect(finalPrompt).toContain('推定違いの是正');
+			expect(finalPrompt).toContain('耐性');
+		});
+
+		it('層②を共有事実基盤と区別し、共通見解へ均さず帰属保持する旨を含む', async () => {
+			const finalPrompt = await getFinalPrompt();
+			expect(finalPrompt).toContain('区別');
+			expect(finalPrompt).toMatch(/均さ|帰属/);
+		});
+
+		it('戯画化・捏造をせず、実態が得られない事実認識は生成しない旨を含む', async () => {
+			const finalPrompt = await getFinalPrompt();
+			expect(finalPrompt).toMatch(/戯画|捏造/);
+		});
+
+		it('ドラフトの perceivedFacts を比較参照としてプロンプトに含める', async () => {
+			const finalPrompt = await getFinalPrompt();
+			expect(finalPrompt).toContain('draft-perceived-facts');
 		});
 	});
 });

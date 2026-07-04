@@ -5,7 +5,7 @@
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import type { FactItem } from '$lib/models/factBase/factBase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import { Button, Input, Textarea, Skeleton } from '@14ch/svelte-ui';
+	import { Button, Textarea, Skeleton } from '@14ch/svelte-ui';
 
 	const PHASE: PhaseSlug = 'fact-research';
 
@@ -64,9 +64,7 @@
 		});
 	};
 
-	const addSource = (factIndex: number) => {
-		draftFacts[factIndex].sources.push({ title: '', url: '' });
-	};
+	// 出典は grounding が自動収集した URL。手編集・追加はせず、不要な出典の削除のみ許可する。
 	const removeSource = (factIndex: number, sourceIndex: number) => {
 		draftFacts[factIndex].sources.splice(sourceIndex, 1);
 	};
@@ -124,18 +122,12 @@
 						<div class="fact-item__sources">
 							{#each fact.sources as source, sourceIndex (sourceIndex)}
 								<div class="fact-item__source">
-									<Input
-										value={source.title}
-										oninput={(v) => (draftFacts[factIndex].sources[sourceIndex].title = String(v))}
-										placeholder="出典（媒体名など）"
-										fullWidth
-									/>
-									<Input
-										value={source.url}
-										oninput={(v) => (draftFacts[factIndex].sources[sourceIndex].url = String(v))}
-										placeholder="https://"
-										fullWidth
-									/>
+									<a
+										class="fact-item__source-link"
+										href={source.url}
+										target="_blank"
+										rel="noopener noreferrer">{source.url}</a
+									>
 									<Button
 										type="button"
 										variant="ghost"
@@ -143,9 +135,6 @@
 									>
 								</div>
 							{/each}
-							<Button type="button" variant="outlined" onclick={() => addSource(factIndex)}
-								>出典を追加</Button
-							>
 						</div>
 						<Button type="button" variant="ghost" onclick={() => removeFact(factIndex)}
 							>この事実を削除</Button
@@ -189,6 +178,16 @@
 		display: flex;
 		gap: 8px;
 		align-items: center;
+	}
+
+	.fact-item__source-link {
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		font-size: var(--svelte-ui-font-size-sm);
+		color: var(--svelte-ui-text-subtle-color);
 	}
 
 	.fact-list__actions {

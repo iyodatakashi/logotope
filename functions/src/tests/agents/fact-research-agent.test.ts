@@ -201,4 +201,98 @@ describe('runFactResearch', () => {
 			expect(result.error.retryable).toBe(true);
 		}
 	});
+
+	// --- Task 1.1: 具体性・網羅性・収集情報の保持 ---
+	describe('具体性・網羅性の指示（Task 1.1 / R1・R2・R3）', () => {
+		const getPrompts = async () => {
+			setResolvedSources([{ title: 'a', url: 'https://a.com' }]);
+			mockGenerateText.mockResolvedValueOnce(groundingResult());
+			mockGenerateObject.mockResolvedValueOnce(structured([]));
+			await runFactResearch('沖縄の基地問題を振り返る', NOW);
+			const groundingPrompt = (
+				mockGenerateText.mock.calls[0][0] as { messages: Array<{ content: string }> }
+			).messages[0].content;
+			const structuringPrompt = (
+				mockGenerateObject.mock.calls[0][0] as { messages: Array<{ content: string }> }
+			).messages[0].content;
+			return { groundingPrompt, structuringPrompt };
+		};
+
+		it('grounding プロンプトが具体（数値・固有名詞・日付・経緯）を薄めず保持する指示を含む', async () => {
+			const { groundingPrompt } = await getPrompts();
+			expect(groundingPrompt).toContain('経緯');
+			expect(groundingPrompt).toContain('一般論');
+		});
+
+		it('grounding プロンプトが主要な側面の網羅・恣意的切り詰め禁止を含む', async () => {
+			const { groundingPrompt } = await getPrompts();
+			expect(groundingPrompt).toContain('網羅');
+			expect(groundingPrompt).toContain('恣意的');
+			expect(groundingPrompt).toContain('複数');
+		});
+
+		it('grounding プロンプトが箇条書きで多数の事実を列挙する網羅レポートを要求する（天井引き上げ）', async () => {
+			const { groundingPrompt } = await getPrompts();
+			expect(groundingPrompt).toContain('箇条書き');
+			expect(groundingPrompt).toContain('10件以上');
+		});
+
+		it('structuring プロンプトが grounding の具体情報を保持する指示を含む', async () => {
+			const { structuringPrompt } = await getPrompts();
+			expect(structuringPrompt).toContain('経緯');
+			expect(structuringPrompt).toContain('薄めず');
+			expect(structuringPrompt).toContain('網羅');
+		});
+
+		it('structuring プロンプトが客観的事実を圧縮せず単位ごとに構造化しつつ主観・立場依存は除外する指示を含む', async () => {
+			const { structuringPrompt } = await getPrompts();
+			expect(structuringPrompt).toContain('1件へ圧縮しない');
+			expect(structuringPrompt).toContain('層②に委ねる');
+		});
+
+		it('structuring プロンプトが出典で裏付けられない具体を推測で補わない指示を含む', async () => {
+			const { structuringPrompt } = await getPrompts();
+			expect(structuringPrompt).toContain('推測');
+		});
+	});
+
+	// --- Task 1.2: 帰属・観測形と真実非保証 ---
+	describe('帰属・観測形と真実非保証の指示（Task 1.2 / R7）', () => {
+		const getPrompts = async () => {
+			setResolvedSources([{ title: 'a', url: 'https://a.com' }]);
+			mockGenerateText.mockResolvedValueOnce(groundingResult());
+			mockGenerateObject.mockResolvedValueOnce(structured([]));
+			await runFactResearch('北方領土の帰属を巡る問題', NOW);
+			const groundingPrompt = (
+				mockGenerateText.mock.calls[0][0] as { messages: Array<{ content: string }> }
+			).messages[0].content;
+			const structuringPrompt = (
+				mockGenerateObject.mock.calls[0][0] as { messages: Array<{ content: string }> }
+			).messages[0].content;
+			return { groundingPrompt, structuringPrompt };
+		};
+
+		it('structuring プロンプトが立場で分かれる事項を帰属・観測形で記述する指示を含む', async () => {
+			const { structuringPrompt } = await getPrompts();
+			expect(structuringPrompt).toContain('誰が');
+			expect(structuringPrompt).toContain('コンセンサス');
+		});
+
+		it('structuring プロンプトが裸の断定・評価的特徴づけ（「係争中」等）を避ける指示を含む', async () => {
+			const { structuringPrompt } = await getPrompts();
+			expect(structuringPrompt).toContain('係争中');
+			expect(structuringPrompt).toContain('断定');
+		});
+
+		it('structuring プロンプトが確立事実を否定者の存在ゆえに取り下げない指示を含む', async () => {
+			const { structuringPrompt } = await getPrompts();
+			expect(structuringPrompt).toContain('否定');
+			expect(structuringPrompt).toContain('取り下げ');
+		});
+
+		it('structuring プロンプトが検証済みの真実として位置づけない旨を含む', async () => {
+			const { structuringPrompt } = await getPrompts();
+			expect(structuringPrompt).toContain('検証済み');
+		});
+	});
 });

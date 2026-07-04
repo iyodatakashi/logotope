@@ -226,6 +226,34 @@ describe('generateTurn', () => {
 		expect(userContent).toContain('件数ノルマもありません');
 	});
 
+	it('事実注記が層②優先（衝突点限定・自分の見方を優先し再解釈）を一体文言で含む（Task 3 / R8.8-8.9）', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(
+			mockPersona,
+			makeContext({
+				factBase: {
+					facts: [{ statement: '日本は1回戦で敗退した', sources: [] }],
+					generatedAt: new Date('2026-07-03T00:00:00Z')
+				}
+			}),
+			makeEngagement({ mode: 'opinion', intentSummary: '意見を述べたい' })
+		);
+
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		// 衝突点に限定して自分の認識を優先し、共有側を自分の立場から再解釈する一体文言
+		expect(userContent).toContain('食い違う');
+		expect(userContent).toContain('優先');
+		expect(userContent).toContain('再解釈');
+	});
+
 	it('factBase が無いとき事実節を注入しない（従来どおり）', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
