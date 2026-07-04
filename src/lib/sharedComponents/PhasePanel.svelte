@@ -118,6 +118,7 @@
 		padding: 24px;
 		background-color: color-mix(in srgb, var(--base-50) 50%, transparent);
 		backdrop-filter: blur(20px);
+		z-index: 100;
 	}
 
 	.phase-panel__contents-pane {
