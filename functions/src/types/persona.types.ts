@@ -17,17 +17,29 @@ export type Persona = {
 	approved: boolean;
 	sortOrder: number;
 	beliefs?: Belief[];
+	awarenesses?: AwarenessForFirestore[];
 	interviewRecord?: string;
 };
 
 import type { Timestamp } from 'firebase-admin/firestore';
 
+// 不変の初期信念のみ（interview が version 0 を書き、討論は上書きしない）
 export type Belief = {
 	id: string;
 	version: number;
 	content: string;
 	createdAt: Timestamp;
-	changeType?: string | null;
-	changeSummary?: string | null;
-	triggeredByTurnId?: string | null;
+};
+
+// 他者視点の受容（reception）か自己発の気づき（self）か
+export type AwarenessKind = 'reception' | 'self';
+
+// 討論中の気づき（追記のみ・非破壊）。ターンに帰属し、reception は由来ペルソナを持つ
+export type AwarenessForFirestore = {
+	id: string;
+	kind: AwarenessKind;
+	content: string;
+	sourcePersonaId: string | null;
+	triggeredByTurnId: string;
+	createdAt: Timestamp;
 };

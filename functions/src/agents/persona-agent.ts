@@ -5,23 +5,14 @@ import { isSearchAvailable, executeSearch } from '../search/search-service.js';
 import {
 	formatTurns,
 	currentDateString,
-	formatFactBaseSection
+	formatFactBaseSection,
+	formatAwarenessSection
 } from '../utils/prompt-formatters.js';
-import type {
-	PersonaReply,
-	BeliefChangeEvent,
-	PostDebateCommentResult,
-	Engagement
-} from '../types/debate.types.js';
+import { getInitialBelief } from '../pipeline/debate/awareness.js';
+import type { PersonaReply, PostDebateCommentResult, Engagement } from '../types/debate.types.js';
 import type { DebateTurn, TurnGenerationContext } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
-
-const latestBeliefContent = (persona: Persona): string => {
-	const beliefs = persona.beliefs ?? [];
-	if (beliefs.length === 0) return '';
-	return beliefs.reduce((best, b) => (b.version > best.version ? b : best)).content;
-};
 
 type ExperienceLevel = 'young' | 'mid' | 'veteran';
 type AuthorityLevel = 'general' | 'mid' | 'high';
@@ -109,7 +100,7 @@ export const buildSpeechStyleGuide = (persona: Persona & { gender?: string }): s
 const buildPersonaSystemPrompt = (
 	persona: Persona & { gender?: string },
 	interviewRecord: string,
-	currentBelief: string
+	initialBelief: string
 ): string => {
 	const styleGuide = buildSpeechStyleGuide(persona);
 	return `あなたは以下のペルソナとして、異なる立場の人々が集まるテーマ対話の場に参加しています。あなたが発言するのは、相手の意見に同意したり補完したりするためではなく、自分の経験・立場・実感から言いたいことを伝えるためです。他の参加者の発言は、自分の考えや記憶を引き出すきっかけになることはありますが、その内容に引っ張られる必要はありません。正しいことを言う必要はなく、自分の生活や仕事から感じていることを率直に話してください。
@@ -141,9 +132,9 @@ ${styleGuide}
 ## 事前取材レコード
 ${interviewRecord}
 
-## 現在の信念ドキュメント
-（内面の一貫性を保つための参照資料。発言で直接引用・言及しないこと）
-${currentBelief}
+## 初期信念ドキュメント（不変の主軸）
+（討論を通じて変わらない、あなたの立場の主軸。内面の一貫性を保つための参照資料であり、発言で直接引用・言及しないこと）
+${initialBelief}
 
 ## 情報収集について
 数値・統計・最新動向など正確性が求められる情報を発言の根拠として示す場合は、推測や記憶だけに頼らず検索ツールを積極的に使用すること。
@@ -172,9 +163,6 @@ const speechLengthGuide = (score?: number): string => {
 // optional ではなく nullable で「必須・null許容」にする。
 const turnOutputSchema = z.object({
 	content: z.string(),
-	beliefChangeType: z.enum(['opinion_change', 'partial_acceptance']).nullable(),
-	beliefChangeSummary: z.string().nullable(),
-	beliefChangeUpdatedBelief: z.string().nullable(),
 	targetPersonaId: z.string().nullable()
 });
 
@@ -218,7 +206,7 @@ export const generateTurn = async (
 	try {
 		const { chapter, queuedTrigger, targetedBy, activeDiscussionPoint } = context;
 		const recentTurns = context.chapterTurns.slice(-20);
-		const currentBelief = latestBeliefContent(persona);
+		const initialBelief = getInitialBelief(persona);
 		const styleGuide = buildSpeechStyleGuide(persona);
 		// 発言者の文脈はアクティブ論点に一本化する。論点が無ければ章タイトルを場のテーマとして提示する（focusQuestion は使わない）
 		const chapterFocusNote = activeDiscussionPoint
@@ -237,7 +225,7 @@ export const generateTurn = async (
 
 		const isFact = engagement.mode === 'fact';
 		const isQuestion = engagement.mode === 'question';
-		const system = buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', currentBelief);
+		const system = buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', initialBelief);
 		const llmType = persona.llmType ?? 'claude';
 
 		const lastTurn = recentTurns[recentTurns.length - 1];
@@ -260,11 +248,11 @@ export const generateTurn = async (
 				: '';
 		const excludeNote = lastSpeakerName ? `（直前の発言者${lastSpeakerName}は除く）` : '';
 		const targetingGuide = `まず自分が何を言いたいか・何を聞きたいかを決める。指名（targetPersonaId の指定）は、特定の相手の発言に直接反論・確認する明確な必要があるときだけにとどめ、それ以外は場全体への発言として targetPersonaId を指定しない（既定は未指定）。指定する場合のみ、その内容に立場・職業・経験から最も関係する参加者${excludeNote}を選ぶ。${personaList}`;
-		const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。信念に変化があれば beliefChangeType を指定。${targetingGuide}`;
+		const opinionInstruction = `${persona.name}として発言してください。思ったこと・感じたことを自分の言葉で話す（${lengthGuide}）。${targetingGuide}`;
 		const factInstruction = `${persona.name}として、自分が知っている事実・データ・調査結果を相手に紹介してください（${lengthGuide}）。これは意見ではなく事実の共有です。自分の賛否・評価・主張は加えず、事実・データそのものを客観的に述べること（「私はこう思う」「〜すべきだ」は禁止）。皆が知っている前提にせず、「〜という調査があって」「〜って知ってますか？」のように、知らない相手に共有・説明するトーンで話す。検索ツールで確認した情報は根拠として使ってよい。確認していない情報は断言しない。${targetingGuide}`;
 		const questionInstruction =
 			isQuestion && engagement.intentSummary
-				? `${persona.name}として、特定の参加者に直接質問してください（${lengthGuide}）。\n【今回の質問意図】${engagement.intentSummary}${personaList}\n質問の書き出しは「気になるのは」「気になったのは」「そこが気になる」のような定型句で始めないこと。相手の発言の具体的な部分を引いて問う、自分の経験・立場を一言置いてから問う、結論を先に言ってから問う、など書き出しを毎回変えること。\n必ず targetPersonaId に質問相手のIDを指定すること。信念変化があれば beliefChangeType を指定。`
+				? `${persona.name}として、特定の参加者に直接質問してください（${lengthGuide}）。\n【今回の質問意図】${engagement.intentSummary}${personaList}\n質問の書き出しは「気になるのは」「気になったのは」「そこが気になる」のような定型句で始めないこと。相手の発言の具体的な部分を引いて問う、自分の経験・立場を一言置いてから問う、結論を先に言ってから問う、など書き出しを毎回変えること。\n必ず targetPersonaId に質問相手のIDを指定すること。`
 				: '';
 		const antiSycophancyNote = `\n【重要】発言の書き出しは、前の話者への同意・共感ではなく、自分が言いたいこと・引っかかっていること・疑問から始めること。前の話者の意見に同意であっても、自分の立場・経験から別の角度・ズレを持ち込む。`;
 		const targetBiasNote =
@@ -299,7 +287,10 @@ export const generateTurn = async (
 							'\n'
 						)}\n【修正の方針】\n- 自分の立場・口調・論旨の方向性・指名（targetPersonaId）の整合は維持する（ただし事実の訂正によって主張の結論が変わることは許容する）\n- 誤り（incorrect）の主張は発言に含めず、訂正後の事実に基づいて組み立て直す\n- 検証不能（unverifiable）の主張は、不確実性を含む表現に改めるか取り下げる`
 				: '';
-		const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterFocusNote}${factBaseNote}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}${factCheckNote}`;
+		// 蓄積された気づきを発言の入力として反映（消費）。発言段階では新規検出せず、
+		// 初期信念を主軸に立場を反転させない範囲で踏まえる（整形側に非反転の指針を内在）
+		const awarenessNote = formatAwarenessSection(persona.awarenesses);
+		const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterFocusNote}${factBaseNote}${awarenessNote}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}${factCheckNote}`;
 		const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 			generateText({
 				model,
@@ -335,26 +326,12 @@ export const generateTurn = async (
 			(c: unknown) => (c as { input: { query: string } }).input.query
 		);
 
-		const {
-			content,
-			beliefChangeType,
-			beliefChangeSummary,
-			beliefChangeUpdatedBelief,
-			targetPersonaId
-		} = fullResult.output as TurnOutput;
-		const beliefChange: BeliefChangeEvent | null = beliefChangeType
-			? {
-					type: beliefChangeType,
-					summary: beliefChangeSummary ?? '',
-					updatedBelief: beliefChangeUpdatedBelief ?? ''
-				}
-			: null;
+		const { content, targetPersonaId } = fullResult.output as TurnOutput;
 		return {
 			ok: true,
 			value: {
 				content,
 				speechMode: isQuestion ? 'question' : isFact ? 'fact' : 'opinion',
-				beliefChange,
 				targetPersonaId: targetPersonaId ?? undefined,
 				...(searchQueries.length > 0 && {
 					searchUsed: true,
@@ -372,7 +349,15 @@ const engagementSchema = z.object({
 	score: z.number().int().min(1).max(5),
 	mode: z.enum(['question', 'fact', 'opinion', 'none']),
 	// gpt の strict structured output 対応のため optional ではなく nullable にする
-	intentSummary: z.string().nullable()
+	intentSummary: z.string().nullable(),
+	// 傾聴段階で検出する気づき（大半は null）。ネストも gpt strict 対応で全項目 nullable 必須
+	awareness: z
+		.object({
+			kind: z.enum(['reception', 'self']),
+			content: z.string(),
+			sourcePersonaId: z.string().nullable()
+		})
+		.nullable()
 });
 
 export const evaluateEngagement = async (
@@ -390,33 +375,48 @@ export const evaluateEngagement = async (
 				: '';
 		const otherPersonasNote =
 			otherPersonaNames.length > 0 ? `\n他の参加者: ${otherPersonaNames.join('、')}` : '';
+		// 既存の気づきを傾聴の入力（文脈）としても読む（聞く→気づく→話すの連続性）
+		const awarenessSection = formatAwarenessSection(persona.awarenesses);
+		// score/mode の主判定とは分節した、付随的な気づき検出タスク（低干渉・厳格な閾値）
+		const awarenessDetectionNote = `\n\n---\n【別タスク：気づきの検出】\n上の score / mode の評価とは切り離して、ここまでの会話を聞いた結果、あなたの中に生じた「気づき」があれば awareness に記録してください。気づきとは、(a) 他者の視点を「それは一理ある」と本当に受け止めた受容（kind: reception）、または (b) 自分の観点から新たに明確に生じた気づき（kind: self）です。\n\n【厳格な閾値】単なる同意・相槌（「そうですね」「なるほど」程度）は気づきではありません。自分の立場・経験に照らして本当に受け止めたこと、または明確に新しく生じた気づきだけを記録してください。該当が無ければ awareness を null にしてください（大半のターンでは null になります）。\n- content: 何に気づいたかを一文で書く\n- sourcePersonaId: reception のとき、その発言をした参加者のID（会話中の「(ID:...)」を使う）。self のときは null\n\nこの気づき検出はあくまで付随的なものであり、上の score / mode の判定を変えてはいけません。`;
 		const result = await generateObject({
 			model: getPersonaModel(persona.llmType ?? 'claude'),
 			system: buildPersonaSystemPrompt(
 				persona,
 				persona.interviewRecord ?? '',
-				latestBeliefContent(persona)
+				getInitialBelief(persona)
 			),
 			schema: engagementSchema,
 			messages: [
 				{
 					role: 'user',
-					content: `現在の会話:\n\n${formatTurns(recentTurns, personas)}${ownTurnsSection}${otherPersonasNote}\n\n${persona.name}として、発言意欲（score）と発言形式（mode）を評価してください。\n\nまず上の会話を読んで、他の参加者の発言の中に「もっと聞きたい」「それは本当に？」「自分の経験では違う」「なぜそう思うのか確認したい」と感じるものがないか振り返ってください。そういう相手がいれば mode は question です（intentSummary に「誰の・どの発言について・何を聞きたいか」を書く）。\n\n次に、紹介すべき事実・データがあれば fact。それ以外は opinion。付け加えることがなければ score 1（none）。\n\nscore は mode ごとの基準で選んでください。\n\n【opinion / fact のスコア基準】\n- 1: 付け加えることがない\n- 2: 同意・補足程度（自分の角度はほぼない）\n- 3: 話したいことはあるが急かすほどでない\n- 4: 自分の立場・経験から別の角度を出せる\n- 5: 今すぐ言わないと議論が進まない\n\n【question のスコア基準】\n- 1: 特に聞きたいことはない\n- 2: 少し引っかかる程度\n- 3: 聞いてみたいが急かすほどでない\n- 4: 相手の発言や立場に引っかかりがあり、素直に聞いてみたい\n- 5: 今この人に確認しないと議論が進まない\n\n発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まります。すでに同じ主張を述べており新たに付け加えることがなければ score 1 を選んでください。\n\n重要：前の発言に「そうですね」と同意するだけで終わる発言しか浮かばないなら score を下げてください（同意を表明したいだけ → score 2 以下）。高い score は「自分にしかない別の角度・疑問・経験を加えたい」ときに使います。`
+					content: `現在の会話:\n\n${formatTurns(recentTurns, personas)}${ownTurnsSection}${otherPersonasNote}${awarenessSection}\n\n${persona.name}として、発言意欲（score）と発言形式（mode）を評価してください。\n\nまず上の会話を読んで、他の参加者の発言の中に「もっと聞きたい」「それは本当に？」「自分の経験では違う」「なぜそう思うのか確認したい」と感じるものがないか振り返ってください。そういう相手がいれば mode は question です（intentSummary に「誰の・どの発言について・何を聞きたいか」を書く）。\n\n次に、紹介すべき事実・データがあれば fact。それ以外は opinion。付け加えることがなければ score 1（none）。\n\nscore は mode ごとの基準で選んでください。\n\n【opinion / fact のスコア基準】\n- 1: 付け加えることがない\n- 2: 同意・補足程度（自分の角度はほぼない）\n- 3: 話したいことはあるが急かすほどでない\n- 4: 自分の立場・経験から別の角度を出せる\n- 5: 今すぐ言わないと議論が進まない\n\n【question のスコア基準】\n- 1: 特に聞きたいことはない\n- 2: 少し引っかかる程度\n- 3: 聞いてみたいが急かすほどでない\n- 4: 相手の発言や立場に引っかかりがあり、素直に聞いてみたい\n- 5: 今この人に確認しないと議論が進まない\n\n発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まります。すでに同じ主張を述べており新たに付け加えることがなければ score 1 を選んでください。\n\n重要：前の発言に「そうですね」と同意するだけで終わる発言しか浮かばないなら score を下げてください（同意を表明したいだけ → score 2 以下）。高い score は「自分にしかない別の角度・疑問・経験を加えたい」ときに使います。${awarenessDetectionNote}`
 				}
 			]
 		});
 
-		const { score, mode, intentSummary } = result.object;
+		const { score, mode, intentSummary, awareness } = result.object;
 		const clampedScore = Math.max(1, Math.min(5, Math.round(score)));
 		let resolvedMode: 'opinion' | 'fact' | 'none' | 'question' = clampedScore === 1 ? 'none' : mode;
 		if (resolvedMode === 'question' && !intentSummary) resolvedMode = 'opinion';
 		const resolvedIntentSummary =
 			resolvedMode === 'none' ? undefined : (intentSummary ?? undefined);
+		// 気づきは score/mode と独立（非話者・score 1 でも保持）。content 空は無しとみなし、
+		// self は sourcePersonaId を null に正規化する
+		const resolvedAwareness =
+			awareness && awareness.content.trim()
+				? {
+						kind: awareness.kind,
+						content: awareness.content,
+						sourcePersonaId: awareness.kind === 'self' ? null : awareness.sourcePersonaId
+					}
+				: null;
 		return {
 			personaId: persona.id,
 			score: clampedScore,
 			mode: resolvedMode,
-			intentSummary: resolvedIntentSummary
+			intentSummary: resolvedIntentSummary,
+			awareness: resolvedAwareness
 		};
 	} catch {
 		return { personaId: persona.id, score: 1, mode: 'none' };
@@ -429,19 +429,20 @@ const postDebateCommentSchema = z.object({
 
 export const generatePostDebateComment = async (
 	persona: Persona,
-	finalBelief: string,
 	turns: DebateTurn[],
 	personas: ReadonlyArray<Persona> = []
 ): Promise<Result<PostDebateCommentResult, PipelineError>> => {
 	try {
+		// 見解は「固定の初期信念（主軸・system）＋討論で得た気づき（揮発部）」から都度導出する（4.1/4.3）
+		const awarenessNote = formatAwarenessSection(persona.awarenesses);
 		const result = await generateObject({
 			model: getPersonaModel(persona.llmType ?? 'claude'),
-			system: buildPersonaSystemPrompt(persona, '', finalBelief),
+			system: buildPersonaSystemPrompt(persona, '', getInitialBelief(persona)),
 			schema: postDebateCommentSchema,
 			messages: [
 				{
 					role: 'user',
-					content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。\n\n討論全体:\n${formatTurns(turns, personas)}`
+					content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。${awarenessNote}\n\n討論全体:\n${formatTurns(turns, personas)}`
 				}
 			]
 		});

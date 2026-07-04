@@ -57,7 +57,12 @@ vi.mock('../../../pipeline/debate/inline-fact-check.js', () => ({
 }));
 
 vi.mock('../../../utils/prompt-formatters.js', () => ({
-	currentDateString: vi.fn(() => '2026年6月25日')
+	currentDateString: vi.fn(() => '2026年6月25日'),
+	formatAwarenessSection: vi.fn((awarenesses?: { content: string }[]) =>
+		awarenesses?.length
+			? `\n\n【討論中に得た気づき】\n${awarenesses.map((a) => a.content).join('\n')}`
+			: ''
+	)
 }));
 
 // 事実基盤の供給はサーバ権威経路。ここでは空コンテキストを返し、ターン生成配線のみ検証する。
@@ -68,7 +73,8 @@ vi.mock('../../../pipeline/topics/topic-context.js', () => ({
 import {
 	generatePersonaTurn,
 	addTurn,
-	generateFacilitatorTurn
+	generateFacilitatorTurn,
+	appendClosingTurn
 } from '../../../pipeline/debate/turn.js';
 
 // --- トランザクション get の制御変数 ---
@@ -808,5 +814,52 @@ describe('generateFacilitatorTurn - 期待位置照合・runId 世代照合', ()
 		expect(result).toEqual({ status: 'committed', id: 'mock-turn-id' });
 		expect(state.turns).toHaveLength(1);
 		expect(mockTxUpdate).toHaveBeenCalledOnce();
+	});
+});
+
+describe('appendClosingTurn - 見解を初期信念＋気づきから導出（4.1/4.2）', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		txChapterTurns = [];
+		txTopicRunId = undefined;
+		setupTxDocs();
+		mockDoc.mockImplementation((path: string) => ({
+			path,
+			get: mockGet,
+			update: mockUpdate,
+			set: mockSet
+		}));
+	});
+
+	it('generateClosing に「固定の初期信念＋蓄積された気づき」で構成した見解を渡す', async () => {
+		const facilMod = await import('../../../agents/facilitator-agent.js');
+		vi.mocked(facilMod.generateClosing).mockResolvedValue({ ok: true, value: 'クロージング' });
+
+		const persona: Persona = {
+			...makePersona('p1', '太郎'),
+			beliefs: [{ id: 'b0', version: 0, content: '初期信念X', createdAt: 'TS' as never }],
+			awarenesses: [
+				{
+					id: 'a1',
+					kind: 'reception',
+					content: '気づきY',
+					sourcePersonaId: 'p2',
+					triggeredByTurnId: 't1',
+					createdAt: 'TS' as never
+				}
+			]
+		};
+
+		await appendClosingTurn({
+			topicId: 'topic1',
+			personas: [persona],
+			state: makeDebateState(),
+			chapterId: 'ch1'
+		});
+
+		const callArgs = vi.mocked(facilMod.generateClosing).mock.calls[0];
+		const viewMap = callArgs[1] as Map<string, string>;
+		expect(viewMap.get('p1')).toContain('初期信念X');
+		expect(viewMap.get('p1')).toContain('気づきY');
 	});
 });

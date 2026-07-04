@@ -1,7 +1,6 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { generatePostDebateComment } from '../../agents/persona-agent.js';
-import { getLatestBelief } from './belief.js';
 import type { DebateState } from '../../types/debate.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
@@ -24,13 +23,8 @@ export const persistPostDebateComments = async ({
 	const comments: Array<{ id: string; personaId: string; content: string; sortOrder: number }> = [];
 	for (let i = 0; i < personas.length; i++) {
 		const persona = personas[i];
-		const finalBelief = getLatestBelief(persona).content;
-		const commentResult = await generatePostDebateComment(
-			persona,
-			finalBelief,
-			state.turns,
-			personas
-		);
+		// 見解は generatePostDebateComment 内で「初期信念＋気づき」から都度導出する（最終信念を持たない）
+		const commentResult = await generatePostDebateComment(persona, state.turns, personas);
 		if (commentResult.ok) {
 			const id = nanoid();
 			comments.push({

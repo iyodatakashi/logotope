@@ -22,6 +22,7 @@ const toPersona = (id: string, raw: PersonaForFirestore): Persona => ({
 	...raw,
 	id,
 	beliefs: raw.beliefs.map((b) => ({ ...b, createdAt: b.createdAt.toDate() })),
+	awarenesses: raw.awarenesses?.map((a) => ({ ...a, createdAt: a.createdAt.toDate() })),
 	interview: raw.interview
 		? {
 				...raw.interview,

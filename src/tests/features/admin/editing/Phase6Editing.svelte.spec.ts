@@ -229,14 +229,22 @@ describe('Phase6Editing.svelte', () => {
 		await expect.element(page.getByText('未編集')).toBeInTheDocument();
 	});
 
-	it('完了章の編集後ターンに、由来ターンの信念変化を結合表示する', async () => {
+	it('完了章の編集後ターンに、由来ターンの気づきを結合表示する', async () => {
 		holder.personas = [
 			{
 				id: 'p1',
 				name: '田中太郎',
 				stakeholderRole: '役割',
 				specificRole: '',
-				beliefs: [{ triggeredByTurnId: 't1', changeSummary: '考えを改めた' }]
+				awarenesses: [
+					{
+						id: 'a1',
+						triggeredByTurnId: 't1',
+						kind: 'self',
+						content: '別の見方に一理ある',
+						sourcePersonaId: null
+					}
+				]
 			}
 		];
 		holder.chapters = [
@@ -265,7 +273,7 @@ describe('Phase6Editing.svelte', () => {
 		]);
 		render(Phase6Editing);
 
-		await expect.element(page.getByText(/考えを改めた/)).toBeInTheDocument();
+		await expect.element(page.getByText(/別の見方に一理ある/)).toBeInTheDocument();
 	});
 
 	it('未実行（not_started）時は「編集を開始する」ボタンを表示し、押下で startEditing を呼ぶ', async () => {

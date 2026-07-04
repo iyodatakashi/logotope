@@ -18,6 +18,11 @@ vi.mock('../../../agents/persona-agent.js', () => ({
 	evaluateEngagement: (...args: unknown[]) => mockEvaluateEngagement(...args)
 }));
 
+const mockAppendAwareness = vi.fn().mockResolvedValue(undefined);
+vi.mock('../../../pipeline/debate/awareness.js', () => ({
+	appendAwareness: (...args: unknown[]) => mockAppendAwareness(...args)
+}));
+
 import {
 	evaluateEngagements,
 	evaluateEngagementWithFallback
@@ -161,6 +166,75 @@ describe('evaluateEngagements', () => {
 		);
 		expect(docPaths.some((p: string) => p.includes('topics/topic1/engagements'))).toBe(false);
 	});
+
+	it('傾聴で気づきを検出したペルソナについて、当該ターンidで appendAwareness を呼ぶ（話者選択前）', async () => {
+		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
+		const awareness = { kind: 'reception', content: '一理ある', sourcePersonaId: 'p2' };
+		mockEvaluateEngagement.mockImplementation(async (p: Persona) =>
+			p.id === 'p1'
+				? { personaId: 'p1', score: 3, mode: 'opinion', awareness }
+				: { personaId: 'p2', score: 2, mode: 'opinion', awareness: null }
+		);
+		const state = makeState({ turns: [makeDebateTurn('t1')] });
+
+		await evaluateEngagements({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			personas,
+			state,
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		expect(mockAppendAwareness).toHaveBeenCalledTimes(1);
+		const arg = mockAppendAwareness.mock.calls[0][0];
+		expect(arg.topicId).toBe('topic1');
+		expect(arg.persona.id).toBe('p1');
+		expect(arg.turnId).toBe('t1');
+		expect(arg.awareness).toEqual(awareness);
+	});
+
+	it('awareness が null のペルソナには appendAwareness を呼ばない', async () => {
+		const personas = [makePersona('p1', '田中太郎')];
+		mockEvaluateEngagement.mockResolvedValue({
+			personaId: 'p1',
+			score: 3,
+			mode: 'opinion',
+			awareness: null
+		});
+
+		await evaluateEngagements({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			personas,
+			state: makeState({ turns: [makeDebateTurn('t1')] }),
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		expect(mockAppendAwareness).not.toHaveBeenCalled();
+	});
+
+	it('appendAwareness が失敗しても評価結果を返す（best-effort）', async () => {
+		const personas = [makePersona('p1', '田中太郎')];
+		mockEvaluateEngagement.mockResolvedValue({
+			personaId: 'p1',
+			score: 3,
+			mode: 'opinion',
+			awareness: { kind: 'self', content: '気づき', sourcePersonaId: null }
+		});
+		mockAppendAwareness.mockRejectedValueOnce(new Error('firestore down'));
+		vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		const result = await evaluateEngagements({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			personas,
+			state: makeState({ turns: [makeDebateTurn('t1')] }),
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		expect(result).toHaveLength(1);
+		expect(result[0].personaId).toBe('p1');
+	});
 });
 
 describe('evaluateEngagementWithFallback', () => {
@@ -181,6 +255,7 @@ describe('evaluateEngagementWithFallback', () => {
 		];
 
 		await evaluateEngagementWithFallback({
+			topicId: 'topic1',
 			personaId: 'p1',
 			personas,
 			chapterTurns: [],
@@ -203,6 +278,7 @@ describe('evaluateEngagementWithFallback', () => {
 		};
 
 		const result = await evaluateEngagementWithFallback({
+			topicId: 'topic1',
 			personaId: 'p1',
 			personas,
 			chapterTurns: [],
@@ -211,5 +287,47 @@ describe('evaluateEngagementWithFallback', () => {
 
 		expect(mockEvaluateEngagement).not.toHaveBeenCalled();
 		expect(result).toEqual(existingEngagement);
+	});
+
+	it('フォールバック評価で検出した気づきを appendAwareness で永続する', async () => {
+		mockEvaluateEngagement.mockResolvedValue({
+			personaId: 'p1',
+			score: 3,
+			mode: 'opinion',
+			awareness: { kind: 'self', content: '気づき', sourcePersonaId: null }
+		});
+		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
+
+		await evaluateEngagementWithFallback({
+			topicId: 'topic1',
+			personaId: 'p1',
+			personas,
+			chapterTurns: [makeDebateTurn('t1')],
+			engagements: []
+		});
+
+		expect(mockAppendAwareness).toHaveBeenCalledTimes(1);
+		expect(mockAppendAwareness.mock.calls[0][0].turnId).toBe('t1');
+	});
+
+	it('リストにある場合は appendAwareness を呼ばない（evaluateEngagements で永続済み・二重永続しない）', async () => {
+		const personas = [makePersona('p1', '田中太郎')];
+
+		await evaluateEngagementWithFallback({
+			topicId: 'topic1',
+			personaId: 'p1',
+			personas,
+			chapterTurns: [makeDebateTurn('t1')],
+			engagements: [
+				{
+					personaId: 'p1',
+					score: 4,
+					mode: 'opinion',
+					awareness: { kind: 'self', content: 'x', sourcePersonaId: null }
+				}
+			]
+		});
+
+		expect(mockAppendAwareness).not.toHaveBeenCalled();
 	});
 });

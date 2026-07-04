@@ -51,9 +51,6 @@ vi.mock('../../../pipeline/debate/queued-intents.js', () => ({
 	addQueuedIntents: vi.fn().mockResolvedValue(undefined),
 	consumeQueuedIntent: vi.fn().mockResolvedValue(undefined)
 }));
-vi.mock('../../../pipeline/debate/belief.js', () => ({
-	applyBeliefChange: vi.fn().mockResolvedValue(undefined)
-}));
 vi.mock('../../../pipeline/debate/debate-state.js', () => ({
 	updateSpeakerStats: vi.fn()
 }));

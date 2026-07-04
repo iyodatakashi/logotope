@@ -76,16 +76,31 @@
 		return map;
 	});
 
-	// 原本ターン id → 信念変化（triggeredByTurnId で紐づく）
-	const beliefsByTurn = $derived.by(() => {
+	// 原本ターン id → そのターンを聞いて得た気づき（triggeredByTurnId で紐づく）
+	const awarenessesByTurn = $derived.by(() => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const map = new Map<string, { personaName: string; changeSummary: string }[]>();
+		const map = new Map<
+			string,
+			{
+				personaName: string;
+				kind: 'reception' | 'self';
+				content: string;
+				sourceName: string | null;
+			}[]
+		>();
 		for (const persona of currentTopicStore.personasStore.personas) {
-			for (const belief of persona.beliefs ?? []) {
-				if (!belief.triggeredByTurnId) continue;
-				map.set(belief.triggeredByTurnId, [
-					...(map.get(belief.triggeredByTurnId) ?? []),
-					{ personaName: persona.name, changeSummary: belief.changeSummary ?? '' }
+			for (const awareness of persona.awarenesses ?? []) {
+				const sourceName = awareness.sourcePersonaId
+					? (personaMap.get(awareness.sourcePersonaId)?.name ?? null)
+					: null;
+				map.set(awareness.triggeredByTurnId, [
+					...(map.get(awareness.triggeredByTurnId) ?? []),
+					{
+						personaName: persona.name,
+						kind: awareness.kind,
+						content: awareness.content,
+						sourceName
+					}
 				]);
 			}
 		}
@@ -116,7 +131,12 @@
 		// 編集で発言ごとカットされた原本ターン（差分表示時のみ取消線で見せる）。
 		removed: boolean;
 		findings: FactCheckFinding[];
-		beliefs: { personaName: string; changeSummary: string }[];
+		awarenesses: {
+			personaName: string;
+			kind: 'reception' | 'self';
+			content: string;
+			sourceName: string | null;
+		}[];
 	};
 
 	const displayChapters = $derived.by(() => {
@@ -150,7 +170,7 @@
 						diff: computeInlineDiff(sourceText, et.content),
 						removed: false,
 						findings: sourceIds.flatMap((sid) => findingsByTurn.get(sid) ?? []),
-						beliefs: sourceIds.flatMap((sid) => beliefsByTurn.get(sid) ?? [])
+						awarenesses: sourceIds.flatMap((sid) => awarenessesByTurn.get(sid) ?? [])
 					};
 					return { sortIndex: Math.min(...sourceIds.map((sid) => orderOf.get(sid) ?? 0)), turn };
 				});
@@ -169,7 +189,7 @@
 							diff: null,
 							removed: true,
 							findings: [],
-							beliefs: []
+							awarenesses: []
 						};
 						return { sortIndex: orderOf.get(t.id) ?? 0, turn };
 					});
@@ -192,7 +212,7 @@
 					diff: null,
 					removed: false,
 					findings: findingsByTurn.get(t.id) ?? [],
-					beliefs: beliefsByTurn.get(t.id) ?? []
+					awarenesses: awarenessesByTurn.get(t.id) ?? []
 				};
 			});
 			return { id: chapter.id, title: chapter.title, status, failureReason, turns };
@@ -268,10 +288,14 @@
 											<p class="content">{turn.content}</p>
 										{/if}
 										<FactCheckFindings findings={turn.findings} />
-										{#if turn.beliefs.length > 0}
-											<ul class="beliefs">
-												{#each turn.beliefs as belief, i (i)}
-													<li>🔄 {belief.personaName}: {belief.changeSummary}</li>
+										{#if turn.awarenesses.length > 0}
+											<ul class="awarenesses">
+												{#each turn.awarenesses as awareness, i (i)}
+													<li>
+														💡 {awareness.kind === 'reception' && awareness.sourceName
+															? `${awareness.sourceName}の視点を聞いて${awareness.personaName}が気づいた`
+															: `${awareness.personaName}が気づいた`}: {awareness.content}
+													</li>
 												{/each}
 											</ul>
 										{/if}
@@ -385,7 +409,7 @@
 		margin: 0;
 		line-height: 1.6;
 	}
-	.beliefs {
+	.awarenesses {
 		margin-top: 8px;
 		font-size: 0.85rem;
 		color: #555;

@@ -30,6 +30,13 @@ vi.mock('../../utils/prompt-formatters.js', () => ({
 		factBase?.facts?.length
 			? `\n\n【確定した客観的事実（共通前提）】\n${factBase.facts.map((f) => f.statement).join('\n')}`
 			: ''
+	),
+	// 気づき節整形の実体は prompt-formatters.test.ts で検証する。ここでは傾聴が
+	// 既存の気づきを文脈として注入する配線だけを検証するため、最小の整形を返す。
+	formatAwarenessSection: vi.fn((awarenesses?: { content: string }[]) =>
+		awarenesses?.length
+			? `\n\n【討論中に得た気づき】\n${awarenesses.map((a) => a.content).join('\n')}`
+			: ''
 	)
 }));
 
@@ -133,6 +140,151 @@ describe('evaluateEngagement', () => {
 		await evaluateEngagement(mockPersona, mockTurns, [], personas);
 
 		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(expect.any(Array), personas);
+	});
+
+	it('傾聴で気づき（reception）を検出した場合、awareness をそのまま返す', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 2,
+				mode: 'opinion',
+				intentSummary: null,
+				awareness: {
+					kind: 'reception',
+					content: '佐藤の指摘には一理あると受け止めた',
+					sourcePersonaId: 'p2'
+				}
+			}
+		} as never);
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, mockTurns, ['佐藤花子']);
+
+		expect(result.awareness).toEqual({
+			kind: 'reception',
+			content: '佐藤の指摘には一理あると受け止めた',
+			sourcePersonaId: 'p2'
+		});
+	});
+
+	it('気づきが無ければ awareness は null（同意・相槌は気づきにしない）', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: { score: 2, mode: 'opinion', intentSummary: null, awareness: null }
+		} as never);
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, mockTurns, ['佐藤花子']);
+
+		expect(result.awareness).toBeNull();
+	});
+
+	it('score 1（none・非話者）でも気づきは検出・保持される', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 1,
+				mode: 'none',
+				intentSummary: null,
+				awareness: { kind: 'self', content: '自分の観点で新しく気づいた', sourcePersonaId: null }
+			}
+		} as never);
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, mockTurns, ['佐藤花子']);
+
+		expect(result.score).toBe(1);
+		expect(result.mode).toBe('none');
+		expect(result.awareness).toEqual({
+			kind: 'self',
+			content: '自分の観点で新しく気づいた',
+			sourcePersonaId: null
+		});
+	});
+
+	it('self の気づきは sourcePersonaId を null に正規化する', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 3,
+				mode: 'opinion',
+				intentSummary: null,
+				awareness: { kind: 'self', content: '自分の気づき', sourcePersonaId: 'p2' }
+			}
+		} as never);
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, mockTurns, ['佐藤花子']);
+
+		expect(result.awareness?.sourcePersonaId).toBeNull();
+	});
+
+	it('content が空の awareness は null 扱いにする', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 2,
+				mode: 'opinion',
+				intentSummary: null,
+				awareness: { kind: 'reception', content: '   ', sourcePersonaId: 'p2' }
+			}
+		} as never);
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, mockTurns, ['佐藤花子']);
+
+		expect(result.awareness).toBeNull();
+	});
+
+	it('気づき検出の閾値（同意・相槌は気づきにしない）と、主判定と分節する旨がプロンプトに含まれる', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return {
+				object: { score: 2, mode: 'opinion', intentSummary: null, awareness: null }
+			} as never;
+		});
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		await evaluateEngagement(mockPersona, mockTurns, ['佐藤花子']);
+
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		// 閾値：単なる同意・相槌は気づきにしない
+		expect(userContent).toContain('相槌');
+		expect(userContent).toContain('一理');
+		// score/mode 判定と分節し、主判定を変えない旨
+		expect(userContent).toMatch(/判定を変え|独立|切り離/);
+	});
+
+	it('既存の気づきを傾聴の入力（文脈）として注入する', async () => {
+		const formatMod = await import('../../utils/prompt-formatters.js');
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: { score: 2, mode: 'opinion', intentSummary: null, awareness: null }
+		} as never);
+
+		const personaWithAwareness: Persona = {
+			...mockPersona,
+			awarenesses: [
+				{
+					id: 'a1',
+					kind: 'self',
+					content: '既存の気づき',
+					sourcePersonaId: null,
+					triggeredByTurnId: 't1',
+					createdAt: 'TS' as never
+				}
+			]
+		};
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		await evaluateEngagement(personaWithAwareness, mockTurns, ['佐藤花子']);
+
+		expect(vi.mocked(formatMod.formatAwarenessSection)).toHaveBeenCalledWith(
+			personaWithAwareness.awarenesses
+		);
 	});
 });
 
@@ -474,6 +626,80 @@ describe('generateTurn', () => {
 		expect(userContent).toContain('取り下げる');
 	});
 
+	it('システムプロンプトは不変の初期信念（beliefs[0]）を主軸に用い、後続 version の信念は用いない', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
+		});
+
+		const personaWithBeliefs: Persona = {
+			...mockPersona,
+			beliefs: [
+				{ id: 'b0', version: 0, content: '初期の信念テキスト', createdAt: 'TS' as never },
+				{ id: 'b1', version: 1, content: '上書きされた最新信念', createdAt: 'TS' as never }
+			]
+		};
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(personaWithBeliefs, makeContext(), makeEngagement({ mode: 'opinion' }));
+
+		const system = (capturedArgs[0] as { system: string }).system;
+		expect(system).toContain('初期の信念テキスト');
+		expect(system).not.toContain('上書きされた最新信念');
+	});
+
+	it('蓄積された気づきを発言の入力として反映（消費）し、立場反転しない旨とともに注入する', async () => {
+		const formatMod = await import('../../utils/prompt-formatters.js');
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
+		});
+
+		const personaWithAwareness: Persona = {
+			...mockPersona,
+			awarenesses: [
+				{
+					id: 'a1',
+					kind: 'reception',
+					content: '佐藤の指摘に一理あると受け止めた',
+					sourcePersonaId: 'p2',
+					triggeredByTurnId: 't1',
+					createdAt: 'TS' as never
+				}
+			]
+		};
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(personaWithAwareness, makeContext(), makeEngagement({ mode: 'opinion' }));
+
+		expect(vi.mocked(formatMod.formatAwarenessSection)).toHaveBeenCalledWith(
+			personaWithAwareness.awarenesses
+		);
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		expect(userContent).toContain('佐藤の指摘に一理あると受け止めた');
+	});
+
+	it('気づきが無いペルソナでは気づき節を注入しない（従来どおり）', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言' }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(mockPersona, makeContext(), makeEngagement({ mode: 'opinion' }));
+
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		expect(userContent).not.toContain('【討論中に得た気づき】');
+	});
+
 	it('factCheckFeedback 未指定時は修正指示節を付与せず従来どおり生成する', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
@@ -493,5 +719,64 @@ describe('generateTurn', () => {
 		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
 			.content;
 		expect(userContent).not.toContain('事実確認による修正指示');
+	});
+});
+
+describe('generatePostDebateComment', () => {
+	beforeEach(() => {
+		vi.resetModules();
+	});
+
+	it('システムは不変の初期信念（beliefs[0]）を主軸に用い、後続 version の信念は用いない', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateObject).mockImplementation(async (args: unknown) => {
+			capturedArgs.push(args);
+			return { object: { content: 'コメント' } } as never;
+		});
+
+		const personaWithBeliefs: Persona = {
+			...mockPersona,
+			beliefs: [
+				{ id: 'b0', version: 0, content: '初期信念テキスト', createdAt: 'TS' as never },
+				{ id: 'b1', version: 1, content: '上書きされた最新信念', createdAt: 'TS' as never }
+			]
+		};
+
+		const { generatePostDebateComment } = await import('../../agents/persona-agent.js');
+		await generatePostDebateComment(personaWithBeliefs, mockTurns);
+
+		const system = (capturedArgs[0] as { system: string }).system;
+		expect(system).toContain('初期信念テキスト');
+		expect(system).not.toContain('上書きされた最新信念');
+	});
+
+	it('蓄積された気づきを事後コメントの入力（揮発部）に反映する', async () => {
+		const formatMod = await import('../../utils/prompt-formatters.js');
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: { content: 'コメント' }
+		} as never);
+
+		const personaWithAwareness: Persona = {
+			...mockPersona,
+			awarenesses: [
+				{
+					id: 'a1',
+					kind: 'self',
+					content: '討論で得た気づき',
+					sourcePersonaId: null,
+					triggeredByTurnId: 't1',
+					createdAt: 'TS' as never
+				}
+			]
+		};
+
+		const { generatePostDebateComment } = await import('../../agents/persona-agent.js');
+		await generatePostDebateComment(personaWithAwareness, mockTurns);
+
+		expect(vi.mocked(formatMod.formatAwarenessSection)).toHaveBeenCalledWith(
+			personaWithAwareness.awarenesses
+		);
 	});
 });

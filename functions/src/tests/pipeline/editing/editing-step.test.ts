@@ -109,7 +109,7 @@ describe('validateEditedChapter', () => {
 });
 
 describe('computeProtectedTurnIds', () => {
-	it('speechMode=fact・factCheck指摘・信念変化トリガーを保護対象にする', () => {
+	it('speechMode=fact・factCheck指摘・気づきトリガーを保護対象にする', () => {
 		const turns = [
 			makeTurn('t1', { speechMode: 'fact' }),
 			makeTurn('t2', {
@@ -119,7 +119,10 @@ describe('computeProtectedTurnIds', () => {
 			makeTurn('t4')
 		];
 		const personas = [
-			{ id: 'p1', beliefs: [{ triggeredByTurnId: 't3' }, { triggeredByTurnId: 'other-chapter' }] }
+			{
+				id: 'p1',
+				awarenesses: [{ triggeredByTurnId: 't3' }, { triggeredByTurnId: 'other-chapter' }]
+			}
 		] as unknown as Persona[];
 
 		const result = computeProtectedTurnIds(turns, personas);

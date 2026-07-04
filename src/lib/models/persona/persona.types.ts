@@ -1,18 +1,29 @@
 import { Timestamp } from 'firebase/firestore';
 
-export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
-
+// 不変の初期信念のみ（interview が version 0 を書き、討論は上書きしない）
 export type BeliefForFirestore = {
 	id: string;
 	version: number;
 	content: string;
-	changeType?: BeliefChangeType;
-	changeSummary?: string;
-	triggeredByTurnId?: string;
 	createdAt: Timestamp;
 };
 
 export type Belief = Omit<BeliefForFirestore, 'createdAt'> & { createdAt: Date };
+
+// 他者視点の受容（reception）か自己発の気づき（self）か
+export type AwarenessKind = 'reception' | 'self';
+
+// 討論中の気づき（追記のみ・非破壊）。ターンに帰属し、reception は由来ペルソナを持つ
+export type AwarenessForFirestore = {
+	id: string;
+	kind: AwarenessKind;
+	content: string;
+	sourcePersonaId: string | null;
+	triggeredByTurnId: string;
+	createdAt: Timestamp;
+};
+
+export type Awareness = Omit<AwarenessForFirestore, 'createdAt'> & { createdAt: Date };
 
 export type SearchResult = { title: string; url: string };
 export type SearchSource = { query: string; summary: string; results: SearchResult[] };
@@ -56,33 +67,13 @@ export type PersonaForFirestore = {
 	sortOrder: number;
 	interview?: InterviewForFirestore;
 	beliefs: BeliefForFirestore[];
+	awarenesses?: AwarenessForFirestore[];
 };
 
-export type Persona = Omit<PersonaForFirestore, 'interview' | 'beliefs'> & {
+export type Persona = Omit<PersonaForFirestore, 'interview' | 'beliefs' | 'awarenesses'> & {
 	interview?: Interview;
 	beliefs: Belief[];
-};
-
-export type PersonaBeliefVersion = {
-	version: number;
-	content: string;
-	changeType?: BeliefChangeType;
-	changeSummary?: string;
-	triggeredByTurnId?: string;
-};
-
-export type PersonaSummaryForViewer = {
-	id: string;
-	name: string;
-	role: string;
-	beliefHistory: PersonaBeliefVersion[];
-};
-
-export type BeliefChangeTrigger = {
-	personaId: string;
-	personaName: string;
-	changeType: BeliefChangeType;
-	changeSummary: string;
+	awarenesses?: Awareness[];
 };
 
 export type PersonaData = {

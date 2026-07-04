@@ -117,13 +117,17 @@
 				addressedPersonaName: addressedPersona?.name ?? null,
 				engagements: currentTopicStore.engagementsStore.engagementsMap.get(t.id) ?? [],
 				factCheckFindings: findingsByTurn.get(t.id) ?? [],
-				beliefChangesTriggered: currentTopicStore.personasStore.personas.flatMap((p) =>
-					(p.beliefs ?? [])
-						.filter((b) => b.triggeredByTurnId === t.id)
-						.map((b) => ({
+				// このターンを聞いて各ペルソナが得た気づき（triggeredByTurnId で紐づく）
+				awarenessesTriggered: currentTopicStore.personasStore.personas.flatMap((p) =>
+					(p.awarenesses ?? [])
+						.filter((a) => a.triggeredByTurnId === t.id)
+						.map((a) => ({
 							personaName: p.name,
-							changeType: b.changeType ?? '',
-							changeSummary: b.changeSummary ?? ''
+							kind: a.kind,
+							content: a.content,
+							sourceName: a.sourcePersonaId
+								? (personaMap.get(a.sourcePersonaId)?.name ?? null)
+								: null
 						}))
 				)
 			};
@@ -248,10 +252,14 @@
 							selectedPersonaId={turns[i + 1]?.personaId}
 						/>
 						<FactCheckFindings findings={turn.factCheckFindings} />
-						{#if turn.beliefChangesTriggered.length > 0}
-							<ul class="beliefs">
-								{#each turn.beliefChangesTriggered as bc, bcIdx (bcIdx)}
-									<li>🔄 {bc.personaName}: {bc.changeSummary}</li>
+						{#if turn.awarenessesTriggered.length > 0}
+							<ul class="awarenesses">
+								{#each turn.awarenessesTriggered as aw, awIdx (awIdx)}
+									<li>
+										💡 {aw.kind === 'reception' && aw.sourceName
+											? `${aw.sourceName}の視点を聞いて${aw.personaName}が気づいた`
+											: `${aw.personaName}が気づいた`}: {aw.content}
+									</li>
 								{/each}
 							</ul>
 						{/if}
@@ -374,7 +382,7 @@
 		border-radius: 3px;
 		display: inline-block;
 	}
-	.beliefs {
+	.awarenesses {
 		margin-top: 8px;
 		font-size: 0.85rem;
 		color: #555;

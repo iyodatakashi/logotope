@@ -39,7 +39,6 @@ import {
 	countConsecutivePersonaTargets,
 	type InterventionTrigger
 } from './intervention.js';
-import { applyBeliefChange } from './belief.js';
 import { updateSpeakerStats } from './debate-state.js';
 import { persistPostDebateComments } from './post-debate-comments.js';
 import {
@@ -79,7 +78,7 @@ const getLastTargetPersona = (
 };
 
 /**
- * 発言コミット後の共通後処理: 消化したキューを除去 → 発言統計を更新 → 信念変化があれば永続化。
+ * 発言コミット後の共通後処理: 消化したキューを除去 → 発言統計を更新 → 論点カバレッジへ話者を記録。
  * executeTurn の freeze 分岐と通常分岐の両方から、コミット成功時に同一の手順で呼ぶ。
  */
 const finalizeCommittedTurn = async ({
@@ -107,13 +106,6 @@ const finalizeCommittedTurn = async ({
 	// （Partial転送形を介さず state ベースで永続化。集合のため resume 後も二重化しない）
 	recordSpeakerOnActivePoint(state, reply.personaId);
 	await saveDiscussionPointStatuses(topicId, chapterId, state);
-	if (reply.beliefChange)
-		await applyBeliefChange({
-			topicId,
-			persona: personas.find((p) => p.id === reply.personaId)!,
-			turnId: reply.turnId,
-			beliefChange: reply.beliefChange
-		});
 };
 
 /**
@@ -177,6 +169,7 @@ const executeTurn = async ({
 			chapterTurns: getChapterTurns()
 		});
 		const engagement = await evaluateEngagementWithFallback({
+			topicId,
 			personaId: speakerSelection.personaId,
 			personas,
 			chapterTurns: getChapterTurns(),
@@ -256,6 +249,7 @@ const executeTurn = async ({
 	});
 	// 選ばれた話者の意欲（一括評価に無ければ個別評価）を取得する
 	const engagement = await evaluateEngagementWithFallback({
+		topicId,
 		personaId: speakerSelection.personaId,
 		personas,
 		chapterTurns: getChapterTurns(),

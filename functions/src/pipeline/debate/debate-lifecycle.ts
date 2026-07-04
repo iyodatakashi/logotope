@@ -1,7 +1,7 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { discardChaptersFrom, getChaptersByTopicId } from './chapter.js';
-import { rollbackBeliefsForRemovedTurns } from './belief.js';
+import { rollbackAwarenessesForRemovedTurns } from './awareness.js';
 import { deleteChapterEngagements } from './engagement.js';
 import { clearPostDebateComments } from './post-debate-comments.js';
 import { deleteFactCheckResult } from '../fact-check/fact-check-repository.js';
@@ -34,7 +34,7 @@ export const isDebateActive = async (topicId: string): Promise<boolean> => {
 };
 
 /**
- * 指定章以降を破棄し、その章に紐づく付随データ（コメント・信念変化・engagements・ファクトチェック結果）を
+ * 指定章以降を破棄し、その章に紐づく付随データ（コメント・気づき・engagements・ファクトチェック結果）を
  * まとめて削除する。reset（全章）と restart（指定章以降）で共通の削除責務をここに集約する。
  */
 const discardChaptersWithSideData = async (
@@ -45,7 +45,8 @@ const discardChaptersWithSideData = async (
 	const removedTurnIds = new Set(discardChapters.flatMap((c) => c.turns).map((t) => t.id));
 
 	await clearPostDebateComments(topicId);
-	await rollbackBeliefsForRemovedTurns(topicId, removedTurnIds);
+	// 初期信念は不変。破棄ターンに紐づく気づき（awareness）のみを巻き戻す（1.3）
+	await rollbackAwarenessesForRemovedTurns(topicId, removedTurnIds);
 	await deleteChapterEngagements(topicId, discardChapters);
 
 	// 章の発言が再生成されるため、破棄章の既存ファクトチェック結果を無効化する（6.2）

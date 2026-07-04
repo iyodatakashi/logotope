@@ -215,12 +215,13 @@ export const evaluateStallIntervention = async (
 
 export const generateClosing = async (
 	turns: DebateTurn[],
-	finalBeliefs: Map<string, string>,
+	personaViews: Map<string, string>,
 	personas: ReadonlyArray<Persona> = []
 ): Promise<Result<string, PipelineError>> => {
 	try {
-		const beliefsSummary = Array.from(finalBeliefs.entries())
-			.map(([id, belief]) => `ペルソナ ${id}:\n${belief}`)
+		// 見解は「固定の初期信念＋討論で得た気づき」から導出したもの。独立した最終信念は持たない（4.2）
+		const viewsSummary = Array.from(personaViews.entries())
+			.map(([id, view]) => `ペルソナ ${id}:\n${view}`)
 			.join('\n\n');
 
 		const result = await generateObject({
@@ -230,7 +231,7 @@ export const generateClosing = async (
 			messages: [
 				{
 					role: 'user',
-					content: `討論が終了しました。クロージング発言を3〜4文で作成してください（簡潔な締め括りのみ。長い総括は不要）。\n\n会話全体:\n${formatTurns(turns, personas)}\n\n各参加者の最終信念:\n${beliefsSummary}`
+					content: `討論が終了しました。クロージング発言を3〜4文で作成してください（簡潔な締め括りのみ。長い総括は不要）。\n\n会話全体:\n${formatTurns(turns, personas)}\n\n各参加者の見解（固定の初期信念＋討論で得た気づき）:\n${viewsSummary}`
 				}
 			]
 		});

@@ -1,11 +1,12 @@
 import type { DebateTurn } from './turn.types.js';
 import type { DiscussionPointState } from './chapter.types.js';
+import type { AwarenessKind } from './persona.types.js';
 
-export type BeliefChangeType = 'opinion_change' | 'partial_acceptance';
-export type BeliefChangeEvent = {
-	type: BeliefChangeType;
-	summary: string;
-	updatedBelief: string;
+// 傾聴段階で検出する気づき（永続前の値）。永続形は AwarenessForFirestore
+export type AwarenessEvent = {
+	kind: AwarenessKind;
+	content: string;
+	sourcePersonaId: string | null; // reception のとき由来ペルソナ、self は null
 };
 
 export type DebateOptions = {
@@ -40,7 +41,6 @@ export type FacilitatorReply = {
 export type PersonaReply = {
 	content: string;
 	speechMode?: 'opinion' | 'fact' | 'question';
-	beliefChange: BeliefChangeEvent | null;
 	targetPersonaId?: string;
 	searchUsed?: boolean;
 	searchQueries?: string[];
@@ -51,6 +51,7 @@ export type Engagement = {
 	score: number;
 	mode: 'opinion' | 'fact' | 'none' | 'question';
 	intentSummary?: string;
+	awareness?: AwarenessEvent | null; // 傾聴段階で検出（大半は null）
 };
 
 export type SpeakerSelection = {

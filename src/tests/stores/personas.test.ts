@@ -73,6 +73,36 @@ describe('Timestamp→Date 変換', () => {
 		expect(store.personas[0].beliefs[0].createdAt).toBe(fakeDate);
 	});
 
+	it('awarenesses[].createdAt が Date に変換される', () => {
+		const store = createPersonasStore('t1');
+		store.start();
+		const fakeDate = new Date('2026-02-02');
+		snapshotCb?.({
+			docs: [
+				{
+					id: 'p1',
+					data: () => ({
+						name: 'テスト',
+						beliefs: [],
+						awarenesses: [
+							{
+								id: 'a1',
+								kind: 'self',
+								content: '気づき',
+								sourcePersonaId: null,
+								triggeredByTurnId: 't1',
+								createdAt: { toDate: () => fakeDate }
+							}
+						],
+						approved: true
+					})
+				}
+			]
+		});
+		expect(store.personas[0].awarenesses?.[0].createdAt).toBeInstanceOf(Date);
+		expect(store.personas[0].awarenesses?.[0].createdAt).toBe(fakeDate);
+	});
+
 	it('interview.completedAt が Date に変換される', () => {
 		const store = createPersonasStore('t1');
 		store.start();

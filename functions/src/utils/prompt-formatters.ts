@@ -1,5 +1,5 @@
 import type { DebateTurn } from '../types/turn.types.js';
-import type { Persona } from '../types/persona.types.js';
+import type { Persona, AwarenessForFirestore } from '../types/persona.types.js';
 import type { FactBase } from '../types/topic.types.js';
 
 // 事実基盤を「確定した客観的事実（共通前提）」としてプロンプトに整形する。
@@ -16,6 +16,19 @@ export const formatFactBaseSection = (factBase?: FactBase): string => {
 		})
 		.join('\n');
 	return `\n\n【確定した客観的事実（共通前提）】\nこのテーマについて確認された客観的事実です。参考資料とは別に、全員が共有する確定した前提として扱ってください。\n${facts}`;
+};
+
+// 蓄積された気づき（awareness）を揮発部（user）へ差し込むための整形。
+// 気づきが無ければ空文字を返し、消費者は従来どおり動作する。
+// 初期信念は不変の主軸であり、気づきは立場を反転させない範囲で発言に反映する文脈として提示する。
+export const formatAwarenessSection = (
+	awarenesses?: ReadonlyArray<AwarenessForFirestore>
+): string => {
+	if (!awarenesses?.length) return '';
+	const lines = awarenesses
+		.map((a) => `- （${a.kind === 'reception' ? '受容' : '自分の気づき'}）${a.content}`)
+		.join('\n');
+	return `\n\n【討論中に得た気づき】\nこれまでの傾聴で、他者の視点に「一理ある」と受け止めた点や、自分の中で生じた気づきです。あなたの初期信念（不変の主軸）は変えず、立場を反転させない範囲でこれらを踏まえて発言してください。\n${lines}`;
 };
 
 export const currentDateString = (): string => {

@@ -139,6 +139,35 @@ describe('restartDebateFromChapter - チャプタースコープ engagements 削
 		);
 	});
 
+	it('破棄ターンに紐づく awareness を巻き戻す（triggeredByTurnId でフィルタ、初期信念は不変）', async () => {
+		mockChaptersGet.mockResolvedValue({
+			docs: [makeChapterDoc('ch1', [{ id: 't1' }])]
+		});
+		mockEngagementsGet.mockResolvedValue({ docs: [] });
+		const personaRefUpdate = vi.fn().mockResolvedValue(undefined);
+		mockPersonasGet.mockResolvedValue({
+			docs: [
+				{
+					ref: { update: personaRefUpdate },
+					data: () => ({
+						beliefs: [{ id: 'b0', version: 0, content: '初期信念' }],
+						awarenesses: [
+							{ triggeredByTurnId: 't1', content: '破棄対象' },
+							{ triggeredByTurnId: 't99', content: '残す' }
+						]
+					})
+				}
+			]
+		});
+
+		await restartDebateFromChapter('topic1', 'ch1');
+
+		// awarenesses のみ triggeredByTurnId=t1 を除外して更新（beliefs には触れない）
+		expect(personaRefUpdate).toHaveBeenCalledWith({
+			awarenesses: [{ triggeredByTurnId: 't99', content: '残す' }]
+		});
+	});
+
 	it('複数の廃棄チャプターそれぞれの engagements を削除する', async () => {
 		mockChaptersGet.mockResolvedValue({
 			docs: [

@@ -66,7 +66,7 @@ export const readRawChapters = async (topicId: string): Promise<RawEditChapter[]
  * 章内で保護対象（除外禁止）となる原本ターンID群を導出する。
  * - speechMode==='fact'（固有の事実的主張）
  * - factCheck に指摘（findings）がある
- * - いずれかのペルソナの信念変化のトリガーになった（当該章のターンに限る）
+ * - いずれかのペルソナの気づき（awareness）のトリガーになった（当該章のターンに限る）
  */
 export const computeProtectedTurnIds = (
 	turns: ReadonlyArray<DebateTurn>,
@@ -79,9 +79,9 @@ export const computeProtectedTurnIds = (
 		if (turn.factCheck && turn.factCheck.findings.length > 0) protectedIds.add(turn.id);
 	}
 	for (const persona of personas) {
-		for (const belief of persona.beliefs ?? []) {
-			if (belief.triggeredByTurnId && chapterTurnIds.has(belief.triggeredByTurnId)) {
-				protectedIds.add(belief.triggeredByTurnId);
+		for (const awareness of persona.awarenesses ?? []) {
+			if (chapterTurnIds.has(awareness.triggeredByTurnId)) {
+				protectedIds.add(awareness.triggeredByTurnId);
 			}
 		}
 	}

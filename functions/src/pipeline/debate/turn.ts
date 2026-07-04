@@ -5,15 +5,14 @@ import { generateChapterSummary, generateClosing } from '../../agents/facilitato
 import { verifyAndReviseDraft } from './inline-fact-check.js';
 import { getActiveDiscussionPoint } from './discussion-points.js';
 import { getTopicContext } from '../topics/topic-context.js';
-import { getLatestBelief } from './belief.js';
+import { getInitialBelief } from './awareness.js';
 import { isDebateActive } from './debate-lifecycle.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
-import { currentDateString } from '../../utils/prompt-formatters.js';
+import { currentDateString, formatAwarenessSection } from '../../utils/prompt-formatters.js';
 import type {
 	DebateState,
 	SpeakerSelection,
 	QueuedIntent,
-	BeliefChangeEvent,
 	Engagement
 } from '../../types/debate.types.js';
 import type {
@@ -183,7 +182,6 @@ export const generatePersonaTurn = async ({
 	turnId: string;
 	personaId: string;
 	targetPersonaId: string | undefined;
-	beliefChange: BeliefChangeEvent | null;
 	queuedEntries: QueuedIntent[] | undefined;
 	fromQueue: boolean;
 } | null> => {
@@ -295,7 +293,6 @@ export const generatePersonaTurn = async ({
 		turnId,
 		personaId: persona.id,
 		targetPersonaId,
-		beliefChange: reply.beliefChange,
 		queuedEntries,
 		fromQueue
 	};
@@ -341,8 +338,11 @@ export const appendClosingTurn = async ({
 	chapterId: string;
 	chapterTurnStartIndex?: number;
 }): Promise<AppendResult> => {
-	const finalBeliefs = new Map(personas.map((p) => [p.id, getLatestBelief(p).content]));
-	const closingResult = await generateClosing(state.turns, finalBeliefs, personas);
+	// 見解は「固定の初期信念＋蓄積された気づき」から都度導出する（最終信念を持たない・4.1/4.2）
+	const personaViews = new Map(
+		personas.map((p) => [p.id, `${getInitialBelief(p)}${formatAwarenessSection(p.awarenesses)}`])
+	);
+	const closingResult = await generateClosing(state.turns, personaViews, personas);
 	if (!closingResult.ok) throw new Error(pipelineErrorMessage(closingResult.error));
 	return generateFacilitatorTurn({
 		topicId,

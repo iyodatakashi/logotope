@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { formatTurns, formatFactBaseSection } from '../../utils/prompt-formatters.js';
+import {
+	formatTurns,
+	formatFactBaseSection,
+	formatAwarenessSection
+} from '../../utils/prompt-formatters.js';
 import type { DebateTurn } from '../../types/turn.types.js';
-import type { Persona } from '../../types/persona.types.js';
+import type { Persona, AwarenessForFirestore } from '../../types/persona.types.js';
 import type { FactBase } from '../../types/topic.types.js';
 
 const makePersona = (
@@ -112,5 +116,36 @@ describe('formatFactBaseSection', () => {
 		const section = formatFactBaseSection(factBase([{ statement: '事実のみ', sources: [] }]));
 		expect(section).toContain('事実のみ');
 		expect(section).not.toContain('出典:');
+	});
+});
+
+describe('formatAwarenessSection', () => {
+	const awareness = (
+		over: Partial<AwarenessForFirestore> & Pick<AwarenessForFirestore, 'kind' | 'content'>
+	): AwarenessForFirestore => ({
+		id: 'a1',
+		sourcePersonaId: null,
+		triggeredByTurnId: 't1',
+		createdAt: 'TS' as never,
+		...over
+	});
+
+	it('未指定・空なら空文字を返す', () => {
+		expect(formatAwarenessSection(undefined)).toBe('');
+		expect(formatAwarenessSection([])).toBe('');
+	});
+
+	it('reception と self を区別して「討論中に得た気づき」節に整形する', () => {
+		const section = formatAwarenessSection([
+			awareness({ kind: 'reception', content: '規制側にも一理ある', sourcePersonaId: 'p2' }),
+			awareness({ kind: 'self', content: '自分の経験から気づいた' })
+		]);
+		expect(section).toContain('【討論中に得た気づき】');
+		expect(section).toContain('規制側にも一理ある');
+		expect(section).toContain('自分の経験から気づいた');
+		expect(section).toContain('受容');
+		expect(section).toContain('自分の気づき');
+		// 初期信念（主軸）は変えず立場を反転させない旨を添える
+		expect(section).toContain('初期信念');
 	});
 });
