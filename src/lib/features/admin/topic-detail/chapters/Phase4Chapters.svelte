@@ -55,8 +55,9 @@
 		}
 	};
 
-	// 再生成: 章立てと下流（討論）を破棄してから作り直す。
+	// 再生成: 章立てと下流（討論・編集）を破棄してから作り直す。
 	// isStarting で押下直後に「実行中」表示へ切り替え、旧データを隠す（リセット完了を待たない）。
+	// generateChapters を最後に呼ぶことで phase が chapters へ戻る（resetEditing の phase 書込より後勝ち）。
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
@@ -64,6 +65,7 @@
 		try {
 			await topic.resetChapters();
 			await topic.resetDebate();
+			await topic.resetEditing();
 			await topic.generateChapters();
 		} finally {
 			isStarting = false;
@@ -87,7 +89,7 @@
 	regenerateLabel="再生成する"
 	regenerateConfirm={{
 		title: '章立てを再生成しますか？',
-		description: '現在の章立てと、生成済みの討論が削除されます。',
+		description: '現在の章立てと、生成済みのデータ（討論・編集）が削除されます。',
 		submitLabel: '再生成する'
 	}}
 	onGenerate={generate}

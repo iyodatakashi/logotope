@@ -61,7 +61,9 @@
 			isStarting = false;
 		}
 	};
+	// 再取材: 取材記録と下流（章立て・討論・編集）を破棄してから全ペルソナを再取材する。
 	// isStarting で押下直後に「実行中」表示へ切り替え、旧データを隠す（リセット完了を待たない）。
+	// runInterviews（内部で phase を interviews に戻す）を最後に呼ぶ（resetEditing の phase 書込より後勝ち）。
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
@@ -70,6 +72,7 @@
 		try {
 			await topic.resetChapters();
 			await topic.resetDebate();
+			await topic.resetEditing();
 			await currentTopicStore.personasStore.runInterviews(topic.title, topicContext, true);
 		} finally {
 			isStarting = false;
@@ -93,7 +96,7 @@
 	regenerateConfirm={{
 		title: '取材をやり直しますか？',
 		description:
-			'現在の取材記録と、以降のフェーズで生成済みのデータ（章立て・討論）が削除されます。',
+			'現在の取材記録と、以降のフェーズで生成済みのデータ（章立て・討論・編集）が削除されます。',
 		submitLabel: '再取材する'
 	}}
 	onGenerate={generate}

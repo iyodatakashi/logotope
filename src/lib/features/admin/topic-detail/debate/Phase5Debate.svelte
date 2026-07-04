@@ -44,7 +44,10 @@
 		isStarting = true;
 		isResetting = true;
 		try {
+			// 討論をやり直すと下流の編集成果物も陳腐化するため破棄する。
+			// startDebate を最後に呼ぶことで phase が debate へ戻る（resetEditing の phase 書込より後勝ち）。
 			await topic.resetDebate();
+			await topic.resetEditing();
 			await topic.startDebate();
 		} finally {
 			isStarting = false;
@@ -135,7 +138,7 @@
 	regenerateLabel="最初からやり直す"
 	regenerateConfirm={{
 		title: '討論を最初からやり直しますか？',
-		description: '現在の討論内容がすべて削除され、最初から討論し直します。',
+		description: '現在の討論内容と、生成済みの編集がすべて削除され、最初から討論し直します。',
 		submitLabel: '最初からやり直す'
 	}}
 	stopLabel="討論を停止する"

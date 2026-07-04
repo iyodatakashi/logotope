@@ -39,8 +39,9 @@
 		}
 	};
 
-	// 再生成: ステークホルダーと下流（ペルソナ・章立て・討論）を破棄してから作り直す。
+	// 再生成: ステークホルダーと下流（ペルソナ・章立て・討論・編集）を破棄してから作り直す。
 	// isStarting で押下直後に「実行中」表示へ切り替え、旧データを隠す（リセット完了を待たない）。
+	// generateStakeholders を最後に呼ぶことで phase が stakeholders へ戻る（resetEditing の phase 書込より後勝ち）。
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
@@ -50,6 +51,7 @@
 			await topic.resetPersonas();
 			await topic.resetChapters();
 			await topic.resetDebate();
+			await topic.resetEditing();
 			await topic.generateStakeholders();
 		} finally {
 			isStarting = false;
@@ -74,7 +76,7 @@
 	regenerateConfirm={{
 		title: 'ステークホルダーを再生成しますか？',
 		description:
-			'現在のステークホルダーと、以降のフェーズで生成済みのデータ（ペルソナ・取材・章立て・討論）が削除されます。',
+			'現在のステークホルダーと、以降のフェーズで生成済みのデータ（ペルソナ・取材・章立て・討論・編集）が削除されます。',
 		submitLabel: '再生成する'
 	}}
 	onGenerate={generate}

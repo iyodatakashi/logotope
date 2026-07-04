@@ -51,8 +51,25 @@
 		}
 	};
 
-	// 再実行: 承認前の事実基盤を作り直す（同経路で上書き再生成）。
-	const regenerate = generate;
+	// 再実行: 事実基盤と下流（ステークホルダー・ペルソナ・取材・章立て・討論・編集）を破棄してから作り直す。
+	// 事実基盤は下流生成時に焼き込まれるため、作り直した事実を波及させるには下流を未生成へ戻す必要がある。
+	// isStarting で押下直後に「実行中」表示へ切り替え、旧データを隠す（リセット完了を待たない）。
+	// generateFactResearch を最後に呼ぶことで phase が fact-research へ戻る（各 reset の phase 書込より後勝ち）。
+	const regenerate = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		isStarting = true;
+		try {
+			await topic.resetStakeholders();
+			await topic.resetPersonas();
+			await topic.resetChapters();
+			await topic.resetDebate();
+			await topic.resetEditing();
+			await topic.generateFactResearch();
+		} finally {
+			isStarting = false;
+		}
+	};
 
 	// 編集内容を factBase/0 に保存する（生成基準日は保持）。
 	const save = async () => {
@@ -94,7 +111,8 @@
 	regenerateLabel="再実行する"
 	regenerateConfirm={{
 		title: '事実リサーチを再実行しますか？',
-		description: '現在の事実基盤が作り直されます。',
+		description:
+			'現在の事実基盤が作り直され、以降のフェーズで生成済みのデータ（ステークホルダー・ペルソナ・取材・章立て・討論・編集）が削除されます。',
 		submitLabel: '再実行する'
 	}}
 	onGenerate={generate}
