@@ -14,7 +14,9 @@ const buildTopicContextSection = (topicContext?: TopicContext): string => {
 	if (!topicContext) return '';
 	const parts: string[] = [];
 	if (topicContext.description) {
-		parts.push(`\n\n【テーマの詳細説明】\n${topicContext.description}`);
+		parts.push(
+			`\n\n【テーマの方向性（最優先）】\n以下はこのテーマで設定者が意図した方向性・重視する観点です。論点・章立ては必ずこの方向性に沿って生成し、方向性から外れた切り口は避けてください。\n${topicContext.description}`
+		);
 	}
 	if (topicContext.sourceContents?.length) {
 		const sources = topicContext.sourceContents
@@ -306,7 +308,7 @@ export const generateChapters = async (
 				messages: [
 					{
 						role: 'user',
-						content: `テーマ「${topicTitle}」について、専門知識を持たない一般の人々が最初に感じる素朴な疑問や関心事を5〜7件列挙してください。\n\n日常の感覚で「自分にも関係ある」「なんとなく気になる」と思える切り口に絞ってください。固有名詞（特定の企業・人名・政策名）や専門用語は使わないこと。各切り口を1〜2文で記述してください。${contextSection}`
+						content: `テーマ「${topicTitle}」について、専門知識を持たない一般の人々が最初に感じる素朴な疑問や関心事を5〜7件列挙してください。\n\nテーマの方向性が示されている場合は、その方向性に沿った切り口に絞ってください。日常の感覚で「自分にも関係ある」「なんとなく気になる」と思える切り口にし、固有名詞（特定の企業・人名・政策名）や専門用語は避けて平易な言葉で表現してください。各切り口を1〜2文で記述してください。${contextSection}`
 					}
 				]
 			}),
@@ -317,7 +319,7 @@ export const generateChapters = async (
 				messages: [
 					{
 						role: 'user',
-						content: `テーマ「${topicTitle}」について、以下の参加者それぞれの立場・専門性・利害関係から生まれる具体的な論点や関心事を5〜8件列挙してください。\n\n参加者:\n${formatPersonas(personas)}\n\n各参加者が強い意見・懸念・利害を持つ側面を考慮し、参加者間で意見が対立しやすい切り口を優先してください。各切り口を1〜2文で記述してください。${contextSection}`
+						content: `テーマ「${topicTitle}」について、以下の参加者それぞれの立場・専門性・利害関係から生まれる具体的な論点や関心事を5〜8件列挙してください。\n\nテーマの方向性が示されている場合は、その方向性の範囲内で論点を生成してください。\n\n参加者:\n${formatPersonas(personas)}\n\n各参加者が強い意見・懸念・利害を持つ側面を考慮し、参加者間で意見が対立しやすい切り口を優先してください。各切り口を1〜2文で記述してください。${contextSection}`
 					}
 				]
 			})
