@@ -6,10 +6,10 @@ import type { Result, PipelineError } from '../types/common.types.js';
 import type { TopicContext } from '../types/topic.types.js';
 import type { DebateDigest } from '../types/debate-digest.types.js';
 
-// イントロ・クロージング生成エージェント。討論ダイジェスト＋テーマ文脈から、
-// イントロ（テーマの位置づけ・立場の多様性・俯瞰する導入）とクロージング（論点と立場の広がりの
-// 振り返り・問いを開いたまま締める）を独立に自由生成する。由来ターンID・構造検証は持たない。
-// 討論は読み取りのみ。書き込み・保存はステップ層の責務。
+// イントロ・クロージング生成エージェント。テーマ文脈＋討論の骨子（章タイトル・論点・参加者名）から、
+// イントロ（読む前の読者を惹きつけるフック）とクロージング（読了後の読者への短い結び）を独立生成する。
+// ネタバレ防止のため、章要約・各人の立場・信念変化は渡さない（先回りの要約・なぞり返しを構造的に防ぐ）。
+// 由来ターンID・構造検証は持たない。討論は読み取りのみ。書き込み・保存はステップ層の責務。
 
 const MAX_SOURCE_CHARS = 3_000;
 
@@ -18,29 +18,64 @@ export interface IntroClosingInput {
 	topicContext: TopicContext; // description / sourceContents / factBase
 }
 
-const introClosingSystemPrompt = `あなたは討論を一つの読み物として仕立てる編集者です。討論全体を俯瞰し、イントロ（導入）とクロージング（結び）を書きます。以下の制約を絶対に守ってください。
+const introClosingSystemPrompt = `あなたは討論を一つの読み物として仕立てる編集者です。イントロ（導入）とクロージング（結び）を書きます。以下の制約を絶対に守ってください。
 
 【中立・非結論（厳守）】
 - 結論・優劣・勝敗・落としどころを出さない。どの立場が正しい/優れている/説得力があるとも書かない。
 - 特定の立場を支持・否定しない。個人の主張の是非を論じない。
-- 扱うのは「論点」と「それに対する立場の広がり」であって、勝ち負けや正解ではない。
-- 討論に現れていない新たな主張・事実・評価を加えない。
+- 討論に現れていない新たな主張・事実・評価を加えない。特に、討論に存在しない所要時間・分数・数値・回数・日時・場の設定（「90分」「本日の生放送」など）を捏造しない。
+
+【禁止表現】
+- メタ的な前置き・進行の実況を書かない。「〜を整理します」「まとめると」「本稿では」「振り返ってみましょう」のような、これから何をするかの宣言で始めない。いきなり本文から書く。
+- テレビ番組・生放送の司会めいた常套句を使わない。「ぜひ最後までお付き合いください」「ご覧ください」「今日の議論では」など、視聴・購読を促す言い回しや番組進行の口調は禁止。
 
 【文体】
-- テーマや参加者に即した、落ち着いた俯瞰の語り口。プレーンな散文（見出し・箇条書き・メタ発言は使わない）。
+- です・ます調で書く（である調・体言止め・断定の言い切りは使わない）。
+- 落ち着いた語り口のプレーンな散文。見出し・箇条書きは使わない。
 - 討論と同じ言語で書く。`;
 
-const introInstruction = `以下の討論ダイジェストとテーマ文脈をもとに、討論全体のイントロ（導入）を書いてください。
-- このテーマがどんな問いをめぐるものかを位置づける。
-- どんな立場・観点が交わされるのか、その多様性を俯瞰して示す。
-- 結論や優劣は示さず、読者がこれから討論に入るための導入に徹する。`;
+const introInstruction = `これは討論を「読む前」の読者に向けたイントロ（導入）です。読者にこの続きを読みたいと思わせるのが唯一の目的です。
 
-const closingInstruction = `以下の討論ダイジェストとテーマ文脈をもとに、討論全体のクロージング（結び）を書いてください。
-- どんな論点が交わされ、どんな立場の広がりがあったかを振り返る。
-- 特定の結論・決着・落としどころを示さず、問いを開いたまま締めくくる。
-- 個人の主張の是非ではなく、論点と立場の広がりを扱う。`;
+大前提: 読み始める読者は、このテーマに深い論点があることをまだ知りません。だから「重要で深い問いがあります」と説き起こしても響きません。深い論点は、討論を読むことで読者が初めて手にする新しい視点であって、イントロで先出しするものではありません。
 
-const formatDigest = (digest: DebateDigest): string => {
+入り口にするのは、読者がすでに素朴に気にしていること——「今これがどうなっているのか」という、誰もが自然に追える現在の状況です。共感を演出しないこと。「〜と気になりますよね」「〜と思う人も多いでしょう」のように読者の気持ちを実況・代弁して共感を作りにいかない。素朴な事実をそのまま短く置けば、共感は自然に生まれます。
+
+おおむね次の流れで、自然な散文として書いてください。全体は3文前後・1段落の短さに収めます:
+1. このテーマが今どういう状況にあるのかを、テーマ説明や参考資料に即して、具体的な事実で一文描く。
+2. 読者が素朴に追える具体を、最も印象に残るものだけ一つ二つ選んで厚みを出す。深い論点・分析・評価は加えない。
+3. 最後を、これから討論が向き合う問いで締める。この問いがそのまま本編への入り口になります。
+
+厳守事項:
+- 報道記事にしない。参考資料にある事実を網羅しようとせず、発言の引用・日付・数値・固有名詞・細かい経緯を並べ立てない。数ある事実から要点を一つ二つだけ選ぶ。
+- 討論の中身（誰が何を論じ、どんな結論・気づきに至ったか）は明かさない。要約・ネタバレは厳禁。
+- 深い論点を先出ししない。イントロで論点の重要性・奥行きを説明しない。
+- 読者本人に問いかけない。「あなたならどうしますか」のように読者に答えを求める問いは禁止。締めの問いは討論が向き合う問いであって、読者への質問ではありません。
+- 事実を置いたら、締めの問い以外に論評・まとめの一言を足さない（「今後の展開が注目されます」「目が離せません」のような、中身のない後付けの締め文句は不要）。
+- 短く、まっすぐ書く。`;
+
+const closingInstruction = `これは討論を「読み終えた」読者に向けたクロージング（結び）です。読者はすでに討論を最後まで読み終えています。
+- 「論点を整理します」のような前置きで始めない。「第1章ではこう、第2章では…」と各章の内容を順になぞり返す振り返りもしない（読者はもう読んで知っている）。
+- 焦点を当てる問いは、討論ダイジェストに実際に現れた流れ・立場・気づきに即して選ぶ。それらしく聞こえるだけの、討論に接地していない問いを作らない。討論を通して実際に浮かび上がった問い・論点が一つあれば、それだけに焦点を当てて結ぶ。あれこれ並べず、多くても一つに絞る。焦点を当てる問いが無ければ、無理に論点を持ち出さず短く余韻だけで締める。
+- 結論・決着・落としどころは示さず、その問いがなお開かれたまま残ることに触れ、静かに余韻を残して締めくくる。
+- 2〜3文程度で簡潔に。長く書かない。`;
+
+// イントロ用（ネタバレ防止）: 読む前の読者に見せてよい骨子だけ。章要約・立場・信念変化は渡さない。
+const formatDigestBrief = (digest: DebateDigest): string => {
+	const chapters = digest.chapters
+		.map((chapter, i) => {
+			const points = chapter.discussionPoints.length
+				? `\n  論点: ${chapter.discussionPoints.join(' / ')}`
+				: '';
+			return `第${i + 1}章「${chapter.title}」${points}`;
+		})
+		.join('\n');
+	const personas = digest.personas.map((persona) => persona.name).join('、');
+	return `【テーマ】${digest.topicTitle}\n\n【章と論点】\n${chapters}\n\n【参加者】${personas}`;
+};
+
+// クロージング用: 結びを実際の討論内容に接地させるため、章要約・各人の立場・信念変化まで渡す。
+// （順になぞり返さない・一つの問いに絞ることは指示側で制御する）
+const formatDigestFull = (digest: DebateDigest): string => {
 	const chapters = digest.chapters
 		.map((chapter, i) => {
 			const points = chapter.discussionPoints.length
@@ -77,7 +112,8 @@ const formatTopicContextSection = (topicContext: TopicContext): string => {
 
 const generate = async (
 	input: IntroClosingInput,
-	instruction: string
+	instruction: string,
+	digestSection: string
 ): Promise<Result<string, PipelineError>> => {
 	try {
 		const result = await generateText({
@@ -86,7 +122,7 @@ const generate = async (
 			messages: [
 				{
 					role: 'user',
-					content: `${instruction}${formatTopicContextSection(input.topicContext)}\n\n【討論ダイジェスト】\n${formatDigest(input.digest)}`
+					content: `${instruction}${formatTopicContextSection(input.topicContext)}\n\n${digestSection}`
 				}
 			]
 		});
@@ -110,7 +146,15 @@ const generate = async (
 };
 
 export const generateIntro = (input: IntroClosingInput): Promise<Result<string, PipelineError>> =>
-	generate(input, introInstruction);
+	generate(
+		input,
+		introInstruction,
+		`【討論の骨子（ネタバレ防止のため要約・立場は伏せています）】\n${formatDigestBrief(input.digest)}`
+	);
 
 export const generateClosing = (input: IntroClosingInput): Promise<Result<string, PipelineError>> =>
-	generate(input, closingInstruction);
+	generate(
+		input,
+		closingInstruction,
+		`【討論ダイジェスト（結びを討論内容に即させるための参照。順になぞり返さないこと）】\n${formatDigestFull(input.digest)}`
+	);

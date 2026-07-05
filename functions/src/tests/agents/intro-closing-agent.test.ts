@@ -74,7 +74,7 @@ describe('generateIntro / generateClosing', () => {
 		}
 	});
 
-	it('システムプロンプトが非結論・非支持を強制し、ダイジェスト圧縮内容を入力に含む', async () => {
+	it('システムプロンプトが非結論・非支持・です・ます調を強制する', async () => {
 		const capturedArgs: unknown[] = [];
 		generateText.mockImplementationOnce(async (args: unknown) => {
 			capturedArgs.push(args);
@@ -87,10 +87,46 @@ describe('generateIntro / generateClosing', () => {
 		const callArgs = capturedArgs[0] as { system: string; messages: Array<{ content: string }> };
 		expect(callArgs.system).toMatch(/結論|優劣|勝敗/);
 		expect(callArgs.system).toMatch(/支持|否定/);
+		expect(callArgs.system).toMatch(/です・ます/);
+	});
+
+	it('イントロ入力はテーマと論点の骨子のみで、ネタバレ（章要約・立場・信念変化）を含まない', async () => {
+		const capturedArgs: unknown[] = [];
+		generateText.mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return { text: '導入文' };
+		});
+
+		const { generateIntro } = await import('../../agents/intro-closing-agent.js');
+		await generateIntro(mockInput);
+
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		const userContent = callArgs.messages[0].content;
+		// テーマと論点（読者に提示してよい問い）は含む
 		expect(userContent).toContain('リモートワークの是非');
+		expect(userContent).toContain('生産性');
+		expect(userContent).toContain('孤独感');
+		// ネタバレ源（章要約・立場・信念変化）は渡さない
+		expect(userContent).not.toContain('生産性の向上と孤独感の増大');
+		expect(userContent).not.toContain('推進派');
+		expect(userContent).not.toContain('対面の価値も再認識');
+	});
+
+	it('クロージング入力は討論内容（章要約・立場・信念変化）を含み、結びを討論に接地させる', async () => {
+		const capturedArgs: unknown[] = [];
+		generateText.mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return { text: '結び' };
+		});
+
+		const { generateClosing } = await import('../../agents/intro-closing-agent.js');
+		await generateClosing(mockInput);
+
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
+		const userContent = callArgs.messages[0].content;
+		// 討論に即した問いを選べるよう、章要約・立場・信念変化まで渡す
 		expect(userContent).toContain('生産性の向上と孤独感の増大');
-		// ダイジェスト（圧縮）を渡し、討論全文は渡さない
+		expect(userContent).toContain('推進派');
 		expect(userContent).toContain('対面の価値も再認識');
 	});
 
