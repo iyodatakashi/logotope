@@ -116,6 +116,35 @@ const createTopic = async (title: string) => {
 
 ---
 
+## セキュリティルール（firestore.rules）
+
+### 新しいコレクション／サブコレクションを追加したら firestore.rules も必ず更新する
+
+新しいストア（`src/lib/stores/`）や書き込み経路で **新規コレクション・サブコレクションを追加したら、同じ PR で `firestore.rules` に対応する `match` ブロックを追加する**。これは見落としやすい定番の漏れ。
+
+`firestore.rules` 末尾に全体を deny するフォールバックがあるため、`match` を書き忘れたパスは**すべて拒否**される：
+
+```
+match /{document=**} {
+  allow read, write: if false;  // ← match 漏れのパスはここに落ちて全拒否
+}
+```
+
+**症状**: `FirebaseError: [code=permission-denied]` が `onSnapshot` リスナーで発生する。CORS や 404 ではなく、まず「そのパスの `match` が rules に存在するか」を疑う。
+
+**書き方**: 閲覧者に見せる読み物系（editedChapters / editedPostDebateComments / editedIntroClosing 等）は、認証読み書き＋公開トピック配下の公開読みを付ける。管理専用（chapterAnalysis / stakeholders / factBase / engagements / factCheck 等）は認証のみ。
+
+```
+match /editedIntroClosing/{docId} {
+  allow read, write: if request.auth != null;
+  allow read: if get(/databases/$(database)/documents/topics/$(topicId)).data.publishedAt != null;
+}
+```
+
+**反映にはデプロイが必要**（`firebase deploy --only firestore:rules`）。ルール編集だけでは本番に効かない。
+
+---
+
 ## ID 生成
 
 ```typescript
