@@ -213,6 +213,45 @@
 			return { id: chapter.id, title: chapter.title, status, failureReason, turns };
 		});
 	});
+
+	// 討論後コメント。編集後（editedPostDebateComments）を優先し、未生成なら原本にフォールバックする
+	// （章と同じ編集後優先・原本フォールバックの方針）。話者名・役割は personas から解決する。
+	type DisplayComment = {
+		id: string;
+		name: string;
+		role: string;
+		content: string;
+		// 原本コメント→編集後のインライン差分。編集後がある場合のみ持つ。
+		diff: InlineDiffSegment[] | null;
+	};
+
+	const displayComments = $derived.by((): DisplayComment[] => {
+		const rawComments = currentTopicStore.postDebateCommentsStore.comments;
+		const editedComments = currentTopicStore.editedPostDebateCommentsStore.comments;
+		const rawContentById = new Map(rawComments.map((c) => [c.id, c.content]));
+		if (editedComments.length > 0) {
+			return [...editedComments]
+				.sort((a, b) => a.sortOrder - b.sortOrder)
+				.map((c) => {
+					const { name, role } = speakerLabel('persona', c.personaId);
+					const sourceText = rawContentById.get(c.sourceCommentId) ?? '';
+					return {
+						id: c.id,
+						name,
+						role,
+						content: c.content,
+						diff: computeInlineDiff(sourceText, c.content)
+					};
+				});
+		}
+		// フォールバック: 原本の討論後コメントをそのまま表示する（差分なし）。
+		return [...rawComments]
+			.sort((a, b) => a.sortOrder - b.sortOrder)
+			.map((c) => {
+				const { name, role } = speakerLabel('persona', c.personaId);
+				return { id: c.id, name, role, content: c.content, diff: null };
+			});
+	});
 </script>
 
 {#if !debateCompleted}
@@ -311,6 +350,27 @@
 						</section>
 					{/each}
 				</div>
+			{/if}
+			{#if displayComments.length}
+				<!-- 討論後コメント＝本編（章）の後、クロージングの前。参加者の締めの所感。 -->
+				<section class="post-comments">
+					<h3 class="post-comments__label">討論後コメント</h3>
+					<div class="post-comments__list">
+						{#each displayComments as comment (comment.id)}
+							<div class="post-comment">
+								<div class="speaker">
+									<strong>{comment.name}</strong>
+									{#if comment.role}<span class="role">({comment.role})</span>{/if}
+								</div>
+								{#if showDiff && comment.diff}
+									<p class="content"><DiffText segments={comment.diff} /></p>
+								{:else}
+									<p class="content">{comment.content}</p>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				</section>
 			{/if}
 			{#if closing}
 				<!-- クロージング＝章群の後。本編と区別できるセクションで表示する（Req 4.1, 4.3） -->
@@ -455,5 +515,28 @@
 		color: #555;
 		list-style: none;
 		padding: 0;
+	}
+	.post-comments {
+		margin-top: 24px;
+		padding: 16px;
+		border-left: 4px solid #00838f;
+		background: #f0fafb;
+		border-radius: 3px;
+	}
+	.post-comments__label {
+		margin: 0 0 12px;
+		font-size: 0.8rem;
+		font-weight: 700;
+		color: #00838f;
+	}
+	.post-comments__list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.post-comment {
+		padding: 12px;
+		border-left: 4px solid #e0e0e0;
+		background: #fff;
 	}
 </style>

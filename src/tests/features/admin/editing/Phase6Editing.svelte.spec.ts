@@ -17,7 +17,10 @@ const { holder } = vi.hoisted(() => ({
 		factResults: new Map<string, unknown>(),
 		personas: [] as unknown[],
 		intro: null as string | null,
-		closing: null as string | null
+		closing: null as string | null,
+		// 討論後コメント（原本／編集後）。編集後があればそちらを、無ければ原本にフォールバック表示する。
+		postDebateComments: [] as unknown[],
+		editedPostDebateComments: [] as unknown[]
 	}
 }));
 
@@ -63,6 +66,20 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				}
 			};
 		},
+		get postDebateCommentsStore() {
+			return {
+				get comments() {
+					return holder.postDebateComments;
+				}
+			};
+		},
+		get editedPostDebateCommentsStore() {
+			return {
+				get comments() {
+					return holder.editedPostDebateComments;
+				}
+			};
+		},
 		get factCheckStore() {
 			return {
 				get resultsMap() {
@@ -94,6 +111,8 @@ describe('Phase6Editing.svelte', () => {
 		holder.personas = [persona('p1', '田中太郎')];
 		holder.intro = null;
 		holder.closing = null;
+		holder.postDebateComments = [];
+		holder.editedPostDebateComments = [];
 	});
 
 	// 差分が確定的になるよう、原本と編集後で文字集合を重複させないデータを使う。
@@ -320,6 +339,41 @@ describe('Phase6Editing.svelte', () => {
 
 		await expect.element(page.getByText('イントロだけ生成')).toBeInTheDocument();
 		expect(page.getByRole('heading', { name: 'クロージング' }).elements()).toHaveLength(0);
+	});
+
+	it('編集後の討論後コメントを見出し付きで表示し、既定で原本との差分（削除＋追加）を強調する', async () => {
+		completedChapterFixture();
+		holder.postDebateComments = [
+			{ id: 'c1', personaId: 'p1', content: 'サシスセソ', sortOrder: 0 }
+		];
+		holder.editedPostDebateComments = [
+			{ id: 'ec1', sourceCommentId: 'c1', personaId: 'p1', content: 'ハヒフヘホ', sortOrder: 0 }
+		];
+		render(Phase6Editing);
+
+		await expect.element(page.getByRole('heading', { name: '討論後コメント' })).toBeInTheDocument();
+		// 差分 ON（既定）: 原本（削除）と編集後（追加）の両方が見える
+		await expect.element(page.getByText('ハヒフヘホ')).toBeInTheDocument();
+		await expect.element(page.getByText('サシスセソ')).toBeInTheDocument();
+	});
+
+	it('編集後コメントが無いときは原本の討論後コメントにフォールバック表示する（差分なし）', async () => {
+		completedChapterFixture();
+		holder.postDebateComments = [
+			{ id: 'c1', personaId: 'p1', content: '原本の討論後コメント', sortOrder: 0 }
+		];
+		holder.editedPostDebateComments = [];
+		render(Phase6Editing);
+
+		await expect.element(page.getByRole('heading', { name: '討論後コメント' })).toBeInTheDocument();
+		await expect.element(page.getByText('原本の討論後コメント')).toBeInTheDocument();
+	});
+
+	it('討論後コメントが無いときは見出しを表示しない', async () => {
+		completedChapterFixture();
+		render(Phase6Editing);
+
+		expect(page.getByRole('heading', { name: '討論後コメント' }).elements()).toHaveLength(0);
 	});
 
 	it('討論が未完了のあいだは編集開始ボタンを出さず、ゲート文言を表示する', async () => {

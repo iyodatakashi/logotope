@@ -5,6 +5,7 @@ import { createEditedChaptersStore } from '$lib/stores/editedChapters.svelte';
 import { createEditedIntroClosingStore } from '$lib/stores/editedIntroClosing.svelte';
 import { createChapterAnalysisStore } from '$lib/stores/chapterAnalysis.svelte';
 import { createPostDebateCommentsStore } from '$lib/stores/postDebateComments.svelte';
+import { createEditedPostDebateCommentsStore } from '$lib/stores/editedPostDebateComments.svelte';
 import { createPersonasStore } from '$lib/stores/personas.svelte';
 import { createEngagementsStore } from '$lib/stores/engagements.svelte';
 import { createStakeholdersStore } from '$lib/stores/stakeholders.svelte';
@@ -18,6 +19,7 @@ const create = () => {
 	let editedIntroClosingStore = $state(createEditedIntroClosingStore(''));
 	let chapterAnalysisStore = $state(createChapterAnalysisStore(''));
 	let postDebateCommentsStore = $state(createPostDebateCommentsStore(''));
+	let editedPostDebateCommentsStore = $state(createEditedPostDebateCommentsStore(''));
 	let personasStore = $state(createPersonasStore(''));
 	let engagementsStore = $state(createEngagementsStore(''));
 	let stakeholdersStore = $state(createStakeholdersStore(''));
@@ -45,6 +47,9 @@ const create = () => {
 		get postDebateCommentsStore() {
 			return postDebateCommentsStore;
 		},
+		get editedPostDebateCommentsStore() {
+			return editedPostDebateCommentsStore;
+		},
 		get personasStore() {
 			return personasStore;
 		},
@@ -64,6 +69,7 @@ const create = () => {
 			const editedIntroClosing = createEditedIntroClosingStore(topicId);
 			const analysis = createChapterAnalysisStore(topicId);
 			const comments = createPostDebateCommentsStore(topicId);
+			const editedComments = createEditedPostDebateCommentsStore(topicId);
 			const personas = createPersonasStore(topicId);
 			const engagements = createEngagementsStore(topicId);
 			const stakeholders = createStakeholdersStore(topicId);
@@ -74,6 +80,7 @@ const create = () => {
 			editedIntroClosing.start();
 			analysis.start();
 			comments.start();
+			editedComments.start();
 			personas.start();
 			engagements.start();
 			stakeholders.start();
@@ -84,6 +91,7 @@ const create = () => {
 			editedIntroClosingStore = editedIntroClosing;
 			chapterAnalysisStore = analysis;
 			postDebateCommentsStore = comments;
+			editedPostDebateCommentsStore = editedComments;
 			personasStore = personas;
 			engagementsStore = engagements;
 			stakeholdersStore = stakeholders;
@@ -95,6 +103,7 @@ const create = () => {
 				editedIntroClosing.stop();
 				analysis.stop();
 				comments.stop();
+				editedComments.stop();
 				personas.stop();
 				engagements.stop();
 				stakeholders.stop();
