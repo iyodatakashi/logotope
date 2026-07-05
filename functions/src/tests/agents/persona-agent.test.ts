@@ -68,6 +68,10 @@ const mockTurns: DebateTurn[] = [];
 
 const makeGenerateTextResult = (output: unknown) => ({ output, steps: [] });
 
+// claude 経路では system は cacheControl 付き SystemModelMessage、gemini/gpt/事後コメントは文字列。
+const systemTextOf = (args: { system: unknown }): string =>
+	typeof args.system === 'string' ? args.system : (args.system as { content: string }).content;
+
 describe('evaluateEngagement', () => {
 	beforeEach(async () => {
 		vi.resetModules();
@@ -650,7 +654,7 @@ describe('generateTurn', () => {
 		const { generateTurn } = await import('../../agents/persona-agent.js');
 		await generateTurn(personaWithBeliefs, makeContext(), makeEngagement({ mode: 'opinion' }));
 
-		const system = (capturedArgs[0] as { system: string }).system;
+		const system = systemTextOf(capturedArgs[0] as { system: unknown });
 		expect(system).toContain('初期の信念テキスト');
 		expect(system).not.toContain('上書きされた最新信念');
 	});
@@ -783,5 +787,153 @@ describe('generatePostDebateComment', () => {
 		expect(vi.mocked(formatMod.formatAwarenessSection)).toHaveBeenCalledWith(
 			personaWithAwareness.awarenesses
 		);
+	});
+});
+
+// Task 1.1: ペルソナ安定コンテキストのプロンプトキャッシュ配置。
+// claude 経路のみ安定コンテキストを cacheControl 付き system メッセージにし、
+// gemini/gpt 経路と事後コメントは従来の文字列 system で呼ぶ。出力スキーマは不変。
+describe('プロンプトキャッシュ配置（Task 1.1）', () => {
+	beforeEach(() => {
+		vi.resetModules();
+	});
+
+	const makeContext = (): TurnGenerationContext => ({
+		chapterTurns: [],
+		chapter: mockChapter,
+		otherPersonas: [{ id: 'p2', name: '佐藤花子' }]
+	});
+	const makeEngagement = (): Engagement => ({
+		personaId: 'p1',
+		score: 4,
+		mode: 'opinion',
+		intentSummary: '意見を述べたい'
+	});
+
+	// キャッシュ対象の system ブロック（SystemModelMessage）であることを検証する
+	const expectCachedSystem = (args: { system: unknown }, expectedContent: string) => {
+		const system = args.system as {
+			role: string;
+			content: string;
+			providerOptions: { anthropic: { cacheControl: { type: string } } };
+		};
+		expect(typeof args.system).toBe('object');
+		expect(system.role).toBe('system');
+		expect(system.content).toContain(expectedContent);
+		expect(system.providerOptions.anthropic.cacheControl.type).toBe('ephemeral');
+	};
+
+	it('claude 経路の evaluateEngagement は cacheControl 付き system メッセージで呼ぶ', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return {
+				object: { score: 2, mode: 'opinion', intentSummary: null, awareness: null }
+			} as never;
+		});
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		await evaluateEngagement(mockPersona, mockTurns, ['佐藤花子']);
+
+		expectCachedSystem(capturedArgs[0] as { system: unknown }, '田中太郎');
+	});
+
+	it('claude 経路の generateTurn は cacheControl 付き system メッセージで呼ぶ', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言', targetPersonaId: null }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn(mockPersona, makeContext(), makeEngagement());
+
+		expectCachedSystem(capturedArgs[0] as { system: unknown }, '田中太郎');
+	});
+
+	it('gemini 経路の evaluateEngagement は従来の文字列 system で呼ぶ（キャッシュ非適用）', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return {
+				object: { score: 2, mode: 'opinion', intentSummary: null, awareness: null }
+			} as never;
+		});
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		await evaluateEngagement({ ...mockPersona, llmType: 'gemini' }, mockTurns, ['佐藤花子']);
+
+		expect(typeof (capturedArgs[0] as { system: unknown }).system).toBe('string');
+	});
+
+	it('gpt 経路の generateTurn は従来の文字列 system で呼ぶ（キャッシュ非適用）', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
+			capturedArgs.push(args);
+			return makeGenerateTextResult({ content: 'テスト発言', targetPersonaId: null }) as never;
+		});
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		await generateTurn({ ...mockPersona, llmType: 'gpt' }, makeContext(), makeEngagement());
+
+		expect(typeof (capturedArgs[0] as { system: unknown }).system).toBe('string');
+	});
+
+	it('generatePostDebateComment は claude でも従来の文字列 system で呼ぶ（キャッシュ対象外）', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return { object: { content: 'コメント' } } as never;
+		});
+
+		const { generatePostDebateComment } = await import('../../agents/persona-agent.js');
+		await generatePostDebateComment(mockPersona, mockTurns);
+
+		expect(typeof (capturedArgs[0] as { system: unknown }).system).toBe('string');
+	});
+
+	it('キャッシュ配置後も出力スキーマは不変（generateTurn: content/targetPersonaId）', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateText).mockResolvedValue(
+			makeGenerateTextResult({ content: '発言本文', targetPersonaId: 'p2' }) as never
+		);
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		const result = await generateTurn(mockPersona, makeContext(), makeEngagement());
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.content).toBe('発言本文');
+			expect(result.value.targetPersonaId).toBe('p2');
+			expect(result.value.speechMode).toBe('opinion');
+		}
+	});
+
+	it('キャッシュ配置後も出力スキーマは不変（evaluateEngagement: score/mode/awareness）', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 4,
+				mode: 'opinion',
+				intentSummary: '別の角度を出したい',
+				awareness: { kind: 'self', content: '新たな気づき', sourcePersonaId: null }
+			}
+		} as never);
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, mockTurns, ['佐藤花子']);
+
+		expect(result.score).toBe(4);
+		expect(result.mode).toBe('opinion');
+		expect(result.awareness).toEqual({
+			kind: 'self',
+			content: '新たな気づき',
+			sourcePersonaId: null
+		});
 	});
 });

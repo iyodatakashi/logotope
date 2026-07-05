@@ -65,6 +65,10 @@ vi.mock('../../../pipeline/debate/post-debate-comments.js', () => ({
 import { performOpenStep, performTurnStep } from '../../../pipeline/debate/step.js';
 import { generateOpening } from '../../../agents/facilitator-agent.js';
 import { generateFacilitatorTurn, generatePersonaTurn } from '../../../pipeline/debate/turn.js';
+import {
+	evaluateEngagements,
+	evaluateEngagementWithFallback
+} from '../../../pipeline/debate/engagement.js';
 
 const personas: Persona[] = [
 	{ id: 'p1', name: 'P1' } as Persona,
@@ -194,5 +198,60 @@ describe('performTurnStep - 発言者記録の配線（5.1）', () => {
 		expect(ctx.state.discussionPoints[0].spokenPersonaIds).toContain('p1');
 		// state ベースの書き出しで永続化される（discussionPointStatuses の update が呼ばれる）
 		expect(mockUpdate).toHaveBeenCalled();
+	});
+});
+
+describe('performTurnStep - 章末+1（freeze）の指名者のみ評価（2.1）', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.mocked(evaluateEngagementWithFallback).mockResolvedValue({
+			personaId: 'p2',
+			score: 0,
+			mode: 'none'
+		});
+	});
+
+	it('freeze の最終応答では一括評価（evaluateEngagements）を呼ばず、指名者のみ単独評価する', async () => {
+		vi.mocked(generatePersonaTurn).mockResolvedValue({
+			personaId: 'p2',
+			turnId: 'tn2',
+			beliefChange: null,
+			queuedEntries: []
+		} as never);
+
+		// 末尾ターンがファシリテーター指名で p2 を確定させている
+		const targetedTurn: DebateTurn = {
+			id: 't0',
+			speakerType: 'persona',
+			personaId: 'p1',
+			content: '指名する',
+			targetPersonaId: 'p2',
+			targetedBy: 'facilitator',
+			createdAt: ''
+		};
+		const state = makeState([targetedTurn]);
+		const chapterDoc: ChapterEntry = {
+			id: 'ch1',
+			chapterIndex: 0,
+			title: 'テスト章',
+			discussionPoints: [],
+			turns: [targetedTurn],
+			status: 'running'
+		};
+		const ctx = makeCtx({ chapterDoc, state, chapterTurnStartInState: 0 });
+
+		await performTurnStep(
+			ctx,
+			makePayload({ stepKind: 'turn', expectedTurnIndex: 1, finalResponse: true }),
+			{ turnsPerChapter: 10, maxTurns: 100, interventionCooldown: 2 }
+		);
+
+		// 全非話者の一括評価は行わない（2.1）
+		expect(vi.mocked(evaluateEngagements)).not.toHaveBeenCalled();
+		// 指名者 p2 のみ単独評価する（engagements 未指定＝一括結果に依存しない）
+		expect(vi.mocked(evaluateEngagementWithFallback)).toHaveBeenCalledTimes(1);
+		const callArg = vi.mocked(evaluateEngagementWithFallback).mock.calls[0][0];
+		expect(callArg.personaId).toBe('p2');
+		expect(callArg.engagements).toBeUndefined();
 	});
 });

@@ -1,4 +1,5 @@
 import { generateText, generateObject, jsonSchema, Output, stepCountIs } from 'ai';
+import type { SystemModelMessage } from 'ai';
 import { z } from 'zod';
 import { getPersonaModel } from '../llm/models.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
@@ -142,6 +143,19 @@ ${initialBelief}
 検索ツールは必要なときのみ使用し、1〜2回以内にとどめること。
 自分の体験・実感はそのまま語ってよい。`;
 };
+
+const PERSONA_CACHE_PROVIDER_OPTIONS: SystemModelMessage['providerOptions'] = {
+	anthropic: { cacheControl: { type: 'ephemeral' } }
+};
+
+// claude(anthropic) 経路のときだけ、ペルソナの安定コンテキスト（不変の system）を cacheControl 付き
+// system メッセージにして、同一ペルソナの複数呼び出しでプロンプトキャッシュを再利用させる。
+// gemini/gpt は providerOptions.anthropic を無視するため従来どおり文字列 system で渡す（no-op）。
+// キャッシュは出力を変えないため、発言・engagement の内容・スキーマは不変。
+const buildPersonaSystem = (llmType: string, system: string): string | SystemModelMessage =>
+	llmType === 'claude'
+		? { role: 'system', content: system, providerOptions: PERSONA_CACHE_PROVIDER_OPTIONS }
+		: system;
 
 // 発言意欲スコア（2〜5）に応じた発言の長さ。score 不明時（指名・キュー）は中くらい。
 const speechLengthGuide = (score?: number): string => {
@@ -294,7 +308,7 @@ export const generateTurn = async (
 		const callFull = (model: ReturnType<typeof getPersonaModel>) =>
 			generateText({
 				model,
-				system,
+				system: buildPersonaSystem(llmType, system),
 				output: Output.object({ schema: turnOutputSchema }),
 				...(tools && { tools, stopWhen: stepCountIs(4) }),
 				messages: [{ role: 'user', content: userContent }]
@@ -379,13 +393,15 @@ export const evaluateEngagement = async (
 		const awarenessSection = formatAwarenessSection(persona.awarenesses);
 		// score/mode の主判定とは分節した、付随的な気づき検出タスク（低干渉・厳格な閾値・簡潔にしてコスト抑制）
 		const awarenessDetectionNote = `\n\n---\n【気づき検出】score/mode の評価とは別に行う。会話を聞いて自分の見方が実際に変わった、または見落としていた視点に本当に気づいたときだけ awareness に記録する。reception=他者の発言で気づいた／self=自分の中で新たに生じた。content は一文、sourcePersonaId は reception なら発言者ID（会話中の「(ID:...)」）・self は null。\n次は記録しない（null）：単なる同意・共感・言い換え・既存見解の再確認、および【討論中に得た気づき】に既出の内容やその繰り返し。該当なしは null（ほとんどは null）。この検出は score/mode の判定を変えない。`;
+		const llmType = persona.llmType ?? 'claude';
+		const system = buildPersonaSystemPrompt(
+			persona,
+			persona.interviewRecord ?? '',
+			getInitialBelief(persona)
+		);
 		const result = await generateObject({
-			model: getPersonaModel(persona.llmType ?? 'claude'),
-			system: buildPersonaSystemPrompt(
-				persona,
-				persona.interviewRecord ?? '',
-				getInitialBelief(persona)
-			),
+			model: getPersonaModel(llmType),
+			system: buildPersonaSystem(llmType, system),
 			schema: engagementSchema,
 			messages: [
 				{

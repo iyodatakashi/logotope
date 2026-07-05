@@ -5,7 +5,18 @@ import type { DebateTurn } from '../../../types/turn.types.js';
 
 const mockUpdate = vi.fn().mockResolvedValue(undefined);
 const mockSet = vi.fn().mockResolvedValue(undefined);
-const mockDoc = vi.fn().mockReturnValue({ update: mockUpdate, set: mockSet });
+// personaId -> 永続済み history マップ（同一 turnId 再利用テスト用）。既定は空＝未永続（＝評価する）
+let mockHistoryByPersona: Record<string, Record<string, unknown>> = {};
+const mockDoc = vi.fn((path: string) => {
+	const personaId = path.split('/').pop() ?? '';
+	return {
+		update: mockUpdate,
+		set: mockSet,
+		get: vi.fn().mockResolvedValue({
+			get: (field: string) => (field === 'history' ? mockHistoryByPersona[personaId] : undefined)
+		})
+	};
+});
 
 vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: vi.fn(() => ({ doc: mockDoc })),
@@ -67,6 +78,7 @@ const makeDebateTurn = (id: string): DebateTurn => ({
 describe('evaluateEngagements', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mockHistoryByPersona = {};
 		mockEvaluateEngagement.mockResolvedValue({ personaId: 'p1', score: 3, mode: 'opinion' });
 	});
 
@@ -234,6 +246,66 @@ describe('evaluateEngagements', () => {
 
 		expect(result).toHaveLength(1);
 		expect(result[0].personaId).toBe('p1');
+	});
+
+	it('同一 turnId で既に永続済みのペルソナは再評価せず永続値（score/mode/intentSummary）を再利用する（2.2）', async () => {
+		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
+		// p1 は turnId t1 で永続済み → 再利用。p2 は未永続 → 評価する。
+		mockHistoryByPersona = {
+			p1: { t1: { score: 4, mode: 'opinion', intentSummary: '前回の意図' } }
+		};
+
+		const result = await evaluateEngagements({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			personas,
+			state: makeState({ turns: [makeDebateTurn('t1')] }),
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		const evaluatedIds = mockEvaluateEngagement.mock.calls.map(
+			(call: unknown[]) => (call[0] as Persona).id
+		);
+		expect(evaluatedIds).not.toContain('p1'); // 再利用（LLM 呼び出しなし）
+		expect(evaluatedIds).toContain('p2'); // 未永続は従来どおり評価
+		const p1 = result.find((r) => r.personaId === 'p1')!;
+		expect(p1.score).toBe(4);
+		expect(p1.mode).toBe('opinion');
+		expect(p1.intentSummary).toBe('前回の意図');
+	});
+
+	it('再利用時は気づきを再検出しない（appendAwareness を呼ばない）（2.2）', async () => {
+		const personas = [makePersona('p1', '田中太郎')];
+		mockHistoryByPersona = { p1: { t1: { score: 3, mode: 'opinion' } } };
+
+		await evaluateEngagements({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			personas,
+			state: makeState({ turns: [makeDebateTurn('t1')] }),
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		expect(mockEvaluateEngagement).not.toHaveBeenCalled();
+		expect(mockAppendAwareness).not.toHaveBeenCalled();
+	});
+
+	it('永続値が再利用に不十分（question で intentSummary 欠落）なら従来評価にフォールバックする（2.2）', async () => {
+		const personas = [makePersona('p1', '田中太郎')];
+		mockHistoryByPersona = { p1: { t1: { score: 4, mode: 'question' } } }; // intentSummary 欠落
+
+		await evaluateEngagements({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			personas,
+			state: makeState({ turns: [makeDebateTurn('t1')] }),
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		const evaluatedIds = mockEvaluateEngagement.mock.calls.map(
+			(call: unknown[]) => (call[0] as Persona).id
+		);
+		expect(evaluatedIds).toContain('p1'); // 不十分 → フォールバック評価
 	});
 });
 

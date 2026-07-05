@@ -60,6 +60,44 @@ const saveEngagements = async (params: {
 	}
 };
 
+/**
+ * 同一 turnId で既に永続された意欲評価を読み、再利用できる形（score/mode、question は intentSummary）
+ * なら Engagement として返す。未永続・不十分・読み取り失敗は null（呼び出し側が従来評価にフォールバック）。
+ * awareness は再利用しない（初回評価時に永続済みのため null で返し、同一ターンでの再検出を避ける）。
+ */
+const readReusableEngagement = async (
+	topicId: string,
+	chapterId: string,
+	personaId: string,
+	turnId: string
+): Promise<Engagement | null> => {
+	try {
+		const snap = await db()
+			.doc(`topics/${topicId}/chapters/${chapterId}/engagements/${personaId}`)
+			.get();
+		const history = snap.get('history') as
+			| Record<string, { score?: unknown; mode?: unknown; intentSummary?: unknown }>
+			| undefined;
+		const entry = history?.[turnId];
+		if (!entry) return null;
+		const { score, mode, intentSummary } = entry;
+		if (typeof score !== 'number') return null;
+		if (mode !== 'opinion' && mode !== 'fact' && mode !== 'none' && mode !== 'question')
+			return null;
+		// question は intentSummary が無いと発言生成に使えない → 再利用に不十分としてフォールバック
+		if (mode === 'question' && typeof intentSummary !== 'string') return null;
+		return {
+			personaId,
+			score,
+			mode,
+			intentSummary: typeof intentSummary === 'string' ? intentSummary : undefined,
+			awareness: null
+		};
+	} catch {
+		return null;
+	}
+};
+
 export const evaluateEngagements = async ({
 	topicId,
 	chapterId,
@@ -75,14 +113,18 @@ export const evaluateEngagements = async ({
 }): Promise<Engagement[]> => {
 	// 直前話者は連続発言させないため評価対象から外す（必要なら後で個別フォールバック評価する）
 	const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
-	// 全対象を並列に意欲評価する
+	const turnId = chapterTurns[chapterTurns.length - 1]?.id ?? '';
+	// 同一ターン状態（同一 turnId）に評価が既に永続されていれば LLM 再評価せず再利用する（2.2）。
+	// 未永続（新規ターン状態）・永続値が不十分なペルソナは従来どおり評価する。線形進行では毎ターン
+	// turnId が変わるため通常は全評価。ステップ再実行・リトライで同一 turnId を再処理する場合のみ省く。
 	const engagements = await Promise.all(
-		assessTargets.map((p) => {
+		assessTargets.map(async (p) => {
+			const reused = turnId ? await readReusableEngagement(topicId, chapterId, p.id, turnId) : null;
+			if (reused) return reused;
 			const otherPersonaNames = personas.filter((q) => q.id !== p.id).map((q) => q.name);
 			return evaluateEngagement(p, [...chapterTurns], otherPersonaNames, personas);
 		})
 	);
-	const turnId = chapterTurns[chapterTurns.length - 1]?.id ?? '';
 	await saveEngagements({
 		topicId,
 		chapterId,

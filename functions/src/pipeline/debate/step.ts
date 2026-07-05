@@ -161,19 +161,14 @@ const executeTurn = async ({
 					? 'targeted_by_facilitator'
 					: 'targeted_by_persona'
 		};
-		const engagements = await evaluateEngagements({
-			topicId,
-			chapterId,
-			personas,
-			state,
-			chapterTurns: getChapterTurns()
-		});
+		// 章末 +1 は話者が指名で確定済み。全非話者の一括評価（evaluateEngagements）は
+		// 話者選択・キュー・終了判定・気づき検出のいずれにも使われず捨てられるため廃し、
+		// 指名者のみ単独評価する（2.1）。非指名者の評価・awareness 捕捉はこのターンでは行わない。
 		const engagement = await evaluateEngagementWithFallback({
 			topicId,
 			personaId: speakerSelection.personaId,
 			personas,
-			chapterTurns: getChapterTurns(),
-			engagements
+			chapterTurns: getChapterTurns()
 		});
 		const reply = await generatePersonaTurn({
 			topicId,

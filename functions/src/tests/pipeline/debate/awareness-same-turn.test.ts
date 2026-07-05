@@ -139,11 +139,14 @@ describe('傾聴→永続→消費の同ターン反映（結合）', () => {
 		const result = await generateTurn(p1, context, p1Engagement, personas);
 
 		expect(result.ok).toBe(true);
-		const call = captured[0] as { system: string; messages: Array<{ content: string }> };
+		const call = captured[0] as { system: unknown; messages: Array<{ content: string }> };
 		// 直前に得た気づきが揮発部（user）に反映される
 		expect(call.messages[0].content).toContain('在宅の負担という視点は一理ある');
-		// 初期信念は system の主軸として不変（気づきで上書きされない）
-		expect(call.system).toContain('対面勤務が基本という初期信念');
+		// 初期信念は system の主軸として不変（気づきで上書きされない）。
+		// claude 経路では system は cacheControl 付き SystemModelMessage（.content に安定コンテキスト）。
+		const systemText =
+			typeof call.system === 'string' ? call.system : (call.system as { content: string }).content;
+		expect(systemText).toContain('対面勤務が基本という初期信念');
 		// 発言結果は気づき・信念変化を出力しない（消費のみ）
 		expect(result.ok && result.value).not.toHaveProperty('awareness');
 		expect(result.ok && result.value).not.toHaveProperty('beliefChange');
