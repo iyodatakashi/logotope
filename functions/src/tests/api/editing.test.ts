@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { mockGetTopicById, mockGetChapters } = vi.hoisted(() => ({
+const { mockGetTopicById, mockGetChapters, mockIsDebateCompleted } = vi.hoisted(() => ({
 	mockGetTopicById: vi.fn(),
-	mockGetChapters: vi.fn()
+	mockGetChapters: vi.fn(),
+	mockIsDebateCompleted: vi.fn()
 }));
 
 const { mockStartRun, mockResetRun, mockStopRun, mockAdvance, mockEnqueue } = vi.hoisted(() => ({
@@ -41,6 +42,9 @@ vi.mock('../../pipeline/editing/editing-lifecycle.js', () => ({
 	resetEditingRun: mockResetRun,
 	stopEditingRun: mockStopRun
 }));
+vi.mock('../../pipeline/debate/debate-lifecycle.js', () => ({
+	isDebateCompleted: mockIsDebateCompleted
+}));
 
 import { startEditing, resetEditing, runEditingStep } from '../../api/editing.js';
 import { requireAuth } from '../../utils/auth.js';
@@ -55,6 +59,7 @@ beforeEach(() => {
 	mockStartRun.mockResolvedValue('run-1');
 	mockGetTopicById.mockResolvedValue({ id: 't1', title: 'テーマ' });
 	mockGetChapters.mockResolvedValue([{ id: 'c1', chapterIndex: 0 }]);
+	mockIsDebateCompleted.mockResolvedValue(true);
 });
 
 describe('startEditing onCall', () => {
@@ -71,6 +76,15 @@ describe('startEditing onCall', () => {
 		mockGetTopicById.mockResolvedValueOnce(null);
 		await expect(startHandler(makeRequest({ topicId: 't1' }))).rejects.toMatchObject({
 			code: 'not-found'
+		});
+		expect(mockStartRun).not.toHaveBeenCalled();
+		expect(mockEnqueue).not.toHaveBeenCalled();
+	});
+
+	it('討論が未完了なら failed-precondition を投げ、開始もタスク投入もしない', async () => {
+		mockIsDebateCompleted.mockResolvedValueOnce(false);
+		await expect(startHandler(makeRequest({ topicId: 't1' }))).rejects.toMatchObject({
+			code: 'failed-precondition'
 		});
 		expect(mockStartRun).not.toHaveBeenCalled();
 		expect(mockEnqueue).not.toHaveBeenCalled();

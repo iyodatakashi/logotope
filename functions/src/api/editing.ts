@@ -9,6 +9,7 @@ import {
 	resetEditingRun,
 	stopEditingRun
 } from '../pipeline/editing/editing-lifecycle.js';
+import { isDebateCompleted } from '../pipeline/debate/debate-lifecycle.js';
 import { requireAuth } from '../utils/auth.js';
 import type { EditingStepPayload } from '../pipeline/editing/enqueue-editing-step.js';
 
@@ -30,6 +31,12 @@ export const startEditing = onCall({ timeoutSeconds: 60 }, async (request) => {
 	try {
 		const topic = await getTopicById(topicId);
 		if (!topic) throw new HttpsError('not-found', 'Topic not found');
+
+		// 討論完了ゲート（Req 5.4）。討論フェーズが generated 到達済みでなければ編集を起動しない。
+		// 章存在チェックは章立て段階で満たされるため討論完了の判定には使わない。
+		if (!(await isDebateCompleted(topicId))) {
+			throw new HttpsError('failed-precondition', 'Debate is not completed');
+		}
 
 		const chapters = await getChaptersByTopicId(topicId);
 		if (!chapters.length) throw new HttpsError('not-found', 'No chapter to edit');

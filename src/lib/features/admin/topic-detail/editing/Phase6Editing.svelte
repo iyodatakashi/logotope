@@ -60,6 +60,22 @@
 		}
 	});
 
+	// 討論全体のイントロ（冒頭）・クロージング（末尾）。未生成側は null で、その領域は表示しない。
+	const intro = $derived(currentTopicStore.editedIntroClosingStore.intro);
+	const closing = $derived(currentTopicStore.editedIntroClosingStore.closing);
+
+	// 編集開始の大前提ゲート（Req 5.4）。討論フェーズが完了（generated 到達 or 次段へ前進）するまでは
+	// 開始操作を出さない。サーバ側ゲート（startEditing）と二重化する。
+	const debateCompleted = $derived.by(() => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return false;
+		const debateState = phaseLogicalState(
+			{ phase: topic.phase, phaseStatus: topic.phaseStatus },
+			'debate'
+		);
+		return debateState === 'generated' || debateState === 'approved';
+	});
+
 	const personaMap = $derived(
 		new Map(currentTopicStore.personasStore.personas.map((p) => [p.id, p]))
 	);
@@ -199,93 +215,142 @@
 	});
 </script>
 
-<PhasePanel
-	{logicalState}
-	title="フェーズ 6: 編集"
-	generateLabel="編集を開始する"
-	regenerateLabel="編集をやり直す"
-	regenerateConfirm={{
-		title: '編集をやり直しますか？',
-		description: '現在の編集成果物がすべて削除され、最初から編集し直します。',
-		submitLabel: '編集をやり直す'
-	}}
-	onGenerate={start}
-	onRegenerate={regenerate}
->
-	{#snippet progress()}
-		{#if logicalState === 'running'}
-			<p class="editing-progress">編集中...</p>
-		{/if}
-	{/snippet}
-	{#snippet content()}
-		{#if displayChapters.length}
-			<div class="diff-toggle">
-				<Checkbox bind:value={showDiff}
-					>原本との差分を表示（<del>削除</del> / <ins>追加</ins>）</Checkbox
-				>
-			</div>
-			<div class="chapters">
-				{#each displayChapters as chapter (chapter.id)}
-					<section class="chapter">
-						<header class="chapter-header">
-							<strong>{chapter.title}</strong>
-							<span class="chapter-status" data-status={chapter.status}>
-								{statusLabel(chapter.status)}
-							</span>
-							{#if chapter.failureReason}
-								<span class="failure-reason">検証不合格: {chapter.failureReason}</span>
-							{/if}
-						</header>
-						<div class="turns">
-							{#each chapter.turns as turn (turn.id)}
-								{#if turn.removed}
-									<!-- 発言ごとカットされた原本ターン。差分表示時のみ取消線で見せる。 -->
-									{#if showDiff}
-										<div class="turn removed" class:facilitator={turn.name === 'ファシリテーター'}>
+{#if !debateCompleted}
+	<!-- 討論完了前は編集開始操作を出さない（画面側の大前提ゲート・Req 5.4） -->
+	<div class="editing-gate">討論が完了すると編集を開始できます。</div>
+{:else}
+	<PhasePanel
+		{logicalState}
+		title="フェーズ 6: 編集"
+		generateLabel="編集を開始する"
+		regenerateLabel="編集をやり直す"
+		regenerateConfirm={{
+			title: '編集をやり直しますか？',
+			description: '現在の編集成果物がすべて削除され、最初から編集し直します。',
+			submitLabel: '編集をやり直す'
+		}}
+		onGenerate={start}
+		onRegenerate={regenerate}
+	>
+		{#snippet progress()}
+			{#if logicalState === 'running'}
+				<p class="editing-progress">編集中...</p>
+			{/if}
+		{/snippet}
+		{#snippet content()}
+			{#if intro}
+				<!-- イントロ＝章群の前。本編（章・ターン）と区別できるセクションで表示する（Req 4.1, 4.2） -->
+				<section class="intro-closing intro-closing--intro">
+					<h3 class="intro-closing__label">イントロ</h3>
+					<p class="intro-closing__body">{intro}</p>
+				</section>
+			{/if}
+			{#if displayChapters.length}
+				<div class="diff-toggle">
+					<Checkbox bind:value={showDiff}
+						>原本との差分を表示（<del>削除</del> / <ins>追加</ins>）</Checkbox
+					>
+				</div>
+				<div class="chapters">
+					{#each displayChapters as chapter (chapter.id)}
+						<section class="chapter">
+							<header class="chapter-header">
+								<strong>{chapter.title}</strong>
+								<span class="chapter-status" data-status={chapter.status}>
+									{statusLabel(chapter.status)}
+								</span>
+								{#if chapter.failureReason}
+									<span class="failure-reason">検証不合格: {chapter.failureReason}</span>
+								{/if}
+							</header>
+							<div class="turns">
+								{#each chapter.turns as turn (turn.id)}
+									{#if turn.removed}
+										<!-- 発言ごとカットされた原本ターン。差分表示時のみ取消線で見せる。 -->
+										{#if showDiff}
+											<div
+												class="turn removed"
+												class:facilitator={turn.name === 'ファシリテーター'}
+											>
+												<div class="speaker">
+													<strong>{turn.name}</strong>
+													{#if turn.role}<span class="role">({turn.role})</span>{/if}
+													<span class="removed-label">発言ごと削除</span>
+												</div>
+												<p class="content"><del>{turn.content}</del></p>
+											</div>
+										{/if}
+									{:else}
+										<div class="turn" class:facilitator={turn.name === 'ファシリテーター'}>
 											<div class="speaker">
 												<strong>{turn.name}</strong>
 												{#if turn.role}<span class="role">({turn.role})</span>{/if}
-												<span class="removed-label">発言ごと削除</span>
+												{#if turn.speechMode}
+													<span class="speech-mode" data-mode={turn.speechMode}
+														>{turn.speechMode}</span
+													>
+												{/if}
 											</div>
-											<p class="content"><del>{turn.content}</del></p>
-										</div>
-									{/if}
-								{:else}
-									<div class="turn" class:facilitator={turn.name === 'ファシリテーター'}>
-										<div class="speaker">
-											<strong>{turn.name}</strong>
-											{#if turn.role}<span class="role">({turn.role})</span>{/if}
-											{#if turn.speechMode}
-												<span class="speech-mode" data-mode={turn.speechMode}
-													>{turn.speechMode}</span
-												>
+											{#if showDiff && turn.diff}
+												<p class="content"><DiffText segments={turn.diff} /></p>
+											{:else}
+												<p class="content">{turn.content}</p>
+											{/if}
+											<FactCheckFindings findings={turn.findings} />
+											{#if turn.awarenesses.length > 0}
+												<ul class="awarenesses">
+													{#each turn.awarenesses as awareness, i (i)}
+														<li>💡 {awareness.personaName}: {awareness.content}</li>
+													{/each}
+												</ul>
 											{/if}
 										</div>
-										{#if showDiff && turn.diff}
-											<p class="content"><DiffText segments={turn.diff} /></p>
-										{:else}
-											<p class="content">{turn.content}</p>
-										{/if}
-										<FactCheckFindings findings={turn.findings} />
-										{#if turn.awarenesses.length > 0}
-											<ul class="awarenesses">
-												{#each turn.awarenesses as awareness, i (i)}
-													<li>💡 {awareness.personaName}: {awareness.content}</li>
-												{/each}
-											</ul>
-										{/if}
-									</div>
-								{/if}
-							{/each}
-						</div>
-					</section>
-				{/each}
-			</div>
-		{/if}
-	{/snippet}
-</PhasePanel>
+									{/if}
+								{/each}
+							</div>
+						</section>
+					{/each}
+				</div>
+			{/if}
+			{#if closing}
+				<!-- クロージング＝章群の後。本編と区別できるセクションで表示する（Req 4.1, 4.3） -->
+				<section class="intro-closing intro-closing--closing">
+					<h3 class="intro-closing__label">クロージング</h3>
+					<p class="intro-closing__body">{closing}</p>
+				</section>
+			{/if}
+		{/snippet}
+	</PhasePanel>
+{/if}
 
 <style>
+	.editing-gate {
+		padding: 24px;
+		color: #757575;
+		font-size: 0.95rem;
+	}
+	.intro-closing {
+		padding: 16px;
+		margin-bottom: 24px;
+		border-left: 4px solid #7b1fa2;
+		background: #faf5fd;
+		border-radius: 3px;
+	}
+	.intro-closing--closing {
+		margin-top: 24px;
+		margin-bottom: 0;
+	}
+	.intro-closing__label {
+		margin: 0 0 8px;
+		font-size: 0.8rem;
+		font-weight: 700;
+		color: #7b1fa2;
+	}
+	.intro-closing__body {
+		margin: 0;
+		line-height: 1.7;
+		white-space: pre-wrap;
+	}
 	.editing-progress {
 		color: #1565c0;
 		font-size: 0.95rem;

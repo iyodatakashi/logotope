@@ -2,6 +2,7 @@ import { page } from '$app/state';
 import { topicsStore } from '$lib/stores/topics.svelte';
 import { createChaptersStore } from '$lib/stores/chapters.svelte';
 import { createEditedChaptersStore } from '$lib/stores/editedChapters.svelte';
+import { createEditedIntroClosingStore } from '$lib/stores/editedIntroClosing.svelte';
 import { createChapterAnalysisStore } from '$lib/stores/chapterAnalysis.svelte';
 import { createPostDebateCommentsStore } from '$lib/stores/postDebateComments.svelte';
 import { createPersonasStore } from '$lib/stores/personas.svelte';
@@ -14,6 +15,7 @@ const create = () => {
 	let factBaseStore = $state(createFactBaseStore(''));
 	let chaptersStore = $state(createChaptersStore(''));
 	let editedChaptersStore = $state(createEditedChaptersStore(''));
+	let editedIntroClosingStore = $state(createEditedIntroClosingStore(''));
 	let chapterAnalysisStore = $state(createChapterAnalysisStore(''));
 	let postDebateCommentsStore = $state(createPostDebateCommentsStore(''));
 	let personasStore = $state(createPersonasStore(''));
@@ -33,6 +35,9 @@ const create = () => {
 		},
 		get editedChaptersStore() {
 			return editedChaptersStore;
+		},
+		get editedIntroClosingStore() {
+			return editedIntroClosingStore;
 		},
 		get chapterAnalysisStore() {
 			return chapterAnalysisStore;
@@ -56,6 +61,7 @@ const create = () => {
 			const factBase = createFactBaseStore(topicId);
 			const chapters = createChaptersStore(topicId);
 			const editedChapters = createEditedChaptersStore(topicId);
+			const editedIntroClosing = createEditedIntroClosingStore(topicId);
 			const analysis = createChapterAnalysisStore(topicId);
 			const comments = createPostDebateCommentsStore(topicId);
 			const personas = createPersonasStore(topicId);
@@ -65,6 +71,7 @@ const create = () => {
 			factBase.start();
 			chapters.start();
 			editedChapters.start();
+			editedIntroClosing.start();
 			analysis.start();
 			comments.start();
 			personas.start();
@@ -74,6 +81,7 @@ const create = () => {
 			factBaseStore = factBase;
 			chaptersStore = chapters;
 			editedChaptersStore = editedChapters;
+			editedIntroClosingStore = editedIntroClosing;
 			chapterAnalysisStore = analysis;
 			postDebateCommentsStore = comments;
 			personasStore = personas;
@@ -84,6 +92,7 @@ const create = () => {
 				factBase.stop();
 				chapters.stop();
 				editedChapters.stop();
+				editedIntroClosing.stop();
 				analysis.stop();
 				comments.stop();
 				personas.stop();

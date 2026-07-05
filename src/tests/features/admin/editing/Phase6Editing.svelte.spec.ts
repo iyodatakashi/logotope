@@ -15,7 +15,9 @@ const { holder } = vi.hoisted(() => ({
 		// editedChapters ストアの getter が返す値
 		editedByChapter: new Map<string, { status: string; turns?: unknown[] }>(),
 		factResults: new Map<string, unknown>(),
-		personas: [] as unknown[]
+		personas: [] as unknown[],
+		intro: null as string | null,
+		closing: null as string | null
 	}
 }));
 
@@ -42,6 +44,16 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				getDisplayStatus: (chapterId: string) =>
 					holder.editedByChapter.get(chapterId)?.status ?? 'missing',
 				getEditedChapter: (chapterId: string) => holder.editedByChapter.get(chapterId) ?? null
+			};
+		},
+		get editedIntroClosingStore() {
+			return {
+				get intro() {
+					return holder.intro;
+				},
+				get closing() {
+					return holder.closing;
+				}
 			};
 		},
 		get personasStore() {
@@ -80,6 +92,8 @@ describe('Phase6Editing.svelte', () => {
 		holder.editedByChapter = new Map();
 		holder.factResults = new Map();
 		holder.personas = [persona('p1', '田中太郎')];
+		holder.intro = null;
+		holder.closing = null;
 	});
 
 	// 差分が確定的になるよう、原本と編集後で文字集合を重複させないデータを使う。
@@ -284,5 +298,44 @@ describe('Phase6Editing.svelte', () => {
 		await expect.element(startButton).toBeInTheDocument();
 		await startButton.click();
 		expect(holder.startEditing).toHaveBeenCalled();
+	});
+
+	it('生成済みのイントロを冒頭・クロージングを末尾に区別表示する', async () => {
+		holder.intro = 'これは討論のイントロ本文です';
+		holder.closing = 'これは討論のクロージング本文です';
+		completedChapterFixture();
+		render(Phase6Editing);
+
+		await expect.element(page.getByRole('heading', { name: 'イントロ' })).toBeInTheDocument();
+		await expect.element(page.getByText('これは討論のイントロ本文です')).toBeInTheDocument();
+		await expect.element(page.getByRole('heading', { name: 'クロージング' })).toBeInTheDocument();
+		await expect.element(page.getByText('これは討論のクロージング本文です')).toBeInTheDocument();
+	});
+
+	it('未生成側（null）のイントロ・クロージング領域は表示しない', async () => {
+		holder.intro = 'イントロだけ生成';
+		holder.closing = null;
+		completedChapterFixture();
+		render(Phase6Editing);
+
+		await expect.element(page.getByText('イントロだけ生成')).toBeInTheDocument();
+		expect(page.getByRole('heading', { name: 'クロージング' }).elements()).toHaveLength(0);
+	});
+
+	it('討論が未完了のあいだは編集開始ボタンを出さず、ゲート文言を表示する', async () => {
+		holder.phase = 'debate';
+		holder.phaseStatus = 'running';
+		render(Phase6Editing);
+
+		await expect.element(page.getByText(/討論が完了すると編集を開始できます/)).toBeInTheDocument();
+		expect(page.getByRole('button', { name: '編集を開始する' }).elements()).toHaveLength(0);
+	});
+
+	it('討論完了後は編集開始ボタンを表示する（ゲート解除）', async () => {
+		holder.phase = 'debate';
+		holder.phaseStatus = 'generated';
+		render(Phase6Editing);
+
+		await expect.element(page.getByRole('button', { name: '編集を開始する' })).toBeInTheDocument();
 	});
 });

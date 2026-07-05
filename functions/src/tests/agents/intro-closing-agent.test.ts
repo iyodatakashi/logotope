@@ -1,0 +1,136 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { DebateDigest } from '../../types/debate-digest.types.js';
+import type { TopicContext } from '../../types/topic.types.js';
+import type { IntroClosingInput } from '../../agents/intro-closing-agent.js';
+
+vi.mock('ai', () => ({
+	generateText: vi.fn()
+}));
+
+vi.mock('@ai-sdk/anthropic', () => ({
+	anthropic: vi.fn(() => 'mock-model')
+}));
+
+vi.mock('../../constants/ai.constants.js', () => ({
+	AI_MODELS: { SONNET: 'sonnet' }
+}));
+
+const mockDigest: DebateDigest = {
+	topicTitle: 'リモートワークの是非',
+	chapters: [
+		{
+			title: '第1章 働き方の変化',
+			discussionPoints: ['生産性', '孤独感'],
+			summary: '生産性の向上と孤独感の増大の双方の立場が示された。'
+		}
+	],
+	personas: [
+		{ personaId: 'p1', name: '田中', stance: '推進派', beliefShifts: ['対面の価値も再認識'] },
+		{ personaId: 'p2', name: '佐藤', stance: '慎重派', beliefShifts: [] }
+	]
+};
+
+const mockTopicContext: TopicContext = {
+	description: 'コロナ後の働き方',
+	sourceContents: ['参考資料本文']
+};
+
+const mockInput: IntroClosingInput = { digest: mockDigest, topicContext: mockTopicContext };
+
+describe('generateIntro / generateClosing', () => {
+	let generateText: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		vi.clearAllMocks();
+		const aiMod = await import('ai');
+		generateText = vi.mocked(aiMod.generateText);
+	});
+
+	it('generateIntro は非空の散文を返す', async () => {
+		generateText.mockResolvedValueOnce({
+			text: 'この討論は、リモートワークをめぐる問いから始まる。'
+		});
+
+		const { generateIntro } = await import('../../agents/intro-closing-agent.js');
+		const result = await generateIntro(mockInput);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value.length).toBeGreaterThan(0);
+			expect(result.value).toBe('この討論は、リモートワークをめぐる問いから始まる。');
+		}
+	});
+
+	it('generateClosing は非空の散文を返す', async () => {
+		generateText.mockResolvedValueOnce({ text: '論点は交わされ、問いはなお開かれたままである。' });
+
+		const { generateClosing } = await import('../../agents/intro-closing-agent.js');
+		const result = await generateClosing(mockInput);
+
+		expect(result.ok).toBe(true);
+		if (result.ok) {
+			expect(result.value).toBe('論点は交わされ、問いはなお開かれたままである。');
+		}
+	});
+
+	it('システムプロンプトが非結論・非支持を強制し、ダイジェスト圧縮内容を入力に含む', async () => {
+		const capturedArgs: unknown[] = [];
+		generateText.mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return { text: '導入文' };
+		});
+
+		const { generateIntro } = await import('../../agents/intro-closing-agent.js');
+		await generateIntro(mockInput);
+
+		const callArgs = capturedArgs[0] as { system: string; messages: Array<{ content: string }> };
+		expect(callArgs.system).toMatch(/結論|優劣|勝敗/);
+		expect(callArgs.system).toMatch(/支持|否定/);
+		const userContent = callArgs.messages[0].content;
+		expect(userContent).toContain('リモートワークの是非');
+		expect(userContent).toContain('生産性の向上と孤独感の増大');
+		// ダイジェスト（圧縮）を渡し、討論全文は渡さない
+		expect(userContent).toContain('対面の価値も再認識');
+	});
+
+	it('イントロとクロージングで指示文が異なる', async () => {
+		const captured: string[] = [];
+		generateText.mockImplementation(async (args: unknown) => {
+			captured.push((args as { messages: Array<{ content: string }> }).messages[0].content);
+			return { text: '文章' };
+		});
+
+		const { generateIntro, generateClosing } = await import('../../agents/intro-closing-agent.js');
+		await generateIntro(mockInput);
+		await generateClosing(mockInput);
+
+		expect(captured[0]).toContain('イントロ');
+		expect(captured[1]).toContain('クロージング');
+		expect(captured[0]).not.toBe(captured[1]);
+	});
+
+	it('LLM 出力が空なら AI_API_ERROR を返す', async () => {
+		generateText.mockResolvedValueOnce({ text: '' });
+
+		const { generateIntro } = await import('../../agents/intro-closing-agent.js');
+		const result = await generateIntro(mockInput);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error.code).toBe('AI_API_ERROR');
+		}
+	});
+
+	it('LLM 呼び出しが失敗した場合は AI_API_ERROR を返す', async () => {
+		generateText.mockRejectedValueOnce(new Error('api down'));
+
+		const { generateClosing } = await import('../../agents/intro-closing-agent.js');
+		const result = await generateClosing(mockInput);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.error.code).toBe('AI_API_ERROR');
+		}
+	});
+});

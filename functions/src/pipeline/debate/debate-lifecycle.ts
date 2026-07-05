@@ -34,6 +34,18 @@ export const isDebateActive = async (topicId: string): Promise<boolean> => {
 };
 
 /**
+ * 討論フェーズが完了（generated 到達）しているかを判定する。編集開始の前提ゲート（Req 5.4）。
+ * phase が editing に進んでいる場合は討論を完了して次段へ移っているため完了扱い（編集の再実行を許可する）。
+ */
+export const isDebateCompleted = async (topicId: string): Promise<boolean> => {
+	const snap = await db().doc(`topics/${topicId}`).get();
+	if (!snap.exists) return false;
+	const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string };
+	if (data.phase === 'editing') return true;
+	return data.phase === 'debate' && data.phaseStatus === 'generated';
+};
+
+/**
  * 指定章以降を破棄し、その章に紐づく付随データ（コメント・気づき・engagements・ファクトチェック結果）を
  * まとめて削除する。reset（全章）と restart（指定章以降）で共通の削除責務をここに集約する。
  */

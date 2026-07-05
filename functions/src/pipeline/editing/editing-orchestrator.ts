@@ -1,5 +1,6 @@
 import { isEditingActive } from './editing-lifecycle.js';
 import { readRawChapters, runChapterEditStep, runCommentsEditStep } from './editing-step.js';
+import { runIntroClosingStep } from './intro-closing-step.js';
 import { enqueueEditingStep } from './enqueue-editing-step.js';
 import type { EditingStepPayload } from './enqueue-editing-step.js';
 
@@ -10,8 +11,10 @@ import type { EditingStepPayload } from './enqueue-editing-step.js';
 
 /**
  * 1 編集ステップを処理する再入可能ディスパッチャ。
- * chapter: 対象章を編集して保存し、次章があれば次章ステップ、無ければコメントステップを投入する。
+ * chapter: 対象章を編集して保存し、次章があれば次章ステップ、無ければ intro-closing ステップを投入する。
  *   章の構造検証不合格（failed）でも後続章の処理を止めず連鎖する（完了確定時に stopped 判定）。
+ * intro-closing: イントロ・クロージングを best-effort 生成して保存し、コメントステップを投入する。
+ *   生成失敗でも例外を投げず必ず comments へ連鎖する（finalize に非干渉）。
  * comments: 事後コメントを編集して保存し、編集ランを確定する（全章 completed→generated / failed 残存→stopped）。
  */
 export const advanceEditing = async (payload: EditingStepPayload): Promise<void> => {
@@ -30,8 +33,14 @@ export const advanceEditing = async (payload: EditingStepPayload): Promise<void>
 				chapterIndex: nextChapterIndex
 			});
 		} else {
-			await enqueueEditingStep({ topicId, runId, stepKind: 'comments', chapterIndex: -1 });
+			await enqueueEditingStep({ topicId, runId, stepKind: 'intro-closing', chapterIndex: -1 });
 		}
+		return;
+	}
+
+	if (stepKind === 'intro-closing') {
+		await runIntroClosingStep(topicId, runId);
+		await enqueueEditingStep({ topicId, runId, stepKind: 'comments', chapterIndex: -1 });
 		return;
 	}
 

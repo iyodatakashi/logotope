@@ -21,11 +21,14 @@ import {
 	writeEditedChapter,
 	writeEditedComments,
 	readEditedChapters,
+	writeEditedIntroClosing,
+	readEditedIntroClosing,
 	clearEditedArtifact
 } from '../../../pipeline/editing/edited-repository.js';
 
 const chapterPath = (chapterId: string) => `topics/t1/editedChapters/${chapterId}`;
 const COMMENTS_PATH = 'topics/t1/editedPostDebateComments/0';
+const INTRO_CLOSING_PATH = 'topics/t1/editedIntroClosing/0';
 
 const makeChapter = (
 	chapterId: string,
@@ -104,17 +107,43 @@ describe('readEditedChapters', () => {
 	});
 });
 
+describe('writeEditedIntroClosing / readEditedIntroClosing', () => {
+	it('イントロ・クロージング成果物を editedIntroClosing/0 に書き込み読み取れる', async () => {
+		await writeEditedIntroClosing('t1', { intro: '導入', closing: '結び' });
+		const doc = holder.mock!.store.get(INTRO_CLOSING_PATH);
+		expect(doc).toEqual({ intro: '導入', closing: '結び' });
+		expect(await readEditedIntroClosing('t1')).toEqual({ intro: '導入', closing: '結び' });
+	});
+
+	it('片方のみ生成（他方 null）を保存できる', async () => {
+		await writeEditedIntroClosing('t1', { intro: '導入のみ', closing: null });
+		expect(await readEditedIntroClosing('t1')).toEqual({ intro: '導入のみ', closing: null });
+	});
+
+	it('同一 topic への再書き込みは冪等上書きする', async () => {
+		await writeEditedIntroClosing('t1', { intro: '旧', closing: '旧' });
+		await writeEditedIntroClosing('t1', { intro: '新', closing: null });
+		expect(await readEditedIntroClosing('t1')).toEqual({ intro: '新', closing: null });
+	});
+
+	it('未生成なら null を返す', async () => {
+		expect(await readEditedIntroClosing('t1')).toBeNull();
+	});
+});
+
 describe('clearEditedArtifact', () => {
-	it('全 editedChapters を削除し editedPostDebateComments を空にする', async () => {
+	it('全 editedChapters を削除し editedPostDebateComments・editedIntroClosing を空にする', async () => {
 		await writeEditedChapter('t1', 'c1', makeChapter('c1', 0));
 		await writeEditedChapter('t1', 'c2', makeChapter('c2', 1));
 		await writeEditedComments('t1', makeComments());
+		await writeEditedIntroClosing('t1', { intro: '導入', closing: '結び' });
 
 		await clearEditedArtifact('t1');
 
 		expect(holder.mock!.store.has(chapterPath('c1'))).toBe(false);
 		expect(holder.mock!.store.has(chapterPath('c2'))).toBe(false);
 		expect(holder.mock!.store.get(COMMENTS_PATH)).toEqual({ comments: [] });
+		expect(holder.mock!.store.get(INTRO_CLOSING_PATH)).toEqual({ intro: null, closing: null });
 	});
 
 	it('原本（chapters・postDebateComments）は一切変更しない', async () => {

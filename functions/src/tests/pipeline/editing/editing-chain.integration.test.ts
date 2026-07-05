@@ -13,7 +13,9 @@ const { holder } = vi.hoisted(() => ({
 		mock: undefined as
 			| ReturnType<(typeof import('../../helpers/firestore-mock.js'))['createFirestoreMock']>
 			| undefined,
-		queue: [] as EditingStepPayload[]
+		queue: [] as EditingStepPayload[],
+		// enqueue された順にステップ種別を記録し、チェーン順序（章→intro-closing→comments）を検証する
+		log: [] as EditingStepPayload[]
 	}
 }));
 
@@ -26,7 +28,7 @@ vi.mock('firebase-admin/firestore', () => ({
 	}
 }));
 
-vi.mock('ai', () => ({ generateObject: vi.fn() }));
+vi.mock('ai', () => ({ generateObject: vi.fn(), generateText: vi.fn() }));
 vi.mock('@ai-sdk/anthropic', () => ({ anthropic: vi.fn(() => 'mock-model') }));
 vi.mock('../../../constants/ai.constants.js', () => ({ AI_MODELS: { SONNET: 'sonnet' } }));
 
@@ -34,19 +36,22 @@ vi.mock('../../../constants/ai.constants.js', () => ({ AI_MODELS: { SONNET: 'son
 vi.mock('../../../pipeline/editing/enqueue-editing-step.js', () => ({
 	enqueueEditingStep: vi.fn(async (payload: EditingStepPayload) => {
 		holder.queue.push(payload);
+		holder.log.push(payload);
 	})
 }));
 
-import { generateObject } from 'ai';
+import { generateObject, generateText } from 'ai';
 import { advanceEditing } from '../../../pipeline/editing/editing-orchestrator.js';
 import { startEditingRun } from '../../../pipeline/editing/editing-lifecycle.js';
 import { resetDebate } from '../../../pipeline/debate/debate-lifecycle.js';
 import { clearEditedArtifact } from '../../../pipeline/editing/edited-repository.js';
 
 const mockGenerateObject = vi.mocked(generateObject);
+const mockGenerateText = vi.mocked(generateText);
 
 const editedChapterPath = (chapterId: string) => `topics/t1/editedChapters/${chapterId}`;
 const EDITED_COMMENTS_PATH = 'topics/t1/editedPostDebateComments/0';
+const EDITED_INTRO_CLOSING_PATH = 'topics/t1/editedIntroClosing/0';
 
 const seedTopic = () => {
 	const mock = holder.mock!;
@@ -90,10 +95,44 @@ const drainQueue = async () => {
 	}
 };
 
+// 章編集(c1,c2)＋コメント編集の generateObject を標準応答で仕込む（既存の通し実行と同一内容）。
+const seedEditorObjects = () => {
+	mockGenerateObject
+		.mockResolvedValueOnce({
+			object: {
+				turns: [
+					{
+						sourceTurnIds: ['t1a', 't1b'],
+						speakerType: 'persona',
+						personaId: 'p1',
+						content: '第1章の編集後'
+					}
+				]
+			}
+		} as never)
+		.mockResolvedValueOnce({
+			object: {
+				turns: [
+					{
+						sourceTurnIds: ['t2a'],
+						speakerType: 'persona',
+						personaId: 'p1',
+						content: '第2章の編集後'
+					}
+				]
+			}
+		} as never)
+		.mockResolvedValueOnce({
+			object: { comments: [{ sourceCommentId: 'rc1', content: '読みやすい感想' }] }
+		} as never);
+};
+
 beforeEach(() => {
 	holder.mock = createFirestoreMock();
 	holder.queue = [];
+	holder.log = [];
 	mockGenerateObject.mockReset();
+	mockGenerateText.mockReset();
 });
 
 describe('編集チェーンの通し実行', () => {
@@ -285,5 +324,104 @@ describe('リセット整合（原本再生成との不整合を残さない）'
 		expect(holder.mock!.store.get('topics/t1/postDebateComments/0')).toMatchObject({
 			comments: [{ id: 'rc1', personaId: 'p1', content: '冗長な感想', sortOrder: 0 }]
 		});
+	});
+});
+
+describe('イントロ・クロージングを含むチェーン（6.1）', () => {
+	it('章編集 → intro-closing → comments → finalize の順で実行され generated に到達する', async () => {
+		seedTopic();
+		seedEditorObjects();
+		// ダイジェスト章要約＋イントロ＋クロージングの generateText を全成功させる。
+		mockGenerateText.mockResolvedValue({ text: '生成テキスト' } as never);
+
+		const runId = await startEditingRun('t1');
+		holder.queue.push({ topicId: 't1', runId, stepKind: 'chapter', chapterIndex: 0 });
+		await drainQueue();
+
+		// enqueue 順（先頭の chapter/0 は手動 push のため log には含まれない）。
+		expect(holder.log.map((p) => p.stepKind)).toEqual(['chapter', 'intro-closing', 'comments']);
+		// intro-closing 成果物が生成保存される。
+		expect(holder.mock!.store.get(EDITED_INTRO_CLOSING_PATH)).toEqual({
+			intro: '生成テキスト',
+			closing: '生成テキスト'
+		});
+		expect(holder.mock!.store.get('topics/t1')).toMatchObject({ phaseStatus: 'generated' });
+	});
+
+	it('ダイジェスト/生成が失敗しても comments・finalize へ到達し generated（intro-closing は null）', async () => {
+		seedTopic();
+		seedEditorObjects();
+		// generateText を既定（undefined 返し）にして章要約を失敗させ、ダイジェスト生成を失敗させる。
+
+		const runId = await startEditingRun('t1');
+		holder.queue.push({ topicId: 't1', runId, stepKind: 'chapter', chapterIndex: 0 });
+		await drainQueue();
+
+		// 生成失敗は best-effort で null 保存され、例外を投げずチェーンは進む。
+		expect(holder.mock!.store.get(EDITED_INTRO_CLOSING_PATH)).toEqual({
+			intro: null,
+			closing: null
+		});
+		// comments・finalize は従来どおり到達し generated。
+		expect(
+			(
+				holder.mock!.store.get(EDITED_COMMENTS_PATH)!.comments as Array<{ sourceCommentId: string }>
+			)[0].sourceCommentId
+		).toBe('rc1');
+		expect(holder.mock!.store.get('topics/t1')).toMatchObject({ phaseStatus: 'generated' });
+	});
+
+	it('再実行（startEditingRun）で旧 editedIntroClosing が破棄され、再生成される', async () => {
+		seedTopic();
+		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'stopped', runId: 'old' });
+		holder.mock!.store.set(EDITED_INTRO_CLOSING_PATH, {
+			intro: '旧イントロ',
+			closing: '旧クロージング'
+		});
+
+		const runId = await startEditingRun('t1');
+		// 開始時点で旧成果物が即時破棄（空化）される。
+		expect(holder.mock!.store.get(EDITED_INTRO_CLOSING_PATH)).toEqual({
+			intro: null,
+			closing: null
+		});
+
+		seedEditorObjects();
+		mockGenerateText.mockResolvedValue({ text: '新生成' } as never);
+		holder.queue.push({ topicId: 't1', runId, stepKind: 'chapter', chapterIndex: 0 });
+		await drainQueue();
+
+		// 再実行で新しいイントロ・クロージングが再生成される。
+		expect(holder.mock!.store.get(EDITED_INTRO_CLOSING_PATH)).toEqual({
+			intro: '新生成',
+			closing: '新生成'
+		});
+	});
+});
+
+describe('既存編集の parity（6.2・intro-closing 追加後も不変）', () => {
+	it('intro-closing を挟んでも editedChapters・editedComments・finalize 判定は従来どおり', async () => {
+		seedTopic();
+		seedEditorObjects();
+		mockGenerateText.mockResolvedValue({ text: 'イントロ/クロージング' } as never);
+
+		const runId = await startEditingRun('t1');
+		holder.queue.push({ topicId: 't1', runId, stepKind: 'chapter', chapterIndex: 0 });
+		await drainQueue();
+
+		// 編集後章は intro-closing の有無に影響されず従来と同一。
+		const c1 = holder.mock!.store.get(editedChapterPath('c1'));
+		const c2 = holder.mock!.store.get(editedChapterPath('c2'));
+		expect(c1).toMatchObject({ status: 'completed' });
+		expect(c2).toMatchObject({ status: 'completed' });
+		expect((c1!.turns as Array<{ content: string }>)[0].content).toBe('第1章の編集後');
+		// 編集後コメントも従来と同一。
+		expect(
+			(
+				holder.mock!.store.get(EDITED_COMMENTS_PATH)!.comments as Array<{ sourceCommentId: string }>
+			)[0].sourceCommentId
+		).toBe('rc1');
+		// finalize は editedChapters ベースで generated（intro-closing の成否に非干渉）。
+		expect(holder.mock!.store.get('topics/t1')).toMatchObject({ phaseStatus: 'generated' });
 	});
 });

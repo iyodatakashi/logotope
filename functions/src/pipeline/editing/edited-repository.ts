@@ -1,7 +1,8 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import type {
 	EditedChapterForFirestore,
-	EditedPostDebateCommentsForFirestore
+	EditedPostDebateCommentsForFirestore,
+	EditedIntroClosingForFirestore
 } from '../../types/editorial.types.js';
 
 // 編集成果物（editedChapters / editedPostDebateComments）の read/write/clear。
@@ -13,6 +14,9 @@ const editedChaptersRef = (topicId: string) => db().collection(`topics/${topicId
 
 const editedCommentsRef = (topicId: string) =>
 	db().doc(`topics/${topicId}/editedPostDebateComments/0`);
+
+const editedIntroClosingRef = (topicId: string) =>
+	db().doc(`topics/${topicId}/editedIntroClosing/0`);
 
 /** 編集後章を書き込む（chapterId は原本と共有・冪等上書き）。status で完了/失敗を表す */
 export const writeEditedChapter = async (
@@ -37,11 +41,28 @@ export const readEditedChapters = async (topicId: string): Promise<EditedChapter
 	return snap.docs.map((docSnap) => docSnap.data() as EditedChapterForFirestore);
 };
 
-/** 編集成果物一式（全 editedChapters ＋ editedPostDebateComments）を破棄する。原本は不変 */
+/** イントロ・クロージング成果物を書き込む（editedIntroClosing/0・冪等上書き） */
+export const writeEditedIntroClosing = async (
+	topicId: string,
+	introClosing: EditedIntroClosingForFirestore
+): Promise<void> => {
+	await editedIntroClosingRef(topicId).set(introClosing);
+};
+
+/** イントロ・クロージング成果物を読み取る（未生成なら null） */
+export const readEditedIntroClosing = async (
+	topicId: string
+): Promise<EditedIntroClosingForFirestore | null> => {
+	const snap = await editedIntroClosingRef(topicId).get();
+	return snap.exists ? (snap.data() as EditedIntroClosingForFirestore) : null;
+};
+
+/** 編集成果物一式（全 editedChapters ＋ editedPostDebateComments ＋ editedIntroClosing）を破棄する。原本は不変 */
 export const clearEditedArtifact = async (topicId: string): Promise<void> => {
 	const snap = await editedChaptersRef(topicId).get();
 	for (const docSnap of snap.docs) {
 		await docSnap.ref.delete();
 	}
 	await editedCommentsRef(topicId).set({ comments: [] });
+	await editedIntroClosingRef(topicId).set({ intro: null, closing: null });
 };
