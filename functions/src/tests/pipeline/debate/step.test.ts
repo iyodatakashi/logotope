@@ -26,9 +26,7 @@ vi.mock('../../../agents/facilitator-agent.js', () => ({
 }));
 vi.mock('../../../pipeline/debate/turn.js', () => ({
 	generateFacilitatorTurn: vi.fn(),
-	generatePersonaTurn: vi.fn(),
-	generateChapterTransition: vi.fn(),
-	appendClosingTurn: vi.fn()
+	generatePersonaTurn: vi.fn()
 }));
 vi.mock('../../../pipeline/debate/chapter.js', () => ({
 	updateChapterStatus: vi.fn().mockResolvedValue(undefined)
@@ -62,8 +60,13 @@ vi.mock('../../../pipeline/debate/post-debate-comments.js', () => ({
 	persistPostDebateComments: vi.fn().mockResolvedValue(undefined)
 }));
 
-import { performOpenStep, performTurnStep } from '../../../pipeline/debate/step.js';
+import {
+	performOpenStep,
+	performTurnStep,
+	completeChapterStep
+} from '../../../pipeline/debate/step.js';
 import { generateOpening } from '../../../agents/facilitator-agent.js';
+import { updateChapterStatus } from '../../../pipeline/debate/chapter.js';
 import { generateFacilitatorTurn, generatePersonaTurn } from '../../../pipeline/debate/turn.js';
 import {
 	evaluateEngagements,
@@ -253,5 +256,34 @@ describe('performTurnStep - 章末+1（freeze）の指名者のみ評価（2.1�
 		const callArg = vi.mocked(evaluateEngagementWithFallback).mock.calls[0][0];
 		expect(callArg.personaId).toBe('p2');
 		expect(callArg.engagements).toBeUndefined();
+	});
+});
+
+describe('completeChapterStep - 章末の完了確定＋論点クリーンアップ（生成なし）', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('章を completed に確定し論点状態を削除する。発言生成・turns 追記は一切行わない（1.1/2.1/3.1）', async () => {
+		const chapterDoc: ChapterEntry = {
+			id: 'ch1',
+			chapterIndex: 0,
+			title: 'テスト章',
+			discussionPoints: ['論点A'],
+			turns: [{ id: 't0', speakerType: 'facilitator', content: '導入', createdAt: '' }],
+			status: 'running'
+		};
+		const ctx = makeCtx({ chapterDoc });
+
+		const result = await completeChapterStep(ctx, makePayload({ stepKind: 'summary' }));
+
+		expect(result).toBe(true);
+		// 章 completed 確定
+		expect(vi.mocked(updateChapterStatus)).toHaveBeenCalledWith('topic1', 'ch1', 'completed');
+		// 論点状態クリーンアップ（discussionPointStatuses の delete で update される）
+		expect(mockUpdate).toHaveBeenCalledWith({ discussionPointStatuses: 'DELETE' });
+		// LLM 生成・ターン追記は一切行わない
+		expect(vi.mocked(generateFacilitatorTurn)).not.toHaveBeenCalled();
+		expect(vi.mocked(generatePersonaTurn)).not.toHaveBeenCalled();
 	});
 });

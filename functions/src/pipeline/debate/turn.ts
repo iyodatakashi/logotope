@@ -1,14 +1,12 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { generateTurn } from '../../agents/persona-agent.js';
-import { generateChapterSummary, generateClosing } from '../../agents/facilitator-agent.js';
 import { verifyAndReviseDraft } from './inline-fact-check.js';
 import { getActiveDiscussionPoint } from './discussion-points.js';
 import { getTopicContext } from '../topics/topic-context.js';
-import { getInitialBelief } from './awareness.js';
 import { isDebateActive } from './debate-lifecycle.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
-import { currentDateString, formatAwarenessSection } from '../../utils/prompt-formatters.js';
+import { currentDateString } from '../../utils/prompt-formatters.js';
 import type {
 	DebateState,
 	SpeakerSelection,
@@ -296,59 +294,4 @@ export const generatePersonaTurn = async ({
 		queuedEntries,
 		fromQueue
 	};
-};
-
-/** 章まとめ: 現章の議論をまとめるファシリテーターターンを生成する */
-export const generateChapterTransition = async ({
-	topicId,
-	chapter,
-	state,
-	personas,
-	chapterTurnStartIndex = 0
-}: {
-	topicId: string;
-	chapter: Chapter;
-	state: DebateState;
-	personas: Persona[];
-	chapterTurnStartIndex?: number;
-}): Promise<void> => {
-	const summaryResult = await generateChapterSummary(state.turns.slice(-10), chapter, personas);
-	if (summaryResult.ok) {
-		await generateFacilitatorTurn({
-			topicId,
-			state,
-			chapterId: chapter.id,
-			content: summaryResult.value,
-			chapterTurnStartIndex
-		});
-	}
-};
-
-/** クロージングのファシリテーターターンを期待位置照合のうえ追記する。追記結果を返す */
-export const appendClosingTurn = async ({
-	topicId,
-	personas,
-	state,
-	chapterId,
-	chapterTurnStartIndex = 0
-}: {
-	topicId: string;
-	personas: Persona[];
-	state: DebateState;
-	chapterId: string;
-	chapterTurnStartIndex?: number;
-}): Promise<AppendResult> => {
-	// 見解は「固定の初期信念＋蓄積された気づき」から都度導出する（最終信念を持たない・4.1/4.2）
-	const personaViews = new Map(
-		personas.map((p) => [p.id, `${getInitialBelief(p)}${formatAwarenessSection(p.awarenesses)}`])
-	);
-	const closingResult = await generateClosing(state.turns, personaViews, personas);
-	if (!closingResult.ok) throw new Error(pipelineErrorMessage(closingResult.error));
-	return generateFacilitatorTurn({
-		topicId,
-		state,
-		chapterId,
-		content: closingResult.value ?? '',
-		chapterTurnStartIndex
-	});
 };

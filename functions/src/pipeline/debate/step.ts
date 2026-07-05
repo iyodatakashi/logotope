@@ -41,12 +41,7 @@ import {
 } from './intervention.js';
 import { updateSpeakerStats } from './debate-state.js';
 import { persistPostDebateComments } from './post-debate-comments.js';
-import {
-	generateFacilitatorTurn,
-	generatePersonaTurn,
-	generateChapterTransition,
-	appendClosingTurn
-} from './turn.js';
+import { generateFacilitatorTurn, generatePersonaTurn } from './turn.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
 import type {
 	SpeakerSelection,
@@ -447,50 +442,17 @@ export const performTurnStep = async (
 };
 
 /**
- * summary ステップ: 章まとめを追記し、章を完了にする。
- * @returns 常に true（処理は冪等）。次章 open の投入は orchestrator が行う。
+ * 章完了ステップ: 章末で当該章を completed に確定し、論点状態をクリーンアップする。
+ * summary（非最終章）/ closing（最終章）双方の分岐から呼ばれ、発言生成は一切行わない。
+ * 状態は Firestore から再構築するため completed 再適用に対し冪等。
+ * @returns 常に true。次段（次章 open / comments）の投入は orchestrator が行う。
  */
-export const performSummaryStep = async (
+export const completeChapterStep = async (
 	ctx: StepContext,
 	payload: StepPayload
 ): Promise<boolean> => {
-	const { chapterDoc, chapter, personas, state, chapterTurnStartInState } = ctx;
+	const { chapterDoc } = ctx;
 	const { topicId } = payload;
-
-	if (chapterDoc.turns.length === payload.expectedTurnIndex && chapterDoc.status !== 'completed') {
-		await generateChapterTransition({
-			topicId,
-			chapter,
-			state,
-			personas,
-			chapterTurnStartIndex: chapterTurnStartInState
-		});
-	}
-	await updateChapterStatus(topicId, chapterDoc.id, 'completed');
-	await deleteDiscussionPointStatuses(topicId, chapterDoc.id);
-	return true;
-};
-
-/**
- * closing ステップ: クロージングを追記し、章を完了にする。
- * @returns 常に true（処理は冪等）。comments の投入は orchestrator が行う。
- */
-export const performClosingStep = async (
-	ctx: StepContext,
-	payload: StepPayload
-): Promise<boolean> => {
-	const { chapterDoc, personas, state, chapterTurnStartInState } = ctx;
-	const { topicId } = payload;
-
-	if (chapterDoc.turns.length === payload.expectedTurnIndex && chapterDoc.status !== 'completed') {
-		await appendClosingTurn({
-			topicId,
-			personas,
-			state,
-			chapterId: chapterDoc.id,
-			chapterTurnStartIndex: chapterTurnStartInState
-		});
-	}
 	await updateChapterStatus(topicId, chapterDoc.id, 'completed');
 	await deleteDiscussionPointStatuses(topicId, chapterDoc.id);
 	return true;

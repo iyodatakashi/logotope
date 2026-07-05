@@ -33,8 +33,7 @@ import { loadQueuedIntents } from './queued-intents.js';
 import {
 	performOpenStep,
 	performTurnStep,
-	performSummaryStep,
-	performClosingStep,
+	completeChapterStep,
 	performCommentsStep
 } from './step.js';
 import type { DebateOptions } from '../../types/debate.types.js';
@@ -259,7 +258,7 @@ export const advanceDebate = async (payload: StepPayload): Promise<boolean> => {
 		case 'turn':
 			return advanceTurn(ctx, payload, options);
 		case 'summary': {
-			const committed = await performSummaryStep(ctx, payload);
+			const committed = await completeChapterStep(ctx, payload);
 			const nextChapter = ctx.chapters[payload.chapterIndex + 1];
 			if (nextChapter) {
 				await enqueueNextStep(payload, nextChapter.id, {
@@ -271,7 +270,7 @@ export const advanceDebate = async (payload: StepPayload): Promise<boolean> => {
 			return committed;
 		}
 		case 'closing': {
-			const committed = await performClosingStep(ctx, payload);
+			const committed = await completeChapterStep(ctx, payload);
 			await enqueueNextStep(payload, ctx.chapterDoc.id, {
 				stepKind: 'comments',
 				expectedTurnIndex: -1

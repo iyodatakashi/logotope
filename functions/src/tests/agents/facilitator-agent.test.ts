@@ -922,23 +922,3 @@ describe('chainLength シグナルの解釈是正（3.3）', () => {
 		expect(content).toMatch(/出尽くし/);
 	});
 });
-
-describe('generateClosing - personas 引き渡し', () => {
-	beforeEach(async () => {
-		vi.resetModules();
-	});
-
-	it('formatTurns に personas を渡す', async () => {
-		const formatMod = await import('../../utils/prompt-formatters.js');
-		const aiMod = await import('ai');
-		vi.mocked(aiMod.generateObject).mockResolvedValueOnce(
-			makeObjectResult({ content: 'クロージング' })
-		);
-
-		const { generateClosing } = await import('../../agents/facilitator-agent.js');
-		const personas = [mockPersona];
-		await generateClosing([makeTurn('test')], new Map(), personas);
-
-		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(expect.any(Array), personas);
-	});
-});

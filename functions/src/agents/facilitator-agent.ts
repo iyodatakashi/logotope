@@ -37,10 +37,6 @@ const facilitatorReplyWithTargetSchema = z.object({
 	relevantPersonaIds: z.array(z.string()).nullish()
 });
 
-const contentOnlySchema = z.object({
-	content: z.string()
-});
-
 const interventionSchema = z.object({
 	targetPersonaId: z.string().optional(),
 	content: z.string().optional(),
@@ -211,61 +207,6 @@ export const evaluateStallIntervention = async (
 
 	const criteria = `\n\n累計発言数: ${speakCountInfo}${pointsContext}${coverageSection}\n\nいまの論点「${focus}」は議論が出尽くし、落ち着いています。まだ十分に議論されていない新しい論点に切り替えて、特定の参加者に振ってください。章をいつ終えるかはあなたの判断対象外です。\n\n手順：\n(1) この章の趣旨に沿って、まだ十分に議論されていない新しい論点を決める。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。基準: 関連性が高い人。同程度なら発言数の少ない人を優先。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。\n\n適切な切り替え先が無ければ content と targetPersonaId は省略してください。`;
 	return runInterventionCheck(turns, personas, currentChapter, focus, criteria);
-};
-
-export const generateClosing = async (
-	turns: DebateTurn[],
-	personaViews: Map<string, string>,
-	personas: ReadonlyArray<Persona> = []
-): Promise<Result<string, PipelineError>> => {
-	try {
-		// 見解は「固定の初期信念＋討論で得た気づき」から導出したもの。独立した最終信念は持たない（4.2）
-		const viewsSummary = Array.from(personaViews.entries())
-			.map(([id, view]) => `ペルソナ ${id}:\n${view}`)
-			.join('\n\n');
-
-		const result = await generateObject({
-			model: anthropic(AI_MODELS.SONNET),
-			system: buildNeutralitySystemPrompt(),
-			schema: contentOnlySchema,
-			messages: [
-				{
-					role: 'user',
-					content: `討論が終了しました。クロージング発言を3〜4文で作成してください（簡潔な締め括りのみ。長い総括は不要）。\n\n会話全体:\n${formatTurns(turns, personas)}\n\n各参加者の見解（固定の初期信念＋討論で得た気づき）:\n${viewsSummary}`
-				}
-			]
-		});
-
-		return { ok: true, value: result.object.content };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
-	}
-};
-
-export const generateChapterSummary = async (
-	recentHistory: DebateTurn[],
-	currentChapter: Chapter,
-	personas: ReadonlyArray<Persona> = []
-): Promise<Result<string, PipelineError>> => {
-	try {
-		const result = await generateObject({
-			model: anthropic(AI_MODELS.SONNET),
-			system: buildNeutralitySystemPrompt(),
-			schema: contentOnlySchema,
-			messages: [
-				{
-					role: 'user',
-					content: `章「${currentChapter.title}」の議論をまとめる発言を生成してください。次の章への言及は不要です。この章で出た主な意見・対立点を簡潔にまとめてください。\n\n直近の会話:\n${formatTurns(recentHistory.slice(-10), personas)}`
-				}
-			]
-		});
-
-		return { ok: true, value: result.object.content };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
-	}
 };
 
 export const generateChapterIntroduction = async (

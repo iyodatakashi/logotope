@@ -35,11 +35,6 @@ vi.mock('../../../agents/persona-agent.js', () => ({
 	generatePostDebateComment: vi.fn()
 }));
 
-vi.mock('../../../agents/facilitator-agent.js', () => ({
-	generateChapterSummary: vi.fn(),
-	generateClosing: vi.fn()
-}));
-
 const mockValidPersonaId = vi.fn((id: string | undefined) => id);
 vi.mock('../../../pipeline/debate/utils.js', () => ({
 	pipelineErrorMessage: vi.fn((e: unknown) => String(e)),

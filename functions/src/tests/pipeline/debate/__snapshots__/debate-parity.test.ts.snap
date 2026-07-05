@@ -230,12 +230,6 @@ exports[`行動等価性: 旧 while ループ vs 新 per-turn チェーン > 介
     "speakerType": "persona",
     "targetPersonaId": null,
   },
-  {
-    "fromQueue": false,
-    "personaId": null,
-    "speakerType": "facilitator",
-    "targetPersonaId": null,
-  },
 ]
 `;
 
@@ -385,12 +379,6 @@ exports[`行動等価性: 旧 while ループ vs 新 per-turn チェーン > 指
     "speakerType": "persona",
     "targetPersonaId": "p2",
   },
-  {
-    "fromQueue": false,
-    "personaId": null,
-    "speakerType": "facilitator",
-    "targetPersonaId": null,
-  },
 ]
 `;
 
@@ -466,12 +454,6 @@ exports[`行動等価性: 旧 while ループ vs 新 per-turn チェーン > 論
     "fromQueue": false,
     "personaId": "p1",
     "speakerType": "persona",
-    "targetPersonaId": null,
-  },
-  {
-    "fromQueue": false,
-    "personaId": null,
-    "speakerType": "facilitator",
     "targetPersonaId": null,
   },
 ]
@@ -615,12 +597,6 @@ exports[`行動等価性: 旧 while ループ vs 新 per-turn チェーン > 論
     "fromQueue": false,
     "personaId": "p2",
     "speakerType": "persona",
-    "targetPersonaId": null,
-  },
-  {
-    "fromQueue": false,
-    "personaId": null,
-    "speakerType": "facilitator",
     "targetPersonaId": null,
   },
 ]
@@ -774,12 +750,6 @@ exports[`行動等価性: 旧 while ループ vs 新 per-turn チェーン > 論
   },
   {
     "fromQueue": false,
-    "personaId": null,
-    "speakerType": "facilitator",
-    "targetPersonaId": null,
-  },
-  {
-    "fromQueue": false,
     "personaId": "p1",
     "speakerType": "persona",
     "targetPersonaId": null,
@@ -908,12 +878,6 @@ exports[`行動等価性: 旧 while ループ vs 新 per-turn チェーン > 論
     "fromQueue": false,
     "personaId": "p2",
     "speakerType": "persona",
-    "targetPersonaId": null,
-  },
-  {
-    "fromQueue": false,
-    "personaId": null,
-    "speakerType": "facilitator",
     "targetPersonaId": null,
   },
 ]
