@@ -40,8 +40,9 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 		expect(chapter.discussionPointStatuses).toHaveLength(1);
 	});
 
-	it('Issue は text・source と段階的に付与されるスコア・選別フラグを持つ', () => {
+	it('Issue は id・text・source と段階的に付与されるスコア・選別フラグを持つ', () => {
 		const issue: Issue = {
+			id: 'i1',
 			text: '一般的切り口',
 			source: 'general',
 			score: 8,
@@ -52,8 +53,8 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 		expect(issue.selected).toBe(true);
 	});
 
-	it('Issue は text と source のみでも成立する（スコア付与前）', () => {
-		const issue: Issue = { text: 'ペルソナ別切り口', source: 'persona' };
+	it('Issue は id・text・source のみでも成立する（スコア付与前）', () => {
+		const issue: Issue = { id: 'i2', text: 'ペルソナ別切り口', source: 'persona' };
 		expect(issue.score).toBeUndefined();
 	});
 
@@ -65,8 +66,8 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 	it('ChapterAnalysisForFirestore は issues 配列と任意の issueGroups を持つ', () => {
 		const analysis: ChapterAnalysisForFirestore = {
 			issues: [
-				{ text: '一般的切り口', source: 'general' },
-				{ text: 'ペルソナ別切り口', source: 'persona' }
+				{ id: 'i1', text: '一般的切り口', source: 'general' },
+				{ id: 'i2', text: 'ペルソナ別切り口', source: 'persona' }
 			],
 			issueGroups: [{ issueIndexes: [0, 1] }]
 		};

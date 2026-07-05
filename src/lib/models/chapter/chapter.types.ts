@@ -26,6 +26,7 @@ export type Chapter = Omit<ChapterForFirestore, 'turns'> & {
 export type IssueSource = 'general' | 'persona';
 
 export type Issue = {
+	id: string;
 	text: string;
 	source: IssueSource;
 	score?: number;

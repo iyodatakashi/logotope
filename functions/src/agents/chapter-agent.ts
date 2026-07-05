@@ -326,8 +326,16 @@ export const generateChapters = async (
 		]);
 
 		const issues: Issue[] = [
-			...generalIssuesResult.object.issues.map((text) => ({ text, source: 'general' as const })),
-			...personaIssuesResult.object.issues.map((text) => ({ text, source: 'persona' as const }))
+			...generalIssuesResult.object.issues.map((text) => ({
+				id: nanoid(),
+				text,
+				source: 'general' as const
+			})),
+			...personaIssuesResult.object.issues.map((text) => ({
+				id: nanoid(),
+				text,
+				source: 'persona' as const
+			}))
 		];
 
 		await onProgress?.({ step: 'issues_generated', issues });

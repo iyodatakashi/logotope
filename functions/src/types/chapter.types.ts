@@ -9,6 +9,7 @@ export type Chapter = {
 export type IssueSource = 'general' | 'persona';
 
 export type Issue = {
+	id: string;
 	text: string;
 	source: IssueSource;
 	score?: number;

@@ -172,7 +172,7 @@
 		{/if}
 		{#if currentTopicStore.chaptersStore.chapters.length}
 			<ol class="chapters">
-				{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.title)}
+				{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.id)}
 					<li class:current={chapter === currentTopicStore.chaptersStore.currentChapter}>
 						<strong>{chapter.title}</strong>
 						{#if chapter.status === 'completed'}

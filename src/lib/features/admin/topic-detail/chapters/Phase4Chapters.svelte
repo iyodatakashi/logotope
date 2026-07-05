@@ -105,7 +105,7 @@
 						<div class="issues-col">
 							<h4>一般的な切り口（ペルソナなし）</h4>
 							<ol>
-								{#each generalIssues as issue (issue.text)}
+								{#each generalIssues as issue, i (issue.id ?? i)}
 									<li>{issue.text}</li>
 								{/each}
 							</ol>
@@ -113,7 +113,7 @@
 						<div class="issues-col">
 							<h4>ペルソナ固有の切り口</h4>
 							<ol>
-								{#each personaIssues as issue (issue.text)}
+								{#each personaIssues as issue, i (issue.id ?? i)}
 									<li>{issue.text}</li>
 								{/each}
 							</ol>
@@ -125,7 +125,7 @@
 				<section class="issues">
 					<h3>Step 2: 論点スコアリング結果</h3>
 					<ul class="scored-issues">
-						{#each scoredIssues as issue (issue.text)}
+						{#each scoredIssues as issue, i (issue.id ?? i)}
 							<li class:selected={issue.selected} class:rejected={!issue.selected}>
 								<span class="score">{issue.score}</span>
 								<span class="issue-source">{issue.source === 'general' ? '一般' : 'ペルソナ'}</span>
@@ -157,12 +157,12 @@
 				<section class="issues">
 					<h3>Step 4: 論点精査結果</h3>
 					<ol class="chapters">
-						{#each chapters as chapter (chapter.title)}
+						{#each chapters as chapter (chapter.id)}
 							<li>
 								<strong>{chapter.title}</strong>
 								{#if chapter.discussionPoints?.length}
 									<ul class="points">
-										{#each chapter.discussionPoints as point (point)}
+										{#each chapter.discussionPoints as point, i (i)}
 											<li>{point}</li>
 										{/each}
 									</ul>
