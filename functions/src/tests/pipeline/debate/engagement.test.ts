@@ -205,6 +205,42 @@ describe('evaluateEngagements', () => {
 		expect(arg.awareness).toEqual(awareness);
 	});
 
+	it('一括評価では直前話者が対象外のまま、リスナーの気づきのみが永続される（2.2）', async () => {
+		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
+		// 直前話者は p2。p2 は評価対象外（気づきも生じない）、リスナー p1 の気づきのみ永続される想定
+		const listenerAwareness = {
+			kind: 'reception',
+			content: '直前への気づき',
+			sourcePersonaId: 'p2'
+		};
+		mockEvaluateEngagement.mockImplementation(async (p: Persona) =>
+			p.id === 'p1'
+				? { personaId: 'p1', score: 3, mode: 'opinion', awareness: listenerAwareness }
+				: { personaId: 'p2', score: 2, mode: 'opinion', awareness: null }
+		);
+		const state = makeState({ turns: [makeDebateTurn('t1')], lastSpeakerId: 'p2' });
+
+		await evaluateEngagements({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			personas,
+			state,
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		// 直前話者 p2 は評価対象から除外される
+		const calledIds = mockEvaluateEngagement.mock.calls.map(
+			(call: unknown[]) => (call[0] as Persona).id
+		);
+		expect(calledIds).not.toContain('p2');
+		expect(calledIds).toContain('p1');
+		// 永続はリスナー p1 の気づき1件のみ
+		expect(mockAppendAwareness).toHaveBeenCalledTimes(1);
+		const arg = mockAppendAwareness.mock.calls[0][0];
+		expect(arg.persona.id).toBe('p1');
+		expect(arg.awareness).toEqual(listenerAwareness);
+	});
+
 	it('awareness が null のペルソナには appendAwareness を呼ばない', async () => {
 		const personas = [makePersona('p1', '田中太郎')];
 		mockEvaluateEngagement.mockResolvedValue({

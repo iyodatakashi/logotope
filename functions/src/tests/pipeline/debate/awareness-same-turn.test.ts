@@ -91,7 +91,7 @@ describe('傾聴→永続→消費の同ターン反映（結合）', () => {
 				awareness: {
 					kind: 'reception',
 					content: '在宅の負担という視点は一理ある',
-					sourcePersonaId: 'p2'
+					sourceTurnId: '1'
 				}
 			}
 		} as never);

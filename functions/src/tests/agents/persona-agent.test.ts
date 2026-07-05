@@ -146,7 +146,7 @@ describe('evaluateEngagement', () => {
 		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(expect.any(Array), personas);
 	});
 
-	it('傾聴で気づき（reception）を検出した場合、awareness をそのまま返す', async () => {
+	it('傾聴で気づき（reception）を検出した場合、sourceTurnId（序数）から話者を導出して返す', async () => {
 		const aiMod = await import('ai');
 		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
 			object: {
@@ -156,13 +156,23 @@ describe('evaluateEngagement', () => {
 				awareness: {
 					kind: 'reception',
 					content: '佐藤の指摘には一理あると受け止めた',
-					sourcePersonaId: 'p2'
+					sourceTurnId: '1'
 				}
 			}
 		} as never);
 
+		const turns: DebateTurn[] = [
+			{
+				id: 't1',
+				speakerType: 'persona',
+				personaId: 'p2',
+				content: '佐藤の発言',
+				createdAt: '' as never
+			}
+		];
+
 		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
-		const result = await evaluateEngagement(mockPersona, mockTurns, ['佐藤花子']);
+		const result = await evaluateEngagement(mockPersona, turns, ['佐藤花子'], [mockPersona]);
 
 		expect(result.awareness).toEqual({
 			kind: 'reception',
@@ -190,7 +200,7 @@ describe('evaluateEngagement', () => {
 				score: 1,
 				mode: 'none',
 				intentSummary: null,
-				awareness: { kind: 'self', content: '自分の観点で新しく気づいた', sourcePersonaId: null }
+				awareness: { kind: 'self', content: '自分の観点で新しく気づいた', sourceTurnId: null }
 			}
 		} as never);
 
@@ -206,19 +216,29 @@ describe('evaluateEngagement', () => {
 		});
 	});
 
-	it('self の気づきは sourcePersonaId を null に正規化する', async () => {
+	it('self の気づきは sourcePersonaId を null に正規化する（sourceTurnId は無視）', async () => {
 		const aiMod = await import('ai');
 		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
 			object: {
 				score: 3,
 				mode: 'opinion',
 				intentSummary: null,
-				awareness: { kind: 'self', content: '自分の気づき', sourcePersonaId: 'p2' }
+				awareness: { kind: 'self', content: '自分の気づき', sourceTurnId: '1' }
 			}
 		} as never);
 
+		const turns: DebateTurn[] = [
+			{
+				id: 't1',
+				speakerType: 'persona',
+				personaId: 'p2',
+				content: '佐藤の発言',
+				createdAt: '' as never
+			}
+		];
+
 		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
-		const result = await evaluateEngagement(mockPersona, mockTurns, ['佐藤花子']);
+		const result = await evaluateEngagement(mockPersona, turns, ['佐藤花子'], [mockPersona]);
 
 		expect(result.awareness?.sourcePersonaId).toBeNull();
 	});
@@ -230,7 +250,7 @@ describe('evaluateEngagement', () => {
 				score: 2,
 				mode: 'opinion',
 				intentSummary: null,
-				awareness: { kind: 'reception', content: '   ', sourcePersonaId: 'p2' }
+				awareness: { kind: 'reception', content: '   ', sourceTurnId: '1' }
 			}
 		} as never);
 
@@ -265,6 +285,337 @@ describe('evaluateEngagement', () => {
 		expect(userContent).toMatch(/該当なしは null|ほとんどは null/);
 		// score/mode の主判定を変えない
 		expect(userContent).toMatch(/判定を変え|独立|切り離|別に行う/);
+	});
+
+	it('気づきの発生源を直前発言（提示会話の最後の1発言）のみに限定し、reception は sourceTurnId を申告させる旨がプロンプトに含まれる', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return {
+				object: { score: 2, mode: 'opinion', intentSummary: null, awareness: null }
+			} as never;
+		});
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		await evaluateEngagement(mockPersona, mockTurns, ['佐藤花子']);
+
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		// 発生源は末尾＝直前発言のみ。それ以前は文脈にとどめる
+		expect(userContent).toContain('直前の発言');
+		expect(userContent).toMatch(/最後の1発言|末尾/);
+		expect(userContent).toContain('文脈');
+		// reception は反応した発言の識別子（sourceTurnId）を出力する
+		expect(userContent).toContain('sourceTurnId');
+	});
+
+	it('傾聴の会話提示に発言単位のローカル序数（[N]）が付与され、末尾が直前である旨を示す', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return {
+				object: { score: 2, mode: 'opinion', intentSummary: null, awareness: null }
+			} as never;
+		});
+
+		const turns: DebateTurn[] = [
+			{
+				id: 't1',
+				speakerType: 'persona',
+				personaId: 'p2',
+				content: '一つ目',
+				createdAt: '' as never
+			},
+			{
+				id: 't2',
+				speakerType: 'persona',
+				personaId: 'p3',
+				content: '二つ目',
+				createdAt: '' as never
+			}
+		];
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		await evaluateEngagement(mockPersona, turns, ['佐藤花子']);
+
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		expect(userContent).toContain('[1]');
+		expect(userContent).toContain('[2]');
+		// 末尾＝直前の発言であることを提示に明示
+		expect(userContent).toContain('直前');
+	});
+
+	it('reception が直前発言（末尾）を指すとき採用し、直前話者へ帰属する（1.2）', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 2,
+				mode: 'opinion',
+				intentSummary: null,
+				awareness: { kind: 'reception', content: '一理ある', sourceTurnId: '2' }
+			}
+		} as never);
+
+		const turns: DebateTurn[] = [
+			{
+				id: 't1',
+				speakerType: 'persona',
+				personaId: 'p2',
+				content: '一つ目',
+				createdAt: '' as never
+			},
+			{
+				id: 't2',
+				speakerType: 'persona',
+				personaId: 'p3',
+				content: '二つ目（直前）',
+				createdAt: '' as never
+			}
+		];
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, turns, ['佐藤花子'], [mockPersona]);
+
+		expect(result.awareness).toEqual({
+			kind: 'reception',
+			content: '一理ある',
+			sourcePersonaId: 'p3'
+		});
+	});
+
+	it('reception が直前より前の発言を指すとき drop（null）する（1.2）', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 2,
+				mode: 'opinion',
+				intentSummary: null,
+				awareness: { kind: 'reception', content: '一理ある', sourceTurnId: '1' }
+			}
+		} as never);
+
+		const turns: DebateTurn[] = [
+			{
+				id: 't1',
+				speakerType: 'persona',
+				personaId: 'p2',
+				content: '一つ目',
+				createdAt: '' as never
+			},
+			{
+				id: 't2',
+				speakerType: 'persona',
+				personaId: 'p3',
+				content: '二つ目（直前）',
+				createdAt: '' as never
+			}
+		];
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, turns, ['佐藤花子'], [mockPersona]);
+
+		expect(result.awareness).toBeNull();
+	});
+
+	it('同一話者が直前と過去の両方に登場しても、過去発言を指す reception は drop する（1.2）', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 2,
+				mode: 'opinion',
+				intentSummary: null,
+				// 過去（[1]）の p2 発言を指す。直前（[3]）も同じ p2 だが、発言粒度で突合し drop する
+				awareness: { kind: 'reception', content: '一理ある', sourceTurnId: '1' }
+			}
+		} as never);
+
+		const turns: DebateTurn[] = [
+			{
+				id: 't1',
+				speakerType: 'persona',
+				personaId: 'p2',
+				content: '過去',
+				createdAt: '' as never
+			},
+			{ id: 't2', speakerType: 'persona', personaId: 'p3', content: '間', createdAt: '' as never },
+			{
+				id: 't3',
+				speakerType: 'persona',
+				personaId: 'p2',
+				content: '直前',
+				createdAt: '' as never
+			}
+		];
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, turns, ['佐藤花子'], [mockPersona]);
+
+		expect(result.awareness).toBeNull();
+	});
+
+	it('直前発言の話者が評価対象ペルソナ自身のとき、気づきを無し（null）にする（リスナー限定ガード・1.2）', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 3,
+				mode: 'opinion',
+				intentSummary: null,
+				awareness: { kind: 'reception', content: '自分の発言への気づき', sourceTurnId: '1' }
+			}
+		} as never);
+
+		// 直前発言が評価対象 p1 自身
+		const turns: DebateTurn[] = [
+			{
+				id: 't1',
+				speakerType: 'persona',
+				personaId: 'p1',
+				content: '自分の発言',
+				createdAt: '' as never
+			}
+		];
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, turns, ['佐藤花子'], [mockPersona]);
+
+		expect(result.awareness).toBeNull();
+	});
+
+	it('直前発言がファシリテーター（personaId なし）で一致した reception は sourcePersonaId が null で採用される（1.2）', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 2,
+				mode: 'opinion',
+				intentSummary: null,
+				awareness: { kind: 'reception', content: '問いかけで気づいた', sourceTurnId: '1' }
+			}
+		} as never);
+
+		const turns: DebateTurn[] = [
+			{
+				id: 't1',
+				speakerType: 'facilitator',
+				personaId: null,
+				content: 'ファシリの問い',
+				createdAt: '' as never
+			}
+		];
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, turns, ['佐藤花子'], [mockPersona]);
+
+		expect(result.awareness).toEqual({
+			kind: 'reception',
+			content: '問いかけで気づいた',
+			sourcePersonaId: null
+		});
+	});
+
+	it('reception で sourceTurnId が範囲外・null のとき drop（null）する', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 2,
+				mode: 'opinion',
+				intentSummary: null,
+				awareness: { kind: 'reception', content: '一理ある', sourceTurnId: '99' }
+			}
+		} as never);
+
+		const turns: DebateTurn[] = [
+			{
+				id: 't1',
+				speakerType: 'persona',
+				personaId: 'p2',
+				content: '一つ目',
+				createdAt: '' as never
+			}
+		];
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, turns, ['佐藤花子'], [mockPersona]);
+
+		expect(result.awareness).toBeNull();
+	});
+
+	it('self の気づきは直前発言を聞いたことを契機に維持される（sourcePersonaId null・1.2）', async () => {
+		const aiMod = await import('ai');
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 2,
+				mode: 'opinion',
+				intentSummary: null,
+				awareness: { kind: 'self', content: '自分の中で気づいた', sourceTurnId: null }
+			}
+		} as never);
+
+		const turns: DebateTurn[] = [
+			{ id: 't1', speakerType: 'persona', personaId: 'p2', content: '直前', createdAt: '' as never }
+		];
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const result = await evaluateEngagement(mockPersona, turns, ['佐藤花子'], [mockPersona]);
+
+		expect(result.awareness).toEqual({
+			kind: 'self',
+			content: '自分の中で気づいた',
+			sourcePersonaId: null
+		});
+	});
+
+	it('気づきの採否（drop / 採用）に関わらず score/mode/intentSummary の解決は不変（Req4.1 非干渉）', async () => {
+		const aiMod = await import('ai');
+		// 直前より前を指す reception（drop される）と、直前を指す reception（採用される）で、
+		// 同一の score/mode/intentSummary 入力に対する解決結果が一致することを確認する
+		const turns: DebateTurn[] = [
+			{
+				id: 't1',
+				speakerType: 'persona',
+				personaId: 'p2',
+				content: '過去',
+				createdAt: '' as never
+			},
+			{ id: 't2', speakerType: 'persona', personaId: 'p3', content: '直前', createdAt: '' as never }
+		];
+
+		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 4,
+				mode: 'question',
+				intentSummary: '佐藤さんの根拠を聞きたい',
+				awareness: { kind: 'reception', content: '過去への反応', sourceTurnId: '1' }
+			}
+		} as never);
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		const dropped = await evaluateEngagement(mockPersona, turns, ['佐藤花子'], [mockPersona]);
+
+		vi.resetModules();
+		const aiMod2 = await import('ai');
+		vi.mocked(aiMod2.generateObject).mockResolvedValueOnce({
+			object: {
+				score: 4,
+				mode: 'question',
+				intentSummary: '佐藤さんの根拠を聞きたい',
+				awareness: { kind: 'reception', content: '直前への反応', sourceTurnId: '2' }
+			}
+		} as never);
+		const { evaluateEngagement: evaluateEngagement2 } =
+			await import('../../agents/persona-agent.js');
+		const adopted = await evaluateEngagement2(mockPersona, turns, ['佐藤花子'], [mockPersona]);
+
+		// 気づきは一方が null（drop）・他方が採用と分かれるが、score/mode/intentSummary は同一
+		expect(dropped.awareness).toBeNull();
+		expect(adopted.awareness).not.toBeNull();
+		expect(dropped.score).toBe(adopted.score);
+		expect(dropped.mode).toBe(adopted.mode);
+		expect(dropped.intentSummary).toBe(adopted.intentSummary);
+		expect(adopted.score).toBe(4);
+		expect(adopted.mode).toBe('question');
+		expect(adopted.intentSummary).toBe('佐藤さんの根拠を聞きたい');
 	});
 
 	it('既存の気づきを傾聴の入力（文脈）として注入する', async () => {
@@ -921,7 +1272,7 @@ describe('プロンプトキャッシュ配置（Task 1.1）', () => {
 				score: 4,
 				mode: 'opinion',
 				intentSummary: '別の角度を出したい',
-				awareness: { kind: 'self', content: '新たな気づき', sourcePersonaId: null }
+				awareness: { kind: 'self', content: '新たな気づき', sourceTurnId: null }
 			}
 		} as never);
 

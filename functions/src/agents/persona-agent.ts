@@ -364,12 +364,13 @@ const engagementSchema = z.object({
 	mode: z.enum(['question', 'fact', 'opinion', 'none']),
 	// gpt の strict structured output 対応のため optional ではなく nullable にする
 	intentSummary: z.string().nullable(),
-	// 傾聴段階で検出する気づき（大半は null）。ネストも gpt strict 対応で全項目 nullable 必須
+	// 傾聴段階で検出する気づき（大半は null）。ネストも gpt strict 対応で全項目 nullable 必須。
+	// sourceTurnId は reception が反応した発言のローカル序数（会話提示の各行頭 [N]）。話者は突合後にコードで導出する
 	awareness: z
 		.object({
 			kind: z.enum(['reception', 'self']),
 			content: z.string(),
-			sourcePersonaId: z.string().nullable()
+			sourceTurnId: z.string().nullable()
 		})
 		.nullable()
 });
@@ -382,6 +383,14 @@ export const evaluateEngagement = async (
 ): Promise<Engagement> => {
 	try {
 		const recentTurns = turns.slice(-8);
+		// 傾聴側の会話提示にだけ発言単位のローカル序数（[N]）を付す。末尾＝直前の発言＝気づきの発生源。
+		// 発話生成と共有する formatTurns は変更せず、ここで各発言に番号を前置し、序数→発言の対応はコードで解決する。
+		const numberedConversation =
+			recentTurns.length > 0
+				? recentTurns
+						.map((turn, index) => `[${index + 1}] ${formatTurns([turn], personas)}`)
+						.join('\n')
+				: formatTurns(recentTurns, personas);
 		const ownTurns = turns.filter((t) => t.personaId === persona.id).slice(-5);
 		const ownTurnsSection =
 			ownTurns.length > 0
@@ -392,7 +401,7 @@ export const evaluateEngagement = async (
 		// 既存の気づきを傾聴の入力（文脈）としても読む（聞く→気づく→話すの連続性）
 		const awarenessSection = formatAwarenessSection(persona.awarenesses);
 		// score/mode の主判定とは分節した、付随的な気づき検出タスク（低干渉・厳格な閾値・簡潔にしてコスト抑制）
-		const awarenessDetectionNote = `\n\n---\n【気づき検出】score/mode の評価とは別に行う。会話を聞いて自分の見方が実際に変わった、または見落としていた視点に本当に気づいたときだけ awareness に記録する。reception=他者の発言で気づいた／self=自分の中で新たに生じた。content は一文、sourcePersonaId は reception なら発言者ID（会話中の「(ID:...)」）・self は null。\n次は記録しない（null）：単なる同意・共感・言い換え・既存見解の再確認、および【討論中に得た気づき】に既出の内容やその繰り返し。該当なしは null（ほとんどは null）。この検出は score/mode の判定を変えない。`;
+		const awarenessDetectionNote = `\n\n---\n【気づき検出】score/mode の評価とは別に行う。気づきの発生源は提示会話の最後の1発言（末尾＝直前の発言）のみ。それ以前の発言は直前発言を理解するための文脈であり、発生源にはしない。直前発言を聞いて自分の見方が実際に変わった、または見落としていた視点に本当に気づいたときだけ awareness に記録する。reception=直前発言（他者）で気づいた／self=直前発言を聞いて自分の中で新たに生じた。content は一文。reception のとき sourceTurnId に反応した発言の番号（各行頭の [N]。通常は末尾＝直前発言）を記す。self は sourceTurnId を null にしてよい。\n次は記録しない（null）：単なる同意・共感・言い換え・既存見解の再確認、および【討論中に得た気づき】に既出の内容やその繰り返し。該当なしは null（ほとんどは null）。この検出は score/mode の判定を変えない。`;
 		const llmType = persona.llmType ?? 'claude';
 		const system = buildPersonaSystemPrompt(
 			persona,
@@ -406,7 +415,7 @@ export const evaluateEngagement = async (
 			messages: [
 				{
 					role: 'user',
-					content: `現在の会話:\n\n${formatTurns(recentTurns, personas)}${ownTurnsSection}${otherPersonasNote}${awarenessSection}\n\n${persona.name}として、発言意欲（score）と発言形式（mode）を評価してください。\n\nまず上の会話を読んで、他の参加者の発言の中に「もっと聞きたい」「それは本当に？」「自分の経験では違う」「なぜそう思うのか確認したい」と感じるものがないか振り返ってください。そういう相手がいれば mode は question です（intentSummary に「誰の・どの発言について・何を聞きたいか」を書く）。\n\n次に、紹介すべき事実・データがあれば fact。それ以外は opinion。付け加えることがなければ score 1（none）。\n\nscore は mode ごとの基準で選んでください。\n\n【opinion / fact のスコア基準】\n- 1: 付け加えることがない\n- 2: 同意・補足程度（自分の角度はほぼない）\n- 3: 話したいことはあるが急かすほどでない\n- 4: 自分の立場・経験から別の角度を出せる\n- 5: 今すぐ言わないと議論が進まない\n\n【question のスコア基準】\n- 1: 特に聞きたいことはない\n- 2: 少し引っかかる程度\n- 3: 聞いてみたいが急かすほどでない\n- 4: 相手の発言や立場に引っかかりがあり、素直に聞いてみたい\n- 5: 今この人に確認しないと議論が進まない\n\n発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まります。すでに同じ主張を述べており新たに付け加えることがなければ score 1 を選んでください。\n\n重要：前の発言に「そうですね」と同意するだけで終わる発言しか浮かばないなら score を下げてください（同意を表明したいだけ → score 2 以下）。高い score は「自分にしかない別の角度・疑問・経験を加えたい」ときに使います。${awarenessDetectionNote}`
+					content: `現在の会話（各行頭の [N] は発言の番号。末尾が直前の発言）:\n\n${numberedConversation}${ownTurnsSection}${otherPersonasNote}${awarenessSection}\n\n${persona.name}として、発言意欲（score）と発言形式（mode）を評価してください。\n\nまず上の会話を読んで、他の参加者の発言の中に「もっと聞きたい」「それは本当に？」「自分の経験では違う」「なぜそう思うのか確認したい」と感じるものがないか振り返ってください。そういう相手がいれば mode は question です（intentSummary に「誰の・どの発言について・何を聞きたいか」を書く）。\n\n次に、紹介すべき事実・データがあれば fact。それ以外は opinion。付け加えることがなければ score 1（none）。\n\nscore は mode ごとの基準で選んでください。\n\n【opinion / fact のスコア基準】\n- 1: 付け加えることがない\n- 2: 同意・補足程度（自分の角度はほぼない）\n- 3: 話したいことはあるが急かすほどでない\n- 4: 自分の立場・経験から別の角度を出せる\n- 5: 今すぐ言わないと議論が進まない\n\n【question のスコア基準】\n- 1: 特に聞きたいことはない\n- 2: 少し引っかかる程度\n- 3: 聞いてみたいが急かすほどでない\n- 4: 相手の発言や立場に引っかかりがあり、素直に聞いてみたい\n- 5: 今この人に確認しないと議論が進まない\n\n発言意欲は「このテーマが自分の生活・立場・実感にどれだけ関わるか」で決まります。すでに同じ主張を述べており新たに付け加えることがなければ score 1 を選んでください。\n\n重要：前の発言に「そうですね」と同意するだけで終わる発言しか浮かばないなら score を下げてください（同意を表明したいだけ → score 2 以下）。高い score は「自分にしかない別の角度・疑問・経験を加えたい」ときに使います。${awarenessDetectionNote}`
 				}
 			]
 		});
@@ -417,16 +426,28 @@ export const evaluateEngagement = async (
 		if (resolvedMode === 'question' && !intentSummary) resolvedMode = 'opinion';
 		const resolvedIntentSummary =
 			resolvedMode === 'none' ? undefined : (intentSummary ?? undefined);
-		// 気づきは score/mode と独立（非話者・score 1 でも保持）。content 空は無しとみなし、
-		// self は sourcePersonaId を null に正規化する
-		const resolvedAwareness =
-			awareness && awareness.content.trim()
-				? {
-						kind: awareness.kind,
-						content: awareness.content,
-						sourcePersonaId: awareness.kind === 'self' ? null : awareness.sourcePersonaId
-					}
-				: null;
+		// 気づきの発生源は直前発言（提示ウィンドウの末尾）のみ。
+		const lastTurn = recentTurns[recentTurns.length - 1];
+		// Req2.1 リスナー限定ガード：直前発言の話者が評価対象自身なら気づきを発生させない
+		const lastSpeakerIsSelf = !!lastTurn && lastTurn.personaId === persona.id;
+		// reception が申告した序数（sourceTurnId）が直前発言（末尾）を指すときだけ true（発言粒度で突合）
+		const sourceIsLastTurn = (sourceTurnId: string | null): boolean =>
+			!!sourceTurnId && Number(sourceTurnId) === recentTurns.length;
+		// 気づきは score/mode と独立（非話者・score 1 でも保持）。content 空は無しとみなす。
+		// reception は sourceTurnId が直前発言と一致するときのみ採用し、話者を直前発言から導出する。
+		// 不一致（直前より前・同一話者の過去発言を含む）は drop（null）。self は sourcePersonaId=null で維持する。
+		const resolvedAwareness = (() => {
+			if (!awareness || !awareness.content.trim() || lastSpeakerIsSelf) return null;
+			if (awareness.kind === 'self') {
+				return { kind: 'self' as const, content: awareness.content, sourcePersonaId: null };
+			}
+			if (!sourceIsLastTurn(awareness.sourceTurnId)) return null;
+			return {
+				kind: 'reception' as const,
+				content: awareness.content,
+				sourcePersonaId: lastTurn?.personaId ?? null
+			};
+		})();
 		return {
 			personaId: persona.id,
 			score: clampedScore,
