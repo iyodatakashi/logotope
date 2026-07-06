@@ -16,13 +16,15 @@ import type {
 	Persona,
 	PersonaForInterview
 } from '$lib/models/persona/persona.types';
-import type { TopicContext } from '$lib/models/topic/topic.types';
 
 const toPersona = (id: string, raw: PersonaForFirestore): Persona => ({
 	...raw,
 	id,
-	beliefs: raw.beliefs.map((b) => ({ ...b, createdAt: b.createdAt.toDate() })),
-	awarenesses: raw.awarenesses?.map((a) => ({ ...a, createdAt: a.createdAt.toDate() })),
+	beliefs: raw.beliefs.map((belief) => ({ ...belief, createdAt: belief.createdAt.toDate() })),
+	awarenesses: raw.awarenesses?.map((awareness) => ({
+		...awareness,
+		createdAt: awareness.createdAt.toDate()
+	})),
 	interview: raw.interview
 		? {
 				...raw.interview,
@@ -39,7 +41,9 @@ export const createPersonasStore = (topicId: string) => {
 	const start = () => {
 		const q = query(collection(db, 'topics', topicId, 'personas'), orderBy('sortOrder', 'asc'));
 		unsubscribe = onSnapshot(q, (snap) => {
-			personas = snap.docs.map((d) => toPersona(d.id, d.data() as PersonaForFirestore));
+			personas = snap.docs.map((docSnapshot) =>
+				toPersona(docSnapshot.id, docSnapshot.data() as PersonaForFirestore)
+			);
 			isLoaded = true;
 		});
 	};
@@ -51,8 +55,8 @@ export const createPersonasStore = (topicId: string) => {
 
 	const approvePersonas = async (): Promise<void> => {
 		const batch = writeBatch(db);
-		personas.forEach((p) => {
-			batch.update(doc(db, 'topics', topicId, 'personas', p.id), { approved: true });
+		personas.forEach((persona) => {
+			batch.update(doc(db, 'topics', topicId, 'personas', persona.id), { approved: true });
 		});
 		batch.update(doc(db, 'topics', topicId), {
 			phase: 'interviews',
@@ -64,8 +68,8 @@ export const createPersonasStore = (topicId: string) => {
 
 	const resetPersonas = async (): Promise<void> => {
 		const batch = writeBatch(db);
-		personas.forEach((p) => {
-			batch.delete(doc(db, 'topics', topicId, 'personas', p.id));
+		personas.forEach((persona) => {
+			batch.delete(doc(db, 'topics', topicId, 'personas', persona.id));
 		});
 		batch.update(doc(db, 'topics', topicId), {
 			phase: 'personas',
@@ -95,18 +99,16 @@ export const createPersonasStore = (topicId: string) => {
 	// 取材フローの実行: 実行中→（未完了ペルソナを並列取材）。
 	// 結果の永続化と完了確定（generated）はサーバ権威で行うため、FE は完了を書かない。
 	// all=true で全ペルソナを再取材する（再生成・やり直し用）。
-	const runInterviews = async (
-		topicTitle: string,
-		topicContext?: TopicContext,
-		all = false
-	): Promise<void> => {
+	const runInterviews = async (topicTitle: string, all = false): Promise<void> => {
 		await markInterviewsStarted();
-		const targets = all ? personas : personas.filter((p) => p.interview?.status !== 'completed');
+		const targets = all
+			? personas
+			: personas.filter((persona) => persona.interview?.status !== 'completed');
 		const results = await Promise.allSettled(
-			targets.map((p) => runInterview(p.id, topicTitle, topicContext))
+			targets.map((persona) => runInterview(persona.id, topicTitle))
 		);
 		// 失敗検知は rejected の有無で行う（onSnapshot の反映遅延に依存しない）。
-		const hasError = results.some((r) => r.status === 'rejected');
+		const hasError = results.some((result) => result.status === 'rejected');
 		if (hasError) {
 			// サーバが既に generated を確定済み（reject はタイムアウト等）の場合は stopped に上書きしない。
 			const snap = await getDoc(doc(db, 'topics', topicId));
@@ -116,12 +118,8 @@ export const createPersonasStore = (topicId: string) => {
 		}
 	};
 
-	const runInterview = async (
-		personaId: string,
-		topicTitle: string,
-		topicContext?: TopicContext
-	): Promise<void> => {
-		const persona = personas.find((p) => p.id === personaId);
+	const runInterview = async (personaId: string, topicTitle: string): Promise<void> => {
+		const persona = personas.find((candidate) => candidate.id === personaId);
 		if (!persona) return;
 
 		// 処理開始時に前回の取材結果（中間データ・最終信念）を即時クリアする。
@@ -139,7 +137,6 @@ export const createPersonasStore = (topicId: string) => {
 				personaId: string;
 				topicTitle: string;
 				persona: PersonaForInterview;
-				topicContext?: TopicContext;
 			},
 			Record<string, never>
 		>(functions, 'runInterview', { timeout: 310000 });
@@ -155,8 +152,7 @@ export const createPersonasStore = (topicId: string) => {
 				specificRole: persona.specificRole ?? persona.stakeholderRole,
 				background: persona.background,
 				interests: persona.interests
-			},
-			...(topicContext && { topicContext })
+			}
 		});
 	};
 

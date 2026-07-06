@@ -22,30 +22,31 @@ export const generatePersonas = onCall(
 		if (!snap.exists) throw new HttpsError('invalid-argument', 'stakeholders not found');
 		const stakeholders = (snap.data() as { stakeholders: Stakeholder[] }).stakeholders;
 
-		try {
-			const topicContext = await getTopicContext(topicId);
-			const { personas } = await runPersonaGeneration(title, stakeholders, topicId, topicContext);
-			// 全ペルソナ文書を一括（batch）で永続化する。途中失敗では未コミット（全件 or 未書込）と
-			// なり、不完全な成果物を残さない。結果の Single Source of Truth は Firestore。
-			const batch = db().batch();
-			personas.forEach((persona, index) => {
-				const { id, ...rest } = persona;
-				batch.set(db().doc(`topics/${topicId}/personas/${id}`), {
-					...rest,
-					sortOrder: index,
-					approved: false,
-					beliefs: [],
-					createdAt: Timestamp.now()
-				});
-			});
-			await batch.commit();
-			// 永続化成功後、完了状態はサーバ権威で確定する。クライアントの生存や callable の
-			// タイムアウトに依存せず、running のときだけ generated へ冪等遷移させる。
-			await confirmPhaseGenerated(topicId, 'personas');
-			return {};
-		} catch (err) {
-			console.error('[generatePersonas] error', { topicId, title }, err);
-			throw new HttpsError('internal', err instanceof Error ? err.message : String(err));
+		const topicContext = await getTopicContext(topicId);
+		const result = await runPersonaGeneration(title, stakeholders, topicId, topicContext);
+		if (!result.ok) {
+			const message = 'message' in result.error ? result.error.message : result.error.code;
+			console.error('[generatePersonas] error', { topicId, title }, result.error);
+			throw new HttpsError('internal', message);
 		}
+
+		// 全ペルソナ文書を一括（batch）で永続化する。途中失敗では未コミット（全件 or 未書込）と
+		// なり、不完全な成果物を残さない。結果の Single Source of Truth は Firestore。
+		const batch = db().batch();
+		result.value.personas.forEach((persona, index) => {
+			const { id, ...rest } = persona;
+			batch.set(db().doc(`topics/${topicId}/personas/${id}`), {
+				...rest,
+				sortOrder: index,
+				approved: false,
+				beliefs: [],
+				createdAt: Timestamp.now()
+			});
+		});
+		await batch.commit();
+		// 永続化成功後、完了状態はサーバ権威で確定する。クライアントの生存や callable の
+		// タイムアウトに依存せず、running のときだけ generated へ冪等遷移させる。
+		await confirmPhaseGenerated(topicId, 'personas');
+		return {};
 	}
 );

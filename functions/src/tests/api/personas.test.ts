@@ -55,10 +55,13 @@ const seedStakeholders = () =>
 	holder.mock!.store.set(`topics/${TOPIC_ID}/stakeholders/0`, { stakeholders: ['s1'] });
 
 const generatedPersonas = () => ({
-	personas: [
-		{ id: 'p1', topicId: TOPIC_ID, name: '太郎', sortOrder: 0, approved: false },
-		{ id: 'p2', topicId: TOPIC_ID, name: '花子', sortOrder: 1, approved: false }
-	]
+	ok: true,
+	value: {
+		personas: [
+			{ id: 'p1', topicId: TOPIC_ID, name: '太郎', sortOrder: 0, approved: false },
+			{ id: 'p2', topicId: TOPIC_ID, name: '花子', sortOrder: 1, approved: false }
+		]
+	}
 });
 
 beforeEach(() => {
@@ -147,7 +150,10 @@ describe('generatePersonas handler', () => {
 	it('生成エラー時はHttpsError(internal)を投げ、ペルソナを永続化せず generated も確定しない', async () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'running' });
 		seedStakeholders();
-		mockRunPersonaGeneration.mockRejectedValueOnce(new Error('AI failed'));
+		mockRunPersonaGeneration.mockResolvedValueOnce({
+			ok: false,
+			error: { code: 'AI_API_ERROR', message: 'AI failed', retryable: true }
+		});
 
 		await expect(handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }))).rejects.toMatchObject({
 			code: 'internal'

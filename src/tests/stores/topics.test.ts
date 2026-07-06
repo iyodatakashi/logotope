@@ -24,6 +24,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { setDoc, getDocs } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import { topicsStore } from '$lib/stores/topics.svelte';
 
 describe('topicsStore.addTopic (task 3.3)', () => {
@@ -77,6 +78,20 @@ describe('topicsStore.addTopic (task 3.3)', () => {
 	it('topicIdを返す', async () => {
 		const id = await topicsStore.addTopic('題名');
 		expect(id).toBe('new-id');
+	});
+});
+
+describe('topicsStore.fetchSourceContents（UI からの callable 直呼びを store へ移設）', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it('fetchSourceContents callable を topicId 付きで呼ぶ', async () => {
+		const callable = vi.fn().mockResolvedValue({ data: {} });
+		vi.mocked(httpsCallable).mockReturnValue(callable as never);
+		await topicsStore.fetchSourceContents('topic1');
+		expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'fetchSourceContents');
+		expect(callable).toHaveBeenCalledWith({ topicId: 'topic1' });
 	});
 });
 

@@ -17,17 +17,20 @@ export const generateStakeholders = onCall(
 		if (!topicId?.trim()) throw new HttpsError('invalid-argument', 'topicId is required');
 		if (!title?.trim()) throw new HttpsError('invalid-argument', 'title is required');
 
-		try {
-			const topicContext = await getTopicContext(topicId);
-			const { stakeholders } = await runStakeholderGeneration(title, topicContext);
-			await db().doc(`topics/${topicId}/stakeholders/0`).set({ stakeholders });
-			// 完了状態はサーバ権威で確定する。クライアントの生存（リロード・タブ閉じ）や
-			// callable のタイムアウトに依存せず、running のときだけ generated へ冪等遷移させる。
-			await confirmPhaseGenerated(topicId, 'stakeholders');
-			return {};
-		} catch (err) {
-			console.error('[generateStakeholders] error', { topicId, title }, err);
-			throw new HttpsError('internal', err instanceof Error ? err.message : String(err));
+		const topicContext = await getTopicContext(topicId);
+		const result = await runStakeholderGeneration(title, topicContext);
+		if (!result.ok) {
+			const message = 'message' in result.error ? result.error.message : result.error.code;
+			console.error('[generateStakeholders] error', { topicId, title }, result.error);
+			throw new HttpsError('internal', message);
 		}
+
+		await db()
+			.doc(`topics/${topicId}/stakeholders/0`)
+			.set({ stakeholders: result.value.stakeholders });
+		// 完了状態はサーバ権威で確定する。クライアントの生存（リロード・タブ閉じ）や
+		// callable のタイムアウトに依存せず、running のときだけ generated へ冪等遷移させる。
+		await confirmPhaseGenerated(topicId, 'stakeholders');
+		return {};
 	}
 );

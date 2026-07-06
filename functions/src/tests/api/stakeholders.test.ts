@@ -70,7 +70,10 @@ describe('generateStakeholders handler', () => {
 
 	it('生成成功時に stakeholders を永続化し、confirmPhaseGenerated で generated を確定する', async () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'stakeholders', phaseStatus: 'running' });
-		mockRunStakeholderGeneration.mockResolvedValueOnce({ stakeholders: ['s1', 's2'] });
+		mockRunStakeholderGeneration.mockResolvedValueOnce({
+			ok: true,
+			value: { stakeholders: ['s1', 's2'] }
+		});
 
 		const result = await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
 
@@ -86,7 +89,10 @@ describe('generateStakeholders handler', () => {
 			facts: [{ statement: '確定事実', sources: [] }],
 			generatedAt: { toDate: () => new Date('2026-07-03T00:00:00Z') }
 		});
-		mockRunStakeholderGeneration.mockResolvedValueOnce({ stakeholders: ['s1'] });
+		mockRunStakeholderGeneration.mockResolvedValueOnce({
+			ok: true,
+			value: { stakeholders: ['s1'] }
+		});
 
 		await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
 
@@ -97,7 +103,10 @@ describe('generateStakeholders handler', () => {
 
 	it('事実基盤が無ければ factBase 未設定の topicContext を渡す（従来どおり動作）', async () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'stakeholders', phaseStatus: 'running' });
-		mockRunStakeholderGeneration.mockResolvedValueOnce({ stakeholders: ['s1'] });
+		mockRunStakeholderGeneration.mockResolvedValueOnce({
+			ok: true,
+			value: { stakeholders: ['s1'] }
+		});
 
 		await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
 
@@ -110,7 +119,10 @@ describe('generateStakeholders handler', () => {
 			phase: 'stakeholders',
 			phaseStatus: 'not_started'
 		});
-		mockRunStakeholderGeneration.mockResolvedValueOnce({ stakeholders: ['s1'] });
+		mockRunStakeholderGeneration.mockResolvedValueOnce({
+			ok: true,
+			value: { stakeholders: ['s1'] }
+		});
 
 		await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
 
@@ -120,7 +132,10 @@ describe('generateStakeholders handler', () => {
 
 	it('生成エラー時はHttpsError(internal)を投げる', async () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'stakeholders', phaseStatus: 'running' });
-		mockRunStakeholderGeneration.mockRejectedValueOnce(new Error('AI failed'));
+		mockRunStakeholderGeneration.mockResolvedValueOnce({
+			ok: false,
+			error: { code: 'AI_API_ERROR', message: 'AI failed', retryable: true }
+		});
 		await expect(handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }))).rejects.toMatchObject({
 			code: 'internal'
 		});
