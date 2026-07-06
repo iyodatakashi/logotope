@@ -1,6 +1,10 @@
+import dayjs from 'dayjs';
 import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona, AwarenessForFirestore } from '../types/persona.types.js';
 import type { FactBase } from '../types/topic.types.js';
+
+/** 日付を「YYYY年M月D日」形式に整形する（時事プロンプト・grounding 基準日の共通整形） */
+export const formatJapaneseDate = (date: Date): string => dayjs(date).format('YYYY年M月D日');
 
 // 事実基盤を「確定した客観的事実（共通前提）」としてプロンプトに整形する。
 // 事実が無い（factBase 未設定・facts 空）なら空文字を返し、消費者は従来どおり動作する。
@@ -10,7 +14,7 @@ export const formatFactBaseSection = (factBase?: FactBase): string => {
 	const facts = factBase.facts
 		.map((fact, i) => {
 			const sources = fact.sources.length
-				? `（出典: ${fact.sources.map((s) => s.title || s.url).join(', ')}）`
+				? `（出典: ${fact.sources.map((source) => source.title || source.url).join(', ')}）`
 				: '';
 			return `${i + 1}. ${fact.statement}${sources}`;
 		})
@@ -26,19 +30,22 @@ export const formatAwarenessSection = (
 ): string => {
 	if (!awarenesses?.length) return '';
 	const lines = awarenesses
-		.map((a) => `- （${a.kind === 'reception' ? '受容' : '自分の気づき'}）${a.content}`)
+		.map(
+			(awareness) =>
+				`- （${awareness.kind === 'reception' ? '受容' : '自分の気づき'}）${awareness.content}`
+		)
 		.join('\n');
 	return `\n\n【討論中に得た気づき】\nこれまでの傾聴で、他者の視点に「一理ある」と受け止めた点や、自分の中で生じた気づきです。あなたの初期信念（不変の主軸）は変えず、立場を反転させない範囲でこれらを踏まえて発言してください。\n${lines}`;
 };
 
-export const currentDateString = (): string => {
-	const d = new Date();
-	return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
-};
+export const currentDateString = (): string => formatJapaneseDate(new Date());
 
 export const formatPersonas = (personas: Persona[]): string => {
 	return personas
-		.map((p) => `- ID: ${p.id}, 名前: ${p.name}, 立場: ${p.specificRole || p.stakeholderRole}`)
+		.map(
+			(persona) =>
+				`- ID: ${persona.id}, 名前: ${persona.name}, 立場: ${persona.specificRole || persona.stakeholderRole}`
+		)
 		.join('\n');
 };
 
@@ -47,14 +54,14 @@ export const formatTurns = (
 	personas: ReadonlyArray<Persona>
 ): string => {
 	return turns
-		.map((t) => {
-			if (t.personaId) {
-				const persona = personas.find((p) => p.id === t.personaId);
-				const name = persona ? persona.name : `Persona(${t.personaId})`;
+		.map((turn) => {
+			if (turn.personaId) {
+				const persona = personas.find((candidate) => candidate.id === turn.personaId);
+				const name = persona ? persona.name : `Persona(${turn.personaId})`;
 				const role = persona ? persona.specificRole || persona.stakeholderRole : '';
-				return `[${name}(${role})(ID:${t.personaId})]: ${t.content}`;
+				return `[${name}(${role})(ID:${turn.personaId})]: ${turn.content}`;
 			}
-			return `[ファシリテーター()]: ${t.content}`;
+			return `[ファシリテーター()]: ${turn.content}`;
 		})
 		.join('\n');
 };

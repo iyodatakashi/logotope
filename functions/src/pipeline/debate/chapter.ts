@@ -31,15 +31,15 @@ const toChapterEntry = (id: string, data: ChapterDocData): ChapterEntry => ({
 	chapterIndex: data.chapterIndex,
 	title: data.title,
 	discussionPoints: data.discussionPoints ?? [],
-	turns: (data.turns ?? []).map((t) => ({
-		id: t.id,
-		speakerType: t.speakerType,
-		personaId: t.personaId ?? null,
-		content: t.content,
-		createdAt: t.createdAt,
-		fromQueue: t.fromQueue,
-		targetPersonaId: t.targetPersonaId,
-		targetedBy: t.targetedBy
+	turns: (data.turns ?? []).map((turn) => ({
+		id: turn.id,
+		speakerType: turn.speakerType,
+		personaId: turn.personaId ?? null,
+		content: turn.content,
+		createdAt: turn.createdAt,
+		fromQueue: turn.fromQueue,
+		targetPersonaId: turn.targetPersonaId,
+		targetedBy: turn.targetedBy
 	})),
 	status: data.status ?? 'pending'
 });
@@ -77,15 +77,15 @@ export const getDebateTurnsByTopicId = async (topicId: string): Promise<DebateTu
 				targetedBy?: 'facilitator' | 'persona';
 			}>;
 		};
-		const turns = (data.turns ?? []).map((t) => ({
-			id: t.id,
-			speakerType: t.speakerType,
-			personaId: t.personaId ?? null,
-			content: t.content,
-			createdAt: t.createdAt,
-			fromQueue: t.fromQueue,
-			targetPersonaId: t.targetPersonaId,
-			targetedBy: t.targetedBy
+		const turns = (data.turns ?? []).map((turn) => ({
+			id: turn.id,
+			speakerType: turn.speakerType,
+			personaId: turn.personaId ?? null,
+			content: turn.content,
+			createdAt: turn.createdAt,
+			fromQueue: turn.fromQueue,
+			targetPersonaId: turn.targetPersonaId,
+			targetedBy: turn.targetedBy
 		}));
 		allTurns.push(...turns);
 	}
@@ -129,7 +129,7 @@ export const discardChaptersFrom = async (
 	chapterId: string
 ): Promise<ChapterEntry[]> => {
 	const chapters = await getChaptersByTopicId(topicId);
-	const targetIdx = chapters.findIndex((c) => c.id === chapterId);
+	const targetIdx = chapters.findIndex((chapter) => chapter.id === chapterId);
 	const discardChapters = chapters.slice(targetIdx >= 0 ? targetIdx : 0);
 	for (const chapter of discardChapters) {
 		await db().doc(`topics/${topicId}/chapters/${chapter.id}`).update({

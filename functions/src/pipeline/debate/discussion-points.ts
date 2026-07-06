@@ -17,10 +17,14 @@ export const initDiscussionPoints = (chapter: Chapter): DiscussionPointState[] =
  * 提示済みが無ければ undefined を返す（純関数・state 不変）。
  */
 const getActivePointState = (state: DebateState): DiscussionPointState | undefined => {
-	const introduced = state.discussionPoints.filter((p) => p.status === 'introduced');
+	const introduced = state.discussionPoints.filter(
+		(discussionPoint) => discussionPoint.status === 'introduced'
+	);
 	if (introduced.length === 0) return undefined;
-	return introduced.reduce((latest, p) =>
-		(p.introducedOrder ?? 0) > (latest.introducedOrder ?? 0) ? p : latest
+	return introduced.reduce((latest, discussionPoint) =>
+		(discussionPoint.introducedOrder ?? 0) > (latest.introducedOrder ?? 0)
+			? discussionPoint
+			: latest
 	);
 };
 
@@ -41,15 +45,19 @@ export const markIntroduced = (
 	relevantPersonaIds?: string[]
 ): void => {
 	if (index === undefined) return;
-	const untouched = state.discussionPoints.filter((p) => p.status === 'untouched');
+	const untouched = state.discussionPoints.filter(
+		(discussionPoint) => discussionPoint.status === 'untouched'
+	);
 	const target =
 		untouched[index] !== undefined
-			? state.discussionPoints.find((p) => p.point === untouched[index].point)
+			? state.discussionPoints.find(
+					(discussionPoint) => discussionPoint.point === untouched[index].point
+				)
 			: undefined;
 	if (!target) return;
 	// 直近に提示された論点を一意に追えるよう、提示のたびに単調増加の順序を採番する
 	const maxOrder = state.discussionPoints.reduce(
-		(max, p) => Math.max(max, p.introducedOrder ?? 0),
+		(max, discussionPoint) => Math.max(max, discussionPoint.introducedOrder ?? 0),
 		0
 	);
 	target.status = 'introduced';
@@ -83,7 +91,7 @@ export const getUnheardRelevant = (state: DebateState): string[] => {
 
 /** 再確認で実は議論済みと判定された論点を addressed に更新する */
 export const markAddressed = (state: DebateState, point: string): void => {
-	const target = state.discussionPoints.find((p) => p.point === point);
+	const target = state.discussionPoints.find((discussionPoint) => discussionPoint.point === point);
 	if (target) target.status = 'addressed';
 };
 
@@ -97,12 +105,18 @@ export const saveDiscussionPointStatuses = async (
 	await db()
 		.doc(`topics/${topicId}/chapters/${chapterId}`)
 		.update({
-			discussionPointStatuses: state.discussionPoints.map((p) => ({
-				point: p.point,
-				status: p.status,
-				...(p.introducedOrder !== undefined ? { introducedOrder: p.introducedOrder } : {}),
-				...(p.spokenPersonaIds !== undefined ? { spokenPersonaIds: p.spokenPersonaIds } : {}),
-				...(p.relevantPersonaIds !== undefined ? { relevantPersonaIds: p.relevantPersonaIds } : {})
+			discussionPointStatuses: state.discussionPoints.map((discussionPoint) => ({
+				point: discussionPoint.point,
+				status: discussionPoint.status,
+				...(discussionPoint.introducedOrder !== undefined
+					? { introducedOrder: discussionPoint.introducedOrder }
+					: {}),
+				...(discussionPoint.spokenPersonaIds !== undefined
+					? { spokenPersonaIds: discussionPoint.spokenPersonaIds }
+					: {}),
+				...(discussionPoint.relevantPersonaIds !== undefined
+					? { relevantPersonaIds: discussionPoint.relevantPersonaIds }
+					: {})
 			}))
 		});
 };

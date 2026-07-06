@@ -6,8 +6,8 @@ let user = $state<User | null>(null);
 let loading = $state(true);
 
 if (typeof window !== 'undefined') {
-	onAuthStateChanged(auth, (u) => {
-		user = u;
+	onAuthStateChanged(auth, (firebaseUser) => {
+		user = firebaseUser;
 		loading = false;
 	});
 }

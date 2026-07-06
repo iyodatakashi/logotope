@@ -15,19 +15,19 @@
 	let descriptionError = $state('');
 	let urlErrors = $state<string[]>([]);
 
-	function addUrl() {
+	const addUrl = () => {
 		if (sourceUrls.length < 5) {
 			sourceUrls = [...sourceUrls, ''];
 			urlErrors = [...urlErrors, ''];
 		}
-	}
+	};
 
-	function removeUrl(index: number) {
+	const removeUrl = (index: number) => {
 		sourceUrls = sourceUrls.filter((_, i) => i !== index);
 		urlErrors = urlErrors.filter((_, i) => i !== index);
-	}
+	};
 
-	function validate(): boolean {
+	const validate = (): boolean => {
 		let valid = true;
 
 		if (!title.trim()) {
@@ -54,22 +54,22 @@
 			return '';
 		});
 		urlErrors = newUrlErrors;
-		if (newUrlErrors.some((e) => e)) valid = false;
+		if (newUrlErrors.some((urlError) => urlError)) valid = false;
 
 		return valid;
-	}
+	};
 
-	function handleSubmit() {
+	const handleSubmit = () => {
 		if (validate()) {
-			const filteredUrls = sourceUrls.filter((u) => u.trim());
+			const filteredUrls = sourceUrls.filter((url) => url.trim());
 			onSubmit(title.trim(), description, filteredUrls);
 		}
-	}
+	};
 </script>
 
 <form
-	onsubmit={(e) => {
-		e.preventDefault();
+	onsubmit={(event) => {
+		event.preventDefault();
 		handleSubmit();
 	}}
 >
@@ -78,7 +78,7 @@
 		<Input
 			id="topic-title"
 			value={title}
-			oninput={(v) => (title = String(v))}
+			oninput={(value) => (title = String(value))}
 			placeholder="討論テーマのタイトルを入力してください（500文字以内）"
 			fullWidth
 		/>
@@ -92,7 +92,7 @@
 		<Textarea
 			id="topic-description"
 			value={description}
-			oninput={(v) => (description = v)}
+			oninput={(value) => (description = value)}
 			placeholder="テーマの背景・文脈を入力してください（任意・2000文字以内）"
 			rows={4}
 			fullWidth
@@ -108,7 +108,7 @@
 			<div>
 				<Input
 					value={sourceUrls[i]}
-					oninput={(v) => (sourceUrls[i] = String(v))}
+					oninput={(value) => (sourceUrls[i] = String(value))}
 					placeholder="https://"
 					fullWidth
 				/>

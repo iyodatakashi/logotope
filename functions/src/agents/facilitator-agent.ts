@@ -155,13 +155,13 @@ export const evaluateTopicDrift = async (
 	options?: { chainLength?: number; unheardRelevant?: string[] }
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	const speakCountInfo = personas
-		.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
+		.map((persona) => `${persona.name}: ${speakCount.get(persona.id) ?? 0}回`)
 		.join(', ');
 
 	const focus = activeFocus ?? currentChapter?.title;
 	const hasPoints = (untouchedDiscussionPoints?.length ?? 0) > 0;
 	const pointsContext = hasPoints
-		? `\n\n【未提示論点リスト（インデックス順）】\n${untouchedDiscussionPoints!.map((p, i) => `${i}. ${p}`).join('\n')}\n\n【三択判断】会話の流れを踏まえ、次のいずれかを選んでください:\n1. 会話がいまの論点から明確に逸脱している（別の話題に流れている）→ 引き戻す（content・targetPersonaId を指定。selectedDiscussionPointIndex は省略）\n2. いまの論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）→ 未提示論点を1件投入して議論を前進させる（content・targetPersonaId・selectedDiscussionPointIndex を指定）。投入すべき未提示論点が無ければいまの論点へ引き戻し・振り直す\n3. まだ新しい視点・反論・具体例が出ており、本題に沿って議論が深まっている最中 → 介入しない（content・targetPersonaId を省略）\n\n論点を投入する場合は selectedDiscussionPointIndex に上記リストのインデックスを指定してください。\n\n【選択肢2を選ぶ場合の必須要件】content は、selectedDiscussionPointIndex で選んだ未提示論点そのものに正面から切り込む問いにしてください。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」と名前で呼びかけ、その論点を主題として話を完全に切り替えること。直前までの会話の流れ（いまの論点）を引きずった問いや、新論点の語を端々に混ぜつつ実質は流れの続きになっている中途半端な問いにしないでください。\n\n【関連参加者の指定】選択肢2で論点を投入する場合は、その新しい論点について特に立場を聞くべき参加者のIDを relevantPersonaIds に列挙してください。全員を一律に含めず、その論点に関係する参加者に絞ってください。\n\n【混ぜない】選択肢2と3を混同しないこと。直前の流れをもう少し深掘りしたい・流れが生きていると感じるなら選択肢3（介入しない）を選んでください。論点を切り替えるなら選択肢2を選び、その新論点に話を全面的に移してください。「端は新論点・本題は流れの続き」という折衷は禁止です。`
+		? `\n\n【未提示論点リスト（インデックス順）】\n${untouchedDiscussionPoints!.map((point, i) => `${i}. ${point}`).join('\n')}\n\n【三択判断】会話の流れを踏まえ、次のいずれかを選んでください:\n1. 会話がいまの論点から明確に逸脱している（別の話題に流れている）→ 引き戻す（content・targetPersonaId を指定。selectedDiscussionPointIndex は省略）\n2. いまの論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）→ 未提示論点を1件投入して議論を前進させる（content・targetPersonaId・selectedDiscussionPointIndex を指定）。投入すべき未提示論点が無ければいまの論点へ引き戻し・振り直す\n3. まだ新しい視点・反論・具体例が出ており、本題に沿って議論が深まっている最中 → 介入しない（content・targetPersonaId を省略）\n\n論点を投入する場合は selectedDiscussionPointIndex に上記リストのインデックスを指定してください。\n\n【選択肢2を選ぶ場合の必須要件】content は、selectedDiscussionPointIndex で選んだ未提示論点そのものに正面から切り込む問いにしてください。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」と名前で呼びかけ、その論点を主題として話を完全に切り替えること。直前までの会話の流れ（いまの論点）を引きずった問いや、新論点の語を端々に混ぜつつ実質は流れの続きになっている中途半端な問いにしないでください。\n\n【関連参加者の指定】選択肢2で論点を投入する場合は、その新しい論点について特に立場を聞くべき参加者のIDを relevantPersonaIds に列挙してください。全員を一律に含めず、その論点に関係する参加者に絞ってください。\n\n【混ぜない】選択肢2と3を混同しないこと。直前の流れをもう少し深掘りしたい・流れが生きていると感じるなら選択肢3（介入しない）を選んでください。論点を切り替えるなら選択肢2を選び、その新論点に話を全面的に移してください。「端は新論点・本題は流れの続き」という折衷は禁止です。`
 		: '';
 
 	const fallbackCriteria = hasPoints
@@ -194,13 +194,13 @@ export const evaluateStallIntervention = async (
 	options?: { unheardRelevant?: string[] }
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	const speakCountInfo = personas
-		.map((p) => `${p.name}: ${speakCount.get(p.id) ?? 0}回`)
+		.map((persona) => `${persona.name}: ${speakCount.get(persona.id) ?? 0}回`)
 		.join(', ');
 
 	const focus = activeFocus ?? currentChapter?.title;
 	const hasPoints = (untouchedDiscussionPoints?.length ?? 0) > 0;
 	const pointsContext = hasPoints
-		? `\n\n【未提示論点リスト（インデックス順）】\n${untouchedDiscussionPoints!.map((p, i) => `${i}. ${p}`).join('\n')}\n\n流れが有効な方向に進んでいればそれを優先してください。流れが落ち着いていれば未提示論点から最適な1件を投入し、selectedDiscussionPointIndex に該当インデックスを指定してください。1介入1論点です。\n\n論点を投入する場合は、その新しい論点について特に立場を聞くべき参加者のIDを relevantPersonaIds に列挙してください。全員を一律に含めず、その論点に関係する参加者に絞ってください。`
+		? `\n\n【未提示論点リスト（インデックス順）】\n${untouchedDiscussionPoints!.map((point, i) => `${i}. ${point}`).join('\n')}\n\n流れが有効な方向に進んでいればそれを優先してください。流れが落ち着いていれば未提示論点から最適な1件を投入し、selectedDiscussionPointIndex に該当インデックスを指定してください。1介入1論点です。\n\n論点を投入する場合は、その新しい論点について特に立場を聞くべき参加者のIDを relevantPersonaIds に列挙してください。全員を一律に含めず、その論点に関係する参加者に絞ってください。`
 		: '';
 
 	const coverageSection = buildCoverageSection(options?.unheardRelevant ?? []);
@@ -250,7 +250,7 @@ export const evaluateDiscussionPointCoverage = async (
 	personas: ReadonlyArray<Persona> = []
 ): Promise<Result<number[], PipelineError>> => {
 	try {
-		const pointsList = incompletePoints.map((p, i) => `${i}. ${p}`).join('\n');
+		const pointsList = incompletePoints.map((point, i) => `${i}. ${point}`).join('\n');
 
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),

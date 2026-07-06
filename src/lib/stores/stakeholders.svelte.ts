@@ -15,7 +15,10 @@ export const createStakeholdersStore = (topicId: string) => {
 			const data = snap.exists()
 				? (snap.data() as { stakeholders: StakeholderForFirestore[] })
 				: null;
-			stakeholders = (data?.stakeholders ?? []).map((s, i) => ({ ...s, id: String(i) }));
+			stakeholders = (data?.stakeholders ?? []).map((stakeholder, i) => ({
+				...stakeholder,
+				id: String(i)
+			}));
 			isLoaded = true;
 		});
 	};

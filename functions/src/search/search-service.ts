@@ -12,7 +12,9 @@ export const executeSearch = async (query: string): Promise<Result<string, strin
 			searchDepth: 'basic'
 		});
 
-		const content = response.results.map((r) => `【${r.title}】\n${r.content}`).join('\n\n');
+		const content = response.results
+			.map((result) => `【${result.title}】\n${result.content}`)
+			.join('\n\n');
 
 		console.log('[search] query succeeded:', query, `(${response.results.length} results)`);
 		return { ok: true, value: content || '（検索結果なし）' };

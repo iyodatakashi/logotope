@@ -10,21 +10,23 @@ export const createChaptersStore = (topicId: string) => {
 	let currentChapterId = $state<string | null>(null);
 	let isLoaded = $state(false);
 	let unsubscribe: (() => void) | null = null;
-	const turns = $derived(chapters.flatMap((c) => c.turns));
-	const currentChapter = $derived(chapters.find((c) => c.id === currentChapterId) ?? null);
+	const turns = $derived(chapters.flatMap((chapter) => chapter.turns));
+	const currentChapter = $derived(
+		chapters.find((chapter) => chapter.id === currentChapterId) ?? null
+	);
 
 	const start = () => {
 		const q = query(collection(db, 'topics', topicId, 'chapters'), orderBy('chapterIndex'));
 		unsubscribe = onSnapshot(q, (snap) => {
-			chapters = snap.docs.map((d) => {
-				const raw = d.data() as ChapterForFirestore;
-				const turns: Turn[] = raw.turns.map((t: TurnForFirestore) => ({
-					...t,
-					createdAt: t.createdAt.toDate()
+			chapters = snap.docs.map((doc) => {
+				const raw = doc.data() as ChapterForFirestore;
+				const turns: Turn[] = raw.turns.map((turn: TurnForFirestore) => ({
+					...turn,
+					createdAt: turn.createdAt.toDate()
 				}));
-				return { id: d.id, ...raw, turns };
+				return { id: doc.id, ...raw, turns };
 			});
-			currentChapterId = chapters.find((c) => c.status === 'running')?.id ?? null;
+			currentChapterId = chapters.find((chapter) => chapter.status === 'running')?.id ?? null;
 			isLoaded = true;
 		});
 	};

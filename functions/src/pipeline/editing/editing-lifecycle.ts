@@ -65,7 +65,8 @@ export const finalizeEditingRun = async (
 	runId: string
 ): Promise<'generated' | 'stopped' | 'noop'> => {
 	const chapters = await readEditedChapters(topicId);
-	const allCompleted = chapters.length > 0 && chapters.every((c) => c.status === 'completed');
+	const allCompleted =
+		chapters.length > 0 && chapters.every((chapter) => chapter.status === 'completed');
 	const nextStatus: 'generated' | 'stopped' = allCompleted ? 'generated' : 'stopped';
 
 	const ref = db().doc(`topics/${topicId}`);

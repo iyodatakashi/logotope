@@ -337,7 +337,10 @@ const buildTopicContextSection = (topicContext?: TopicContext): string => {
 	}
 	if (topicContext.sourceContents?.length) {
 		const sources = topicContext.sourceContents
-			.map((c, i) => `--- 参考資料 ${i + 1} ---\n${c.slice(0, MAX_SOURCE_CHARS)}`)
+			.map(
+				(sourceContent, i) =>
+					`--- 参考資料 ${i + 1} ---\n${sourceContent.slice(0, MAX_SOURCE_CHARS)}`
+			)
 			.join('\n\n');
 		parts.push(`\n【参考資料】\n${sources}`);
 	}

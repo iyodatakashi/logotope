@@ -22,7 +22,7 @@ const persistDetectedAwareness = async (
 ): Promise<void> => {
 	for (const engagement of engagements) {
 		if (!engagement.awareness) continue;
-		const persona = personas.find((p) => p.id === engagement.personaId);
+		const persona = personas.find((candidate) => candidate.id === engagement.personaId);
 		if (!persona) continue;
 		try {
 			await appendAwareness({ topicId, persona, turnId, awareness: engagement.awareness });
@@ -112,28 +112,32 @@ export const evaluateEngagements = async ({
 	chapterTurns: ReadonlyArray<DebateTurn>;
 }): Promise<Engagement[]> => {
 	// 直前話者は連続発言させないため評価対象から外す（必要なら後で個別フォールバック評価する）
-	const assessTargets = personas.filter((p) => p.id !== state.lastSpeakerId);
+	const assessTargets = personas.filter((persona) => persona.id !== state.lastSpeakerId);
 	const turnId = chapterTurns[chapterTurns.length - 1]?.id ?? '';
 	// 同一ターン状態（同一 turnId）に評価が既に永続されていれば LLM 再評価せず再利用する（2.2）。
 	// 未永続（新規ターン状態）・永続値が不十分なペルソナは従来どおり評価する。線形進行では毎ターン
 	// turnId が変わるため通常は全評価。ステップ再実行・リトライで同一 turnId を再処理する場合のみ省く。
 	const engagements = await Promise.all(
-		assessTargets.map(async (p) => {
-			const reused = turnId ? await readReusableEngagement(topicId, chapterId, p.id, turnId) : null;
+		assessTargets.map(async (persona) => {
+			const reused = turnId
+				? await readReusableEngagement(topicId, chapterId, persona.id, turnId)
+				: null;
 			if (reused) return reused;
-			const otherPersonaNames = personas.filter((q) => q.id !== p.id).map((q) => q.name);
-			return evaluateEngagement(p, [...chapterTurns], otherPersonaNames, personas);
+			const otherPersonaNames = personas
+				.filter((otherPersona) => otherPersona.id !== persona.id)
+				.map((otherPersona) => otherPersona.name);
+			return evaluateEngagement(persona, [...chapterTurns], otherPersonaNames, personas);
 		})
 	);
 	await saveEngagements({
 		topicId,
 		chapterId,
 		turnId,
-		engagements: engagements.map((a) => ({
-			personaId: a.personaId,
-			score: a.score,
-			mode: a.mode,
-			intentSummary: a.intentSummary
+		engagements: engagements.map((engagement) => ({
+			personaId: engagement.personaId,
+			score: engagement.score,
+			mode: engagement.mode,
+			intentSummary: engagement.intentSummary
 		}))
 	});
 	// 傾聴で検出した気づきを話者選択の前に永続する（同一ターンの発言に反映させる・3.1/3.3）
@@ -156,12 +160,14 @@ export const evaluateEngagementWithFallback = async ({
 	engagements?: Engagement[];
 }): Promise<Engagement> => {
 	// 一括評価の結果に含まれていればそれを使う（再評価を避ける。気づきは evaluateEngagements で永続済み）
-	const fromList = engagements.find((a) => a.personaId === personaId);
+	const fromList = engagements.find((engagement) => engagement.personaId === personaId);
 	if (fromList) return fromList;
-	const persona = personas.find((p) => p.id === personaId);
+	const persona = personas.find((candidate) => candidate.id === personaId);
 	// ペルソナが見つからない異常系は中間値 score=2 を返して処理を継続させる
 	if (!persona) return { personaId, mode: 'opinion' as const, score: 2 };
-	const otherPersonaNames = personas.filter((p) => p.id !== personaId).map((p) => p.name);
+	const otherPersonaNames = personas
+		.filter((otherPersona) => otherPersona.id !== personaId)
+		.map((otherPersona) => otherPersona.name);
 	const engagement = await evaluateEngagement(
 		persona,
 		[...chapterTurns],

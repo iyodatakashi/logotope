@@ -15,7 +15,8 @@ export const confirmInterviewsGeneratedIfAllComplete = async (
 	const snap = await db().collection(`topics/${topicId}/personas`).get();
 	if (snap.docs.length === 0) return false;
 	const allCompleted = snap.docs.every(
-		(d) => (d.data() as { interview?: { status?: string } }).interview?.status === 'completed'
+		(personaDoc) =>
+			(personaDoc.data() as { interview?: { status?: string } }).interview?.status === 'completed'
 	);
 	if (!allCompleted) return false;
 	return confirmPhaseGenerated(topicId, 'interviews');

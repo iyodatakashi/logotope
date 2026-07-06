@@ -51,16 +51,4 @@ export type TopicInput = Omit<
 	publishedAt?: Date;
 };
 
-export const topicFromFirestore = (doc: TopicForFirestore): TopicInput => ({
-	...doc,
-	fetchedSourceContents: doc.fetchedSourceContents?.map((s) => ({
-		...s,
-		fetchedAt: s.fetchedAt.toDate()
-	})),
-	sourceContentsFetchedAt: doc.sourceContentsFetchedAt?.toDate(),
-	createdAt: doc.createdAt.toDate(),
-	updatedAt: doc.updatedAt.toDate(),
-	publishedAt: doc.publishedAt?.toDate()
-});
-
 export type EngagementLevel = 'high' | 'medium' | 'low';

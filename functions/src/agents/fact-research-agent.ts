@@ -8,6 +8,7 @@ import {
 	type GroundingMetadata,
 	type SearchResult
 } from '../search/grounding.js';
+import { formatJapaneseDate } from '../utils/prompt-formatters.js';
 import type { FactBase, FactItem } from '../types/topic.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 
@@ -22,14 +23,11 @@ const factSchema = z.object({
 
 const structuringSchema = z.object({ facts: z.array(factSchema) });
 
-const formatDate = (now: Date): string =>
-	`${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
-
 // Phase1 grounding: 現在日付基準でテーマの客観的事実を収集する（google_search）。
 // 後段(Phase2)は本レポートに書かれた事実しか構造化できない（捏造禁止）ため、ここで
 // 具体を詰めた網羅的なレポートを長く書くこと自体が事実基盤の情報量の天井になる。
 const buildGroundingPrompt = (title: string, now: Date): string =>
-	`本日は${formatDate(now)}です。次のテーマについて「実際に何が起きたか／現在の状況」を検索し、確認できた客観的事実を可能な限り多く・具体的に列挙した網羅レポートを作成してください。
+	`本日は${formatJapaneseDate(now)}です。次のテーマについて「実際に何が起きたか／現在の状況」を検索し、確認できた客観的事実を可能な限り多く・具体的に列挙した網羅レポートを作成してください。
 
 【テーマ】${title}
 
@@ -39,7 +37,7 @@ const buildGroundingPrompt = (title: string, now: Date): string =>
 - テーマの主要な出来事・論点・関係主体を網羅するよう、複数の側面から幅広く情報を集める（多面的なテーマでは単一の側面に偏らない）
 - 得られた具体的情報を恣意的に少数へ切り詰めず、確認できたものは幅広く収集する
 - 主観的な立場・信念・評価・是非の判断は含めない（客観的事実のみ）
-- 本日（${formatDate(now)}）を基準に最新の状況を確認する
+- 本日（${formatJapaneseDate(now)}）を基準に最新の状況を確認する
 - テーマが時事的・具体的な出来事を含まない場合は、確たる具体的事実が無いと判断してよい（事実を捏造しない）
 
 【レポートの書式（重要）】
@@ -56,9 +54,9 @@ const buildStructuringPrompt = (
 	numberedSources: SearchResult[]
 ): string => {
 	const sourceList = numberedSources.length
-		? numberedSources.map((s, i) => `${i + 1}. ${s.url}`).join('\n')
+		? numberedSources.map((source, i) => `${i + 1}. ${source.url}`).join('\n')
 		: '（出典なし）';
-	return `以下は「${title}」について本日（${formatDate(now)}）基準で収集した客観的事実のレポートです。レポートと出典リストをもとに、検証可能な具体的事実を構造化してください。
+	return `以下は「${title}」について本日（${formatJapaneseDate(now)}）基準で収集した客観的事実のレポートです。レポートと出典リストをもとに、検証可能な具体的事実を構造化してください。
 
 【収集レポート】
 ${groundingText}
@@ -135,18 +133,18 @@ export const runFactResearch = async (
 		});
 
 		const facts: FactItem[] = structuring.object.facts
-			.filter((f) => f.statement.trim().length > 0)
-			.map((f) => {
-				const sources = f.sourceIndices
-					.map((idx) => numberedSources[idx - 1])
-					.filter((s): s is SearchResult => !!s);
-				return { statement: f.statement, sources };
+			.filter((fact) => fact.statement.trim().length > 0)
+			.map((fact) => {
+				const sources = fact.sourceIndices
+					.map((sourceIndex) => numberedSources[sourceIndex - 1])
+					.filter((source): source is SearchResult => !!source);
+				return { statement: fact.statement, sources };
 			});
 
 		// 情報量の天井診断: Phase1 レポート長・出典数に対し、Phase2 が何件・平均何文字の事実へ
 		// 蒸留したか。事実が薄い場合、Phase1 レポートが短い（天井低）のか Phase2 が圧縮したのかを切り分ける。
 		const avgLen = facts.length
-			? Math.round(facts.reduce((sum, f) => sum + f.statement.length, 0) / facts.length)
+			? Math.round(facts.reduce((sum, fact) => sum + fact.statement.length, 0) / facts.length)
 			: 0;
 		console.info(
 			`[runFactResearch] groundingChars=${grounding.text.length} sources=${numberedSources.length} facts=${facts.length} avgStatementChars=${avgLen}`

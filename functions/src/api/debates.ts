@@ -72,8 +72,9 @@ export const restartDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 		if (!topic) throw new HttpsError('not-found', 'Topic not found');
 
 		const chapters = await getChaptersByTopicId(topicId);
-		const runningChapter = chapters.find((c) => c.status === 'running');
-		const resumeChapter = runningChapter ?? chapters.find((c) => c.status === 'pending');
+		const runningChapter = chapters.find((chapter) => chapter.status === 'running');
+		const resumeChapter =
+			runningChapter ?? chapters.find((chapter) => chapter.status === 'pending');
 		if (!resumeChapter) throw new HttpsError('not-found', 'No chapter to restart');
 
 		const runId = await restartDebateFromChapter(topicId, resumeChapter.id);

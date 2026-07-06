@@ -20,7 +20,7 @@ const buildTopicContextSection = (topicContext?: TopicContext): string => {
 	}
 	if (topicContext.sourceContents?.length) {
 		const sources = topicContext.sourceContents
-			.map((c, i) => `--- 参考資料 ${i + 1} ---\n${c}`)
+			.map((sourceContent, i) => `--- 参考資料 ${i + 1} ---\n${sourceContent}`)
 			.join('\n\n');
 		parts.push(`\n\n【参考資料】\n${sources}`);
 	}
@@ -79,7 +79,7 @@ const scoreIssues = async (
 		]
 	});
 	return issues.map((issue, i) => {
-		const scored = result.object.scoredIssues.find((s) => s.index === i);
+		const scored = result.object.scoredIssues.find((scoredIssue) => scoredIssue.index === i);
 		return {
 			...issue,
 			score: scored?.score ?? 0,
@@ -156,7 +156,7 @@ const groupIssues = async (
 				role: 'user',
 				content: buildGroupingPrompt(
 					topicTitle,
-					selectedWithGlobalIdx.map((x) => x.issue),
+					selectedWithGlobalIdx.map((entry) => entry.issue),
 					topicContext
 				)
 			}
@@ -166,7 +166,7 @@ const groupIssues = async (
 	const groups = result.object.issueGroups;
 
 	if (groups.length === 0) {
-		return [{ issueIndexes: selectedWithGlobalIdx.map((x) => x.globalIdx) }];
+		return [{ issueIndexes: selectedWithGlobalIdx.map((entry) => entry.globalIdx) }];
 	}
 
 	const assignedLocalIdxs = new Set<number>();
@@ -181,7 +181,7 @@ const groupIssues = async (
 
 	const unassigned = selectedWithGlobalIdx
 		.filter((_, localIdx) => !assignedLocalIdxs.has(localIdx))
-		.map((x) => x.globalIdx);
+		.map((entry) => entry.globalIdx);
 
 	if (unassigned.length > 0) {
 		issueGroups[issueGroups.length - 1].issueIndexes.push(...unassigned);
@@ -232,7 +232,7 @@ const buildChapters = async (
 
 	return issueGroups.map((group, i) => {
 		const authored = result.object.chapters[i];
-		const fallbackPoints = group.issueIndexes.map((idx) => issues[idx]?.text ?? '');
+		const fallbackPoints = group.issueIndexes.map((issueIndex) => issues[issueIndex]?.text ?? '');
 		return {
 			id: nanoid(),
 			title: authored?.title ?? topicTitle,
@@ -250,7 +250,9 @@ const buildBuildingPrompt = (
 	const contextSection = buildTopicContextSection(topicContext);
 	const groupList = issueGroups
 		.map((group, i) => {
-			const issueTexts = group.issueIndexes.map((idx) => `- ${issues[idx]?.text ?? ''}`).join('\n');
+			const issueTexts = group.issueIndexes
+				.map((issueIndex) => `- ${issues[issueIndex]?.text ?? ''}`)
+				.join('\n');
 			return `## グループ ${i + 1}\n${issueTexts}`;
 		})
 		.join('\n\n');
@@ -277,14 +279,14 @@ export const sortChaptersByGeneralIssueCount = (
 	const indexed = chapters.map((chapter, i) => ({ chapter, groupIdx: i }));
 	indexed.sort((a, b) => {
 		const countA = issueGroups[a.groupIdx].issueIndexes.filter(
-			(idx) => issues[idx]?.source === 'general'
+			(issueIndex) => issues[issueIndex]?.source === 'general'
 		).length;
 		const countB = issueGroups[b.groupIdx].issueIndexes.filter(
-			(idx) => issues[idx]?.source === 'general'
+			(issueIndex) => issues[issueIndex]?.source === 'general'
 		).length;
 		return countB - countA;
 	});
-	return indexed.map((x) => x.chapter);
+	return indexed.map((entry) => entry.chapter);
 };
 
 export type ChapterProgress =

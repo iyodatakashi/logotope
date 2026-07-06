@@ -29,9 +29,9 @@ export const createEngagementStore = (topicId: string, chapterId: string) => {
 	const start = () => {
 		const ref = collection(db, 'topics', topicId, 'chapters', chapterId, 'engagements');
 		unsubscribe = onSnapshot(ref, (snap) => {
-			const docs = snap.docs.map((d) => ({
-				personaId: d.id,
-				history: (d.data().history ?? {}) as Record<string, EngagementHistoryEntry>
+			const docs = snap.docs.map((doc) => ({
+				personaId: doc.id,
+				history: (doc.data().history ?? {}) as Record<string, EngagementHistoryEntry>
 			}));
 			engagementsMap = buildEngagementsMap(docs);
 		});

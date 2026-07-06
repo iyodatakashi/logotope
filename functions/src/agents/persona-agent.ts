@@ -245,7 +245,7 @@ export const generateTurn = async (
 		const lastTurn = recentTurns[recentTurns.length - 1];
 		const lastSpeakerName = lastTurn
 			? lastTurn.personaId
-				? (personas.find((p) => p.id === lastTurn.personaId)?.name ??
+				? (personas.find((persona) => persona.id === lastTurn.personaId)?.name ??
 					`Persona(${lastTurn.personaId})`)
 				: 'ファシリテーター'
 			: undefined;
@@ -258,7 +258,7 @@ export const generateTurn = async (
 		const otherPersonas = context.otherPersonas ?? [];
 		const personaList =
 			otherPersonas.length > 0
-				? `\n【参加者一覧（targetPersonaId に使用するID）】\n${otherPersonas.map((p) => `- ${p.name}: ${p.id}`).join('\n')}`
+				? `\n【参加者一覧（targetPersonaId に使用するID）】\n${otherPersonas.map((persona) => `- ${persona.name}: ${persona.id}`).join('\n')}`
 				: '';
 		const excludeNote = lastSpeakerName ? `（直前の発言者${lastSpeakerName}は除く）` : '';
 		const targetingGuide = `まず自分が何を言いたいか・何を聞きたいかを決める。指名（targetPersonaId の指定）は、特定の相手の発言に直接反論・確認する明確な必要があるときだけにとどめ、それ以外は場全体への発言として targetPersonaId を指定しない（既定は未指定）。指定する場合のみ、その内容に立場・職業・経験から最も関係する参加者${excludeNote}を選ぶ。${personaList}`;
@@ -332,12 +332,14 @@ export const generateTurn = async (
 			};
 		}
 
-		const allToolCalls = fullResult.steps.flatMap((s: { toolCalls: unknown[] }) => s.toolCalls);
+		const allToolCalls = fullResult.steps.flatMap(
+			(step: { toolCalls: unknown[] }) => step.toolCalls
+		);
 		const searchCalls = allToolCalls.filter(
-			(c: unknown) => (c as { toolName: string }).toolName === 'web_search'
+			(toolCall: unknown) => (toolCall as { toolName: string }).toolName === 'web_search'
 		);
 		const searchQueries = searchCalls.map(
-			(c: unknown) => (c as { input: { query: string } }).input.query
+			(toolCall: unknown) => (toolCall as { input: { query: string } }).input.query
 		);
 
 		const { content, targetPersonaId } = fullResult.output as TurnOutput;
@@ -391,7 +393,7 @@ export const evaluateEngagement = async (
 						.map((turn, index) => `[${index + 1}] ${formatTurns([turn], personas)}`)
 						.join('\n')
 				: formatTurns(recentTurns, personas);
-		const ownTurns = turns.filter((t) => t.personaId === persona.id).slice(-5);
+		const ownTurns = turns.filter((turn) => turn.personaId === persona.id).slice(-5);
 		const ownTurnsSection =
 			ownTurns.length > 0
 				? `\nあなた（${persona.name}）のこれまでの発言:\n${formatTurns(ownTurns, personas)}\n`

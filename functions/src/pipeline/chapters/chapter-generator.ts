@@ -11,7 +11,7 @@ export const planChapters = async (topicId: string): Promise<void> => {
 	const topic = await getTopicById(topicId);
 	if (!topic) throw new Error(`Topic not found: ${topicId}`);
 
-	const personas = (await getPersonasByTopicId(topicId)).filter((p) => p.approved);
+	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.approved);
 	// BE 権威経路で共有コンテキスト（テーマ説明・参考資料・事実基盤）を合成する。
 	const topicContext = await getTopicContext(topicId);
 

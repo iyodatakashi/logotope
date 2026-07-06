@@ -27,7 +27,7 @@ export const expireQueuedIntents = async ({
 	const writes: Array<{ personaId: string; alive: QueuedIntent[] }> = [];
 	for (const [personaId, items] of state.queuedIntents.entries()) {
 		const alive = items.filter((item) => {
-			const triggerIdx = state.turns.findIndex((t) => t.id === item.triggerTurnId);
+			const triggerIdx = state.turns.findIndex((turn) => turn.id === item.triggerTurnId);
 			if (triggerIdx === -1) return false;
 			return state.turns.length - triggerIdx <= INTENT_EXPIRY_TURNS;
 		});
@@ -66,12 +66,17 @@ export const addQueuedIntents = async ({
 }): Promise<void> => {
 	// 今回の話者本人は除外（これから発言するので積む必要がない）。閾値超えの意欲者だけをキューに積む
 	const updates = engagements
-		.filter((e) => shouldQueue(e) && e.personaId !== speakerSelection.personaId)
-		.map((e) => {
-			const existing = state.queuedIntents.get(e.personaId) ?? [];
-			const updated = [...existing, { triggerTurnId, intentSummary: e.intentSummary ?? '' }];
-			state.queuedIntents.set(e.personaId, updated);
-			return { personaId: e.personaId, updated };
+		.filter(
+			(engagement) => shouldQueue(engagement) && engagement.personaId !== speakerSelection.personaId
+		)
+		.map((engagement) => {
+			const existing = state.queuedIntents.get(engagement.personaId) ?? [];
+			const updated = [
+				...existing,
+				{ triggerTurnId, intentSummary: engagement.intentSummary ?? '' }
+			];
+			state.queuedIntents.set(engagement.personaId, updated);
+			return { personaId: engagement.personaId, updated };
 		});
 	await Promise.all(
 		updates.map(({ personaId, updated }) =>

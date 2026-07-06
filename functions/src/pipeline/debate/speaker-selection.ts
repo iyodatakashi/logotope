@@ -18,11 +18,11 @@ export const shouldQueue = (engagement: { score: number }): boolean =>
 
 /** 集合に自発発言すべきペルソナが1人でもいるか（>= SPEAK_THRESHOLD_SCORE）。話者選択ゲートで使用 */
 export const shouldSpeak = (engagements: ReadonlyArray<{ score: number }>): boolean =>
-	engagements.some((a) => a.score >= SPEAK_THRESHOLD_SCORE);
+	engagements.some((engagement) => engagement.score >= SPEAK_THRESHOLD_SCORE);
 
 /** 高意欲者（>= STALL_INTERVENTION_THRESHOLD_SCORE）が1人でもいるか。スタール介入ゲートで使用 */
 export const hasHighEngagement = (engagements: ReadonlyArray<{ score: number }>): boolean =>
-	engagements.some((a) => a.score >= STALL_INTERVENTION_THRESHOLD_SCORE);
+	engagements.some((engagement) => engagement.score >= STALL_INTERVENTION_THRESHOLD_SCORE);
 
 /** 指名があればそれを優先し、なければキュー > スコアで話者を決定する */
 export const selectSpeaker = ({
@@ -45,7 +45,7 @@ export const selectSpeaker = ({
 					: 'targeted_by_persona'
 		};
 	}
-	const personaIds = personas.map((p) => p.id);
+	const personaIds = personas.map((persona) => persona.id);
 	return selectSpeakerByEngagement(
 		engagements,
 		state.queuedIntents,
@@ -69,9 +69,11 @@ const selectSpeakerByEngagement = (
 	lastSpeakerId?: string
 ): SpeakerSelection => {
 	// 現在この章に参加しているペルソナの評価だけに絞る
-	const filteredAssessments = engagements.filter((a) => personaIds.includes(a.personaId));
+	const filteredAssessments = engagements.filter((engagement) =>
+		personaIds.includes(engagement.personaId)
+	);
 
-	const getSilence = (a: Engagement) => silenceMap.get(a.personaId) ?? 0;
+	const getSilence = (engagement: Engagement) => silenceMap.get(engagement.personaId) ?? 0;
 	// スコア降順 → 沈黙が長い順 → モード優先度の順で並べる比較関数
 	const byScoreThenSilenceThenMode = (a: Engagement, b: Engagement) => {
 		if (b.score !== a.score) return b.score - a.score;
@@ -91,8 +93,8 @@ const selectSpeakerByEngagement = (
 			// このペルソナのキュー内で最も古いトリガーターン位置を求める
 			const oldest = Math.min(
 				...items.map((item) => {
-					const idx = turns.findIndex((t) => t.id === item.triggerTurnId);
-					return idx === -1 ? Infinity : idx;
+					const turnIndex = turns.findIndex((turn) => turn.id === item.triggerTurnId);
+					return turnIndex === -1 ? Infinity : turnIndex;
 				})
 			);
 			if (oldest < oldestIdx) {
@@ -103,8 +105,8 @@ const selectSpeakerByEngagement = (
 		if (oldestPersonaId) {
 			// 選ばれた人のキューを古い順に並べ、先頭の意図サマリを発言の手がかりとして渡す
 			const items = [...(queuedIntents.get(oldestPersonaId) ?? [])].sort((a, b) => {
-				const idxA = turns.findIndex((t) => t.id === a.triggerTurnId);
-				const idxB = turns.findIndex((t) => t.id === b.triggerTurnId);
+				const idxA = turns.findIndex((turn) => turn.id === a.triggerTurnId);
+				const idxB = turns.findIndex((turn) => turn.id === b.triggerTurnId);
 				return idxA - idxB;
 			});
 			return {
@@ -126,19 +128,19 @@ const selectSpeakerByEngagement = (
 	// 直前話者が「単独の」最高スコアのときだけ連続発言を許す（他に並ぶ者がいないため）
 	const isLastSpeakerUniqueTop =
 		sorted[0].personaId === lastSpeakerId &&
-		sorted.filter((a) => a.score === maxScore).length === 1;
+		sorted.filter((engagement) => engagement.score === maxScore).length === 1;
 
 	// 同率トップ（スコア・沈黙・モードがすべて同点）の候補プールを作り、その中から後段でランダム抽選する
 	const pool = (() => {
 		if (isLastSpeakerUniqueTop) return [sorted[0]];
-		const candidates = sorted.filter((a) => a.personaId !== lastSpeakerId);
+		const candidates = sorted.filter((engagement) => engagement.personaId !== lastSpeakerId);
 		const best = candidates[0];
 		if (!best) return [sorted[0]]; // 直前話者を除くと候補が消える場合は連続でも許容
 		return candidates.filter(
-			(a) =>
-				a.score === best.score &&
-				getSilence(a) === getSilence(best) &&
-				getModeRank(a.mode) === getModeRank(best.mode)
+			(engagement) =>
+				engagement.score === best.score &&
+				getSilence(engagement) === getSilence(best) &&
+				getModeRank(engagement.mode) === getModeRank(best.mode)
 		);
 	})();
 

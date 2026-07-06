@@ -22,7 +22,7 @@
 	// 現在URLのフェーズ（/admin/topics/[id] 直下のリダイレクトページでは null）
 	const pagePhase = $derived.by((): PhaseSlug | null => {
 		const slug = page.route.id?.split('/').at(-1);
-		return PHASE_DEFS.find((d) => d.key === slug)?.key ?? null;
+		return PHASE_DEFS.find((phaseDef) => phaseDef.key === slug)?.key ?? null;
 	});
 
 	// 未到達フェーズへのアクセスのみ現在フェーズへリダイレクト（到達済みフェーズの閲覧では遷移しない）

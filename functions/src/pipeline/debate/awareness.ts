@@ -46,7 +46,8 @@ export const rollbackAwarenessesForRemovedTurns = async (
 		const pdata = personaSnap.data() as { awarenesses?: Array<{ triggeredByTurnId?: string }> };
 		const awarenesses = pdata.awarenesses ?? [];
 		const filtered = awarenesses.filter(
-			(a) => !(a.triggeredByTurnId && removedTurnIds.has(a.triggeredByTurnId))
+			(awareness) =>
+				!(awareness.triggeredByTurnId && removedTurnIds.has(awareness.triggeredByTurnId))
 		);
 		if (filtered.length !== awarenesses.length) {
 			await personaSnap.ref.update({ awarenesses: filtered });

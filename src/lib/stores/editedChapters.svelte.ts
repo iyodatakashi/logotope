@@ -17,9 +17,9 @@ export const createEditedChaptersStore = (topicId: string) => {
 	const start = () => {
 		const q = query(collection(db, 'topics', topicId, 'editedChapters'), orderBy('chapterIndex'));
 		unsubscribe = onSnapshot(q, (snap) => {
-			editedChapters = snap.docs.map((d) => {
-				const raw = d.data() as EditedChapterForFirestore;
-				return { id: d.id, ...raw };
+			editedChapters = snap.docs.map((doc) => {
+				const raw = doc.data() as EditedChapterForFirestore;
+				return { id: doc.id, ...raw };
 			});
 			isLoaded = true;
 		});
@@ -31,11 +31,11 @@ export const createEditedChaptersStore = (topicId: string) => {
 	};
 
 	const getEditedChapter = (chapterId: string): EditedChapter | null =>
-		editedChapters.find((c) => c.id === chapterId) ?? null;
+		editedChapters.find((editedChapter) => editedChapter.id === chapterId) ?? null;
 
 	// 成果物が存在しない章は 'missing'（未実行・実行中）として原本にフォールバックさせる。
 	const getDisplayStatus = (chapterId: string): EditedChapterDisplayStatus =>
-		editedChapters.find((c) => c.id === chapterId)?.status ?? 'missing';
+		editedChapters.find((editedChapter) => editedChapter.id === chapterId)?.status ?? 'missing';
 
 	return {
 		get editedChapters() {

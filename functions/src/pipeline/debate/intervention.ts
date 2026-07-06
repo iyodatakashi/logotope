@@ -41,10 +41,11 @@ export const countConsecutivePersonaTargets = (chapterTurns: readonly DebateTurn
 /** 直近のファシリテーターターン以降のペルソナターン数を返す（論点ずれ介入クールダウン判定用） */
 export const countPersonaTurnsSinceFacilitator = (history: readonly DebateTurn[]): number => {
 	const lastFacilitatorIdx = history.reduce(
-		(max, t, i) => (t.speakerType === 'facilitator' ? i : max),
+		(max, turn, i) => (turn.speakerType === 'facilitator' ? i : max),
 		-1
 	);
-	return history.slice(lastFacilitatorIdx + 1).filter((t) => t.speakerType === 'persona').length;
+	return history.slice(lastFacilitatorIdx + 1).filter((turn) => turn.speakerType === 'persona')
+		.length;
 };
 
 /**
@@ -153,8 +154,8 @@ export const tryIntervention = async ({
 	// まだ提示していない（untouched）論点。介入時にファシリテーターへ投入候補として渡す。
 	// 提示済み（introduced）を除くことで論点の再提示を防ぎ、markIntroduced の index 空間とそろえる。
 	const untouchedDiscussionPoints = state.discussionPoints
-		.filter((p) => p.status === 'untouched')
-		.map((p) => p.point);
+		.filter((discussionPoint) => discussionPoint.status === 'untouched')
+		.map((discussionPoint) => discussionPoint.point);
 
 	// 立場カバレッジ・ゲート: 現アクティブ論点で未発言の関連参加者を導出する。残る間は前進を封じ引き込みを優先する。
 	// アクティブ論点が無い／関連参加者が空なら空配列となりゲートは不活性（従来挙動）。
@@ -162,7 +163,7 @@ export const tryIntervention = async ({
 	const unheardActive = unheardRelevantIds.length > 0;
 	// ファシリテーターには名前で渡す（プロンプトで指名させるため）。検証には ID を使う。
 	const unheardRelevantNames = unheardRelevantIds
-		.map((id) => personas.find((p) => p.id === id)?.name)
+		.map((id) => personas.find((persona) => persona.id === id)?.name)
 		.filter((name): name is string => name !== undefined);
 
 	// クールダウン（前回ファシリテーター発言から十分なペルソナ発言が経過）を満たすときだけ介入を評価する
@@ -225,7 +226,7 @@ export const tryIntervention = async ({
 	markIntroduced(
 		state,
 		intervention.selectedDiscussionPointIndex,
-		intervention.relevantPersonaIds?.filter((id) => personas.some((p) => p.id === id))
+		intervention.relevantPersonaIds?.filter((id) => personas.some((persona) => persona.id === id))
 	);
 
 	// 介入ターンの直前時点で意欲の高かった他ペルソナの意図をキューに積んでおく

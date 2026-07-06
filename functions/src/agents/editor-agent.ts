@@ -82,7 +82,7 @@ const formatTurnsWithIds = (
 	turns
 		.map((turn) => {
 			if (turn.personaId) {
-				const persona = personas.find((p) => p.id === turn.personaId);
+				const persona = personas.find((candidate) => candidate.id === turn.personaId);
 				const name = persona ? persona.name : `Persona(${turn.personaId})`;
 				const role = persona ? persona.specificRole || persona.stakeholderRole : '';
 				return `[ID:${turn.id}][${name}(${role})(personaId:${turn.personaId})]: ${turn.content}`;
@@ -139,7 +139,7 @@ export const editComments = async (
 	try {
 		const commentsSection = comments
 			.map((comment) => {
-				const persona = personas.find((p) => p.id === comment.personaId);
+				const persona = personas.find((candidate) => candidate.id === comment.personaId);
 				const name = persona ? persona.name : `Persona(${comment.personaId})`;
 				return `[ID:${comment.id}][${name}]: ${comment.content}`;
 			})

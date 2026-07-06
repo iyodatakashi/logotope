@@ -1,8 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
 	formatTurns,
 	formatFactBaseSection,
-	formatAwarenessSection
+	formatAwarenessSection,
+	formatJapaneseDate,
+	currentDateString
 } from '../../utils/prompt-formatters.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona, AwarenessForFirestore } from '../../types/persona.types.js';
@@ -116,6 +118,24 @@ describe('formatFactBaseSection', () => {
 		const section = formatFactBaseSection(factBase([{ statement: '事実のみ', sources: [] }]));
 		expect(section).toContain('事実のみ');
 		expect(section).not.toContain('出典:');
+	});
+});
+
+describe('formatJapaneseDate / currentDateString（dayjs 置換の出力同一・AC4.5）', () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('「YYYY年M月D日」形式で整形し、月・日に先頭ゼロを付けない（旧手書き実装と同一）', () => {
+		expect(formatJapaneseDate(new Date(2026, 6, 6))).toBe('2026年7月6日');
+		expect(formatJapaneseDate(new Date(2026, 0, 5))).toBe('2026年1月5日');
+		expect(formatJapaneseDate(new Date(2026, 11, 31))).toBe('2026年12月31日');
+	});
+
+	it('currentDateString は実行時点の日付を同形式で返す', () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date(2026, 6, 6, 10, 30));
+		expect(currentDateString()).toBe('2026年7月6日');
 	});
 });
 
