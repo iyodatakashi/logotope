@@ -24,3 +24,7 @@ vite.config.ts.timestamp-*
 # Playwright
 test-results
 .emulator-data
+
+# Firebase
+firebase-debug.log
+firestore-debug.log
