@@ -19,8 +19,6 @@ import {
 } from '../../agents/facilitator-agent.js';
 import { selectSpeaker } from './speaker-selection.js';
 import {
-	QUIET_STREAK_LIMIT,
-	EARLY_END_PROGRESS_RATIO,
 	CONTINUE_CHAPTER_THRESHOLD,
 	PERSONA_CHAIN_INTERVENTION_COOLDOWN
 } from '../../constants/debate.constants.js';
@@ -42,14 +40,15 @@ import {
 import { updateSpeakerStats } from './debate-state.js';
 import { persistPostDebateComments } from './post-debate-comments.js';
 import { generateFacilitatorTurn, generatePersonaTurn } from './turn.js';
-import { pipelineErrorMessage, validPersonaId } from './utils.js';
+import type { PersonaTurnCommit } from './turn.js';
+import { pipelineErrorMessage, validPersonaId, isEarlyEndCandidate } from './utils.js';
 import type {
 	SpeakerSelection,
 	DebateState,
 	DebateOptions,
 	Engagement
 } from '../../types/debate.types.js';
-import type { DebateTurn } from '../../types/turn.types.js';
+import type { DebateTurn, AppendResult } from '../../types/turn.types.js';
 import type { StepPayload, StepContext, TurnExecution } from '../../types/step.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Persona } from '../../types/persona.types.js';
@@ -57,11 +56,17 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 const db = () => getFirestore();
 
+/** executeTurn の結果。committed は quietStreak を、rejected は追記棄却理由を、skipped は停止を表す（R9.2） */
+type ExecuteTurnResult =
+	| { status: 'committed'; quietStreak: number }
+	| Extract<AppendResult, { status: 'rejected' }>
+	| { status: 'skipped' };
+
 /** 関連参加者IDを参加者リストの有効IDへフィルタする（記録前の前処理。未指定は undefined のまま） */
 const filterValidPersonaIds = (
 	ids: string[] | undefined,
 	personas: Persona[]
-): string[] | undefined => ids?.filter((id) => personas.some((p) => p.id === id));
+): string[] | undefined => ids?.filter((id) => personas.some((persona) => persona.id === id));
 
 /** 末尾ターンが誰かを指名（直接質問）していれば、その指名先と指名元を返す。なければ undefined */
 const getLastTargetPersona = (
@@ -87,7 +92,7 @@ const finalizeCommittedTurn = async ({
 	chapterId: string;
 	state: DebateState;
 	personas: Persona[];
-	reply: NonNullable<Awaited<ReturnType<typeof generatePersonaTurn>>>;
+	reply: PersonaTurnCommit;
 }): Promise<void> => {
 	await consumeQueuedIntent({
 		topicId,
@@ -109,14 +114,72 @@ const finalizeCommittedTurn = async ({
  */
 const decideQuietStreak = (engagements: Engagement[], quietStreak: number): number => {
 	const shouldContinue =
-		engagements.length === 0 || engagements.some((a) => a.score >= CONTINUE_CHAPTER_THRESHOLD);
+		engagements.length === 0 ||
+		engagements.some((engagement) => engagement.score >= CONTINUE_CHAPTER_THRESHOLD);
 	return shouldContinue ? 0 : quietStreak + 1;
+};
+
+/**
+ * 章末 +1 最終応答ターンを実行する（freeze パス）。旧ループの章末ブロックと等価で、
+ * 話者選択・介入・キュー更新を挟まず、末尾の未応答指名先にそのまま1回だけ答えさせる簡略フロー。
+ * quietStreak は据え置く。
+ */
+const executeFinalResponseTurn = async ({
+	topicId,
+	topicTitle,
+	personas,
+	chapter,
+	chapterId,
+	state,
+	chapterTurnStartInState,
+	quietStreak,
+	targetPersona
+}: {
+	topicId: string;
+	topicTitle: string;
+	personas: Persona[];
+	chapter: Chapter;
+	chapterId: string;
+	state: DebateState;
+	chapterTurnStartInState: number;
+	quietStreak: number;
+	targetPersona: { personaId: string; targetedBy: 'facilitator' | 'persona' };
+}): Promise<ExecuteTurnResult> => {
+	const speakerSelection: SpeakerSelection = {
+		personaId: targetPersona.personaId,
+		reason:
+			targetPersona.targetedBy === 'facilitator' ? 'targeted_by_facilitator' : 'targeted_by_persona'
+	};
+	// 章末 +1 は話者が指名で確定済み。全非話者の一括評価（evaluateEngagements）は
+	// 話者選択・キュー・終了判定・気づき検出のいずれにも使われず捨てられるため廃し、
+	// 指名者のみ単独評価する（2.1）。非指名者の評価・awareness 捕捉はこのターンでは行わない。
+	const engagement = await evaluateEngagementWithFallback({
+		topicId,
+		personaId: speakerSelection.personaId,
+		personas,
+		chapterTurns: state.turns.slice(chapterTurnStartInState)
+	});
+	const reply = await generatePersonaTurn({
+		topicId,
+		topicTitle,
+		personas,
+		chapter,
+		state,
+		speakerSelection,
+		engagement,
+		chapterTurnStartIndex: chapterTurnStartInState,
+		progressPatch: { quietStreak } // freeze 中は quietStreak を据え置く
+	});
+	// 追記棄却（世代不一致・並走敗者）・討論停止は理由を保持して返す（R9.2）
+	if (reply.status !== 'committed') return reply;
+	await finalizeCommittedTurn({ topicId, chapterId, state, personas, reply });
+	return { status: 'committed', quietStreak };
 };
 
 /**
  * 1ターンを実行する（旧 while ループの executeTurn に相当）。話者選択・介入・発言生成・
  * 永続化・統計更新までを担う。quietStreak を継続シグナルから決め、追記と同一トランザクションで書き込む。
- * freeze=true（章末 +1 最終応答）のときは quietStreak を据え置き、簡略フローで実行する。
+ * freeze=true（章末 +1 最終応答）のときは最終応答パス（executeFinalResponseTurn）へ委譲する。
  */
 const executeTurn = async ({
 	topicId,
@@ -140,45 +203,25 @@ const executeTurn = async ({
 	interventionCooldown: number;
 	quietStreak: number;
 	freeze: boolean;
-}): Promise<{ committed: boolean; quietStreak: number }> => {
+}): Promise<ExecuteTurnResult> => {
 	// この章ぶんのターン列を切り出すヘルパ（state.turns は全章を含むため）
 	const getChapterTurns = (): DebateTurn[] => state.turns.slice(chapterTurnStartInState);
 	// 末尾ターンが誰かを指名していれば、その指名先（次に応答すべき人）
 	const targetPersona = getLastTargetPersona(state.turns);
 
-	// 章末 +1 最終応答: 旧ループの章末ブロックと等価（expire/addQueue を行わず固定の指名先に応答させる）
-	// 話者選択・介入・キュー更新を一切挟まず、指名された人にそのまま1回だけ答えさせる簡略フロー
+	// 章末 +1 最終応答は専用パスへ委譲する（話者選択・介入・キュー更新を挟まない簡略フロー）
 	if (freeze && targetPersona) {
-		const speakerSelection: SpeakerSelection = {
-			personaId: targetPersona.personaId,
-			reason:
-				targetPersona.targetedBy === 'facilitator'
-					? 'targeted_by_facilitator'
-					: 'targeted_by_persona'
-		};
-		// 章末 +1 は話者が指名で確定済み。全非話者の一括評価（evaluateEngagements）は
-		// 話者選択・キュー・終了判定・気づき検出のいずれにも使われず捨てられるため廃し、
-		// 指名者のみ単独評価する（2.1）。非指名者の評価・awareness 捕捉はこのターンでは行わない。
-		const engagement = await evaluateEngagementWithFallback({
-			topicId,
-			personaId: speakerSelection.personaId,
-			personas,
-			chapterTurns: getChapterTurns()
-		});
-		const reply = await generatePersonaTurn({
+		return executeFinalResponseTurn({
 			topicId,
 			topicTitle,
 			personas,
 			chapter,
+			chapterId,
 			state,
-			speakerSelection,
-			engagement,
-			chapterTurnStartIndex: chapterTurnStartInState,
-			progressPatch: { quietStreak } // freeze 中は quietStreak を据え置く
+			chapterTurnStartInState,
+			quietStreak,
+			targetPersona
 		});
-		if (!reply) return { committed: false, quietStreak }; // 追記競合・討論停止 → 未コミット
-		await finalizeCommittedTurn({ topicId, chapterId, state, personas, reply });
-		return { committed: true, quietStreak };
 	}
 
 	// --- 通常ターン ---
@@ -223,7 +266,7 @@ const executeTurn = async ({
 		});
 		if (intervened) {
 			await saveDiscussionPointStatuses(topicId, chapterId, state);
-			return { committed: true, quietStreak: 0 };
+			return { status: 'committed', quietStreak: 0 };
 		}
 	}
 
@@ -258,9 +301,10 @@ const executeTurn = async ({
 		chapterTurnStartIndex: chapterTurnStartInState,
 		progressPatch: { quietStreak: nextEndCount }
 	});
-	if (!reply) return { committed: false, quietStreak }; // 追記競合・討論停止 → 未コミット
+	// 追記棄却（世代不一致・並走敗者）・討論停止は理由を保持して返す（R9.2）
+	if (reply.status !== 'committed') return reply;
 	await finalizeCommittedTurn({ topicId, chapterId, state, personas, reply });
-	return { committed: true, quietStreak: nextEndCount };
+	return { status: 'committed', quietStreak: nextEndCount };
 };
 
 /**
@@ -353,33 +397,30 @@ const reconcileEarlyEndCoverage = async ({
 	quietStreak: number;
 }): Promise<number> => {
 	const chapterTurnCountNow = state.turns.length - chapterTurnStartInState;
-	if (
-		!(
-			chapterTurnCountNow >= Math.ceil(turnsPerChapter * EARLY_END_PROGRESS_RATIO) &&
-			quietStreak >= QUIET_STREAK_LIMIT
-		)
-	) {
+	if (!isEarlyEndCandidate(chapterTurnCountNow, turnsPerChapter, quietStreak)) {
 		return quietStreak;
 	}
-	const incomplete = state.discussionPoints.filter((p) => p.status !== 'addressed');
+	const incomplete = state.discussionPoints.filter(
+		(discussionPoint) => discussionPoint.status !== 'addressed'
+	);
 	if (incomplete.length === 0) return quietStreak;
 
 	// LLM に「未消化論点のうち実際には議論された index」を判定させる
 	const coverageResult = await evaluateDiscussionPointCoverage(
 		state.turns.slice(chapterTurnStartInState),
-		incomplete.map((p) => p.point),
+		incomplete.map((discussionPoint) => discussionPoint.point),
 		personas
 	);
 	if (!coverageResult.ok) return quietStreak;
 
 	// 実は議論済みと判定された論点を addressed に更新する
-	for (const idx of coverageResult.value) {
-		const point = incomplete[idx]?.point;
+	for (const index of coverageResult.value) {
+		const point = incomplete[index]?.point;
 		if (point !== undefined) markAddressed(state, point);
 	}
 	await saveDiscussionPointStatuses(topicId, chapterId, state);
 	// まだ未消化が残るなら早期終了を取り消して継続（quietStreak リセット）
-	if (state.discussionPoints.some((p) => p.status !== 'addressed')) {
+	if (state.discussionPoints.some((discussionPoint) => discussionPoint.status !== 'addressed')) {
 		await db().doc(`topics/${topicId}/chapters/${chapterId}`).update({ quietStreak: 0 });
 		return 0;
 	}
@@ -388,8 +429,8 @@ const reconcileEarlyEndCoverage = async ({
 
 /**
  * turn ステップ: frontier 一致なら1ターン生成→冪等追記し、実行結果を返す。
- * 不一致（既に前進済み）は advanced、追記競合は conflict、章完了済みは completed を返す。
- * 次ステップの決定・投入は orchestrator が本結果と payload.finalResponse から行う。
+ * 不一致（既に前進済み）は advanced、並走敗者・停止は conflict、世代交代検出は stale_generation、
+ * 章完了済みは completed を返す。次ステップの決定・投入は orchestrator が本結果と payload.finalResponse から行う。
  */
 export const performTurnStep = async (
 	ctx: StepContext,
@@ -421,7 +462,12 @@ export const performTurnStep = async (
 		quietStreak,
 		freeze
 	});
-	if (!result.committed) return { status: 'conflict' };
+	// 生成中に世代交代が起きて addTurn が弾いた場合は、旧世代タスクなので resume させない（R9.2/9.3）
+	if (result.status === 'rejected' && result.reason === 'generation_mismatch') {
+		return { status: 'stale_generation' };
+	}
+	// 並走敗者（index_mismatch）・討論停止（skipped）は従来どおり conflict → resumeFromFresh
+	if (result.status !== 'committed') return { status: 'conflict' };
 
 	// 最終応答（+1）の直後は次ステップ判定を再評価せず、そのまま章末へ進む（orchestrator が判断）
 	if (freeze) return { status: 'advanced', quietStreak: result.quietStreak };

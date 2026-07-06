@@ -419,7 +419,7 @@ describe('generatePersonaTurn', () => {
 		expect(context.queuedTrigger.speakerName).toBe('ファシリテーター');
 	});
 
-	it('runId ミスマッチ時に addTurn が rejected を返し generatePersonaTurn が null を返す', async () => {
+	it('runId ミスマッチ時に addTurn の generation_mismatch を generatePersonaTurn が伝播する', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
 			value: { content: '発言', speechMode: 'opinion', beliefChange: null }
@@ -434,11 +434,11 @@ describe('generatePersonaTurn', () => {
 			speakerSelection: makeSpeakerSelection(),
 			engagement: makeEngagement()
 		});
-		expect(result).toBeNull();
+		expect(result).toEqual({ status: 'rejected', reason: 'generation_mismatch' });
 		expect(mockTxUpdate).not.toHaveBeenCalled();
 	});
 
-	it('期待位置不一致（章 doc が先行）の場合 null を返し追記しない', async () => {
+	it('期待位置不一致（章 doc が先行）の場合 index_mismatch を伝播し追記しない', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
 			value: { content: '発言', speechMode: 'opinion', beliefChange: null }
@@ -453,7 +453,7 @@ describe('generatePersonaTurn', () => {
 			speakerSelection: makeSpeakerSelection(),
 			engagement: makeEngagement()
 		});
-		expect(result).toBeNull();
+		expect(result).toEqual({ status: 'rejected', reason: 'index_mismatch' });
 		expect(mockTxUpdate).not.toHaveBeenCalled();
 	});
 
@@ -639,7 +639,7 @@ describe('generatePersonaTurn', () => {
 		});
 	});
 
-	it('ドラフト生成後に討論が停止していたら検証・補正せず null を返す（1.5 経路前の短絡）', async () => {
+	it('ドラフト生成後に討論が停止していたら検証・補正せず skipped を返す（1.5 経路前の短絡）', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
 			value: { content: 'ドラフト', speechMode: 'opinion', beliefChange: null }
@@ -658,7 +658,7 @@ describe('generatePersonaTurn', () => {
 			engagement: makeEngagement({ mode: 'opinion' })
 		});
 
-		expect(result).toBeNull();
+		expect(result).toEqual({ status: 'skipped' });
 		expect(mockVerifyAndReviseDraft).not.toHaveBeenCalled();
 		expect(mockTxUpdate).not.toHaveBeenCalled();
 	});

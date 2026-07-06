@@ -144,10 +144,10 @@ const buildQueuedTrigger = (
 	personas: Persona[]
 ): { speakerName: string; content: string } | undefined => {
 	if (!queuedEntries || queuedEntries.length === 0) return undefined;
-	const triggerTurn = turns.find((t) => t.id === queuedEntries[0].triggerTurnId);
+	const triggerTurn = turns.find((turn) => turn.id === queuedEntries[0].triggerTurnId);
 	if (!triggerTurn) return undefined;
 	const triggerPersona = triggerTurn.personaId
-		? personas.find((p) => p.id === triggerTurn.personaId)
+		? personas.find((persona) => persona.id === triggerTurn.personaId)
 		: undefined;
 	return {
 		speakerName: triggerPersona ? triggerPersona.name : 'ファシリテーター',
@@ -155,7 +155,25 @@ const buildQueuedTrigger = (
 	};
 };
 
-/** 決定に基づきペルソナ発言を生成・保存する。討論停止時は null を返す */
+export type PersonaTurnCommit = {
+	turnId: string;
+	personaId: string;
+	targetPersonaId: string | undefined;
+	queuedEntries: QueuedIntent[] | undefined;
+	fromQueue: boolean;
+};
+
+/**
+ * generatePersonaTurn の実行結果。committed は確定情報を、rejected は addTurn の棄却理由
+ * （generation_mismatch / index_mismatch）を保持し、skipped は討論停止による中断を表す。
+ * 棄却理由を null へ潰さず呼び出し元まで伝播させる（R9.2）。
+ */
+export type PersonaTurnOutcome =
+	| ({ status: 'committed' } & PersonaTurnCommit)
+	| Extract<AppendResult, { status: 'rejected' }>
+	| { status: 'skipped' };
+
+/** 決定に基づきペルソナ発言を生成・保存する。討論停止時は skipped、追記棄却時は rejected を返す */
 export const generatePersonaTurn = async ({
 	topicId,
 	topicTitle = '',
@@ -176,14 +194,8 @@ export const generatePersonaTurn = async ({
 	engagement: Engagement;
 	chapterTurnStartIndex?: number;
 	progressPatch?: ProgressPatch;
-}): Promise<{
-	turnId: string;
-	personaId: string;
-	targetPersonaId: string | undefined;
-	queuedEntries: QueuedIntent[] | undefined;
-	fromQueue: boolean;
-} | null> => {
-	const persona = personas.find((p) => p.id === speakerSelection.personaId)!;
+}): Promise<PersonaTurnOutcome> => {
+	const persona = personas.find((candidate) => candidate.id === speakerSelection.personaId)!;
 	const fromQueue = speakerSelection.reason === 'queue';
 
 	const chapterTurns = state.turns.slice(chapterTurnStartIndex);
@@ -191,8 +203,8 @@ export const generatePersonaTurn = async ({
 	const queuedTrigger = buildQueuedTrigger(queuedEntries, state.turns, personas);
 
 	const otherPersonas = personas
-		.filter((p) => p.id !== persona.id)
-		.map((p) => ({ id: p.id, name: p.name }));
+		.filter((otherPersona) => otherPersona.id !== persona.id)
+		.map((otherPersona) => ({ id: otherPersona.id, name: otherPersona.name }));
 
 	// ファシリテーターが直近に提示した（introduced）論点を、発言者が踏まえられるよう渡す
 	const activeDiscussionPoint = getActiveDiscussionPoint(state);
@@ -226,7 +238,7 @@ export const generatePersonaTurn = async ({
 	if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
 
 	// 生成中に討論が停止された場合は、ドラフトを検証・保存せず状態も更新しない
-	if (!(await isDebateActive(topicId))) return null;
+	if (!(await isDebateActive(topicId))) return { status: 'skipped' };
 
 	// 討論継続中はインライン検証・補正を経てから正式登録する（誤った発言の伝播を防ぐ）
 	const factCheckContext: FactCheckContext = {
@@ -273,7 +285,8 @@ export const generatePersonaTurn = async ({
 		runId: state.runId,
 		progressPatch
 	});
-	if (addTurnResult.status !== 'committed') return null;
+	// 追記棄却の理由（generation_mismatch / index_mismatch）を潰さずそのまま伝播する（R9.2）
+	if (addTurnResult.status !== 'committed') return addTurnResult;
 	const { id: turnId } = addTurnResult;
 	state.turns.push({
 		id: turnId,
@@ -288,6 +301,7 @@ export const generatePersonaTurn = async ({
 	});
 
 	return {
+		status: 'committed',
 		turnId,
 		personaId: persona.id,
 		targetPersonaId,

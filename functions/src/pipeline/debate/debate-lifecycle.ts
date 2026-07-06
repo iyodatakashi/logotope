@@ -4,7 +4,6 @@ import { discardChaptersFrom, getChaptersByTopicId } from './chapter.js';
 import { rollbackAwarenessesForRemovedTurns } from './awareness.js';
 import { deleteChapterEngagements } from './engagement.js';
 import { clearPostDebateComments } from './post-debate-comments.js';
-import { deleteFactCheckResult } from '../fact-check/fact-check-repository.js';
 import { clearEditedArtifact } from '../editing/edited-repository.js';
 import type { PhaseKey } from '../../types/topic.types.js';
 
@@ -33,6 +32,31 @@ export const isDebateActive = async (topicId: string): Promise<boolean> => {
 	return data.phase === 'debate' && data.phaseStatus === 'running';
 };
 
+export type DebateActivation =
+	| { status: 'active' }
+	| { status: 'inactive' } // 停止・完了・未開始（従来の isDebateActive=false 相当）
+	| { status: 'stale_generation'; currentRunId: string }; // 現行世代と不一致の旧タスク
+
+/**
+ * 討論ステップ入口の停止ゲート兼世代照合。topic doc を1回読み、アクティブ判定と runId 照合を
+ * 同時に行う（追加の Firestore 読み取りを発生させない）。payload・topic doc の双方に runId が
+ * ある場合のみ照合する後方互換規約は addTurn の世代照合と揃える。旧世代タスクは stale_generation
+ * を返し、呼び出し元は副作用ゼロ・再エンキューなしで正常終了する（R9.1）。
+ */
+export const checkDebateActivation = async (
+	topicId: string,
+	runId: string
+): Promise<DebateActivation> => {
+	const snap = await db().doc(`topics/${topicId}`).get();
+	if (!snap.exists) return { status: 'inactive' };
+	const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string; runId?: string };
+	if (!(data.phase === 'debate' && data.phaseStatus === 'running')) return { status: 'inactive' };
+	if (data.runId && runId && data.runId !== runId) {
+		return { status: 'stale_generation', currentRunId: data.runId };
+	}
+	return { status: 'active' };
+};
+
 /**
  * 討論フェーズが完了（generated 到達）しているかを判定する。編集開始の前提ゲート（Req 5.4）。
  * phase が editing に進んでいる場合は討論を完了して次段へ移っているため完了扱い（編集の再実行を許可する）。
@@ -46,7 +70,7 @@ export const isDebateCompleted = async (topicId: string): Promise<boolean> => {
 };
 
 /**
- * 指定章以降を破棄し、その章に紐づく付随データ（コメント・気づき・engagements・ファクトチェック結果）を
+ * 指定章以降を破棄し、その章に紐づく付随データ（コメント・気づき・engagements）を
  * まとめて削除する。reset（全章）と restart（指定章以降）で共通の削除責務をここに集約する。
  */
 const discardChaptersWithSideData = async (
@@ -54,17 +78,14 @@ const discardChaptersWithSideData = async (
 	fromChapterId: string
 ): Promise<void> => {
 	const discardChapters = await discardChaptersFrom(topicId, fromChapterId);
-	const removedTurnIds = new Set(discardChapters.flatMap((c) => c.turns).map((t) => t.id));
+	const removedTurnIds = new Set(
+		discardChapters.flatMap((chapter) => chapter.turns).map((turn) => turn.id)
+	);
 
 	await clearPostDebateComments(topicId);
 	// 初期信念は不変。破棄ターンに紐づく気づき（awareness）のみを巻き戻す（1.3）
 	await rollbackAwarenessesForRemovedTurns(topicId, removedTurnIds);
 	await deleteChapterEngagements(topicId, discardChapters);
-
-	// 章の発言が再生成されるため、破棄章の既存ファクトチェック結果を無効化する（6.2）
-	for (const chapter of discardChapters) {
-		await deleteFactCheckResult(topicId, chapter.id);
-	}
 
 	// 原本（章のターン）が再生成されるため、編集成果物も破棄して原本との不整合を残さない（Req 5.6）
 	await clearEditedArtifact(topicId);

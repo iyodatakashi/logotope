@@ -18,17 +18,16 @@ import { getTopicById } from '../topics/topics.js';
 import { getPersonasByTopicId } from '../personas/personas.js';
 import { getDebateState } from './debate-state.js';
 import { loadChapterProgress, getChaptersByTopicId, getDebateTurnsByTopicId } from './chapter.js';
-import { isDebateActive } from './debate-lifecycle.js';
+import { checkDebateActivation } from './debate-lifecycle.js';
 import { enqueueStep, taskKey } from './enqueue-step.js';
 import {
-	QUIET_STREAK_LIMIT,
-	EARLY_END_PROGRESS_RATIO,
 	TURN_CAP_RATIO,
 	AGENDA_TURN_CAP_RATIO,
 	TURNS_PER_CHAPTER,
 	MAX_TURNS,
 	DEFAULT_INTERVENTION_COOLDOWN
 } from '../../constants/debate.constants.js';
+import { isEarlyEndCandidate } from './utils.js';
 import { loadQueuedIntents } from './queued-intents.js';
 import {
 	performOpenStep,
@@ -53,6 +52,13 @@ const hasUnansweredTargetAtEnd = (chapterTurns: DebateTurn[]): boolean => {
 	return !!(last?.targetPersonaId && last.targetedBy);
 };
 
+/** 章末に投入するステップ種別を決める（最終章は closing、それ以外は summary）。選択ロジックの単一の源。 */
+const chapterEndStepKind = (isLastChapter: boolean): 'summary' | 'closing' =>
+	isLastChapter ? 'closing' : 'summary';
+
+/** decideNextStep が返しうる種別（turn 継続 / 章末 summary・closing）。open/comments/none は返さない。 */
+type TurnFollowupStep = Extract<NextStep, { kind: 'turn' | 'summary' | 'closing' }>;
+
 /**
  * 追記成功後、永続状態のみから次ステップ種別と期待位置を決める純関数。
  * while ループ版と等価な規則（cap・早期終了・最終応答 +1）で判定する。
@@ -70,10 +76,9 @@ export const decideNextStep = ({
 	globalTurnCount: number;
 	quietStreak: number;
 	discussionPoints: DiscussionPointState[];
-	chapterIndex: number;
 	options: DebateOptions;
 	isLastChapter: boolean;
-}): NextStep => {
+}): TurnFollowupStep => {
 	// 論点リストを持つ章は消化のため上限を高めに取る（AGENDA_TURN_CAP_RATIO > TURN_CAP_RATIO）
 	const hasPoints = discussionPoints.length > 0;
 	// この章の強制終了ターン数。目標ターン数 × 比率で算出する
@@ -86,10 +91,8 @@ export const decideNextStep = ({
 
 	// 章上限に到達、または討論全体の上限に到達したか
 	const hitCap = chapterTurnCount >= cap || globalTurnCount >= options.maxTurns;
-	// 一定割合まで進み、かつ盛り上がりが連続して低い（quietStreak が上限超え）なら早期終了
-	const earlyEnd =
-		chapterTurnCount >= Math.ceil(options.turnsPerChapter * EARLY_END_PROGRESS_RATIO) &&
-		quietStreak >= QUIET_STREAK_LIMIT;
+	// 一定割合まで進み、かつ盛り上がりが連続して低いなら早期終了（判定式は isEarlyEndCandidate に一本化）
+	const earlyEnd = isEarlyEndCandidate(chapterTurnCount, options.turnsPerChapter, quietStreak);
 
 	// まだ終了条件に達していなければ、通常のターンを続ける
 	if (!hitCap && !earlyEnd) {
@@ -102,19 +105,22 @@ export const decideNextStep = ({
 		return { kind: 'turn', expectedTurnIndex, finalResponse: true };
 	}
 
-	return isLastChapter
+	return chapterEndStepKind(isLastChapter) === 'closing'
 		? { kind: 'closing', expectedTurnIndex }
 		: { kind: 'summary', expectedTurnIndex };
 };
 
-/** トピックと承認済みペルソナを取得する。討論に参加するのは approved なペルソナのみ */
-const getTopicContext = async (topicId: string) => {
+/**
+ * トピック名と承認済みペルソナを取得する（討論に参加するのは approved なペルソナのみ）。
+ * 事実基盤を含む同名の pipeline/topics/topic-context.ts の getTopicContext とは別物のため名前で区別する。
+ */
+const loadTopicParticipants = async (topicId: string) => {
 	const [topic, allPersonas] = await Promise.all([
 		getTopicById(topicId),
 		getPersonasByTopicId(topicId)
 	]);
 	if (!topic) throw new Error(`Topic not found: ${topicId}`);
-	return { topicTitle: topic.title, personas: allPersonas.filter((p) => p.approved) };
+	return { topicTitle: topic.title, personas: allPersonas.filter((persona) => persona.approved) };
 };
 
 /** 既定オプションにペイロード由来の単章モードを重ねた実行オプションを作る */
@@ -130,15 +136,19 @@ const loadStepContext = async (payload: StepPayload): Promise<StepContext> => {
 	if (!chapters.length) throw new Error('Chapters not found');
 	const chapterDoc = chapters[chapterIndex];
 	if (!chapterDoc) throw new Error(`Chapter not found: ${chapterIndex}`);
-	const { personas, topicTitle } = await getTopicContext(topicId);
-	// 全章のターンを時系列で結合し、永続キューと合わせて討論状態を導出する
+	const { personas, topicTitle } = await loadTopicParticipants(topicId);
+	// 全章のターンを時系列で結合し、永続キューと章ローカル進捗（quietStreak / 論点ステータス）を復元する
 	const existingTurns = await getDebateTurnsByTopicId(topicId);
 	const persistedQueuedIntents = await loadQueuedIntents(topicId, chapterDoc.id);
-	const state = getDebateState(existingTurns, personas, persistedQueuedIntents);
-	state.runId = runId; // 世代照合用の runId を載せる（古い世代のタスクの追記を弾くため）
-	// 章ローカルの進捗（quietStreak / 論点ステータス）を復元して state に載せる
 	const progress = await loadChapterProgress(topicId, chapterDoc.id, chapterDoc);
-	state.discussionPoints = progress.discussionPointStatuses;
+	// 論点ステータスを含めて状態を一度に組成する（空返し→後付けミューテートを避ける）
+	const state = getDebateState(
+		existingTurns,
+		personas,
+		persistedQueuedIntents,
+		progress.discussionPointStatuses
+	);
+	state.runId = runId; // 世代照合用の runId を載せる（古い世代のタスクの追記を弾くため）
 	return {
 		chapters,
 		chapterDoc,
@@ -172,8 +182,11 @@ const enqueueNextStep = async (
 
 /** open 完了後の最初の turn を、handler が更新した state から算出した章ローカル位置へ投入する */
 const enqueueFirstTurn = async (ctx: StepContext, payload: StepPayload): Promise<void> => {
-	const idx = ctx.state.turns.length - ctx.chapterTurnStartInState;
-	await enqueueNextStep(payload, ctx.chapterDoc.id, { stepKind: 'turn', expectedTurnIndex: idx });
+	const turnIndex = ctx.state.turns.length - ctx.chapterTurnStartInState;
+	await enqueueNextStep(payload, ctx.chapterDoc.id, {
+		stepKind: 'turn',
+		expectedTurnIndex: turnIndex
+	});
 };
 
 /** ターン後の次ステップ（turn/summary/closing）を最新状態の decideNextStep から投入する */
@@ -188,24 +201,22 @@ const enqueueAfterTurn = async (
 		globalTurnCount: ctx.state.turns.length,
 		quietStreak,
 		discussionPoints: ctx.state.discussionPoints,
-		chapterIndex: payload.chapterIndex,
 		options: buildStepOptions(payload),
 		isLastChapter: ctx.isLastChapter
 	});
-	if (next.kind === 'none') return;
 	await enqueueNextStep(payload, ctx.chapterDoc.id, {
 		stepKind: next.kind,
-		expectedTurnIndex: 'expectedTurnIndex' in next ? next.expectedTurnIndex : 0,
+		expectedTurnIndex: next.expectedTurnIndex,
 		finalResponse: next.kind === 'turn' ? next.finalResponse : undefined
 	});
 };
 
 /** 章末（最終応答ターンの直後）に summary（非最終章）/ closing（最終章）を現在の章ローカル位置へ投入する */
 const enqueueChapterEnd = async (ctx: StepContext, payload: StepPayload): Promise<void> => {
-	const idx = ctx.state.turns.length - ctx.chapterTurnStartInState;
+	const turnIndex = ctx.state.turns.length - ctx.chapterTurnStartInState;
 	await enqueueNextStep(payload, ctx.chapterDoc.id, {
-		stepKind: ctx.isLastChapter ? 'closing' : 'summary',
-		expectedTurnIndex: idx,
+		stepKind: chapterEndStepKind(ctx.isLastChapter),
+		expectedTurnIndex: turnIndex,
 		finalResponse: undefined
 	});
 };
@@ -224,6 +235,8 @@ const advanceTurn = async (
 ): Promise<boolean> => {
 	const exec = await performTurnStep(ctx, payload, options);
 	if (exec.status === 'completed') return false;
+	// 生成中に世代交代が起きて addTurn が弾いた場合は、旧世代タスクなので resume せず終了する（R9.2/9.3）
+	if (exec.status === 'stale_generation') return false;
 	if (exec.status === 'conflict') {
 		await resumeFromFresh(payload);
 		return false;
@@ -245,7 +258,18 @@ const advanceTurn = async (
  * @returns 生成・追記したか（観測用）。停止/resume/rejected は false。
  */
 export const advanceDebate = async (payload: StepPayload): Promise<boolean> => {
-	if (!(await isDebateActive(payload.topicId))) return false;
+	// 入口ゲート: 停止判定と世代照合を1回の topic doc 読みで行う。旧世代タスクは副作用ゼロで正常終了する。
+	const activation = await checkDebateActivation(payload.topicId, payload.runId);
+	if (activation.status === 'stale_generation') {
+		console.info('[advanceDebate] stale generation skipped', {
+			topicId: payload.topicId,
+			payloadRunId: payload.runId,
+			currentRunId: activation.currentRunId,
+			stepKind: payload.stepKind
+		});
+		return false;
+	}
+	if (activation.status !== 'active') return false;
 	const ctx = await loadStepContext(payload);
 	const options = buildStepOptions(payload);
 	switch (payload.stepKind) {

@@ -29,7 +29,6 @@ const base = (overrides: Partial<Parameters<typeof decideNextStep>[0]> = {}) => 
 	globalTurnCount: 5,
 	quietStreak: 0,
 	discussionPoints: [] as DiscussionPointState[],
-	chapterIndex: 0,
 	options,
 	isLastChapter: false,
 	...overrides

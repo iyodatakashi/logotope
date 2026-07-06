@@ -163,6 +163,7 @@ describe('performTurnStep - 発言者記録の配線（5.1）', () => {
 
 	it('通常ターンのコミット後、現アクティブ論点へ話者を記録し永続化する', async () => {
 		vi.mocked(generatePersonaTurn).mockResolvedValue({
+			status: 'committed',
 			personaId: 'p1',
 			turnId: 'tn1',
 			beliefChange: null,
@@ -204,6 +205,47 @@ describe('performTurnStep - 発言者記録の配線（5.1）', () => {
 	});
 });
 
+describe('performTurnStep - 追記棄却理由の伝播（R9.2）', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.mocked(evaluateEngagements).mockResolvedValue([]);
+		vi.mocked(evaluateEngagementWithFallback).mockResolvedValue({
+			personaId: 'p1',
+			score: 0,
+			mode: 'none'
+		});
+	});
+
+	// frontier 一致（章 doc 0 件 = expectedTurnIndex 0）で executeTurn まで到達させる
+	const runTurn = () =>
+		performTurnStep(makeCtx({}), makePayload({ stepKind: 'turn', expectedTurnIndex: 0 }), {
+			turnsPerChapter: 10,
+			maxTurns: 100,
+			interventionCooldown: 2
+		});
+
+	it('generation_mismatch は stale_generation に写像する（resume させない信号）', async () => {
+		vi.mocked(generatePersonaTurn).mockResolvedValue({
+			status: 'rejected',
+			reason: 'generation_mismatch'
+		} as never);
+		expect(await runTurn()).toEqual({ status: 'stale_generation' });
+	});
+
+	it('index_mismatch（並走敗者）は conflict に写像する（従来どおり resumeFromFresh）', async () => {
+		vi.mocked(generatePersonaTurn).mockResolvedValue({
+			status: 'rejected',
+			reason: 'index_mismatch'
+		} as never);
+		expect(await runTurn()).toEqual({ status: 'conflict' });
+	});
+
+	it('討論停止（skipped）は conflict に写像する', async () => {
+		vi.mocked(generatePersonaTurn).mockResolvedValue({ status: 'skipped' } as never);
+		expect(await runTurn()).toEqual({ status: 'conflict' });
+	});
+});
+
 describe('performTurnStep - 章末+1（freeze）の指名者のみ評価（2.1）', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -216,6 +258,7 @@ describe('performTurnStep - 章末+1（freeze）の指名者のみ評価（2.1�
 
 	it('freeze の最終応答では一括評価（evaluateEngagements）を呼ばず、指名者のみ単独評価する', async () => {
 		vi.mocked(generatePersonaTurn).mockResolvedValue({
+			status: 'committed',
 			personaId: 'p2',
 			turnId: 'tn2',
 			beliefChange: null,

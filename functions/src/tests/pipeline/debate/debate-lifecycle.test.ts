@@ -32,11 +32,6 @@ vi.mock('firebase-admin/firestore', () => ({
 	}
 }));
 
-const mockDeleteFactCheckResult = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
-vi.mock('../../../pipeline/fact-check/fact-check-repository.js', () => ({
-	deleteFactCheckResult: mockDeleteFactCheckResult
-}));
-
 const mockClearEditedArtifact = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 vi.mock('../../../pipeline/editing/edited-repository.js', () => ({
 	clearEditedArtifact: mockClearEditedArtifact
@@ -191,30 +186,6 @@ describe('restartDebateFromChapter - チャプタースコープ engagements 削
 	});
 });
 
-describe('restartDebateFromChapter - ファクトチェック結果の無効化', () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-		mockPersonasGet.mockResolvedValue({ docs: [] });
-		mockEngagementsGet.mockResolvedValue({ docs: [] });
-	});
-
-	it('廃棄チャプターそれぞれのファクトチェック結果を削除する', async () => {
-		mockChaptersGet.mockResolvedValue({
-			docs: [
-				makeChapterDoc('ch1', [{ id: 't1' }]),
-				makeChapterDoc('ch2', [{ id: 't2' }]),
-				makeChapterDoc('ch3', [{ id: 't3' }])
-			]
-		});
-
-		await restartDebateFromChapter('topic1', 'ch2');
-
-		expect(mockDeleteFactCheckResult).toHaveBeenCalledWith('topic1', 'ch2');
-		expect(mockDeleteFactCheckResult).toHaveBeenCalledWith('topic1', 'ch3');
-		expect(mockDeleteFactCheckResult).not.toHaveBeenCalledWith('topic1', 'ch1');
-	});
-});
-
 describe('編集成果物の破棄（reset/restart 整合）', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -250,17 +221,6 @@ describe('resetDebate - 全章リセット（サーバ集約）', () => {
 		mockEngagementsGet.mockResolvedValue({ docs: [] });
 	});
 
-	it('全チャプターのファクトチェック結果を削除する', async () => {
-		mockChaptersGet.mockResolvedValue({
-			docs: [makeChapterDoc('ch1', [{ id: 't1' }]), makeChapterDoc('ch2', [{ id: 't2' }])]
-		});
-
-		await resetDebate('topic1');
-
-		expect(mockDeleteFactCheckResult).toHaveBeenCalledWith('topic1', 'ch1');
-		expect(mockDeleteFactCheckResult).toHaveBeenCalledWith('topic1', 'ch2');
-	});
-
 	it('phaseStatus を running にしない（開始は呼び出し側に委ねる）', async () => {
 		mockChaptersGet.mockResolvedValue({
 			docs: [makeChapterDoc('ch1', [{ id: 't1' }])]
@@ -279,6 +239,6 @@ describe('resetDebate - 全章リセット（サーバ集約）', () => {
 
 		await resetDebate('topic1');
 
-		expect(mockDeleteFactCheckResult).not.toHaveBeenCalled();
+		expect(mockClearEditedArtifact).not.toHaveBeenCalled();
 	});
 });

@@ -1,33 +1,38 @@
 import type { QueuedIntent, DebateState } from '../../types/debate.types.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
+import type { DiscussionPointState } from '../../types/chapter.types.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/debate.constants.js';
 
-/** 保存済みターン・永続化キューから DebateState を導出する（同一入力 → 同一出力） */
+/**
+ * 保存済みターン・永続化キューから DebateState を導出する（同一入力 → 同一出力）。
+ * 章ローカルの論点ステータスは呼び出し元が復元して渡す（空返し→後付けミューテートを避け、組成を一箇所に閉じる）。
+ */
 export const getDebateState = (
 	inputTurns: ReadonlyArray<DebateTurn>,
 	personas: ReadonlyArray<Persona>,
-	persistedQueuedIntents: ReadonlyMap<string, ReadonlyArray<QueuedIntent>>
+	persistedQueuedIntents: ReadonlyMap<string, ReadonlyArray<QueuedIntent>>,
+	discussionPoints: DiscussionPointState[] = []
 ): DebateState => {
 	const turns = [...inputTurns];
 
 	// (1) 発言回数: ペルソナごとの累計発言数。話者選択のスタール介入判定などに使う
-	const speakCount = new Map<string, number>(personas.map((p) => [p.id, 0]));
-	for (const t of turns) {
-		if (t.personaId && t.speakerType === 'persona') {
-			speakCount.set(t.personaId, (speakCount.get(t.personaId) ?? 0) + 1);
+	const speakCount = new Map<string, number>(personas.map((persona) => [persona.id, 0]));
+	for (const turn of turns) {
+		if (turn.personaId && turn.speakerType === 'persona') {
+			speakCount.set(turn.personaId, (speakCount.get(turn.personaId) ?? 0) + 1);
 		}
 	}
 
 	// (2) 沈黙度: 各ペルソナが最後に発言してから経過したターン数。長く黙っている人を話者選択で優先する
 	const silenceMap = new Map<string, number>();
-	for (const p of personas) {
+	for (const persona of personas) {
 		// 末尾から見た最後の自発言インデックス。未発言なら -1 のまま（= 全ターン分が沈黙）
 		const lastSpokeIdx = turns.reduce(
-			(max, t, i) => (t.personaId === p.id && t.speakerType === 'persona' ? i : max),
+			(max, turn, i) => (turn.personaId === persona.id && turn.speakerType === 'persona' ? i : max),
 			-1
 		);
-		silenceMap.set(p.id, Math.max(0, turns.length - lastSpokeIdx - 1));
+		silenceMap.set(persona.id, Math.max(0, turns.length - lastSpokeIdx - 1));
 	}
 
 	// (3) 直前話者: 末尾から遡って最初に見つかるペルソナ発言。連続指名の回避などに使う（ファシリテーターは無視）
@@ -44,7 +49,7 @@ export const getDebateState = (
 	const queuedIntents = new Map<string, QueuedIntent[]>();
 	for (const [personaId, items] of persistedQueuedIntents.entries()) {
 		const alive = items.filter((item) => {
-			const triggerIdx = turns.findIndex((t) => t.id === item.triggerTurnId);
+			const triggerIdx = turns.findIndex((turn) => turn.id === item.triggerTurnId);
 			if (triggerIdx === -1) return false;
 			return turns.length - triggerIdx <= INTENT_EXPIRY_TURNS;
 		});
@@ -62,7 +67,7 @@ export const getDebateState = (
 		speakCount,
 		lastSpeakerId,
 		queuedIntents,
-		discussionPoints: []
+		discussionPoints
 	};
 };
 
@@ -76,8 +81,11 @@ export const updateSpeakerStats = ({
 	personas: Persona[];
 	personaId: string;
 }): void => {
-	for (const p of personas) {
-		state.silenceMap.set(p.id, p.id === personaId ? 0 : (state.silenceMap.get(p.id) ?? 0) + 1);
+	for (const persona of personas) {
+		state.silenceMap.set(
+			persona.id,
+			persona.id === personaId ? 0 : (state.silenceMap.get(persona.id) ?? 0) + 1
+		);
 	}
 	state.speakCount.set(personaId, (state.speakCount.get(personaId) ?? 0) + 1);
 	state.lastSpeakerId = personaId;

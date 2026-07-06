@@ -43,4 +43,5 @@ export type StepContext = {
 export type TurnExecution =
 	| { status: 'completed' } // 章は既に完了 → 何もしない
 	| { status: 'conflict' } // 追記競合/停止 → resumeFromFresh
+	| { status: 'stale_generation' } // 世代交代を addTurn が検出 → resume せず終了（R9）
 	| { status: 'advanced'; quietStreak: number }; // 実行コミット or frontier 前進 → 次へ
