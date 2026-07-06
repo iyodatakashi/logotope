@@ -33,14 +33,14 @@
 	const chapterIssues = $derived(currentTopicStore.chapterAnalysisStore.data);
 
 	const generalIssues = $derived(
-		chapterIssues?.issues?.filter((i) => i.source === 'general') ?? []
+		chapterIssues?.issues?.filter((issue) => issue.source === 'general') ?? []
 	);
 	const personaIssues = $derived(
-		chapterIssues?.issues?.filter((i) => i.source === 'persona') ?? []
+		chapterIssues?.issues?.filter((issue) => issue.source === 'persona') ?? []
 	);
 	const scoredIssues = $derived(
 		chapterIssues?.issues
-			?.filter((i) => i.score !== undefined)
+			?.filter((issue) => issue.score !== undefined)
 			.toSorted((a, b) => (b.score ?? 0) - (a.score ?? 0)) ?? []
 	);
 
@@ -99,10 +99,10 @@
 	{#snippet content()}
 		{#if !isStarting}
 			{#if chapterIssues?.issues?.length}
-				<section class="issues">
+				<section class="phase4-chapters__issues">
 					<h3>Step 1: 生成した切り口</h3>
-					<div class="issues-grid">
-						<div class="issues-col">
+					<div class="phase4-chapters__issues-grid">
+						<div class="phase4-chapters__issues-col">
 							<h4>一般的な切り口（ペルソナなし）</h4>
 							<ol>
 								{#each generalIssues as issue, i (issue.id ?? i)}
@@ -110,7 +110,7 @@
 								{/each}
 							</ol>
 						</div>
-						<div class="issues-col">
+						<div class="phase4-chapters__issues-col">
 							<h4>ペルソナ固有の切り口</h4>
 							<ol>
 								{#each personaIssues as issue, i (issue.id ?? i)}
@@ -122,30 +122,37 @@
 				</section>
 			{/if}
 			{#if scoredIssues.length}
-				<section class="issues">
+				<section class="phase4-chapters__issues">
 					<h3>Step 2: 論点スコアリング結果</h3>
-					<ul class="scored-issues">
+					<ul class="phase4-chapters__scored-issues">
 						{#each scoredIssues as issue, i (issue.id ?? i)}
-							<li class:selected={issue.selected} class:rejected={!issue.selected}>
-								<span class="score">{issue.score}</span>
-								<span class="issue-source">{issue.source === 'general' ? '一般' : 'ペルソナ'}</span>
-								<span class="issue-text">{issue.text}</span>
-								<span class="reason">{issue.reason}</span>
+							<li
+								class:phase4-chapters__scored-issue--selected={issue.selected}
+								class:phase4-chapters__scored-issue--rejected={!issue.selected}
+							>
+								<span class="phase4-chapters__score">{issue.score}</span>
+								<span class="phase4-chapters__issue-source"
+									>{issue.source === 'general' ? '一般' : 'ペルソナ'}</span
+								>
+								<span class="phase4-chapters__issue-text">{issue.text}</span>
+								<span class="phase4-chapters__reason">{issue.reason}</span>
 							</li>
 						{/each}
 					</ul>
 				</section>
 			{/if}
 			{#if chapterIssues?.issueGroups?.length}
-				<section class="issues">
+				<section class="phase4-chapters__issues">
 					<h3>Step 3: グループ化結果</h3>
-					<ul class="grouping">
+					<ul class="phase4-chapters__grouping">
 						{#each chapterIssues.issueGroups as group, i (i)}
-							<li class="group">
-								<span class="group-label">グループ {i + 1}</span>
-								<ul class="group-issues">
-									{#each group.issueIndexes as idx (idx)}
-										<li class="group-issue">{chapterIssues.issues[idx]?.text ?? ''}</li>
+							<li class="phase4-chapters__group">
+								<span class="phase4-chapters__group-label">グループ {i + 1}</span>
+								<ul class="phase4-chapters__group-issues">
+									{#each group.issueIndexes as issueIndex (issueIndex)}
+										<li class="phase4-chapters__group-issue">
+											{chapterIssues.issues[issueIndex]?.text ?? ''}
+										</li>
 									{/each}
 								</ul>
 							</li>
@@ -154,14 +161,14 @@
 				</section>
 			{/if}
 			{#if chapters}
-				<section class="issues">
+				<section class="phase4-chapters__issues">
 					<h3>Step 4: 論点精査結果</h3>
-					<ol class="chapters">
+					<ol class="phase4-chapters__chapters">
 						{#each chapters as chapter (chapter.id)}
 							<li>
 								<strong>{chapter.title}</strong>
 								{#if chapter.discussionPoints?.length}
-									<ul class="points">
+									<ul class="phase4-chapters__points">
 										{#each chapter.discussionPoints as point, i (i)}
 											<li>{point}</li>
 										{/each}
@@ -177,17 +184,17 @@
 </PhasePanel>
 
 <style>
-	.chapters {
+	.phase4-chapters__chapters {
 		margin: 16px 0;
 		padding-left: 24px;
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
 	}
-	.chapters li {
+	.phase4-chapters__chapters li {
 		line-height: 1.5;
 	}
-	.points {
+	.phase4-chapters__points {
 		margin: 6px 0 0;
 		padding-left: 20px;
 		display: flex;
@@ -195,35 +202,35 @@
 		gap: 2px;
 		list-style: disc;
 	}
-	.points li {
+	.phase4-chapters__points li {
 		color: #888;
 		line-height: 1.5;
 	}
-	.issues {
+	.phase4-chapters__issues {
 		border: 1px solid #e0e0e0;
 		border-radius: 6px;
 		padding: 12px;
 	}
-	.issues h3 {
+	.phase4-chapters__issues h3 {
 		margin: 0 0 12px;
 	}
-	.issues-grid {
+	.phase4-chapters__issues-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 16px;
 		padding-bottom: 12px;
 	}
-	.issues-col h4 {
+	.phase4-chapters__issues-col h4 {
 		font-weight: bold;
 	}
 
-	.issues-col ol {
+	.phase4-chapters__issues-col ol {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
 
-	.scored-issues {
+	.phase4-chapters__scored-issues {
 		list-style: none;
 		margin: 0;
 		padding: 0;
@@ -232,7 +239,7 @@
 		gap: 6px;
 	}
 
-	.scored-issues li {
+	.phase4-chapters__scored-issues li {
 		display: grid;
 		grid-template-columns: 2rem 3.5rem 1fr;
 		grid-template-rows: auto auto;
@@ -240,57 +247,57 @@
 		padding: 6px 8px;
 		border-radius: 4px;
 	}
-	.scored-issues li.selected {
+	.phase4-chapters__scored-issues li.phase4-chapters__scored-issue--selected {
 		background: #e8f5e9;
 	}
-	.scored-issues li.rejected {
+	.phase4-chapters__scored-issues li.phase4-chapters__scored-issue--rejected {
 		background: #fafafa;
 		opacity: 0.6;
 	}
-	.score {
+	.phase4-chapters__score {
 		grid-row: 1 / 3;
 		align-self: center;
 		text-align: center;
 	}
-	.selected .score {
+	.phase4-chapters__scored-issue--selected .phase4-chapters__score {
 		color: #2e7d32;
 	}
-	.rejected .score {
+	.phase4-chapters__scored-issue--rejected .phase4-chapters__score {
 		color: #9e9e9e;
 	}
-	.issue-source {
+	.phase4-chapters__issue-source {
 		color: #757575;
 		align-self: end;
 	}
-	.issue-text {
+	.phase4-chapters__issue-text {
 		color: #212121;
 	}
-	.reason {
+	.phase4-chapters__reason {
 		grid-column: 3;
 	}
 
-	.grouping {
+	.phase4-chapters__grouping {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
 
-	.group {
+	.phase4-chapters__group {
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
 	}
 
-	.group-label {
+	.phase4-chapters__group-label {
 		font-weight: bold;
 	}
-	.group-issues {
+	.phase4-chapters__group-issues {
 		margin: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
 	}
-	.group-issue {
+	.phase4-chapters__group-issue {
 		font-weight: normal;
 	}
 </style>

@@ -4,7 +4,6 @@
 	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import type { TopicContext } from '$lib/models/topic/topic.types';
 	import InterviewItem from '$lib/features/admin/topic-detail/research/InterviewItem.svelte';
 
 	const PHASE: PhaseSlug = 'interviews';
@@ -28,35 +27,27 @@
 		}
 	});
 	const completedCount = $derived(
-		currentTopicStore.personasStore.personas.filter((p) => p.interview?.status === 'completed')
-			.length
+		currentTopicStore.personasStore.personas.filter(
+			(persona) => persona.interview?.status === 'completed'
+		).length
 	);
 	const errorCount = $derived(
-		currentTopicStore.personasStore.personas.filter((p) => p.interview?.status === 'error').length
+		currentTopicStore.personasStore.personas.filter(
+			(persona) => persona.interview?.status === 'error'
+		).length
 	);
 	const pendingCount = $derived(
-		currentTopicStore.personasStore.personas.filter((p) => p.interview == null).length
+		currentTopicStore.personasStore.personas.filter((persona) => persona.interview == null).length
 	);
 	const totalCount = $derived(currentTopicStore.personasStore.personas.length);
-
-	const buildTopicContext = (topic: {
-		description?: string;
-		fetchedSourceContents?: { content: string }[];
-	}): TopicContext | undefined => {
-		const description = topic.description;
-		const sourceContents = topic.fetchedSourceContents?.map((fc) => fc.content);
-		if (!description && !sourceContents?.length) return undefined;
-		return { description, sourceContents };
-	};
 
 	// 生成・やり直しは未完了ペルソナのみ取材。再生成は下流を破棄して全ペルソナを再取材する
 	const generate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
-		const topicContext = buildTopicContext(topic);
 		isStarting = true;
 		try {
-			await currentTopicStore.personasStore.runInterviews(topic.title, topicContext);
+			await currentTopicStore.personasStore.runInterviews(topic.title);
 		} finally {
 			isStarting = false;
 		}
@@ -67,13 +58,12 @@
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
-		const topicContext = buildTopicContext(topic);
 		isStarting = true;
 		try {
 			await topic.resetChapters();
 			await topic.resetDebate();
 			await topic.resetEditing();
-			await currentTopicStore.personasStore.runInterviews(topic.title, topicContext, true);
+			await currentTopicStore.personasStore.runInterviews(topic.title, true);
 		} finally {
 			isStarting = false;
 		}
@@ -105,17 +95,27 @@
 >
 	{#snippet progress()}
 		{#if !isStarting && totalCount > 0}
-			<div class="progress-summary">
-				<span class="count completed">{completedCount} 完了</span>
-				{#if pendingCount > 0}<span class="count pending">{pendingCount} 待機中</span>{/if}
-				{#if errorCount > 0}<span class="count error-count">{errorCount} エラー</span>{/if}
-				<span class="count total">/ {totalCount} 件</span>
+			<div class="phase3-interviews__progress-summary">
+				<span class="phase3-interviews__count phase3-interviews__count--completed"
+					>{completedCount} 完了</span
+				>
+				{#if pendingCount > 0}<span
+						class="phase3-interviews__count phase3-interviews__count--pending"
+						>{pendingCount} 待機中</span
+					>{/if}
+				{#if errorCount > 0}<span
+						class="phase3-interviews__count phase3-interviews__count--error-count"
+						>{errorCount} エラー</span
+					>{/if}
+				<span class="phase3-interviews__count phase3-interviews__count--total"
+					>/ {totalCount} 件</span
+				>
 			</div>
 		{/if}
 	{/snippet}
 	{#snippet content()}
 		{#if !isStarting && currentTopicStore.personasStore.personas.length > 0}
-			<ul class="list">
+			<ul class="phase3-interviews__list">
 				{#each currentTopicStore.personasStore.personas as persona (persona.id)}
 					<InterviewItem {persona} />
 				{/each}
@@ -125,29 +125,29 @@
 </PhasePanel>
 
 <style>
-	.progress-summary {
+	.phase3-interviews__progress-summary {
 		display: flex;
 		align-items: center;
 		gap: 12px;
 		font-size: 0.95rem;
 	}
-	.count {
+	.phase3-interviews__count {
 		font-weight: 600;
 	}
-	.count.completed {
+	.phase3-interviews__count.phase3-interviews__count--completed {
 		color: #2e7d32;
 	}
-	.count.pending {
+	.phase3-interviews__count.phase3-interviews__count--pending {
 		color: #1565c0;
 	}
-	.count.error-count {
+	.phase3-interviews__count.phase3-interviews__count--error-count {
 		color: #c62828;
 	}
-	.count.total {
+	.phase3-interviews__count.phase3-interviews__count--total {
 		color: #555;
 		font-weight: 400;
 	}
-	.list {
+	.phase3-interviews__list {
 		list-style: none;
 		padding: 0;
 	}

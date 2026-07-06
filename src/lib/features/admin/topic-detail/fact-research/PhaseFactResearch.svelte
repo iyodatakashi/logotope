@@ -125,20 +125,20 @@
 				repeatGap="8px"
 			/>
 		{:else if draftFacts.length > 0}
-			<ul class="fact-list">
+			<ul class="phase-fact-research">
 				{#each draftFacts as fact, factIndex (factIndex)}
-					<li class="fact-item">
+					<li class="phase-fact-research__item">
 						<Textarea
 							value={fact.statement}
-							oninput={(v) => (draftFacts[factIndex].statement = v)}
+							oninput={(value) => (draftFacts[factIndex].statement = value)}
 							rows={2}
 							fullWidth
 						/>
-						<div class="fact-item__sources">
+						<div class="phase-fact-research__sources">
 							{#each fact.sources as source, sourceIndex (sourceIndex)}
-								<div class="fact-item__source">
+								<div class="phase-fact-research__source">
 									<a
-										class="fact-item__source-link"
+										class="phase-fact-research__source-link"
 										href={source.url}
 										target="_blank"
 										rel="noopener noreferrer">{source.url}</a
@@ -152,23 +152,25 @@
 					</li>
 				{/each}
 			</ul>
-			<div class="fact-list__actions">
+			<div class="phase-fact-research__actions">
 				<Button variant="filled" onclick={save}>編集内容を保存する</Button>
 			</div>
 		{:else if currentTopicStore.factBaseStore.isLoaded && logicalState !== 'not_started'}
-			<p class="fact-list__empty">確たる客観的事実は見つかりませんでした（事実基盤は空です）。</p>
+			<p class="phase-fact-research__empty">
+				確たる客観的事実は見つかりませんでした（事実基盤は空です）。
+			</p>
 		{/if}
 	{/snippet}
 </PhasePanel>
 
 <style>
-	.fact-list {
+	.phase-fact-research {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
 	}
 
-	.fact-item {
+	.phase-fact-research__item {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
@@ -178,19 +180,19 @@
 		border-radius: 4px;
 	}
 
-	.fact-item__sources {
+	.phase-fact-research__sources {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
 	}
 
-	.fact-item__source {
+	.phase-fact-research__source {
 		display: flex;
 		gap: 8px;
 		align-items: center;
 	}
 
-	.fact-item__source-link {
+	.phase-fact-research__source-link {
 		flex: 1;
 		min-width: 0;
 		overflow: hidden;
@@ -200,11 +202,11 @@
 		color: var(--svelte-ui-text-subtle-color);
 	}
 
-	.fact-list__actions {
+	.phase-fact-research__actions {
 		margin-top: 16px;
 	}
 
-	.fact-list__empty {
+	.phase-fact-research__empty {
 		color: var(--svelte-ui-text-subtle-color);
 	}
 </style>

@@ -1,13 +1,11 @@
 <script lang="ts">
-	import { Button, Checkbox } from '@14ch/svelte-ui';
+	import { Checkbox } from '@14ch/svelte-ui';
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import EngagementList from './EngagementList.svelte';
-	import FactCheckFindings from './FactCheckFindings.svelte';
-	import type { FactCheckFinding } from '$lib/models/factCheck/factCheck.types';
 
 	const PHASE: PhaseSlug = 'debate';
 	// 押下直後の楽観的な「実行中」表示用フラグ。討論は running をサーバが書くため
@@ -87,43 +85,33 @@
 	});
 
 	const personaMap = $derived(
-		new Map(currentTopicStore.personasStore.personas.map((p) => [p.id, p]))
+		new Map(currentTopicStore.personasStore.personas.map((persona) => [persona.id, persona]))
 	);
 
-	// 章ごとの結果から turnId 別に指摘をまとめる（各発言の直下に表示する）
-	const findingsByTurn = $derived.by(() => {
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const map = new Map<string, FactCheckFinding[]>();
-		for (const result of currentTopicStore.factCheckStore.resultsMap.values()) {
-			for (const finding of result.findings) {
-				map.set(finding.turnId, [...(map.get(finding.turnId) ?? []), finding]);
-			}
-		}
-		return map;
-	});
-
 	const turns = $derived(
-		currentTopicStore.chaptersStore.turns.map((t) => {
-			const persona = t.personaId ? personaMap.get(t.personaId) : null;
-			const addressedPersona = t.targetPersonaId ? personaMap.get(t.targetPersonaId) : null;
+		currentTopicStore.chaptersStore.turns.map((turn) => {
+			const persona = turn.personaId ? personaMap.get(turn.personaId) : null;
+			const addressedPersona = turn.targetPersonaId ? personaMap.get(turn.targetPersonaId) : null;
 			return {
-				id: t.id,
-				speakerType: t.speakerType,
+				id: turn.id,
+				speakerType: turn.speakerType,
 				speakerName: persona?.name ?? 'ファシリテーター',
 				speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
-				content: t.content,
-				speechMode: t.speechMode,
-				engagementScore: t.engagementScore,
-				fromQueue: t.fromQueue,
-				personaId: t.personaId,
+				content: turn.content,
+				speechMode: turn.speechMode,
+				engagementScore: turn.engagementScore,
+				fromQueue: turn.fromQueue,
+				personaId: turn.personaId,
 				addressedPersonaName: addressedPersona?.name ?? null,
-				engagements: currentTopicStore.engagementsStore.engagementsMap.get(t.id) ?? [],
-				factCheckFindings: findingsByTurn.get(t.id) ?? [],
+				engagements: currentTopicStore.engagementsStore.engagementsMap.get(turn.id) ?? [],
 				// このターンを聞いて各ペルソナが得た気づき（triggeredByTurnId で紐づく）
-				awarenessesTriggered: currentTopicStore.personasStore.personas.flatMap((p) =>
-					(p.awarenesses ?? [])
-						.filter((a) => a.triggeredByTurnId === t.id)
-						.map((a) => ({ personaName: p.name, content: a.content }))
+				awarenessesTriggered: currentTopicStore.personasStore.personas.flatMap((awarenessPersona) =>
+					(awarenessPersona.awarenesses ?? [])
+						.filter((awareness) => awareness.triggeredByTurnId === turn.id)
+						.map((awareness) => ({
+							personaName: awarenessPersona.name,
+							content: awareness.content
+						}))
 				)
 			};
 		})
@@ -152,7 +140,7 @@
 	{#snippet progress()}
 		{#if logicalState === 'running' && !isResetting}
 			{#if currentTopicStore.chaptersStore.currentChapter}
-				<p class="chapter-progress">
+				<p class="phase5-debate__chapter-progress">
 					第{currentTopicStore.chaptersStore.currentChapter.chapterIndex + 1}章「{currentTopicStore
 						.chaptersStore.currentChapter.title}」
 					{#if currentTopicStore.chaptersStore.chapters.length}（第{currentTopicStore.chaptersStore
@@ -160,48 +148,29 @@
 							.length}章）{/if}
 				</p>
 			{:else if turns.length > 0}
-				<p class="chapter-progress">討論中...（ターン {turns.length}）</p>
+				<p class="phase5-debate__chapter-progress">討論中...（ターン {turns.length}）</p>
 			{/if}
 		{/if}
 	{/snippet}
 	{#snippet content()}
 		{#if logicalState !== 'running'}
-			<div class="debate-options">
+			<div class="phase5-debate__debate-options">
 				<Checkbox bind:value={singleChapterMode}>1章で討論を終了する</Checkbox>
 			</div>
 		{/if}
 		{#if currentTopicStore.chaptersStore.chapters.length}
-			<ol class="chapters">
+			<ol class="phase5-debate__chapters">
 				{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.id)}
-					<li class:current={chapter === currentTopicStore.chaptersStore.currentChapter}>
+					<li
+						class:phase5-debate__chapter--current={chapter ===
+							currentTopicStore.chaptersStore.currentChapter}
+					>
 						<strong>{chapter.title}</strong>
-						{#if chapter.status === 'completed'}
-							{@const fcStatus = currentTopicStore.factCheckStore.resultsMap.get(
-								chapter.id
-							)?.status}
-							{@const fcRun = currentTopicStore.factCheckStore.getRunState(chapter.id)}
-							{@const fcRunning = fcRun.pending || (fcStatus === 'running' && !fcRun.error)}
-							{@const fcFailed = !!fcRun.error || fcStatus === 'failed'}
-							<span class="fact-check-action">
-								<Button
-									variant="outlined"
-									disabled={fcRunning}
-									onclick={() => currentTopicStore.factCheckStore.runFactCheck(chapter.id)}
-								>
-									{fcRunning ? 'ファクトチェック実行中…' : 'ファクトチェックを実行'}
-								</Button>
-								{#if fcFailed}
-									<span class="fc-failed">
-										ファクトチェックに失敗しました{fcRun.error ? `（${fcRun.error}）` : ''}
-									</span>
-								{/if}
-							</span>
-						{/if}
 						{#if chapter === currentTopicStore.chaptersStore.currentChapter && chapter.discussionPointStatuses?.length}
-							<ul class="points">
+							<ul class="phase5-debate__points">
 								{#each chapter.discussionPointStatuses as dp (dp.point)}
-									<li class="point" data-status={dp.status}>
-										<span class="status-badge"
+									<li class="phase5-debate__point" data-status={dp.status}>
+										<span class="phase5-debate__status-badge"
 											>{dp.status === 'untouched'
 												? '未'
 												: dp.status === 'introduced'
@@ -213,9 +182,9 @@
 								{/each}
 							</ul>
 						{:else if chapter.discussionPoints?.length}
-							<ul class="points">
+							<ul class="phase5-debate__points">
 								{#each chapter.discussionPoints as point (point)}
-									<li class="point">{point}</li>
+									<li class="phase5-debate__point">{point}</li>
 								{/each}
 							</ul>
 						{/if}
@@ -225,35 +194,37 @@
 		{/if}
 
 		{#if !isResetting && turns.length > 0}
-			<div class="turns">
+			<div class="phase5-debate__turns">
 				{#each turns as turn, i (turn.id)}
-					<div class="turn" class:facilitator={turn.speakerType === 'facilitator'}>
-						<div class="speaker">
+					<div
+						class="phase5-debate__turn"
+						class:phase5-debate__turn--facilitator={turn.speakerType === 'facilitator'}
+					>
+						<div class="phase5-debate__speaker">
 							<strong>{turn.speakerName}</strong>
 							{#if turn.speakerRole}
-								<span class="role">({turn.speakerRole})</span>
+								<span class="phase5-debate__role">({turn.speakerRole})</span>
 							{/if}
 							{#if turn.speechMode}
-								<span class="speech-mode" data-mode={turn.speechMode}>
+								<span class="phase5-debate__speech-mode" data-mode={turn.speechMode}>
 									{turn.speechMode}{#if turn.engagementScore}({turn.engagementScore}){/if}
 								</span>
 							{/if}
 							{#if turn.fromQueue}
-								<span class="from-queue">[キュー]</span>
+								<span class="phase5-debate__from-queue">[キュー]</span>
 							{/if}
 						</div>
-						<p class="content">{turn.content}</p>
+						<p class="phase5-debate__content">{turn.content}</p>
 						{#if turn.addressedPersonaName}
-							<p class="nominated">次の指名: {turn.addressedPersonaName}</p>
+							<p class="phase5-debate__nominated">次の指名: {turn.addressedPersonaName}</p>
 						{/if}
 						<EngagementList
 							engagements={turn.engagements}
 							{personaMap}
 							selectedPersonaId={turns[i + 1]?.personaId}
 						/>
-						<FactCheckFindings findings={turn.factCheckFindings} />
 						{#if turn.awarenessesTriggered.length > 0}
-							<ul class="awarenesses">
+							<ul class="phase5-debate__awarenesses">
 								{#each turn.awarenessesTriggered as aw, awIdx (awIdx)}
 									<li>💡 {aw.personaName}: {aw.content}</li>
 								{/each}
@@ -267,29 +238,29 @@
 </PhasePanel>
 
 <style>
-	.debate-options {
+	.phase5-debate__debate-options {
 		margin-bottom: 12px;
 	}
-	.chapter-progress {
+	.phase5-debate__chapter-progress {
 		color: #1565c0;
 		font-size: 0.95rem;
 	}
-	.chapters {
+	.phase5-debate__chapters {
 		margin: 12px 0;
 		padding-left: 24px;
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
 	}
-	.chapters li {
+	.phase5-debate__chapters li {
 		color: #888;
 		font-size: 0.9rem;
 	}
-	.chapters li.current {
+	.phase5-debate__chapters li.phase5-debate__chapter--current {
 		color: #1565c0;
 		font-weight: 600;
 	}
-	.points {
+	.phase5-debate__points {
 		margin: 4px 0 0 8px;
 		padding: 0;
 		list-style: none;
@@ -297,7 +268,7 @@
 		flex-direction: column;
 		gap: 2px;
 	}
-	.point {
+	.phase5-debate__point {
 		display: flex;
 		align-items: baseline;
 		gap: 6px;
@@ -305,7 +276,7 @@
 		font-weight: normal;
 		color: #666;
 	}
-	.status-badge {
+	.phase5-debate__status-badge {
 		flex-shrink: 0;
 		font-size: 0.7rem;
 		font-weight: 700;
@@ -314,37 +285,37 @@
 		background: #e0e0e0;
 		color: #757575;
 	}
-	.point[data-status='introduced'] .status-badge {
+	.phase5-debate__point[data-status='introduced'] .phase5-debate__status-badge {
 		background: #fff3e0;
 		color: #e65100;
 	}
-	.point[data-status='addressed'] .status-badge {
+	.phase5-debate__point[data-status='addressed'] .phase5-debate__status-badge {
 		background: #e8f5e9;
 		color: #2e7d32;
 	}
-	.turns {
+	.phase5-debate__turns {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 		margin-top: 8px;
 	}
-	.turn {
+	.phase5-debate__turn {
 		padding: 12px;
 		border-left: 4px solid #e0e0e0;
 	}
-	.turn.facilitator {
+	.phase5-debate__turn.phase5-debate__turn--facilitator {
 		border-left-color: #1565c0;
 		background: #f8f9ff;
 	}
-	.speaker {
+	.phase5-debate__speaker {
 		margin-bottom: 4px;
 	}
-	.role {
+	.phase5-debate__role {
 		color: #757575;
 		font-size: 0.875rem;
 		margin-left: 4px;
 	}
-	.speech-mode {
+	.phase5-debate__speech-mode {
 		font-size: 0.75rem;
 		margin-left: 6px;
 		color: #555;
@@ -352,15 +323,15 @@
 		padding: 1px 5px;
 		border-radius: 3px;
 	}
-	.speech-mode[data-mode='opinion'] {
+	.phase5-debate__speech-mode[data-mode='opinion'] {
 		background: #e8f5e9;
 		color: #2e7d32;
 	}
-	.speech-mode[data-mode='fact'] {
+	.phase5-debate__speech-mode[data-mode='fact'] {
 		background: #e3f2fd;
 		color: #1565c0;
 	}
-	.from-queue {
+	.phase5-debate__from-queue {
 		font-size: 0.75rem;
 		margin-left: 4px;
 		color: #fff;
@@ -368,11 +339,11 @@
 		padding: 1px 5px;
 		border-radius: 3px;
 	}
-	.content {
+	.phase5-debate__content {
 		margin: 0;
 		line-height: 1.6;
 	}
-	.nominated {
+	.phase5-debate__nominated {
 		margin: 4px 0 0;
 		font-size: 0.75rem;
 		color: #b45309;
@@ -381,21 +352,11 @@
 		border-radius: 3px;
 		display: inline-block;
 	}
-	.awarenesses {
+	.phase5-debate__awarenesses {
 		margin-top: 8px;
 		font-size: 0.85rem;
 		color: #555;
 		list-style: none;
 		padding: 0;
-	}
-	.fact-check-action {
-		display: inline-flex;
-		align-items: center;
-		gap: 8px;
-		margin-left: 8px;
-	}
-	.fc-failed {
-		color: #c62828;
-		font-size: 0.78rem;
 	}
 </style>

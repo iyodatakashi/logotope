@@ -31,44 +31,50 @@
 	};
 </script>
 
-<div class="login-container">
+<div class="login-page">
 	<form
-		onsubmit={(e) => {
-			e.preventDefault();
+		onsubmit={(event) => {
+			event.preventDefault();
 			handleLogin();
 		}}
 	>
-		<div class="field">
+		<div class="login-page__field">
 			<label for="email">メールアドレス</label>
-			<Input id="email" type="email" value={email} oninput={(v) => (email = String(v))} fullWidth />
+			<Input
+				id="email"
+				type="email"
+				value={email}
+				oninput={(value) => (email = String(value))}
+				fullWidth
+			/>
 		</div>
-		<div class="field">
+		<div class="login-page__field">
 			<label for="password">パスワード</label>
 			<Input
 				id="password"
 				type="password"
 				value={password}
-				oninput={(v) => (password = String(v))}
+				oninput={(value) => (password = String(value))}
 				fullWidth
 			/>
 		</div>
 		{#if error}
-			<p class="error" role="alert">{error}</p>
+			<p class="login-page__error" role="alert">{error}</p>
 		{/if}
 		<Button type="submit" variant="filled" fullWidth {loading}>ログイン</Button>
 	</form>
 </div>
 
 <style>
-	.login-container {
+	.login-page {
 		max-width: 400px;
 		margin: 80px auto;
 		padding: 32px;
 	}
-	.field {
+	.login-page__field {
 		margin-bottom: 16px;
 	}
-	.error {
+	.login-page__error {
 		color: #d32f2f;
 		margin-bottom: 12px;
 	}

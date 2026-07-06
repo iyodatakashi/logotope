@@ -29,18 +29,18 @@
 	/>
 </svelte:head>
 
-<main class="container">
+<main class="home-page">
 	<header>
 		<h1>logotope</h1>
-		<p class="tagline">AIが多様な立場の意見を公平に可視化する討論プラットフォーム</p>
+		<p class="home-page__tagline">AIが多様な立場の意見を公平に可視化する討論プラットフォーム</p>
 	</header>
 
 	{#if !loaded}
-		<p class="empty">読み込み中...</p>
+		<p class="home-page__empty">読み込み中...</p>
 	{:else if topics.length === 0}
-		<p class="empty">公開された討論はまだありません。</p>
+		<p class="home-page__empty">公開された討論はまだありません。</p>
 	{:else}
-		<ul class="debate-list">
+		<ul class="home-page__list">
 			{#each topics as topic (topic.id)}
 				<li>
 					<TopicListItem {topic} />
@@ -51,7 +51,7 @@
 </main>
 
 <style>
-	.container {
+	.home-page {
 		max-width: 720px;
 		margin: 0 auto;
 		padding: 32px 16px;
@@ -59,18 +59,18 @@
 	header {
 		margin-bottom: 32px;
 	}
-	.tagline {
+	.home-page__tagline {
 		color: #555;
 		margin: 0;
 	}
-	.debate-list {
+	.home-page__list {
 		list-style: none;
 		padding: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
 	}
-	.empty {
+	.home-page__empty {
 		color: #757575;
 	}
 </style>

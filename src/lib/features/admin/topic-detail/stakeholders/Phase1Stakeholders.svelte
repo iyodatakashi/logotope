@@ -91,7 +91,7 @@
 				repeatGap="8px"
 			/>
 		{:else if currentTopicStore.stakeholdersStore.stakeholders.length > 0}
-			<ul class="stakeholders__list">
+			<ul class="phase1-stakeholders__list">
 				{#each currentTopicStore.stakeholdersStore.stakeholders as stakeholder (stakeholder.id)}
 					<StakeholderItem {stakeholder} />
 				{/each}
@@ -101,7 +101,7 @@
 </PhasePanel>
 
 <style>
-	.stakeholders__list {
+	.phase1-stakeholders__list {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;

@@ -4,11 +4,8 @@ import { render } from 'vitest-browser-svelte';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
-const { fcHolder } = vi.hoisted(() => ({
-	fcHolder: {
-		map: new Map<string, unknown>(),
-		runStates: new Map<string, { pending: boolean; error: string | null }>(),
-		runFactCheck: vi.fn(),
+const { topicHolder } = vi.hoisted(() => ({
+	topicHolder: {
 		approveDebate: vi.fn()
 	}
 }));
@@ -20,17 +17,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				id: 'test-topic',
 				phase: 'debate',
 				phaseStatus: 'generated',
-				approveDebate: fcHolder.approveDebate
-			};
-		},
-		get factCheckStore() {
-			return {
-				get resultsMap() {
-					return fcHolder.map;
-				},
-				getRunState: (chapterId: string) =>
-					fcHolder.runStates.get(chapterId) ?? { pending: false, error: null },
-				runFactCheck: fcHolder.runFactCheck
+				approveDebate: topicHolder.approveDebate
 			};
 		},
 		get chaptersStore() {
@@ -127,30 +114,9 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 
 import Phase5Debate from '$lib/features/admin/topic-detail/debate/Phase5Debate.svelte';
 
-const makeResult = (chapterId: string, status: string, findings: unknown[] = []) => ({
-	chapterId,
-	status,
-	findings,
-	sources: [],
-	startedAt: new Date()
-});
-
-const finding = {
-	id: 'fc1',
-	turnId: 't1',
-	speakerType: 'persona',
-	claim: 'テスト発言内容',
-	verdict: 'incorrect',
-	correction: 'これは誤りです',
-	reason: 'ファクトチェックの理由',
-	sources: [{ title: '出典タイトル', url: 'https://src.example' }]
-};
-
 describe('Phase5Debate.svelte', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		fcHolder.map = new Map();
-		fcHolder.runStates = new Map();
 	});
 
 	it('討論 generated 時に「討論を確定して編集へ」ボタンを表示し、押下で approveDebate を呼ぶ', async () => {
@@ -160,7 +126,7 @@ describe('Phase5Debate.svelte', () => {
 		await expect.element(approveButton).toBeInTheDocument();
 
 		await approveButton.click();
-		expect(fcHolder.approveDebate).toHaveBeenCalled();
+		expect(topicHolder.approveDebate).toHaveBeenCalled();
 	});
 
 	it('ターンの発言内容を表示する', async () => {
@@ -187,57 +153,5 @@ describe('Phase5Debate.svelte', () => {
 		render(Phase5Debate);
 
 		await expect.element(page.getByText('テスト発言内容')).toBeInTheDocument();
-	});
-
-	it('完了章にファクトチェック実行ボタンを表示する', async () => {
-		render(Phase5Debate);
-
-		await expect
-			.element(page.getByRole('button', { name: /ファクトチェック/ }))
-			.toBeInTheDocument();
-	});
-
-	it('ボタン押下で factCheckStore.runFactCheck を呼ぶ', async () => {
-		render(Phase5Debate);
-
-		await page.getByRole('button', { name: /ファクトチェック/ }).click();
-		expect(fcHolder.runFactCheck).toHaveBeenCalledWith('ch1');
-	});
-
-	it('指摘を各発言の直下に表示する', async () => {
-		fcHolder.map = new Map([['ch1', makeResult('ch1', 'completed', [finding])]]);
-		render(Phase5Debate);
-
-		await expect.element(page.getByText('これは誤りです')).toBeInTheDocument();
-		await expect.element(page.getByText('ファクトチェックの理由')).toBeInTheDocument();
-	});
-
-	it('実行中（サーバーstatus=running）はボタンを無効化する', async () => {
-		fcHolder.map = new Map([['ch1', makeResult('ch1', 'running')]]);
-		render(Phase5Debate);
-
-		await expect.element(page.getByRole('button', { name: /ファクトチェック/ })).toBeDisabled();
-	});
-
-	it('実行要求中（pending）はサーバー反映前でもボタンを無効化する', async () => {
-		fcHolder.runStates = new Map([['ch1', { pending: true, error: null }]]);
-		render(Phase5Debate);
-
-		await expect.element(page.getByRole('button', { name: /ファクトチェック/ })).toBeDisabled();
-	});
-
-	it('サーバーstatus=failed のとき失敗を示す', async () => {
-		fcHolder.map = new Map([['ch1', makeResult('ch1', 'failed')]]);
-		render(Phase5Debate);
-
-		await expect.element(page.getByText(/失敗/)).toBeInTheDocument();
-	});
-
-	it('呼び出しエラー時は失敗を示し、ボタンを再度有効化する', async () => {
-		fcHolder.runStates = new Map([['ch1', { pending: false, error: 'internal' }]]);
-		render(Phase5Debate);
-
-		await expect.element(page.getByText(/失敗/)).toBeInTheDocument();
-		await expect.element(page.getByRole('button', { name: /ファクトチェック/ })).toBeEnabled();
 	});
 });

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import dayjs from 'dayjs';
 	import type { Topic } from '$lib/models/topic/createTopic.svelte';
 
 	interface Props {
@@ -7,27 +8,21 @@
 
 	let { topic }: Props = $props();
 
-	function formatDate(date: Date): string {
-		return date.toLocaleDateString('ja-JP', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		});
-	}
+	const formatDate = (date: Date): string => dayjs(date).format('YYYY年M月D日');
 </script>
 
-<a href="/debate/{topic.id}" class="card">
-	<h2 class="title">{topic.title}</h2>
-	<div class="meta">
-		<span class="persona-count">{topic.personaCount ?? 0}名参加</span>
+<a href="/debate/{topic.id}" class="topic-list-item">
+	<h2 class="topic-list-item__title">{topic.title}</h2>
+	<div class="topic-list-item__meta">
+		<span class="topic-list-item__persona-count">{topic.personaCount ?? 0}名参加</span>
 		{#if topic.publishedAt}
-			<span class="published-at">{formatDate(topic.publishedAt)}</span>
+			<span class="topic-list-item__published-at">{formatDate(topic.publishedAt)}</span>
 		{/if}
 	</div>
 </a>
 
 <style>
-	.card {
+	.topic-list-item {
 		display: block;
 		padding: 16px;
 		border: 1px solid #e0e0e0;
@@ -36,15 +31,15 @@
 		color: inherit;
 		transition: background 0.15s;
 	}
-	.card:hover {
+	.topic-list-item:hover {
 		background: #f5f5f5;
 	}
-	.title {
+	.topic-list-item__title {
 		font-size: 1rem;
 		font-weight: 600;
 		margin: 0 0 8px;
 	}
-	.meta {
+	.topic-list-item__meta {
 		display: flex;
 		gap: 12px;
 		font-size: 0.875rem;

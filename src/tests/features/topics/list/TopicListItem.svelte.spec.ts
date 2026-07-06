@@ -10,9 +10,10 @@ const topic = {
 	phase: 'debate' as const,
 	phaseStatus: 'generated' as const,
 	personaCount: 5,
-	publishedAt: new Date('2026-06-01T00:00:00.000Z'),
-	createdAt: new Date('2026-01-01T00:00:00.000Z'),
-	updatedAt: new Date('2026-06-01T00:00:00.000Z')
+	// ローカル日付で固定（toLocaleDateString → dayjs 置換で出力文字列が同一であることを担保）
+	publishedAt: new Date(2026, 6, 6),
+	createdAt: new Date(2026, 0, 1),
+	updatedAt: new Date(2026, 6, 6)
 } as unknown as Topic;
 
 describe('TopicListItem.svelte', () => {
@@ -26,9 +27,9 @@ describe('TopicListItem.svelte', () => {
 		await expect.element(page.getByText(/5/)).toBeInTheDocument();
 	});
 
-	it('公開日を表示する', async () => {
+	it('公開日を「YYYY年M月D日」形式で表示する（dayjs 置換後も出力同一・先頭ゼロなし）', async () => {
 		render(TopicListItem, { topic });
-		await expect.element(page.getByText(/2026/)).toBeInTheDocument();
+		await expect.element(page.getByText('2026年7月6日')).toBeInTheDocument();
 	});
 
 	it('討論詳細ページへのリンクを持つ', async () => {

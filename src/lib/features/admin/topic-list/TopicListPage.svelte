@@ -12,10 +12,10 @@
 		phaseDisplayLabel({ phase: topic.phase, phaseStatus: topic.phaseStatus });
 </script>
 
-<div class="dashboard">
+<div class="topic-list-page">
 	<header>
 		<h1>管理ダッシュボード</h1>
-		<div class="actions">
+		<div class="topic-list-page__actions">
 			<Button variant="filled" onclick={() => goto('/admin/topics/new')}>新しいテーマを作成</Button>
 		</div>
 	</header>
@@ -23,15 +23,17 @@
 	{#if !topicsStore.isLoaded}
 		<p>読み込み中...</p>
 	{:else if topicsStore.topics.length === 0}
-		<p class="empty">テーマがありません。新しいテーマを作成してください。</p>
+		<p class="topic-list-page__empty">テーマがありません。新しいテーマを作成してください。</p>
 	{:else}
-		<ul class="topic-list">
+		<ul class="topic-list-page__topic-list">
 			{#each topicsStore.topics as topic (topic.id)}
 				{@const badge = getBadge(topic)}
-				<li class="topic-card">
+				<li class="topic-list-page__topic-card">
 					<a href={`/admin/topics/${topic.id}`}>
-						<span class="title">{topic.title}</span>
-						<span class="badge style-{badge.styleKey}">{badge.label}</span>
+						<span class="topic-list-page__title">{topic.title}</span>
+						<span class="topic-list-page__badge topic-list-page__badge--{badge.styleKey}"
+							>{badge.label}</span
+						>
 					</a>
 				</li>
 			{/each}
@@ -40,7 +42,7 @@
 </div>
 
 <style>
-	.dashboard {
+	.topic-list-page {
 		max-width: 800px;
 		margin: 0 auto;
 		padding: 24px;
@@ -51,18 +53,18 @@
 		align-items: center;
 		margin-bottom: 24px;
 	}
-	.actions {
+	.topic-list-page__actions {
 		display: flex;
 		gap: 8px;
 	}
-	.topic-list {
+	.topic-list-page__topic-list {
 		list-style: none;
 		padding: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
-	.topic-card a {
+	.topic-list-page__topic-card a {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
@@ -72,35 +74,35 @@
 		text-decoration: none;
 		color: inherit;
 	}
-	.topic-card a:hover {
+	.topic-list-page__topic-card a:hover {
 		background: #f5f5f5;
 	}
-	.badge {
+	.topic-list-page__badge {
 		padding: 4px 8px;
 		border-radius: 4px;
 		font-size: 0.75rem;
 		font-weight: 600;
 	}
-	.style-pending {
+	.topic-list-page__badge--pending {
 		background: #e0e0e0;
 	}
-	.style-running {
+	.topic-list-page__badge--running {
 		background: #bbdefb;
 		color: #1565c0;
 	}
-	.style-ready {
+	.topic-list-page__badge--ready {
 		background: #fff9c4;
 		color: #f57f17;
 	}
-	.style-completed {
+	.topic-list-page__badge--completed {
 		background: #c8e6c9;
 		color: #2e7d32;
 	}
-	.style-stopped {
+	.topic-list-page__badge--stopped {
 		background: #ffcdd2;
 		color: #c62828;
 	}
-	.empty {
+	.topic-list-page__empty {
 		color: #757575;
 	}
 </style>

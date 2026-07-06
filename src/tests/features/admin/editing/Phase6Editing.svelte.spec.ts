@@ -14,7 +14,6 @@ const { holder } = vi.hoisted(() => ({
 		chapters: [] as unknown[],
 		// editedChapters ストアの getter が返す値
 		editedByChapter: new Map<string, { status: string; turns?: unknown[] }>(),
-		factResults: new Map<string, unknown>(),
 		personas: [] as unknown[],
 		intro: null as string | null,
 		closing: null as string | null,
@@ -79,13 +78,6 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 					return holder.editedPostDebateComments;
 				}
 			};
-		},
-		get factCheckStore() {
-			return {
-				get resultsMap() {
-					return holder.factResults;
-				}
-			};
 		}
 	}
 }));
@@ -107,7 +99,6 @@ describe('Phase6Editing.svelte', () => {
 		holder.phaseStatus = 'generated';
 		holder.chapters = [];
 		holder.editedByChapter = new Map();
-		holder.factResults = new Map();
 		holder.personas = [persona('p1', '田中太郎')];
 		holder.intro = null;
 		holder.closing = null;
