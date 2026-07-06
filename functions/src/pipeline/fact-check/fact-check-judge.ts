@@ -14,7 +14,7 @@ export type FindingJudgment = {
 };
 
 export type CorrectionWorthinessResult = {
-	kept: FactCheckFinding[]; // 修正すべきと判定して残した finding（checkTurn の戻り値に使う）
+	kept: FactCheckFinding[]; // 修正すべきと判定して残した finding（checkContent の戻り値に使う）
 	judgments: FindingJudgment[]; // 全 finding の判定（テスト・ログ用）
 };
 
@@ -35,7 +35,9 @@ const buildJudgePrompt = (
 	context: FactCheckContext
 ): string => {
 	const scope = context.discussionScope ? `（${context.discussionScope}）` : '';
-	const findingList = findings.map((f) => `- id: ${f.id}\n  該当箇所: ${f.claim}`).join('\n');
+	const findingList = findings
+		.map((finding) => `- id: ${finding.id}\n  該当箇所: ${finding.claim}`)
+		.join('\n');
 	return `【討論のテーマ】${context.topicTitle}
 【この章で議論していること】${context.chapterTitle}${scope}
 【本日】${context.currentDate}
@@ -81,17 +83,21 @@ export const judgeCorrectionWorthiness = async (
 			messages: [{ role: 'user', content: buildJudgePrompt(content, findings, context) }]
 		});
 
-		const decisionById = new Map(object.judgments.map((j) => [j.id, j]));
-		const judgments: FindingJudgment[] = findings.map((f) => {
-			const judged = decisionById.get(f.id);
+		const decisionById = new Map(object.judgments.map((judgment) => [judgment.id, judgment]));
+		const judgments: FindingJudgment[] = findings.map((finding) => {
+			const judged = decisionById.get(finding.id);
 			// 判定が返らなかった finding は per-finding フェイルオープン（unjudged で残す）
 			if (!judged)
-				return { findingId: f.id, decision: 'unjudged', reason: '判定が返却されませんでした' };
-			return { findingId: f.id, decision: judged.decision, reason: judged.reason };
+				return {
+					findingId: finding.id,
+					decision: 'unjudged',
+					reason: '判定が返却されませんでした'
+				};
+			return { findingId: finding.id, decision: judged.decision, reason: judged.reason };
 		});
 
-		const kept = findings.filter((f) => {
-			const judgment = judgments.find((j) => j.findingId === f.id)!;
+		const kept = findings.filter((finding) => {
+			const judgment = judgments.find((candidate) => candidate.findingId === finding.id)!;
 			return judgment.decision !== 'skip';
 		});
 
@@ -100,8 +106,8 @@ export const judgeCorrectionWorthiness = async (
 	} catch (err) {
 		// 全件フェイルオープン: 検出済み finding を失わせない
 		console.error('[judgeCorrectionWorthiness] failed; keeping all findings', err);
-		const judgments: FindingJudgment[] = findings.map((f) => ({
-			findingId: f.id,
+		const judgments: FindingJudgment[] = findings.map((finding) => ({
+			findingId: finding.id,
 			decision: 'unjudged',
 			reason: err instanceof Error ? err.message : String(err)
 		}));
@@ -110,18 +116,18 @@ export const judgeCorrectionWorthiness = async (
 };
 
 const logJudgments = (findings: FactCheckFinding[], judgments: FindingJudgment[]): void => {
-	const byId = new Map(findings.map((f) => [f.id, f]));
-	for (const j of judgments) {
-		if (j.decision === 'skip') {
+	const byId = new Map(findings.map((finding) => [finding.id, finding]));
+	for (const judgment of judgments) {
+		if (judgment.decision === 'skip') {
 			console.info('[factCheckJudge] skip', {
-				turnId: byId.get(j.findingId)?.turnId,
-				claim: byId.get(j.findingId)?.claim,
-				reason: j.reason
+				turnId: byId.get(judgment.findingId)?.turnId,
+				claim: byId.get(judgment.findingId)?.claim,
+				reason: judgment.reason
 			});
-		} else if (j.decision === 'unjudged') {
+		} else if (judgment.decision === 'unjudged') {
 			console.warn('[factCheckJudge] unjudged (kept)', {
-				findingId: j.findingId,
-				reason: j.reason
+				findingId: judgment.findingId,
+				reason: judgment.reason
 			});
 		}
 	}

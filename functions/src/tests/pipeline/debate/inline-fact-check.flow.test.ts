@@ -5,8 +5,8 @@ import type { Chapter } from '../../../types/chapter.types.js';
 
 /**
  * インライン補正フローの統合テスト（要件6）。
- * verifyAndReviseDraft / checkContent / checkChapter は実物を使い、LLM・grounding・Firestore など
- * リーフ依存のみをモックして、ドラフト生成→検証→再生成→正式登録の結線と後追い非重複を検証する。
+ * verifyAndReviseDraft / checkContent は実物を使い、LLM・grounding・Firestore など
+ * リーフ依存のみをモックして、ドラフト生成→検証→再生成→正式登録の結線を検証する。
  */
 
 // --- Firestore（addTurn の冪等トランザクション + isDebateActive の get）---
@@ -100,7 +100,6 @@ const { mockGetTopicById } = vi.hoisted(() => ({ mockGetTopicById: vi.fn() }));
 vi.mock('../../../pipeline/topics/topics.js', () => ({ getTopicById: mockGetTopicById }));
 
 import { generatePersonaTurn } from '../../../pipeline/debate/turn.js';
-import { checkChapter } from '../../../pipeline/fact-check/fact-check-runner.js';
 
 // --- ai のディスパッチ（Phase0 ゲート schema vs Phase2 構造化 schema）---
 let phase2Queue: unknown[];
@@ -266,7 +265,8 @@ describe('インライン補正の結線（ドラフト→検証→再生成→�
 		expect(trace.status).toBe('checked');
 		expect(trace.revised).toBe(true);
 		expect(trace.originalContent).toBe('日本の人口は2億人である。');
-		expect(result?.turnId).toBe('mock-id');
+		expect(result.status).toBe('committed');
+		if (result.status === 'committed') expect(result.turnId).toBe('mock-id');
 	});
 
 	it('検証失敗（provider 不在）でも討論は停止せず、未補正で登録され unverified トレースが残る', async () => {
@@ -314,62 +314,5 @@ describe('インライン補正の結線（ドラフト→検証→再生成→�
 		expect(trace.status).toBe('checked');
 		expect(trace.revised).toBe(false);
 		expect((trace.findings as unknown[]).length).toBe(1);
-	});
-});
-
-describe('後追い検証との非重複（インライン検証済みターン）', () => {
-	it('補正済みターンは再 grounding せず解決済み指摘を再提示せず、未検証ターンのみ検証する', async () => {
-		mockGetChapterById.mockResolvedValue({
-			id: 'ch1',
-			chapterIndex: 0,
-			title: '戦時下の医療',
-			discussionPoints: [],
-			status: 'completed',
-			turns: [
-				{
-					id: 'trevised',
-					speakerType: 'persona',
-					content: '正しくは約1.2億人です。',
-					createdAt: 'TS',
-					factCheck: {
-						status: 'checked',
-						revised: true,
-						findings: [
-							{
-								id: 'ef',
-								turnId: '',
-								speakerType: 'persona',
-								claim: '日本の人口は2億人である',
-								verdict: 'incorrect',
-								correction: '約1.2億人',
-								reason: '統計と矛盾',
-								sources: []
-							}
-						],
-						originalContent: '日本の人口は2億人である。'
-					}
-				},
-				{
-					id: 'tunverified',
-					speakerType: 'persona',
-					content: '日本の人口は2億人である。',
-					createdAt: 'TS',
-					factCheck: { status: 'unverified', revised: false, findings: [] }
-				}
-			]
-		});
-		mockGenerateText.mockResolvedValue(groundingResult());
-		phase2Queue.push(oneIncorrectFinding());
-
-		const result = await checkChapter({ topicId: 't1', chapterId: 'ch1' });
-
-		// grounding（Phase1）は未検証ターン1件のみ。補正済みターンは再検証されない
-		expect(mockGenerateText).toHaveBeenCalledTimes(1);
-		expect(result.ok).toBe(true);
-		if (result.ok) {
-			// 補正済みターンの解決済み指摘は結果へ流れず、未検証ターンの指摘のみ
-			expect(result.value).toHaveLength(1);
-			expect(result.value[0].turnId).toBe('tunverified');
-		}
 	});
 });

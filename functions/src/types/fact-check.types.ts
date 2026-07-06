@@ -1,7 +1,4 @@
-import type { Timestamp } from 'firebase-admin/firestore';
 import type { SearchResult } from '../search/grounding.js';
-
-export type FactCheckStatus = 'running' | 'completed' | 'failed';
 
 export type FactCheckVerdict = 'incorrect' | 'unverifiable';
 
@@ -22,14 +19,4 @@ export type FactCheckContext = {
 	chapterTitle: string;
 	discussionScope: string; // 話題スコープ補足（インライン: アクティブ論点 ?? 章タイトル, 章バッチ: 章タイトル）
 	currentDate: string; // 時間軸検証の基準（currentDateString() 由来＝実行開始時刻, 3.5）
-};
-
-export type FactCheckResultForFirestore = {
-	chapterId: string;
-	status: FactCheckStatus;
-	findings: FactCheckFinding[];
-	sources: SearchResult[]; // 章全体で参照した出典（finding 突合のフォールバック）
-	errorMessage?: string;
-	startedAt: Timestamp;
-	completedAt?: Timestamp;
 };
