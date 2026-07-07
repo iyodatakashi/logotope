@@ -285,11 +285,6 @@
 		onGenerate={start}
 		onRegenerate={regenerate}
 	>
-		{#snippet progress()}
-			{#if logicalState === 'running'}
-				<p class="phase6-editing__editing-progress">編集中...</p>
-			{/if}
-		{/snippet}
 		{#snippet content()}
 			<!-- 導入（intro）＝記事の先頭 -->
 			{#if introView.status !== 'missing' || editingSettled}
@@ -521,10 +516,6 @@
 		background: #fff8e1;
 		color: #f57f17;
 	}
-	.phase6-editing__editing-progress {
-		color: #1565c0;
-		font-size: 0.95rem;
-	}
 	.phase6-editing__diff-toggle {
 		margin-bottom: 16px;
 		font-size: 0.9rem;
@@ -630,7 +621,7 @@
 	.phase6-editing__awarenesses {
 		margin-top: 8px;
 		font-size: 0.85rem;
-		color: #555;
+		color: var(--svelte-ui-text-subtle-color);
 		list-style: none;
 		padding: 0;
 	}
