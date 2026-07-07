@@ -45,17 +45,18 @@ describe('getPersonaModel', () => {
 	});
 
 	describe('gemini', () => {
-		it('GEMINI_API_KEY が設定されている場合 Gemini LanguageModel を返す', () => {
+		// gemini ペルソナは Sonnet に寄せる方針（PERSONA_MODELS.gemini が Claude モデル）。
+		// プロバイダはモデル ID で選ぶため、GEMINI_API_KEY の有無に関わらず anthropic に投げる（Google に Claude ID を渡さない）。
+		it('モデル ID が Claude(Sonnet) なら GEMINI_API_KEY 設定時でも anthropic に投げる（Google を使わない）', () => {
 			process.env.GEMINI_API_KEY = 'test-gemini-key';
 			getPersonaModel('gemini');
-			expect(createGoogleGenerativeAI).toHaveBeenCalledWith({ apiKey: 'test-gemini-key' });
-			expect(mockGoogleModelFn).toHaveBeenCalledWith(PERSONA_MODELS.gemini);
-			expect(anthropic).not.toHaveBeenCalled();
+			expect(anthropic).toHaveBeenCalledWith(PERSONA_MODELS.gemini);
+			expect(createGoogleGenerativeAI).not.toHaveBeenCalled();
 		});
 
-		it('GEMINI_API_KEY が未設定の場合 Claude にフォールバック', () => {
+		it('GEMINI_API_KEY 未設定でも anthropic（Claude モデル）に投げる', () => {
 			getPersonaModel('gemini');
-			expect(anthropic).toHaveBeenCalledWith(PERSONA_MODELS.claude);
+			expect(anthropic).toHaveBeenCalledWith(PERSONA_MODELS.gemini);
 			expect(createGoogleGenerativeAI).not.toHaveBeenCalled();
 		});
 	});

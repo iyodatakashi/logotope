@@ -5,26 +5,32 @@ import { openai } from '@ai-sdk/openai';
 import type { LLMType } from '../types/common.types.js';
 import { PERSONA_MODELS, PIPELINE_MODELS } from '../constants/ai.constants.js';
 
-export const getPersonaModel = (llmType: LLMType): LanguageModel => {
-	switch (llmType) {
-		case 'gemini': {
-			const apiKey = process.env.GEMINI_API_KEY;
-			if (!apiKey) {
-				console.warn('[llm] fallback to claude: gemini - GEMINI_API_KEY not set');
-				return anthropic(PERSONA_MODELS.claude);
-			}
-			return createGoogleGenerativeAI({ apiKey })(PERSONA_MODELS.gemini);
-		}
-		case 'gpt':
-			if (!process.env.OPENAI_API_KEY) {
-				console.warn('[llm] fallback to claude: gpt - OPENAI_API_KEY not set');
-				return anthropic(PERSONA_MODELS.claude);
-			}
-			return openai(PERSONA_MODELS.gpt);
-		case 'claude':
+// プロバイダは llmType キーではなく「解決後のモデル ID」で選ぶ。
+// これにより、ペルソナ設定が gemini でもモデル ID が Claude(Sonnet) を指していれば anthropic に投げる
+// （過去の不具合対応で gemini ペルソナを Sonnet に寄せた設定を正しく機能させる。Google に Claude ID を渡さない）。
+const providerForModel = (modelId: string): LanguageModel => {
+	if (modelId.startsWith('claude')) return anthropic(modelId);
+	if (modelId.startsWith('gpt')) {
+		if (!process.env.OPENAI_API_KEY) {
+			console.warn(`[llm] fallback to claude: ${modelId} - OPENAI_API_KEY not set`);
 			return anthropic(PERSONA_MODELS.claude);
+		}
+		return openai(modelId);
 	}
+	if (modelId.startsWith('gemini')) {
+		const apiKey = process.env.GEMINI_API_KEY;
+		if (!apiKey) {
+			console.warn(`[llm] fallback to claude: ${modelId} - GEMINI_API_KEY not set`);
+			return anthropic(PERSONA_MODELS.claude);
+		}
+		return createGoogleGenerativeAI({ apiKey })(modelId);
+	}
+	console.warn(`[llm] fallback to claude: unknown model ${modelId}`);
+	return anthropic(PERSONA_MODELS.claude);
 };
+
+export const getPersonaModel = (llmType: LLMType): LanguageModel =>
+	providerForModel(PERSONA_MODELS[llmType]);
 
 export const getGoogleProvider = (): ReturnType<typeof createGoogleGenerativeAI> | null => {
 	const apiKey = process.env.GEMINI_API_KEY;
