@@ -260,9 +260,9 @@ describe('debate.types - ターン追記入力・結果型定義', () => {
 });
 
 describe('debate.types - ステップ・次ステップ判定型定義', () => {
-	it('StepKind は5種のステップ種別を表す', () => {
-		const kinds: StepKind[] = ['open', 'turn', 'summary', 'closing', 'comments'];
-		expect(kinds).toHaveLength(5);
+	it('StepKind は3種のステップ種別を表す', () => {
+		const kinds: StepKind[] = ['open', 'turn', 'chapter-end'];
+		expect(kinds).toHaveLength(3);
 	});
 
 	it('StepPayload はステップ実行に必要な情報を持つ', () => {
@@ -281,13 +281,10 @@ describe('debate.types - ステップ・次ステップ判定型定義', () => {
 	it('NextStep は各遷移を判別共用体で表す', () => {
 		const steps: NextStep[] = [
 			{ kind: 'turn', expectedTurnIndex: 1 },
-			{ kind: 'summary', expectedTurnIndex: 10 },
-			{ kind: 'closing', expectedTurnIndex: 12 },
-			{ kind: 'open', chapterIndex: 1, expectedTurnIndex: 0 },
-			{ kind: 'comments' },
-			{ kind: 'none' }
+			{ kind: 'chapter-end', expectedTurnIndex: 10 },
+			{ kind: 'open', chapterIndex: 1, expectedTurnIndex: 0 }
 		];
-		expect(steps).toHaveLength(6);
+		expect(steps).toHaveLength(3);
 		const open = steps.find((s) => s.kind === 'open');
 		if (open && open.kind === 'open') expect(open.chapterIndex).toBe(1);
 	});

@@ -38,7 +38,6 @@ import {
 	type InterventionTrigger
 } from './intervention.js';
 import { updateSpeakerStats } from './debate-state.js';
-import { persistPostDebateComments } from './post-debate-comments.js';
 import { generateFacilitatorTurn, generatePersonaTurn } from './turn.js';
 import type { PersonaTurnCommit } from './turn.js';
 import { pipelineErrorMessage, validPersonaId, isEarlyEndCandidate } from './utils.js';
@@ -488,10 +487,9 @@ export const performTurnStep = async (
 };
 
 /**
- * 章完了ステップ: 章末で当該章を completed に確定し、論点状態をクリーンアップする。
- * summary（非最終章）/ closing（最終章）双方の分岐から呼ばれ、発言生成は一切行わない。
- * 状態は Firestore から再構築するため completed 再適用に対し冪等。
- * @returns 常に true。次段（次章 open / comments）の投入は orchestrator が行う。
+ * 章完了ステップ: 章末（chapter-end）で当該章を completed に確定し、論点状態をクリーンアップする。
+ * 発言生成は一切行わない。状態は Firestore から再構築するため completed 再適用に対し冪等。
+ * @returns 常に true。次段（次章 open / 最終章の generated 確定）の投入は orchestrator が行う。
  */
 export const completeChapterStep = async (
 	ctx: StepContext,
@@ -501,18 +499,5 @@ export const completeChapterStep = async (
 	const { topicId } = payload;
 	await updateChapterStatus(topicId, chapterDoc.id, 'completed');
 	await deleteDiscussionPointStatuses(topicId, chapterDoc.id);
-	return true;
-};
-
-/** comments ステップ: 事後コメント生成と phaseStatus 遷移（冪等・終端） */
-export const performCommentsStep = async (
-	ctx: StepContext,
-	payload: StepPayload
-): Promise<boolean> => {
-	await persistPostDebateComments({
-		topicId: payload.topicId,
-		personas: ctx.personas,
-		state: ctx.state
-	});
 	return true;
 };

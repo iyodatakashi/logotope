@@ -32,7 +32,7 @@ vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-id') }));
 const mockGenerateTurn = vi.fn();
 vi.mock('../../../agents/persona-agent.js', () => ({
 	generateTurn: (...args: unknown[]) => mockGenerateTurn(...args),
-	generatePostDebateComment: vi.fn()
+	generateImpression: vi.fn()
 }));
 
 const mockValidPersonaId = vi.fn((id: string | undefined) => id);

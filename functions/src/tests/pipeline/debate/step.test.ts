@@ -56,9 +56,6 @@ vi.mock('../../../pipeline/debate/intervention.js', () => ({
 	tryIntervention: vi.fn().mockResolvedValue(false),
 	countConsecutivePersonaTargets: vi.fn(() => 0)
 }));
-vi.mock('../../../pipeline/debate/post-debate-comments.js', () => ({
-	persistPostDebateComments: vi.fn().mockResolvedValue(undefined)
-}));
 
 import {
 	performOpenStep,
@@ -318,7 +315,7 @@ describe('completeChapterStep - 章末の完了確定＋論点クリーンアッ
 		};
 		const ctx = makeCtx({ chapterDoc });
 
-		const result = await completeChapterStep(ctx, makePayload({ stepKind: 'summary' }));
+		const result = await completeChapterStep(ctx, makePayload({ stepKind: 'chapter-end' }));
 
 		expect(result).toBe(true);
 		// 章 completed 確定

@@ -40,28 +40,28 @@ describe('decideNextStep', () => {
 		expect(result).toEqual({ kind: 'turn', expectedTurnIndex: 5 });
 	});
 
-	it('cap 到達かつ最終章でなければ summary を返す', () => {
+	it('cap 到達かつ最終章でなければ chapter-end を返す', () => {
 		const result = decideNextStep(base({ chapterTurns: turns(23), globalTurnCount: 23 }));
-		expect(result).toEqual({ kind: 'summary', expectedTurnIndex: 23 });
+		expect(result).toEqual({ kind: 'chapter-end', expectedTurnIndex: 23 });
 	});
 
-	it('cap 到達かつ最終章なら closing を返す', () => {
+	it('cap 到達かつ最終章でも chapter-end を返す（最終章判定は dispatcher 側で行う）', () => {
 		const result = decideNextStep(
 			base({ chapterTurns: turns(23), globalTurnCount: 23, isLastChapter: true })
 		);
-		expect(result).toEqual({ kind: 'closing', expectedTurnIndex: 23 });
+		expect(result).toEqual({ kind: 'chapter-end', expectedTurnIndex: 23 });
 	});
 
-	it('globalTurnCount が maxTurns 以上なら章を終了する（summary）', () => {
+	it('globalTurnCount が maxTurns 以上なら章を終了する（chapter-end）', () => {
 		const result = decideNextStep(base({ chapterTurns: turns(10), globalTurnCount: 200 }));
-		expect(result.kind).toBe('summary');
+		expect(result.kind).toBe('chapter-end');
 	});
 
-	it('早期終了条件成立（進捗閾値超え＋カウンタ上限）なら summary を返す', () => {
+	it('早期終了条件成立（進捗閾値超え＋カウンタ上限）なら chapter-end を返す', () => {
 		const result = decideNextStep(
 			base({ chapterTurns: turns(13), globalTurnCount: 13, quietStreak: 5 })
 		);
-		expect(result).toEqual({ kind: 'summary', expectedTurnIndex: 13 });
+		expect(result).toEqual({ kind: 'chapter-end', expectedTurnIndex: 13 });
 	});
 
 	it('早期終了の進捗閾値未満なら turn を返す（継続）', () => {
@@ -87,7 +87,7 @@ describe('decideNextStep', () => {
 		expect(result).toEqual({ kind: 'turn', expectedTurnIndex: 23, finalResponse: true });
 	});
 
-	it('最終応答ターンが既に消費済み（末尾が直前指名への応答）なら closing/summary へ進む', () => {
+	it('最終応答ターンが既に消費済み（末尾が直前指名への応答）なら chapter-end へ進む', () => {
 		// 22: p2 を指名 / 23: p2 が応答（直前指名への応答 → +1 消費済み）
 		const chapterTurns = [
 			...turns(22),
@@ -95,7 +95,7 @@ describe('decideNextStep', () => {
 			personaTurn(23, { personaId: 'p2' })
 		];
 		const result = decideNextStep(base({ chapterTurns, globalTurnCount: 24, isLastChapter: true }));
-		expect(result).toEqual({ kind: 'closing', expectedTurnIndex: 24 });
+		expect(result).toEqual({ kind: 'chapter-end', expectedTurnIndex: 24 });
 	});
 
 	it('論点ありの章は AGENDA_TURN_CAP_RATIO（cap=38）まで継続する', () => {

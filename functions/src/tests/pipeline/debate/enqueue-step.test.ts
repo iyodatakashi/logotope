@@ -34,9 +34,9 @@ describe('taskKey', () => {
 		expect(a).not.toBe(b);
 	});
 
-	it('終端 comments は種別ベースの鍵を生成する', () => {
-		const key = taskKey({ runId: 'run-A', chapterId: 'ch1', frontierIndex: 'comments' });
-		expect(key).toBe('run-A:ch1:comments');
+	it('章末 chapter-end も章ローカル位置ベースの鍵を生成する', () => {
+		const key = taskKey({ runId: 'run-A', chapterId: 'ch1', frontierIndex: 12 });
+		expect(key).toBe('run-A:ch1:12');
 	});
 });
 

@@ -36,13 +36,13 @@ vi.mock('../../../agents/persona-agent.js', () => ({
 		ok: true,
 		value: { content: 'turn', speechMode: 'opinion', beliefChange: null }
 	})),
-	generatePostDebateComment: vi.fn(async () => ({ ok: true, value: { content: 'comment' } }))
+	generateImpression: vi.fn(async () => ({ ok: true, value: { content: 'comment' } }))
 }));
 vi.mock('../../../agents/facilitator-agent.js', () => ({
 	generateOpening: vi.fn(async () => ({ ok: true, value: { content: 'opening' } })),
 	generateChapterIntroduction: vi.fn(async () => ({ ok: true, value: { content: 'intro' } })),
 	generateChapterSummary: vi.fn(async () => ({ ok: true, value: 'summary' })),
-	generateClosing: vi.fn(async () => ({ ok: true, value: 'closing' })),
+	generateOutro: vi.fn(async () => ({ ok: true, value: 'closing' })),
 	evaluateTopicDrift: vi.fn(async () => ({ ok: true, value: { content: undefined } })),
 	evaluateStallIntervention: vi.fn(async () => ({ ok: true, value: { content: undefined } })),
 	evaluateDiscussionPointCoverage: vi.fn(async () => ({ ok: true, value: [] }))
@@ -116,7 +116,7 @@ const payloadWithRun = (stepKind: StepKind, runId: string): StepPayload => ({
 	chapterIndex: 0,
 	runId,
 	stepKind,
-	expectedTurnIndex: stepKind === 'comments' ? -1 : 1
+	expectedTurnIndex: 1
 });
 
 beforeEach(() => {
@@ -126,7 +126,7 @@ beforeEach(() => {
 });
 
 describe('入口ゲート: 旧世代 payload は副作用ゼロで正常終了する（R9.1）', () => {
-	const STEP_KINDS: StepKind[] = ['open', 'turn', 'summary', 'closing', 'comments'];
+	const STEP_KINDS: StepKind[] = ['open', 'turn', 'chapter-end'];
 
 	it.each(STEP_KINDS)(
 		'%s ステップ: 旧 runId は生成・状態変更・再エンキューを一切行わない',

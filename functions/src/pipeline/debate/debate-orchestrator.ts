@@ -1,7 +1,7 @@
 /**
  * 討論を「1ステップ＝1 Cloud Task」のチェーンとして駆動するチェーン駆動層。
  *
- * 各章は open → turn(複数) → summary/closing → comments という step の連鎖で進む。
+ * 各章は open → turn(複数) → chapter-end という step の連鎖で進む。
  * advanceDebate が停止ゲート→状態再構築→オプション構築→stepKind の dispatch を行い、
  * dispatch した stepKind と step 層が返した実行結果から次ステップを決定して enqueue する。
  * そのタスクが起動して再び advanceDebate を呼ぶ…という自己継続ループになっている。
@@ -18,7 +18,7 @@ import { getTopicById } from '../topics/topics.js';
 import { getPersonasByTopicId } from '../personas/personas.js';
 import { getDebateState } from './debate-state.js';
 import { loadChapterProgress, getChaptersByTopicId, getDebateTurnsByTopicId } from './chapter.js';
-import { checkDebateActivation } from './debate-lifecycle.js';
+import { checkDebateActivation, confirmDebateGenerated } from './debate-lifecycle.js';
 import { enqueueStep, taskKey } from './enqueue-step.js';
 import {
 	TURN_CAP_RATIO,
@@ -29,12 +29,7 @@ import {
 } from '../../constants/debate.constants.js';
 import { isEarlyEndCandidate } from './utils.js';
 import { loadQueuedIntents } from './queued-intents.js';
-import {
-	performOpenStep,
-	performTurnStep,
-	completeChapterStep,
-	performCommentsStep
-} from './step.js';
+import { performOpenStep, performTurnStep, completeChapterStep } from './step.js';
 import type { DebateOptions } from '../../types/debate.types.js';
 import type { DiscussionPointState } from '../../types/chapter.types.js';
 import type { DebateTurn } from '../../types/turn.types.js';
@@ -52,12 +47,8 @@ const hasUnansweredTargetAtEnd = (chapterTurns: DebateTurn[]): boolean => {
 	return !!(last?.targetPersonaId && last.targetedBy);
 };
 
-/** 章末に投入するステップ種別を決める（最終章は closing、それ以外は summary）。選択ロジックの単一の源。 */
-const chapterEndStepKind = (isLastChapter: boolean): 'summary' | 'closing' =>
-	isLastChapter ? 'closing' : 'summary';
-
-/** decideNextStep が返しうる種別（turn 継続 / 章末 summary・closing）。open/comments/none は返さない。 */
-type TurnFollowupStep = Extract<NextStep, { kind: 'turn' | 'summary' | 'closing' }>;
+/** decideNextStep が返しうる種別（turn 継続 / 章末 chapter-end）。open は返さない。 */
+type TurnFollowupStep = Extract<NextStep, { kind: 'turn' | 'chapter-end' }>;
 
 /**
  * 追記成功後、永続状態のみから次ステップ種別と期待位置を決める純関数。
@@ -69,15 +60,13 @@ export const decideNextStep = ({
 	globalTurnCount,
 	quietStreak,
 	discussionPoints,
-	options,
-	isLastChapter
+	options
 }: {
 	chapterTurns: DebateTurn[];
 	globalTurnCount: number;
 	quietStreak: number;
 	discussionPoints: DiscussionPointState[];
 	options: DebateOptions;
-	isLastChapter: boolean;
 }): TurnFollowupStep => {
 	// 論点リストを持つ章は消化のため上限を高めに取る（AGENDA_TURN_CAP_RATIO > TURN_CAP_RATIO）
 	const hasPoints = discussionPoints.length > 0;
@@ -100,14 +89,12 @@ export const decideNextStep = ({
 	}
 
 	// 章終了と判定。末尾に未応答の指名が残れば最終応答ターン（+1）を1回挟む。
-	// finalResponse フラグで標識し、当該ターン後は decideNextStep を再評価せず summary/closing へ直行する
+	// finalResponse フラグで標識し、当該ターン後は decideNextStep を再評価せず chapter-end へ直行する
 	if (hasUnansweredTargetAtEnd(chapterTurns)) {
 		return { kind: 'turn', expectedTurnIndex, finalResponse: true };
 	}
 
-	return chapterEndStepKind(isLastChapter) === 'closing'
-		? { kind: 'closing', expectedTurnIndex }
-		: { kind: 'summary', expectedTurnIndex };
+	return { kind: 'chapter-end', expectedTurnIndex };
 };
 
 /**
@@ -167,7 +154,7 @@ const loadStepContext = async (payload: StepPayload): Promise<StepContext> => {
 /**
  * 次ステップのタスクを投入する。override で stepKind/位置などを差し替えたペイロードを作り、
  * (runId, chapterId, frontier) から決まる決定的なタスクキーで重複投入を防ぐ（同じ frontier への
- * 二重起動は ALREADY_EXISTS で弾かれる）。comments ステップだけは frontier を 'comments' 固定にする。
+ * 二重起動は ALREADY_EXISTS で弾かれる）。frontier は全ステップ共通で章ローカル期待位置を使う。
  */
 const enqueueNextStep = async (
 	payload: StepPayload,
@@ -175,9 +162,10 @@ const enqueueNextStep = async (
 	override: Partial<StepPayload>
 ): Promise<void> => {
 	const next: StepPayload = { ...payload, ...override };
-	const frontier: number | 'comments' =
-		next.stepKind === 'comments' ? 'comments' : next.expectedTurnIndex;
-	await enqueueStep(next, taskKey({ runId: next.runId, chapterId, frontierIndex: frontier }));
+	await enqueueStep(
+		next,
+		taskKey({ runId: next.runId, chapterId, frontierIndex: next.expectedTurnIndex })
+	);
 };
 
 /** open 完了後の最初の turn を、handler が更新した state から算出した章ローカル位置へ投入する */
@@ -201,8 +189,7 @@ const enqueueAfterTurn = async (
 		globalTurnCount: ctx.state.turns.length,
 		quietStreak,
 		discussionPoints: ctx.state.discussionPoints,
-		options: buildStepOptions(payload),
-		isLastChapter: ctx.isLastChapter
+		options: buildStepOptions(payload)
 	});
 	await enqueueNextStep(payload, ctx.chapterDoc.id, {
 		stepKind: next.kind,
@@ -211,11 +198,11 @@ const enqueueAfterTurn = async (
 	});
 };
 
-/** 章末（最終応答ターンの直後）に summary（非最終章）/ closing（最終章）を現在の章ローカル位置へ投入する */
+/** 章末（最終応答ターンの直後）に chapter-end を現在の章ローカル位置へ投入する */
 const enqueueChapterEnd = async (ctx: StepContext, payload: StepPayload): Promise<void> => {
 	const turnIndex = ctx.state.turns.length - ctx.chapterTurnStartInState;
 	await enqueueNextStep(payload, ctx.chapterDoc.id, {
-		stepKind: chapterEndStepKind(ctx.isLastChapter),
+		stepKind: 'chapter-end',
 		expectedTurnIndex: turnIndex,
 		finalResponse: undefined
 	});
@@ -281,27 +268,24 @@ export const advanceDebate = async (payload: StepPayload): Promise<boolean> => {
 		}
 		case 'turn':
 			return advanceTurn(ctx, payload, options);
-		case 'summary': {
+		case 'chapter-end': {
+			// 章を completed 化し論点状態をクリーンアップする（発話生成なし）
 			const committed = await completeChapterStep(ctx, payload);
-			const nextChapter = ctx.chapters[payload.chapterIndex + 1];
-			if (nextChapter) {
-				await enqueueNextStep(payload, nextChapter.id, {
-					chapterIndex: payload.chapterIndex + 1,
-					stepKind: 'open',
-					expectedTurnIndex: 0
-				});
+			if (ctx.isLastChapter) {
+				// 最終章: コメント生成に依存せず討論を generated 確定して終端する（enqueue なし）
+				await confirmDebateGenerated(payload.topicId);
+			} else {
+				// 非最終章: 次章の open を投入して討論を継続する
+				const nextChapter = ctx.chapters[payload.chapterIndex + 1];
+				if (nextChapter) {
+					await enqueueNextStep(payload, nextChapter.id, {
+						chapterIndex: payload.chapterIndex + 1,
+						stepKind: 'open',
+						expectedTurnIndex: 0
+					});
+				}
 			}
 			return committed;
 		}
-		case 'closing': {
-			const committed = await completeChapterStep(ctx, payload);
-			await enqueueNextStep(payload, ctx.chapterDoc.id, {
-				stepKind: 'comments',
-				expectedTurnIndex: -1
-			});
-			return committed;
-		}
-		case 'comments':
-			return performCommentsStep(ctx, payload);
 	}
 };

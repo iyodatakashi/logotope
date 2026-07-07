@@ -34,7 +34,7 @@ vi.mock('nanoid', () => {
 const mockGenerateTurn = vi.fn();
 vi.mock('../../../agents/persona-agent.js', () => ({
 	generateTurn: (...a: unknown[]) => mockGenerateTurn(...a),
-	generatePostDebateComment: vi.fn(async () => ({ ok: true, value: { content: 'comment' } }))
+	generateImpression: vi.fn(async () => ({ ok: true, value: { content: 'comment' } }))
 }));
 
 const mockEvaluateTopicDrift = vi.fn();

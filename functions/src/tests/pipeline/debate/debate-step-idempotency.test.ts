@@ -34,13 +34,13 @@ vi.mock('../../../agents/persona-agent.js', () => ({
 		ok: true,
 		value: { content: 'turn', speechMode: 'opinion', beliefChange: null }
 	})),
-	generatePostDebateComment: vi.fn(async () => ({ ok: true, value: { content: 'comment' } }))
+	generateImpression: vi.fn(async () => ({ ok: true, value: { content: 'comment' } }))
 }));
 vi.mock('../../../agents/facilitator-agent.js', () => ({
 	generateOpening: vi.fn(async () => ({ ok: true, value: { content: 'opening' } })),
 	generateChapterIntroduction: vi.fn(async () => ({ ok: true, value: { content: 'intro' } })),
 	generateChapterSummary: vi.fn(async () => ({ ok: true, value: 'summary' })),
-	generateClosing: vi.fn(async () => ({ ok: true, value: 'closing' })),
+	generateOutro: vi.fn(async () => ({ ok: true, value: 'closing' })),
 	evaluateTopicDrift: vi.fn(async () => ({ ok: true, value: { content: undefined } })),
 	evaluateStallIntervention: vi.fn(async () => ({ ok: true, value: { content: undefined } })),
 	evaluateDiscussionPointCoverage: vi.fn(async () => ({ ok: true, value: [] }))
@@ -152,27 +152,30 @@ describe('liveness: 追記コミット済みだが次 enqueue 前にクラッシ
 	});
 });
 
-describe('終端冪等: comments ステップ', () => {
-	const commentsPayload: StepPayload = {
+describe('終端冪等: 最終章 chapter-end', () => {
+	const chapterEndPayload: StepPayload = {
 		topicId: TOPIC_ID,
 		chapterIndex: 0,
 		runId: RUN_ID,
-		stepKind: 'comments',
-		expectedTurnIndex: -1
+		stepKind: 'chapter-end',
+		expectedTurnIndex: 1
 	};
 
-	it('comments を2回実行しても postDebateComments は1セット・phaseStatus は二重遷移しない', async () => {
-		await advanceDebate(commentsPayload);
-		const firstComments = holder.mock!.store.get(`topics/${TOPIC_ID}/postDebateComments/0`);
-		expect(firstComments).toBeDefined();
-		expect(holder.mock!.store.get(`topics/${TOPIC_ID}`)?.phaseStatus).toBe('generated');
+	it('最終章 chapter-end でコメント生成なしに phaseStatus が running→generated へ遷移する', async () => {
+		await advanceDebate(chapterEndPayload);
 
-		// 2回目: phaseStatus は既に generated → running ガードで遷移しない（no-op）
-		await advanceDebate(commentsPayload);
+		// 章は completed 化され、討論後コメントは生成されない（生成は編集工程へ移設）
+		expect(holder.mock!.store.get(`topics/${TOPIC_ID}/chapters/ch1`)?.status).toBe('completed');
+		expect(holder.mock!.store.get(`topics/${TOPIC_ID}/postDebateComments/0`)).toBeUndefined();
 		expect(holder.mock!.store.get(`topics/${TOPIC_ID}`)?.phaseStatus).toBe('generated');
-		const comments = holder.mock!.store.get(`topics/${TOPIC_ID}/postDebateComments/0`) as {
-			comments: unknown[];
-		};
-		expect(comments.comments).toHaveLength(2); // ペルソナ2人分のみ（重複なし）
+	});
+
+	it('章末を重複適用しても状態が壊れない（generated 冪等・次ステップを投入しない）', async () => {
+		await advanceDebate(chapterEndPayload);
+		await advanceDebate(chapterEndPayload);
+
+		expect(holder.mock!.store.get(`topics/${TOPIC_ID}`)?.phaseStatus).toBe('generated');
+		// 最終章の終端では後続ステップ（次章 open 等）を投入しない
+		expect(stepQueue).toHaveLength(0);
 	});
 });

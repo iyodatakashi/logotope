@@ -6,12 +6,13 @@ const REGION = 'asia-northeast1';
 
 /**
  * deterministic task id の鍵。frontierIndex = 投入先ステップの章ローカル期待位置。
- * 終端 comments は index を持たないため種別ベースの鍵にする。runId を含めて再起動時の衝突を避ける。
+ * 章末 chapter-end も章ローカル位置を持つため、全ステップが位置ベースの一意鍵に揃う。
+ * runId を含めて再起動時の衝突を避ける。
  */
 export const taskKey = (p: {
 	runId: string;
 	chapterId: string;
-	frontierIndex: number | 'comments';
+	frontierIndex: number;
 }): string => `${p.runId}:${p.chapterId}:${p.frontierIndex}`;
 
 /** 連番プレフィックスはレイテンシ悪化のため鍵を hash 化して task id にする（SDK 推奨） */

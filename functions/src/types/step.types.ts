@@ -2,7 +2,7 @@ import type { Chapter, ChapterEntry } from './chapter.types.js';
 import type { Persona } from './persona.types.js';
 import type { DebateState } from './debate.types.js';
 
-export type StepKind = 'open' | 'turn' | 'summary' | 'closing' | 'comments';
+export type StepKind = 'open' | 'turn' | 'chapter-end';
 
 export type StepPayload = {
 	topicId: string;
@@ -11,17 +11,14 @@ export type StepPayload = {
 	stepKind: StepKind;
 	expectedTurnIndex: number;
 	singleChapterMode?: boolean;
-	// 章末の未応答指名に対する最終応答（+1）ターンであることを示す。処理後は summary/closing へ直行する
+	// 章末の未応答指名に対する最終応答（+1）ターンであることを示す。処理後は chapter-end へ直行する
 	finalResponse?: boolean;
 };
 
 export type NextStep =
 	| { kind: 'turn'; expectedTurnIndex: number; finalResponse?: boolean }
-	| { kind: 'summary'; expectedTurnIndex: number }
-	| { kind: 'closing'; expectedTurnIndex: number }
-	| { kind: 'open'; chapterIndex: number; expectedTurnIndex: 0 }
-	| { kind: 'comments' }
-	| { kind: 'none' };
+	| { kind: 'chapter-end'; expectedTurnIndex: number }
+	| { kind: 'open'; chapterIndex: number; expectedTurnIndex: 0 };
 
 /** 1ステップ処理に必要な、永続データから再構築した一式のコンテキスト */
 export type StepContext = {
@@ -33,7 +30,7 @@ export type StepContext = {
 	state: DebateState; // 全ターンから導出した討論状態（発言数・沈黙・キュー等）
 	chapterTurnStartInState: number; // state.turns 内でこの章のターンが始まるオフセット
 	quietStreak: number; // 盛り上がりが低いターンの連続数（早期終了判定用）
-	isLastChapter: boolean; // この章が最終章か（true なら summary でなく closing へ）
+	isLastChapter: boolean; // この章が最終章か（true なら chapter-end で討論を generated 確定、false なら次章 open）
 };
 
 /**
