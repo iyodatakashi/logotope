@@ -23,7 +23,7 @@ export type Chapter = Omit<ChapterForFirestore, 'turns'> & {
 	turns: Turn[];
 };
 
-export type IssueSource = 'general' | 'persona' | 'fact';
+export type IssueSource = 'general' | 'persona';
 
 export type Issue = {
 	id: string;
