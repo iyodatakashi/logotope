@@ -358,8 +358,7 @@
 											>
 												<div class="editing-page__speaker">
 													<div class="editing-page__speaker-name">{turn.name}</div>
-													{#if turn.role}<span class="editing-page__role">({turn.role})</span
-														>{/if}
+													{#if turn.role}<span class="editing-page__role">({turn.role})</span>{/if}
 													<span class="editing-page__removed-label">発言ごと削除</span>
 												</div>
 												<p class="editing-page__content"><del>{turn.content}</del></p>
@@ -595,10 +594,10 @@
 		border-radius: 3px;
 	}
 	.editing-page__speaker {
-		margin-bottom: 4px;
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
+		margin-bottom: 4px;
 	}
 	.editing-page__speaker-name {
 		font-weight: bold;

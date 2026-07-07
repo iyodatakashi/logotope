@@ -140,21 +140,6 @@
 	{#snippet headerControls()}
 		<Checkbox bind:value={singleChapterMode}>1章で討論を終了する</Checkbox>
 	{/snippet}
-	{#snippet progress()}
-		{#if logicalState === 'running' && !isResetting}
-			{#if currentTopicStore.chaptersStore.currentChapter}
-				<p class="generate-debate-page__chapter-progress">
-					第{currentTopicStore.chaptersStore.currentChapter.chapterIndex + 1}章「{currentTopicStore
-						.chaptersStore.currentChapter.title}」
-					{#if currentTopicStore.chaptersStore.chapters.length}（第{currentTopicStore.chaptersStore
-							.currentChapter.chapterIndex + 1}章 / 全{currentTopicStore.chaptersStore.chapters
-							.length}章）{/if}
-				</p>
-			{:else if turns.length > 0}
-				<p class="generate-debate-page__chapter-progress">討論中...（ターン {turns.length}）</p>
-			{/if}
-		{/if}
-	{/snippet}
 	{#snippet content()}
 		{#if currentTopicStore.chaptersStore.chapters.length}
 			<ol class="generate-debate-page__chapters">
@@ -163,7 +148,7 @@
 						class:generate-debate-page__chapter--current={chapter ===
 							currentTopicStore.chaptersStore.currentChapter}
 					>
-						<strong>{chapter.title}</strong>
+						<div class="generate-debate-page__chapter-title">{chapter.title}</div>
 						{#if chapter === currentTopicStore.chaptersStore.currentChapter && chapter.discussionPointStatuses?.length}
 							<ul class="generate-debate-page__points">
 								{#each chapter.discussionPointStatuses as dp (dp.point)}
@@ -199,7 +184,7 @@
 						class:generate-debate-page__turn--facilitator={turn.speakerType === 'facilitator'}
 					>
 						<div class="generate-debate-page__speaker">
-							<strong>{turn.speakerName}</strong>
+							<div class="generate-debate-page__speaker-name">{turn.speakerName}</div>
 							{#if turn.speakerRole}
 								<span class="generate-debate-page__role">({turn.speakerRole})</span>
 							{/if}
@@ -236,12 +221,7 @@
 </PhasePanel>
 
 <style>
-	.generate-debate-page__chapter-progress {
-		color: #1565c0;
-		font-size: 0.95rem;
-	}
 	.generate-debate-page__chapters {
-		margin: 12px 0;
 		padding-left: 24px;
 		display: flex;
 		flex-direction: column;
@@ -303,7 +283,13 @@
 		background: #f8f9ff;
 	}
 	.generate-debate-page__speaker {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		margin-bottom: 4px;
+	}
+	.generate-debate-page__speaker-name {
+		font-weight: bold;
 	}
 	.generate-debate-page__role {
 		color: #757575;
@@ -350,7 +336,7 @@
 	.generate-debate-page__awarenesses {
 		margin-top: 8px;
 		font-size: 0.85rem;
-		color: #555;
+		color: var(--svelte-ui-text-subtle-color);
 		list-style: none;
 		padding: 0;
 	}
