@@ -481,7 +481,7 @@ export const generateImpression = async (
 			messages: [
 				{
 					role: 'user',
-					content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。${awarenessNote}\n\n討論全体:\n${formatTurns(turns, personas)}`
+					content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。\n「今日の話を聞いていて」「討論を通じて」「今回の議論で」のような、振り返りの前置き・実況で始めないこと。前置きは付けず、いきなり感じたこと・考えの変化そのものから書き出してください。${awarenessNote}\n\n討論全体:\n${formatTurns(turns, personas)}`
 				}
 			]
 		});
