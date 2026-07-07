@@ -23,6 +23,7 @@
 		onRestart?: () => void;
 		content?: Snippet;
 		progress?: Snippet;
+		headerControls?: Snippet; // ヘッダー（アクション行）に置く画面固有の操作（例: 表示オプションのトグル）
 	}
 
 	let {
@@ -41,7 +42,8 @@
 		restartLabel,
 		onRestart,
 		content,
-		progress
+		progress,
+		headerControls
 	}: Props = $props();
 
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
@@ -49,8 +51,9 @@
 
 <div class="phase-panel">
 	<div class="phase-panel__actions-pane">
-		<div class="phase-panel__actions">
-			{#if logicalState === 'not_started'}
+		<div class="phase-panel__actions-row">
+			<div class="phase-panel__actions">
+				{#if logicalState === 'not_started'}
 				<Button variant="filled" onclick={onGenerate}>{generateLabel}</Button>
 				{#if emptyApproveLabel && onEmptyApprove}
 					<Button variant="outlined" onclick={onEmptyApprove}>{emptyApproveLabel}</Button>
@@ -79,6 +82,12 @@
 				<Button variant="filled" onclick={() => regenerateDialog?.open()}>
 					{regenerateLabel}
 				</Button>
+			{/if}
+			</div>
+			{#if headerControls}
+				<div class="phase-panel__header-controls">
+					{@render headerControls()}
+				</div>
 			{/if}
 		</div>
 	</div>
@@ -125,9 +134,23 @@
 		padding: 0 24px 24px;
 	}
 
+	.phase-panel__actions-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+	}
+
 	.phase-panel__actions {
 		display: flex;
 		gap: 8px;
+	}
+
+	.phase-panel__header-controls {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		font-size: 0.9rem;
 	}
 
 	.phase-panel__progress {

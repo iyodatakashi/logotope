@@ -137,6 +137,11 @@
 	onRestart={restart}
 	onApprove={approve}
 >
+	{#snippet headerControls()}
+		{#if logicalState !== 'running'}
+			<Checkbox bind:value={singleChapterMode}>1章で討論を終了する</Checkbox>
+		{/if}
+	{/snippet}
 	{#snippet progress()}
 		{#if logicalState === 'running' && !isResetting}
 			{#if currentTopicStore.chaptersStore.currentChapter}
@@ -153,11 +158,6 @@
 		{/if}
 	{/snippet}
 	{#snippet content()}
-		{#if logicalState !== 'running'}
-			<div class="phase5-debate__debate-options">
-				<Checkbox bind:value={singleChapterMode}>1章で討論を終了する</Checkbox>
-			</div>
-		{/if}
 		{#if currentTopicStore.chaptersStore.chapters.length}
 			<ol class="phase5-debate__chapters">
 				{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.id)}
@@ -238,9 +238,6 @@
 </PhasePanel>
 
 <style>
-	.phase5-debate__debate-options {
-		margin-bottom: 12px;
-	}
 	.phase5-debate__chapter-progress {
 		color: #1565c0;
 		font-size: 0.95rem;

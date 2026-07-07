@@ -285,6 +285,15 @@
 		onGenerate={start}
 		onRegenerate={regenerate}
 	>
+		{#snippet headerControls()}
+			{#if displayChapters.length}
+				<span class="phase6-editing__diff-legend">
+					<Checkbox bind:value={showDiff}
+						>原本との差分を表示（<del>削除</del> / <ins>追加</ins>）</Checkbox
+					>
+				</span>
+			{/if}
+		{/snippet}
 		{#snippet content()}
 			<!-- 導入（intro）＝記事の先頭 -->
 			{#if introView.status !== 'missing' || editingSettled}
@@ -316,11 +325,6 @@
 
 			<!-- 本体（body＝章） -->
 			{#if displayChapters.length}
-				<div class="phase6-editing__diff-toggle">
-					<Checkbox bind:value={showDiff}
-						>原本との差分を表示（<del>削除</del> / <ins>追加</ins>）</Checkbox
-					>
-				</div>
 				<div class="phase6-editing__chapters">
 					{#each displayChapters as chapter (chapter.id)}
 						<section class="phase6-editing__chapter">
@@ -516,17 +520,13 @@
 		background: #fff8e1;
 		color: #f57f17;
 	}
-	.phase6-editing__diff-toggle {
-		margin-bottom: 16px;
-		font-size: 0.9rem;
-	}
-	.phase6-editing__diff-toggle ins {
+	.phase6-editing__diff-legend ins {
 		background: #e6ffed;
 		color: #22863a;
 		text-decoration: none;
 		padding: 0 2px;
 	}
-	.phase6-editing__diff-toggle del {
+	.phase6-editing__diff-legend del {
 		background: #ffeef0;
 		color: #b31d28;
 		padding: 0 2px;
