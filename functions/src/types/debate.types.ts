@@ -65,7 +65,7 @@ export type QueuedIntent = {
 	intentSummary: string;
 };
 
-export type PostDebateCommentResult = {
+export type ImpressionResult = {
 	personaId: string;
 	content: string;
 };

@@ -1,23 +1,23 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
-import { editChapter, editComments } from '../../agents/editor-agent.js';
+import { editChapter } from '../../agents/editor-agent.js';
 import { getPersonasByTopicId } from '../personas/personas.js';
 import { pipelineErrorMessage } from '../debate/utils.js';
-import { writeEditedChapter, writeEditedComments } from './edited-repository.js';
-import { finalizeEditingRun } from './editing-lifecycle.js';
+import { writeEditedChapter } from './edited-repository.js';
+import { readEditorial, setImpression } from './editorial-repository.js';
+import { buildImpressionPart } from './element-builders.js';
 import type { EditedTurnDraft } from '../../agents/editor-agent.js';
 import type {
 	EditedChapterForFirestore,
 	EditedTurnForFirestore,
-	EditedPostDebateCommentForFirestore,
 	NonEmptyArray
 } from '../../types/editorial.types.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
 
-// 編集チェーンの「1ステップ実行」層。章編集ステップとコメント編集ステップの本体を担う。
-// 状態は毎回 Firestore（原本）から再構築するため冪等・再入可能。次に何をするか（enqueue）は
+// 編集チェーンの「1ステップ実行」層。所感ステージと章編集ステップの本体を担う。
+// 状態は毎回 Firestore（原本＋統合保存）から再構築するため冪等・再入可能。次に何をするか（enqueue）は
 // orchestrator が決める。構造的検証で不合格の章は failed 記録し原本フォールバック、後続章は継続する。
 
 const db = () => getFirestore();
@@ -60,6 +60,32 @@ export const readRawChapters = async (topicId: string): Promise<RawEditChapter[]
 			}))
 		};
 	});
+};
+
+/**
+ * 所感ステージ: 承認済みペルソナごとに所感を原本生成→整えし、統合保存 editorial/0 の該当キーへ部分上書きする。
+ * 参加者単位で一時失敗を自動リトライし、全滅した参加者だけを欠けとして残す（他参加者を妨げない・Req 2.1, 2.2）。
+ * 同一 run 内のタスク再試行では、既に原本のある参加者を二重生成しない（Req 5.2）。失敗は warn ログに残す（Req 2.3）。
+ * phaseStatus には触れない。次段（章編集）の投入は orchestrator が行う。
+ */
+export const runImpressionsStep = async (topicId: string): Promise<void> => {
+	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.approved);
+	const turns = (await readRawChapters(topicId)).flatMap((chapter) => chapter.turns);
+	const editorial = await readEditorial(topicId);
+
+	for (let i = 0; i < personas.length; i++) {
+		const persona = personas[i];
+		if (editorial.impressions[persona.id]?.draft) continue; // run 内二重生成防止
+		const part = await buildImpressionPart(persona, turns, personas, i);
+		if (part === null) {
+			console.warn('[runImpressionsStep] impression missing after retries', {
+				topicId,
+				personaId: persona.id
+			});
+			continue;
+		}
+		await setImpression(topicId, persona.id, part);
+	}
 };
 
 /**
@@ -222,41 +248,4 @@ export const runChapterEditStep = async (
 	};
 	await writeEditedChapter(topicId, chapter.id, completed);
 	return 'completed';
-};
-
-type RawCommentDoc = { id: string; personaId: string; content: string; sortOrder: number };
-
-/**
- * コメント編集ステップ: 全章編集後に事後コメントをリライトして保存し、編集ランを確定する。
- * コメントが無ければ空成果物を書いて確定する。LLM 失敗は例外（リトライ）。
- * @returns finalizeEditingRun の結果（'generated' | 'stopped' | 'noop'）
- */
-export const runCommentsEditStep = async (
-	topicId: string,
-	runId: string
-): Promise<'generated' | 'stopped' | 'noop'> => {
-	const snap = await db().doc(`topics/${topicId}/postDebateComments/0`).get();
-	const rawComments = snap.exists
-		? ((snap.data() as { comments?: RawCommentDoc[] }).comments ?? [])
-		: [];
-
-	if (rawComments.length === 0) {
-		await writeEditedComments(topicId, { comments: [] });
-		return await finalizeEditingRun(topicId, runId);
-	}
-
-	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.approved);
-	const result = await editComments(rawComments, personas);
-	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
-
-	const sortOrderBySource = new Map(rawComments.map((comment) => [comment.id, comment.sortOrder]));
-	const comments: EditedPostDebateCommentForFirestore[] = result.value.map((draft) => ({
-		id: nanoid(),
-		sourceCommentId: draft.sourceCommentId,
-		personaId: draft.personaId,
-		content: draft.content,
-		sortOrder: sortOrderBySource.get(draft.sourceCommentId) ?? 0
-	}));
-	await writeEditedComments(topicId, { comments });
-	return await finalizeEditingRun(topicId, runId);
 };

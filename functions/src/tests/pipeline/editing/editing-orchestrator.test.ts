@@ -6,10 +6,10 @@ vi.mock('../../../pipeline/editing/editing-lifecycle.js', () => ({
 vi.mock('../../../pipeline/editing/editing-step.js', () => ({
 	readRawChapters: vi.fn(),
 	runChapterEditStep: vi.fn(),
-	runCommentsEditStep: vi.fn()
+	runImpressionsStep: vi.fn()
 }));
-vi.mock('../../../pipeline/editing/intro-closing-step.js', () => ({
-	runIntroClosingStep: vi.fn()
+vi.mock('../../../pipeline/editing/intro-outro-step.js', () => ({
+	runIntroOutroStep: vi.fn()
 }));
 vi.mock('../../../pipeline/editing/enqueue-editing-step.js', () => ({
 	enqueueEditingStep: vi.fn()
@@ -19,17 +19,17 @@ import { isEditingActive } from '../../../pipeline/editing/editing-lifecycle.js'
 import {
 	readRawChapters,
 	runChapterEditStep,
-	runCommentsEditStep
+	runImpressionsStep
 } from '../../../pipeline/editing/editing-step.js';
-import { runIntroClosingStep } from '../../../pipeline/editing/intro-closing-step.js';
+import { runIntroOutroStep } from '../../../pipeline/editing/intro-outro-step.js';
 import { enqueueEditingStep } from '../../../pipeline/editing/enqueue-editing-step.js';
 import { advanceEditing } from '../../../pipeline/editing/editing-orchestrator.js';
 
 const mockIsActive = vi.mocked(isEditingActive);
 const mockReadChapters = vi.mocked(readRawChapters);
 const mockRunChapter = vi.mocked(runChapterEditStep);
-const mockRunComments = vi.mocked(runCommentsEditStep);
-const mockRunIntroClosing = vi.mocked(runIntroClosingStep);
+const mockRunImpressions = vi.mocked(runImpressionsStep);
+const mockRunIntroOutro = vi.mocked(runIntroOutroStep);
 const mockEnqueue = vi.mocked(enqueueEditingStep);
 
 const twoChapters = [{ chapterIndex: 0 }, { chapterIndex: 1 }] as never;
@@ -38,16 +38,30 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	mockIsActive.mockResolvedValue(true);
 	mockRunChapter.mockResolvedValue('completed');
-	mockRunIntroClosing.mockResolvedValue(undefined);
+	mockRunImpressions.mockResolvedValue(undefined);
+	mockRunIntroOutro.mockResolvedValue('generated');
 	mockReadChapters.mockResolvedValue(twoChapters);
 });
 
 describe('advanceEditing', () => {
 	it('停止ゲート（世代不一致・非稼働）なら何も実行しない', async () => {
 		mockIsActive.mockResolvedValueOnce(false);
-		await advanceEditing({ topicId: 't1', runId: 'r1', stepKind: 'chapter', chapterIndex: 0 });
+		await advanceEditing({ topicId: 't1', runId: 'r1', stepKind: 'impressions', chapterIndex: -1 });
+		expect(mockRunImpressions).not.toHaveBeenCalled();
 		expect(mockRunChapter).not.toHaveBeenCalled();
 		expect(mockEnqueue).not.toHaveBeenCalled();
+	});
+
+	it('impressions ステージは所感生成後に最初の章編集ステップを投入する', async () => {
+		await advanceEditing({ topicId: 't1', runId: 'r1', stepKind: 'impressions', chapterIndex: -1 });
+		expect(mockRunImpressions).toHaveBeenCalledWith('t1');
+		expect(mockEnqueue).toHaveBeenCalledWith({
+			topicId: 't1',
+			runId: 'r1',
+			stepKind: 'chapter',
+			chapterIndex: 0
+		});
+		expect(mockRunChapter).not.toHaveBeenCalled();
 	});
 
 	it('章編集後、次章があれば次章ステップを投入する', async () => {
@@ -61,32 +75,14 @@ describe('advanceEditing', () => {
 		});
 	});
 
-	it('最終章の後は intro-closing ステップを投入する', async () => {
+	it('最終章の後は intro-outro ステップを投入する', async () => {
 		await advanceEditing({ topicId: 't1', runId: 'r1', stepKind: 'chapter', chapterIndex: 1 });
 		expect(mockEnqueue).toHaveBeenCalledWith({
 			topicId: 't1',
 			runId: 'r1',
-			stepKind: 'intro-closing',
+			stepKind: 'intro-outro',
 			chapterIndex: -1
 		});
-	});
-
-	it('intro-closing ステップは best-effort 実行後にコメントステップを投入する', async () => {
-		await advanceEditing({
-			topicId: 't1',
-			runId: 'r1',
-			stepKind: 'intro-closing',
-			chapterIndex: -1
-		});
-		expect(mockRunIntroClosing).toHaveBeenCalledWith('t1', 'r1');
-		expect(mockEnqueue).toHaveBeenCalledWith({
-			topicId: 't1',
-			runId: 'r1',
-			stepKind: 'comments',
-			chapterIndex: -1
-		});
-		// finalize（comments）は実行しない
-		expect(mockRunComments).not.toHaveBeenCalled();
 	});
 
 	it('検証不合格（failed）の章でも後続ステップへ連鎖する', async () => {
@@ -100,10 +96,9 @@ describe('advanceEditing', () => {
 		});
 	});
 
-	it('コメントステップは編集ランを確定し、次を投入しない', async () => {
-		mockRunComments.mockResolvedValueOnce('generated');
-		await advanceEditing({ topicId: 't1', runId: 'r1', stepKind: 'comments', chapterIndex: -1 });
-		expect(mockRunComments).toHaveBeenCalledWith('t1', 'r1');
+	it('intro-outro ステージは導入/締めを best-effort 実行し編集ランを確定する（終端・次を投入しない）', async () => {
+		await advanceEditing({ topicId: 't1', runId: 'r1', stepKind: 'intro-outro', chapterIndex: -1 });
+		expect(mockRunIntroOutro).toHaveBeenCalledWith('t1', 'r1');
 		expect(mockEnqueue).not.toHaveBeenCalled();
 	});
 });

@@ -53,7 +53,7 @@ const introInstruction = `これは討論を「読む前」の読者に向けた
 - 事実を置いたら、締めの問い以外に論評・まとめの一言を足さない（「今後の展開が注目されます」「目が離せません」のような、中身のない後付けの締め文句は不要）。
 - 短く、まっすぐ書く。`;
 
-const closingInstruction = `これは討論を「読み終えた」読者に向けたクロージング（結び）です。読者はすでに討論を最後まで読み終えています。
+const outroInstruction = `これは討論を「読み終えた」読者に向けたクロージング（結び）です。読者はすでに討論を最後まで読み終えています。
 - 「論点を整理します」のような前置きで始めない。「第1章ではこう、第2章では…」と各章の内容を順になぞり返す振り返りもしない（読者はもう読んで知っている）。
 - 焦点を当てる問いは、討論ダイジェストに実際に現れた流れ・立場・気づきに即して選ぶ。それらしく聞こえるだけの、討論に接地していない問いを作らない。討論を通して実際に浮かび上がった問い・論点が一つあれば、それだけに焦点を当てて結ぶ。あれこれ並べず、多くても一つに絞る。焦点を当てる問いが無ければ、無理に論点を持ち出さず短く余韻だけで締める。
 - 結論・決着・落としどころは示さず、その問いがなお開かれたまま残ることに触れ、静かに余韻を残して締めくくる。
@@ -152,9 +152,9 @@ export const generateIntro = (input: IntroClosingInput): Promise<Result<string, 
 		`【討論の骨子（ネタバレ防止のため要約・立場は伏せています）】\n${formatDigestBrief(input.digest)}`
 	);
 
-export const generateClosing = (input: IntroClosingInput): Promise<Result<string, PipelineError>> =>
+export const generateOutro = (input: IntroClosingInput): Promise<Result<string, PipelineError>> =>
 	generate(
 		input,
-		closingInstruction,
+		outroInstruction,
 		`【討論ダイジェスト（結びを討論内容に即させるための参照。順になぞり返さないこと）】\n${formatDigestFull(input.digest)}`
 	);

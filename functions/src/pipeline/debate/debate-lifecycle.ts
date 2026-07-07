@@ -3,7 +3,6 @@ import { nanoid } from 'nanoid';
 import { discardChaptersFrom, getChaptersByTopicId } from './chapter.js';
 import { rollbackAwarenessesForRemovedTurns } from './awareness.js';
 import { deleteChapterEngagements } from './engagement.js';
-import { clearPostDebateComments } from './post-debate-comments.js';
 import { clearEditedArtifact } from '../editing/edited-repository.js';
 import type { PhaseKey } from '../../types/topic.types.js';
 
@@ -58,6 +57,27 @@ export const checkDebateActivation = async (
 };
 
 /**
+ * 討論の phaseStatus が running のときだけ generated へ遷移させる（冪等・終端）。
+ * 最終章の chapter-end が呼ぶ、討論 generated 遷移の単一の担い手。
+ * 停止ゲート isDebateActive は running 限定で chapter-end は running 中しか実行されないため、
+ * stopped からの遷移経路は到達不能。stopped を許容すると停止済み討論を誤って generated へ復活させる
+ * 余地が残るため running 限定で塞ぐ（utils/topic-phase の confirmPhaseGenerated が stopped も許容するのと異なる）。
+ * phase が debate から前進済み（承認等）なら巻き戻さない。generated・stopped・not_started・doc 不在は no-op。
+ * 遷移したら true、しなければ false。
+ */
+export const confirmDebateGenerated = async (topicId: string): Promise<boolean> => {
+	const ref = db().doc(`topics/${topicId}`);
+	return db().runTransaction(async (tx) => {
+		const snap = await tx.get(ref);
+		if (!snap.exists) return false;
+		const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string };
+		if (data.phase !== 'debate' || data.phaseStatus !== 'running') return false;
+		tx.update(ref, { phase: 'debate', phaseStatus: 'generated', updatedAt: Timestamp.now() });
+		return true;
+	});
+};
+
+/**
  * 討論フェーズが完了（generated 到達）しているかを判定する。編集開始の前提ゲート（Req 5.4）。
  * phase が editing に進んでいる場合は討論を完了して次段へ移っているため完了扱い（編集の再実行を許可する）。
  */
@@ -82,12 +102,12 @@ const discardChaptersWithSideData = async (
 		discardChapters.flatMap((chapter) => chapter.turns).map((turn) => turn.id)
 	);
 
-	await clearPostDebateComments(topicId);
 	// 初期信念は不変。破棄ターンに紐づく気づき（awareness）のみを巻き戻す（1.3）
 	await rollbackAwarenessesForRemovedTurns(topicId, removedTurnIds);
 	await deleteChapterEngagements(topicId, discardChapters);
 
-	// 原本（章のターン）が再生成されるため、編集成果物も破棄して原本との不整合を残さない（Req 5.6）
+	// 原本（章のターン）が再生成されるため、編集成果物（editedChapters ＋ 統合保存 editorial/0）も破棄して
+	// 原本との不整合を残さない（Req 5.6）。所感の原本も editorial に含まれるためここで一括破棄される。
 	await clearEditedArtifact(topicId);
 };
 

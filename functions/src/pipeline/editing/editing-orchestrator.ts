@@ -1,6 +1,6 @@
 import { isEditingActive } from './editing-lifecycle.js';
-import { readRawChapters, runChapterEditStep, runCommentsEditStep } from './editing-step.js';
-import { runIntroClosingStep } from './intro-closing-step.js';
+import { readRawChapters, runChapterEditStep, runImpressionsStep } from './editing-step.js';
+import { runIntroOutroStep } from './intro-outro-step.js';
 import { enqueueEditingStep } from './enqueue-editing-step.js';
 import type { EditingStepPayload } from './enqueue-editing-step.js';
 
@@ -11,15 +11,21 @@ import type { EditingStepPayload } from './enqueue-editing-step.js';
 
 /**
  * 1 編集ステップを処理する再入可能ディスパッチャ。
- * chapter: 対象章を編集して保存し、次章があれば次章ステップ、無ければ intro-closing ステップを投入する。
+ * impressions: 編集の先頭で承認済みペルソナごとに所感を原本生成→整えして統合保存へ書き、最初の章編集ステップを投入する。
+ * chapter: 対象章を編集して保存し、次章があれば次章ステップ、無ければ intro-outro ステップを投入する。
  *   章の構造検証不合格（failed）でも後続章の処理を止めず連鎖する（完了確定時に stopped 判定）。
- * intro-closing: イントロ・クロージングを best-effort 生成して保存し、コメントステップを投入する。
- *   生成失敗でも例外を投げず必ず comments へ連鎖する（finalize に非干渉）。
- * comments: 事後コメントを編集して保存し、編集ランを確定する（全章 completed→generated / failed 残存→stopped）。
+ * intro-outro: 導入・締めを best-effort で原本生成→整えして統合保存へ書き、編集ランを確定する（終端ステージ）。
+ *   生成失敗でも例外を投げず、章の成否から完了状態を確定する（全章 completed→generated / failed 残存→stopped）。
  */
 export const advanceEditing = async (payload: EditingStepPayload): Promise<void> => {
 	const { topicId, runId, stepKind, chapterIndex } = payload;
 	if (!(await isEditingActive(topicId, runId))) return;
+
+	if (stepKind === 'impressions') {
+		await runImpressionsStep(topicId);
+		await enqueueEditingStep({ topicId, runId, stepKind: 'chapter', chapterIndex: 0 });
+		return;
+	}
 
 	if (stepKind === 'chapter') {
 		await runChapterEditStep(topicId, chapterIndex, runId);
@@ -33,16 +39,10 @@ export const advanceEditing = async (payload: EditingStepPayload): Promise<void>
 				chapterIndex: nextChapterIndex
 			});
 		} else {
-			await enqueueEditingStep({ topicId, runId, stepKind: 'intro-closing', chapterIndex: -1 });
+			await enqueueEditingStep({ topicId, runId, stepKind: 'intro-outro', chapterIndex: -1 });
 		}
 		return;
 	}
 
-	if (stepKind === 'intro-closing') {
-		await runIntroClosingStep(topicId, runId);
-		await enqueueEditingStep({ topicId, runId, stepKind: 'comments', chapterIndex: -1 });
-		return;
-	}
-
-	await runCommentsEditStep(topicId, runId);
+	await runIntroOutroStep(topicId, runId);
 };

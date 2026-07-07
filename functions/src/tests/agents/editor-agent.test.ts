@@ -3,7 +3,8 @@ import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
 
 vi.mock('ai', () => ({
-	generateObject: vi.fn()
+	generateObject: vi.fn(),
+	generateText: vi.fn()
 }));
 
 vi.mock('@ai-sdk/anthropic', () => ({
@@ -165,7 +166,7 @@ describe('editChapter', () => {
 	});
 });
 
-describe('editComments', () => {
+describe('editImpressions', () => {
 	let generateObject: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
@@ -184,8 +185,8 @@ describe('editComments', () => {
 			})
 		);
 
-		const { editComments } = await import('../../agents/editor-agent.js');
-		const result = await editComments(
+		const { editImpressions } = await import('../../agents/editor-agent.js');
+		const result = await editImpressions(
 			[
 				{ id: 'c1', personaId: 'p1', content: '冗長な感想1', sortOrder: 0 },
 				{ id: 'c2', personaId: 'p2', content: '冗長な感想2', sortOrder: 1 }
@@ -205,8 +206,8 @@ describe('editComments', () => {
 	it('LLM 呼び出しが失敗した場合は AI_API_ERROR を返す', async () => {
 		generateObject.mockRejectedValueOnce(new Error('api down'));
 
-		const { editComments } = await import('../../agents/editor-agent.js');
-		const result = await editComments(
+		const { editImpressions } = await import('../../agents/editor-agent.js');
+		const result = await editImpressions(
 			[{ id: 'c1', personaId: 'p1', content: '感想', sortOrder: 0 }],
 			[mockPersona]
 		);
@@ -215,5 +216,47 @@ describe('editComments', () => {
 		if (!result.ok) {
 			expect(result.error.code).toBe('AI_API_ERROR');
 		}
+	});
+});
+
+describe('editIntro / editOutro', () => {
+	let generateText: ReturnType<typeof vi.fn>;
+
+	beforeEach(async () => {
+		vi.resetModules();
+		const aiMod = await import('ai');
+		generateText = vi.mocked(aiMod.generateText);
+	});
+
+	it('導入の原本を整えた編集後テキストを返す', async () => {
+		generateText.mockResolvedValueOnce({ text: '整えた導入' } as never);
+		const { editIntro } = await import('../../agents/editor-agent.js');
+		const result = await editIntro('冗長な導入の原本');
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value).toBe('整えた導入');
+	});
+
+	it('締めの原本を整えた編集後テキストを返す', async () => {
+		generateText.mockResolvedValueOnce({ text: '整えた締め' } as never);
+		const { editOutro } = await import('../../agents/editor-agent.js');
+		const result = await editOutro('冗長な締めの原本');
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value).toBe('整えた締め');
+	});
+
+	it('空文字が返った場合は AI_API_ERROR を返す', async () => {
+		generateText.mockResolvedValueOnce({ text: '   ' } as never);
+		const { editIntro } = await import('../../agents/editor-agent.js');
+		const result = await editIntro('原本');
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe('AI_API_ERROR');
+	});
+
+	it('LLM 呼び出しが失敗した場合は AI_API_ERROR を返す', async () => {
+		generateText.mockRejectedValueOnce(new Error('api down'));
+		const { editOutro } = await import('../../agents/editor-agent.js');
+		const result = await editOutro('原本');
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe('AI_API_ERROR');
 	});
 });

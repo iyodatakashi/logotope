@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createFirestoreMock } from '../../helpers/firestore-mock.js';
-import type {
-	EditedChapterForFirestore,
-	EditedPostDebateCommentsForFirestore
-} from '../../../types/editorial.types.js';
+import type { EditedChapterForFirestore } from '../../../types/editorial.types.js';
 
 const { holder } = vi.hoisted(() => ({
 	holder: {
@@ -19,16 +16,12 @@ vi.mock('firebase-admin/firestore', () => ({
 
 import {
 	writeEditedChapter,
-	writeEditedComments,
 	readEditedChapters,
-	writeEditedIntroClosing,
-	readEditedIntroClosing,
 	clearEditedArtifact
 } from '../../../pipeline/editing/edited-repository.js';
 
 const chapterPath = (chapterId: string) => `topics/t1/editedChapters/${chapterId}`;
-const COMMENTS_PATH = 'topics/t1/editedPostDebateComments/0';
-const INTRO_CLOSING_PATH = 'topics/t1/editedIntroClosing/0';
+const EDITORIAL_PATH = 'topics/t1/editorial/0';
 
 const makeChapter = (
 	chapterId: string,
@@ -51,12 +44,6 @@ const makeChapter = (
 					}
 				],
 	status
-});
-
-const makeComments = (): EditedPostDebateCommentsForFirestore => ({
-	comments: [
-		{ id: 'ec1', sourceCommentId: 'rc1', personaId: 'p1', content: 'コメント', sortOrder: 0 }
-	]
 });
 
 beforeEach(() => {
@@ -86,14 +73,6 @@ describe('writeEditedChapter', () => {
 	});
 });
 
-describe('writeEditedComments', () => {
-	it('編集後コメントを editedPostDebateComments/0 に書き込む', async () => {
-		await writeEditedComments('t1', makeComments());
-		const doc = holder.mock!.store.get(COMMENTS_PATH);
-		expect((doc!.comments as unknown[]).length).toBe(1);
-	});
-});
-
 describe('readEditedChapters', () => {
 	it('編集後章を chapterIndex 昇順で返す', async () => {
 		await writeEditedChapter('t1', 'c2', makeChapter('c2', 1));
@@ -107,48 +86,29 @@ describe('readEditedChapters', () => {
 	});
 });
 
-describe('writeEditedIntroClosing / readEditedIntroClosing', () => {
-	it('イントロ・クロージング成果物を editedIntroClosing/0 に書き込み読み取れる', async () => {
-		await writeEditedIntroClosing('t1', { intro: '導入', closing: '結び' });
-		const doc = holder.mock!.store.get(INTRO_CLOSING_PATH);
-		expect(doc).toEqual({ intro: '導入', closing: '結び' });
-		expect(await readEditedIntroClosing('t1')).toEqual({ intro: '導入', closing: '結び' });
-	});
-
-	it('片方のみ生成（他方 null）を保存できる', async () => {
-		await writeEditedIntroClosing('t1', { intro: '導入のみ', closing: null });
-		expect(await readEditedIntroClosing('t1')).toEqual({ intro: '導入のみ', closing: null });
-	});
-
-	it('同一 topic への再書き込みは冪等上書きする', async () => {
-		await writeEditedIntroClosing('t1', { intro: '旧', closing: '旧' });
-		await writeEditedIntroClosing('t1', { intro: '新', closing: null });
-		expect(await readEditedIntroClosing('t1')).toEqual({ intro: '新', closing: null });
-	});
-
-	it('未生成なら null を返す', async () => {
-		expect(await readEditedIntroClosing('t1')).toBeNull();
-	});
-});
-
 describe('clearEditedArtifact', () => {
-	it('全 editedChapters を削除し editedPostDebateComments・editedIntroClosing を空にする', async () => {
+	it('全 editedChapters を削除し 統合保存 editorial/0 を初期化する', async () => {
 		await writeEditedChapter('t1', 'c1', makeChapter('c1', 0));
 		await writeEditedChapter('t1', 'c2', makeChapter('c2', 1));
-		await writeEditedComments('t1', makeComments());
-		await writeEditedIntroClosing('t1', { intro: '導入', closing: '結び' });
+		holder.mock!.store.set(EDITORIAL_PATH, {
+			intro: { draft: '導入', final: '導入編集後' },
+			outro: { draft: null, final: null },
+			impressions: { p1: { sortOrder: 0, draft: '所感', final: null } }
+		});
 
 		await clearEditedArtifact('t1');
 
 		expect(holder.mock!.store.has(chapterPath('c1'))).toBe(false);
 		expect(holder.mock!.store.has(chapterPath('c2'))).toBe(false);
-		expect(holder.mock!.store.get(COMMENTS_PATH)).toEqual({ comments: [] });
-		expect(holder.mock!.store.get(INTRO_CLOSING_PATH)).toEqual({ intro: null, closing: null });
+		expect(holder.mock!.store.get(EDITORIAL_PATH)).toEqual({
+			intro: { draft: null, final: null },
+			outro: { draft: null, final: null },
+			impressions: {}
+		});
 	});
 
-	it('原本（chapters・postDebateComments）は一切変更しない', async () => {
+	it('原本（chapters）は一切変更しない', async () => {
 		holder.mock!.store.set('topics/t1/chapters/c1', { chapterIndex: 0, turns: ['raw'] });
-		holder.mock!.store.set('topics/t1/postDebateComments/0', { comments: ['raw'] });
 		await writeEditedChapter('t1', 'c1', makeChapter('c1', 0));
 
 		await clearEditedArtifact('t1');
@@ -156,9 +116,6 @@ describe('clearEditedArtifact', () => {
 		expect(holder.mock!.store.get('topics/t1/chapters/c1')).toEqual({
 			chapterIndex: 0,
 			turns: ['raw']
-		});
-		expect(holder.mock!.store.get('topics/t1/postDebateComments/0')).toEqual({
-			comments: ['raw']
 		});
 	});
 });

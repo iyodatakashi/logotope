@@ -19,16 +19,19 @@ vi.mock('firebase-admin/firestore', () => ({
 
 vi.mock('ai', () => ({ generateObject: vi.fn() }));
 vi.mock('@ai-sdk/anthropic', () => ({ anthropic: vi.fn(() => 'mock-model') }));
+vi.mock('../../../pipeline/editing/element-builders.js', () => ({ buildImpressionPart: vi.fn() }));
 
 import { generateObject } from 'ai';
+import { buildImpressionPart } from '../../../pipeline/editing/element-builders.js';
 import {
 	validateEditedChapter,
 	computeProtectedTurnIds,
 	runChapterEditStep,
-	runCommentsEditStep
+	runImpressionsStep
 } from '../../../pipeline/editing/editing-step.js';
 
 const mockGenerateObject = vi.mocked(generateObject);
+const mockBuildImpressionPart = vi.mocked(buildImpressionPart);
 
 const makeTurn = (id: string, overrides: Partial<DebateTurn> = {}): DebateTurn => ({
 	id,
@@ -53,6 +56,7 @@ const makeDraft = (
 beforeEach(() => {
 	holder.mock = createFirestoreMock();
 	mockGenerateObject.mockReset();
+	mockBuildImpressionPart.mockReset();
 });
 
 describe('validateEditedChapter', () => {
@@ -218,52 +222,83 @@ describe('runChapterEditStep', () => {
 	});
 });
 
-describe('runCommentsEditStep', () => {
-	beforeEach(() => {
-		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'running', runId: 'r1' });
-		holder.mock!.store.set('topics/t1/personas/p1', {
+describe('runImpressionsStep', () => {
+	const setPersona = (id: string, sortOrder: number, approved: boolean) =>
+		holder.mock!.store.set(`topics/t1/personas/${id}`, {
 			topicId: 't1',
-			name: 'p1',
-			approved: true,
-			sortOrder: 0,
+			name: id,
+			approved,
+			sortOrder,
 			stakeholderRole: '一般'
 		});
-		holder.mock!.store.set('topics/t1/editedChapters/c1', {
+
+	beforeEach(() => {
+		setPersona('p1', 0, true);
+		setPersona('p2', 1, true);
+		setPersona('p3', 2, false); // 未承認
+		holder.mock!.store.set('topics/t1/chapters/c1', {
 			chapterIndex: 0,
 			title: '第1章',
 			discussionPoints: [],
-			turns: [],
-			status: 'completed'
+			turns: [{ id: 't1', speakerType: 'persona', personaId: 'p1', content: '発言', createdAt: 'TS' }]
 		});
 	});
 
-	it('コメントをリライトして保存し、全章 completed なら generated に確定する', async () => {
-		holder.mock!.store.set('topics/t1/postDebateComments/0', {
-			comments: [{ id: 'rc1', personaId: 'p1', content: '冗長な感想', sortOrder: 0 }]
-		});
-		mockGenerateObject.mockResolvedValueOnce({
-			object: { comments: [{ sourceCommentId: 'rc1', content: '読みやすい感想' }] }
-		} as never);
+	const editorial = () =>
+		holder.mock!.store.get('topics/t1/editorial/0') as {
+			impressions?: Record<string, unknown>;
+		} | undefined;
 
-		const result = await runCommentsEditStep('t1', 'r1');
+	it('承認済みペルソナごとに所感を統合保存へ部分上書きし、未承認は対象外にする', async () => {
+		mockBuildImpressionPart.mockImplementation(async (persona, _turns, _personas, sortOrder) => ({
+			sortOrder,
+			draft: `${persona.id}原本`,
+			final: `${persona.id}編集後`
+		}));
 
-		expect(result).toBe('generated');
-		const doc = holder.mock!.store.get('topics/t1/editedPostDebateComments/0');
-		expect(
-			(doc!.comments as Array<{ sourceCommentId: string; sortOrder: number }>)[0]
-		).toMatchObject({
-			sourceCommentId: 'rc1',
-			sortOrder: 0
+		await runImpressionsStep('t1');
+
+		expect(mockBuildImpressionPart).toHaveBeenCalledTimes(2); // p1, p2 のみ（p3 未承認）
+		expect(editorial()!.impressions).toEqual({
+			p1: { sortOrder: 0, draft: 'p1原本', final: 'p1編集後' },
+			p2: { sortOrder: 1, draft: 'p2原本', final: 'p2編集後' }
 		});
 	});
 
-	it('コメントが無ければ空成果物を書いて確定する（LLM 呼び出しなし）', async () => {
-		const result = await runCommentsEditStep('t1', 'r1');
+	it('全滅（null）の参加者は書かず欠けとして残し、他参加者は揃う（Req 2.1, 2.2）', async () => {
+		mockBuildImpressionPart.mockImplementation(async (persona, _turns, _personas, sortOrder) =>
+			persona.id === 'p2' ? null : { sortOrder, draft: `${persona.id}原本`, final: `${persona.id}編集後` }
+		);
 
-		expect(mockGenerateObject).not.toHaveBeenCalled();
-		expect(holder.mock!.store.get('topics/t1/editedPostDebateComments/0')).toEqual({
-			comments: []
+		await runImpressionsStep('t1');
+
+		expect(editorial()!.impressions).toEqual({
+			p1: { sortOrder: 0, draft: 'p1原本', final: 'p1編集後' }
 		});
-		expect(result).toBe('generated');
+		expect(editorial()!.impressions!.p2).toBeUndefined();
+	});
+
+	it('既に原本のある参加者は二重生成しない（run 内リトライ保護・Req 5.2）', async () => {
+		holder.mock!.store.set('topics/t1/editorial/0', {
+			intro: { draft: null, final: null },
+			outro: { draft: null, final: null },
+			impressions: { p1: { sortOrder: 0, draft: '既存p1原本', final: '既存p1編集後' } }
+		});
+		mockBuildImpressionPart.mockImplementation(async (persona, _turns, _personas, sortOrder) => ({
+			sortOrder,
+			draft: `${persona.id}原本`,
+			final: `${persona.id}編集後`
+		}));
+
+		await runImpressionsStep('t1');
+
+		// p1 はスキップ（既存維持）、p2 のみ新規生成
+		expect(mockBuildImpressionPart).toHaveBeenCalledTimes(1);
+		expect(editorial()!.impressions!.p1).toEqual({
+			sortOrder: 0,
+			draft: '既存p1原本',
+			final: '既存p1編集後'
+		});
+		expect(editorial()!.impressions!.p2).toEqual({ sortOrder: 1, draft: 'p2原本', final: 'p2編集後' });
 	});
 });

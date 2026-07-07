@@ -10,7 +10,7 @@ import {
 	formatAwarenessSection
 } from '../utils/prompt-formatters.js';
 import { getInitialBelief } from '../pipeline/debate/awareness.js';
-import type { PersonaReply, PostDebateCommentResult, Engagement } from '../types/debate.types.js';
+import type { PersonaReply, ImpressionResult, Engagement } from '../types/debate.types.js';
 import type { DebateTurn, TurnGenerationContext } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
@@ -462,22 +462,22 @@ export const evaluateEngagement = async (
 	}
 };
 
-const postDebateCommentSchema = z.object({
+const impressionSchema = z.object({
 	content: z.string()
 });
 
-export const generatePostDebateComment = async (
+export const generateImpression = async (
 	persona: Persona,
 	turns: DebateTurn[],
 	personas: ReadonlyArray<Persona> = []
-): Promise<Result<PostDebateCommentResult, PipelineError>> => {
+): Promise<Result<ImpressionResult, PipelineError>> => {
 	try {
 		// 見解は「固定の初期信念（主軸・system）＋討論で得た気づき（揮発部）」から都度導出する（4.1/4.3）
 		const awarenessNote = formatAwarenessSection(persona.awarenesses);
 		const result = await generateObject({
 			model: getPersonaModel(persona.llmType ?? 'claude'),
 			system: buildPersonaSystemPrompt(persona, '', getInitialBelief(persona)),
-			schema: postDebateCommentSchema,
+			schema: impressionSchema,
 			messages: [
 				{
 					role: 'user',

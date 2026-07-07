@@ -37,7 +37,7 @@ const mockTopicContext: TopicContext = {
 
 const mockInput: IntroClosingInput = { digest: mockDigest, topicContext: mockTopicContext };
 
-describe('generateIntro / generateClosing', () => {
+describe('generateIntro / generateOutro', () => {
 	let generateText: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
@@ -62,11 +62,11 @@ describe('generateIntro / generateClosing', () => {
 		}
 	});
 
-	it('generateClosing は非空の散文を返す', async () => {
+	it('generateOutro は非空の散文を返す', async () => {
 		generateText.mockResolvedValueOnce({ text: '論点は交わされ、問いはなお開かれたままである。' });
 
-		const { generateClosing } = await import('../../agents/intro-closing-agent.js');
-		const result = await generateClosing(mockInput);
+		const { generateOutro } = await import('../../agents/intro-closing-agent.js');
+		const result = await generateOutro(mockInput);
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -119,8 +119,8 @@ describe('generateIntro / generateClosing', () => {
 			return { text: '結び' };
 		});
 
-		const { generateClosing } = await import('../../agents/intro-closing-agent.js');
-		await generateClosing(mockInput);
+		const { generateOutro } = await import('../../agents/intro-closing-agent.js');
+		await generateOutro(mockInput);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
 		const userContent = callArgs.messages[0].content;
@@ -137,9 +137,9 @@ describe('generateIntro / generateClosing', () => {
 			return { text: '文章' };
 		});
 
-		const { generateIntro, generateClosing } = await import('../../agents/intro-closing-agent.js');
+		const { generateIntro, generateOutro } = await import('../../agents/intro-closing-agent.js');
 		await generateIntro(mockInput);
-		await generateClosing(mockInput);
+		await generateOutro(mockInput);
 
 		expect(captured[0]).toContain('イントロ');
 		expect(captured[1]).toContain('クロージング');
@@ -161,8 +161,8 @@ describe('generateIntro / generateClosing', () => {
 	it('LLM 呼び出しが失敗した場合は AI_API_ERROR を返す', async () => {
 		generateText.mockRejectedValueOnce(new Error('api down'));
 
-		const { generateClosing } = await import('../../agents/intro-closing-agent.js');
-		const result = await generateClosing(mockInput);
+		const { generateOutro } = await import('../../agents/intro-closing-agent.js');
+		const result = await generateOutro(mockInput);
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) {

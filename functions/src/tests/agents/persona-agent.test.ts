@@ -1082,7 +1082,7 @@ describe('generateTurn', () => {
 	});
 });
 
-describe('generatePostDebateComment', () => {
+describe('generateImpression', () => {
 	beforeEach(() => {
 		vi.resetModules();
 	});
@@ -1103,8 +1103,8 @@ describe('generatePostDebateComment', () => {
 			]
 		};
 
-		const { generatePostDebateComment } = await import('../../agents/persona-agent.js');
-		await generatePostDebateComment(personaWithBeliefs, mockTurns);
+		const { generateImpression } = await import('../../agents/persona-agent.js');
+		await generateImpression(personaWithBeliefs, mockTurns);
 
 		const system = (capturedArgs[0] as { system: string }).system;
 		expect(system).toContain('初期信念テキスト');
@@ -1132,8 +1132,8 @@ describe('generatePostDebateComment', () => {
 			]
 		};
 
-		const { generatePostDebateComment } = await import('../../agents/persona-agent.js');
-		await generatePostDebateComment(personaWithAwareness, mockTurns);
+		const { generateImpression } = await import('../../agents/persona-agent.js');
+		await generateImpression(personaWithAwareness, mockTurns);
 
 		expect(vi.mocked(formatMod.formatAwarenessSection)).toHaveBeenCalledWith(
 			personaWithAwareness.awarenesses
@@ -1234,7 +1234,7 @@ describe('プロンプトキャッシュ配置（Task 1.1）', () => {
 		expect(typeof (capturedArgs[0] as { system: unknown }).system).toBe('string');
 	});
 
-	it('generatePostDebateComment は claude でも従来の文字列 system で呼ぶ（キャッシュ対象外）', async () => {
+	it('generateImpression は claude でも従来の文字列 system で呼ぶ（キャッシュ対象外）', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
 		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
@@ -1242,8 +1242,8 @@ describe('プロンプトキャッシュ配置（Task 1.1）', () => {
 			return { object: { content: 'コメント' } } as never;
 		});
 
-		const { generatePostDebateComment } = await import('../../agents/persona-agent.js');
-		await generatePostDebateComment(mockPersona, mockTurns);
+		const { generateImpression } = await import('../../agents/persona-agent.js');
+		await generateImpression(mockPersona, mockTurns);
 
 		expect(typeof (capturedArgs[0] as { system: unknown }).system).toBe('string');
 	});

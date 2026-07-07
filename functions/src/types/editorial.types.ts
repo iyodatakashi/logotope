@@ -28,21 +28,30 @@ export type EditedChapterForFirestore = {
 	failureReason?: string; // status='failed' のときの構造検証不合格理由（管理画面での把握・診断用）
 };
 
-export type EditedPostDebateCommentForFirestore = {
-	id: string;
-	sourceCommentId: string;
-	personaId: string;
-	content: string;
+// 導入・締めの記事要素。原本 draft と編集後 final を持ち、未生成/失敗は null。
+export type NarrationPartForFirestore = {
+	draft: string | null;
+	final: string | null;
+};
+
+// 所感の記事要素（承認ペルソナごと）。sortOrder で表示順を保ち、原本 draft と編集後 final を持つ。
+export type ImpressionPartForFirestore = {
 	sortOrder: number;
+	draft: string | null;
+	final: string | null;
 };
 
-export type EditedPostDebateCommentsForFirestore = {
-	comments: EditedPostDebateCommentForFirestore[];
+// 導入・締め・所感をまとめた統合ドキュメント editorial/0。所感は personaId をキーにしたマップにし、
+// 記事要素ごとの部分上書き（blind write・衝突なし）を可能にする。本体(章)は別保存（editedChapters）。
+export type EditorialForFirestore = {
+	intro: NarrationPartForFirestore;
+	outro: NarrationPartForFirestore;
+	impressions: Record<string, ImpressionPartForFirestore>;
 };
 
-// 討論全体のイントロ（冒頭）・クロージング（末尾）成果物。topic に対し 1:1（固定 ID '0'）。
-// intro / closing は独立に生成・保存され、未生成/失敗は null（片方のみ存在し得る）。
-export type EditedIntroClosingForFirestore = {
-	intro: string | null;
-	closing: string | null;
-};
+// 個別再生成の対象となる記事要素。共通入口 onCall（regenerateArticleElement）の request と種別振り分けに使う。
+export type ArticleElement =
+	| { kind: 'chapter'; chapterId: string }
+	| { kind: 'intro' }
+	| { kind: 'outro' }
+	| { kind: 'impression'; personaId: string };

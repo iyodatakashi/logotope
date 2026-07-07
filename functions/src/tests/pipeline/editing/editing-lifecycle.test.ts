@@ -54,6 +54,23 @@ describe('startEditingRun', () => {
 			runId
 		});
 	});
+
+	it('統合保存 editorial/0（導入/締め/所感）を破棄・初期化する（編集し直し＝作り直しのため）', async () => {
+		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'stopped' });
+		holder.mock!.store.set('topics/t1/editorial/0', {
+			intro: { draft: '旧導入', final: '旧導入編集後' },
+			outro: { draft: null, final: null },
+			impressions: { p1: { sortOrder: 0, draft: '旧所感', final: '旧所感編集後' } }
+		});
+
+		await startEditingRun('t1');
+
+		expect(holder.mock!.store.get('topics/t1/editorial/0')).toEqual({
+			intro: { draft: null, final: null },
+			outro: { draft: null, final: null },
+			impressions: {}
+		});
+	});
 });
 
 describe('isEditingActive', () => {

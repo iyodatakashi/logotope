@@ -9,8 +9,10 @@ import type { PhaseKey } from '../../types/topic.types.js';
 const db = () => getFirestore();
 
 /**
- * 編集ランを開始する。既存の編集成果物を即時破棄し、編集フェーズを実行中にして新しい世代 runId を発行する。
- * 再実行時も同じ経路を通り、旧成果物は開始時点で必ず消える（UX フィードバックと整合の両立）。
+ * 編集ランを開始する。既存の記事（editedChapters ＋ 統合保存 editorial/0＝導入/締め/所感）を即時破棄し、
+ * 編集フェーズを実行中にして新しい世代 runId を発行する（Req 5.1）。再実行時も同じ経路を通り、旧記事は
+ * 開始時点で必ず消える（UX フィードバックと整合の両立）。破棄後、先頭の impressions ステージが作り直す。
+ * （各ステージの「原本ありスキップ」は同一 run 内のタスクリトライ保護用で、ここでの破棄と両立する・Req 5.2）
  */
 export const startEditingRun = async (topicId: string): Promise<string> => {
 	await clearEditedArtifact(topicId);

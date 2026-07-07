@@ -15,10 +15,26 @@ export const createFirestoreMock = () => {
 	const store = new Map<string, DocData>();
 	const lastSeg = (p: string) => p.split('/').pop() as string;
 
+	// ドット区切りキー（例: "impressions.p1"）は Firestore のフィールドパス同様、ネストして書き込む。
+	const setNested = (root: DocData, dotted: string, value: unknown) => {
+		const keys = dotted.split('.');
+		let node = root;
+		for (let i = 0; i < keys.length - 1; i++) {
+			const key = keys[i];
+			node[key] =
+				typeof node[key] === 'object' && node[key] !== null ? { ...(node[key] as DocData) } : {};
+			node = node[key] as DocData;
+		}
+		const leaf = keys[keys.length - 1];
+		if (value === DELETE_SENTINEL) delete node[leaf];
+		else node[leaf] = value;
+	};
+
 	const applyUpdate = (path: string, patch: DocData) => {
 		const cur: DocData = { ...(store.get(path) ?? {}) };
 		for (const [k, v] of Object.entries(patch)) {
-			if (v === DELETE_SENTINEL) delete cur[k];
+			if (k.includes('.')) setNested(cur, k, v);
+			else if (v === DELETE_SENTINEL) delete cur[k];
 			else if (isArrayUnion(v)) {
 				const arr = Array.isArray(cur[k]) ? [...(cur[k] as unknown[])] : [];
 				for (const item of v.__arrayUnion) arr.push(item);

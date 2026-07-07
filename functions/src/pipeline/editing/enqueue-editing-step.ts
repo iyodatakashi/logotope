@@ -9,11 +9,11 @@ const REGION = 'asia-northeast1';
 export type EditingStepPayload = {
 	topicId: string;
 	runId: string;
-	stepKind: 'chapter' | 'intro-closing' | 'comments';
+	stepKind: 'impressions' | 'chapter' | 'intro-outro';
 	chapterIndex: number;
 };
 
-/** deterministic task id の鍵。runId を含めて再起動時の衝突を避ける。intro-closing / comments は index -1 固定 */
+/** deterministic task id の鍵。runId を含めて再起動時の衝突を避ける。impressions / intro-outro は index -1 固定 */
 export const editingTaskKey = (payload: EditingStepPayload): string =>
 	`${payload.runId}:${payload.stepKind}:${payload.chapterIndex}`;
 

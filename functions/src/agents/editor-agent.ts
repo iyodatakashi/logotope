@@ -1,4 +1,4 @@
-import { generateObject } from 'ai';
+import { generateObject, generateText } from 'ai';
 import { z } from 'zod';
 import { anthropic } from '@ai-sdk/anthropic';
 import { AI_MODELS } from '../constants/ai.constants.js';
@@ -19,7 +19,7 @@ export type EditedTurnDraft = {
 	speechMode?: 'opinion' | 'fact' | 'question';
 };
 
-export type EditedCommentDraft = {
+export type EditedImpressionDraft = {
 	sourceCommentId: string;
 	personaId: string;
 	content: string;
@@ -65,7 +65,7 @@ const editChapterSchema = z.object({
 	)
 });
 
-const editCommentsSchema = z.object({
+const editImpressionsSchema = z.object({
 	comments: z.array(
 		z.object({
 			sourceCommentId: z.string(),
@@ -132,10 +132,10 @@ export const editChapter = async (
 	}
 };
 
-export const editComments = async (
+export const editImpressions = async (
 	comments: ReadonlyArray<{ id: string; personaId: string; content: string; sortOrder: number }>,
 	personas: ReadonlyArray<Persona>
-): Promise<Result<EditedCommentDraft[], PipelineError>> => {
+): Promise<Result<EditedImpressionDraft[], PipelineError>> => {
 	try {
 		const commentsSection = comments
 			.map((comment) => {
@@ -148,7 +148,7 @@ export const editComments = async (
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
 			system: editorSystemPrompt,
-			schema: editCommentsSchema,
+			schema: editImpressionsSchema,
 			messages: [
 				{
 					role: 'user',
@@ -158,7 +158,7 @@ export const editComments = async (
 		});
 
 		const personaBySource = new Map(comments.map((comment) => [comment.id, comment.personaId]));
-		const value: EditedCommentDraft[] = result.object.comments.map((comment) => ({
+		const value: EditedImpressionDraft[] = result.object.comments.map((comment) => ({
 			sourceCommentId: comment.sourceCommentId,
 			personaId: personaBySource.get(comment.sourceCommentId) ?? '',
 			content: comment.content
@@ -169,3 +169,41 @@ export const editComments = async (
 		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 	}
 };
+
+// 導入・締めの原本テキストを、章・所感と同系の editorial 整えで編集後テキストにする。
+// 単一の散文ブロックを意味・主張・事実を変えずに読みやすくリライトするのみ（新情報・論評を足さない）。
+const editNarration = async (
+	label: string,
+	draft: string
+): Promise<Result<string, PipelineError>> => {
+	try {
+		const result = await generateText({
+			model: anthropic(AI_MODELS.SONNET),
+			system: editorSystemPrompt,
+			messages: [
+				{
+					role: 'user',
+					content: `次の${label}の文章を、意味・主張・事実を変えずに読みやすく整えてください。新しい情報や論評を加えず、長さも大きく変えないでください。整えた本文だけを返してください。\n\n【${label}】\n${draft}`
+				}
+			]
+		});
+
+		const text = result.text.trim();
+		if (!text) {
+			return {
+				ok: false,
+				error: { code: 'AI_API_ERROR', message: 'narration edit returned empty text', retryable: true }
+			};
+		}
+		return { ok: true, value: text };
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+	}
+};
+
+export const editIntro = (draft: string): Promise<Result<string, PipelineError>> =>
+	editNarration('導入', draft);
+
+export const editOutro = (draft: string): Promise<Result<string, PipelineError>> =>
+	editNarration('締め', draft);
