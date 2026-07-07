@@ -30,11 +30,11 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	}
 }));
 
-import Phase1Stakeholders from '$lib/features/admin/topic-detail/stakeholders/Phase1Stakeholders.svelte';
+import GenerateStakeholdersPage from '$lib/features/admin/topic-detail/stakeholders/GenerateStakeholdersPage.svelte';
 
-describe('Phase1Stakeholders.svelte', () => {
+describe('GenerateStakeholdersPage.svelte', () => {
 	it('ステークホルダーリストを表示する', async () => {
-		render(Phase1Stakeholders);
+		render(GenerateStakeholdersPage);
 		await expect.element(page.getByText('外科医師')).toBeInTheDocument();
 	});
 });

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Phase4Chapters from '$lib/features/admin/topic-detail/chapters/Phase4Chapters.svelte';
+	import GenerateChaptersPage from '$lib/features/admin/topic-detail/chapters/GenerateChaptersPage.svelte';
 </script>
 
-<Phase4Chapters />
+<GenerateChaptersPage />

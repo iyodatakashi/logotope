@@ -145,7 +145,7 @@
 	{#snippet progress()}
 		{#if logicalState === 'running' && !isResetting}
 			{#if currentTopicStore.chaptersStore.currentChapter}
-				<p class="phase5-debate__chapter-progress">
+				<p class="generate-debate-page__chapter-progress">
 					第{currentTopicStore.chaptersStore.currentChapter.chapterIndex + 1}章「{currentTopicStore
 						.chaptersStore.currentChapter.title}」
 					{#if currentTopicStore.chaptersStore.chapters.length}（第{currentTopicStore.chaptersStore
@@ -153,24 +153,24 @@
 							.length}章）{/if}
 				</p>
 			{:else if turns.length > 0}
-				<p class="phase5-debate__chapter-progress">討論中...（ターン {turns.length}）</p>
+				<p class="generate-debate-page__chapter-progress">討論中...（ターン {turns.length}）</p>
 			{/if}
 		{/if}
 	{/snippet}
 	{#snippet content()}
 		{#if currentTopicStore.chaptersStore.chapters.length}
-			<ol class="phase5-debate__chapters">
+			<ol class="generate-debate-page__chapters">
 				{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.id)}
 					<li
-						class:phase5-debate__chapter--current={chapter ===
+						class:generate-debate-page__chapter--current={chapter ===
 							currentTopicStore.chaptersStore.currentChapter}
 					>
 						<strong>{chapter.title}</strong>
 						{#if chapter === currentTopicStore.chaptersStore.currentChapter && chapter.discussionPointStatuses?.length}
-							<ul class="phase5-debate__points">
+							<ul class="generate-debate-page__points">
 								{#each chapter.discussionPointStatuses as dp (dp.point)}
-									<li class="phase5-debate__point" data-status={dp.status}>
-										<span class="phase5-debate__status-badge"
+									<li class="generate-debate-page__point" data-status={dp.status}>
+										<span class="generate-debate-page__status-badge"
 											>{dp.status === 'untouched'
 												? '未'
 												: dp.status === 'introduced'
@@ -182,9 +182,9 @@
 								{/each}
 							</ul>
 						{:else if chapter.discussionPoints?.length}
-							<ul class="phase5-debate__points">
+							<ul class="generate-debate-page__points">
 								{#each chapter.discussionPoints as point (point)}
-									<li class="phase5-debate__point">{point}</li>
+									<li class="generate-debate-page__point">{point}</li>
 								{/each}
 							</ul>
 						{/if}
@@ -194,29 +194,29 @@
 		{/if}
 
 		{#if !isResetting && turns.length > 0}
-			<div class="phase5-debate__turns">
+			<div class="generate-debate-page__turns">
 				{#each turns as turn, i (turn.id)}
 					<div
-						class="phase5-debate__turn"
-						class:phase5-debate__turn--facilitator={turn.speakerType === 'facilitator'}
+						class="generate-debate-page__turn"
+						class:generate-debate-page__turn--facilitator={turn.speakerType === 'facilitator'}
 					>
-						<div class="phase5-debate__speaker">
+						<div class="generate-debate-page__speaker">
 							<strong>{turn.speakerName}</strong>
 							{#if turn.speakerRole}
-								<span class="phase5-debate__role">({turn.speakerRole})</span>
+								<span class="generate-debate-page__role">({turn.speakerRole})</span>
 							{/if}
 							{#if turn.speechMode}
-								<span class="phase5-debate__speech-mode" data-mode={turn.speechMode}>
+								<span class="generate-debate-page__speech-mode" data-mode={turn.speechMode}>
 									{turn.speechMode}{#if turn.engagementScore}({turn.engagementScore}){/if}
 								</span>
 							{/if}
 							{#if turn.fromQueue}
-								<span class="phase5-debate__from-queue">[キュー]</span>
+								<span class="generate-debate-page__from-queue">[キュー]</span>
 							{/if}
 						</div>
-						<p class="phase5-debate__content">{turn.content}</p>
+						<p class="generate-debate-page__content">{turn.content}</p>
 						{#if turn.addressedPersonaName}
-							<p class="phase5-debate__nominated">次の指名: {turn.addressedPersonaName}</p>
+							<p class="generate-debate-page__nominated">次の指名: {turn.addressedPersonaName}</p>
 						{/if}
 						<EngagementList
 							engagements={turn.engagements}
@@ -224,7 +224,7 @@
 							selectedPersonaId={turns[i + 1]?.personaId}
 						/>
 						{#if turn.awarenessesTriggered.length > 0}
-							<ul class="phase5-debate__awarenesses">
+							<ul class="generate-debate-page__awarenesses">
 								{#each turn.awarenessesTriggered as aw, awIdx (awIdx)}
 									<li>💡 {aw.personaName}: {aw.content}</li>
 								{/each}
@@ -238,26 +238,26 @@
 </PhasePanel>
 
 <style>
-	.phase5-debate__chapter-progress {
+	.generate-debate-page__chapter-progress {
 		color: #1565c0;
 		font-size: 0.95rem;
 	}
-	.phase5-debate__chapters {
+	.generate-debate-page__chapters {
 		margin: 12px 0;
 		padding-left: 24px;
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
 	}
-	.phase5-debate__chapters li {
+	.generate-debate-page__chapters li {
 		color: #888;
 		font-size: 0.9rem;
 	}
-	.phase5-debate__chapters li.phase5-debate__chapter--current {
+	.generate-debate-page__chapters li.generate-debate-page__chapter--current {
 		color: #1565c0;
 		font-weight: 600;
 	}
-	.phase5-debate__points {
+	.generate-debate-page__points {
 		margin: 4px 0 0 8px;
 		padding: 0;
 		list-style: none;
@@ -265,7 +265,7 @@
 		flex-direction: column;
 		gap: 2px;
 	}
-	.phase5-debate__point {
+	.generate-debate-page__point {
 		display: flex;
 		align-items: baseline;
 		gap: 6px;
@@ -273,7 +273,7 @@
 		font-weight: normal;
 		color: #666;
 	}
-	.phase5-debate__status-badge {
+	.generate-debate-page__status-badge {
 		flex-shrink: 0;
 		font-size: 0.7rem;
 		font-weight: 700;
@@ -282,37 +282,37 @@
 		background: #e0e0e0;
 		color: #757575;
 	}
-	.phase5-debate__point[data-status='introduced'] .phase5-debate__status-badge {
+	.generate-debate-page__point[data-status='introduced'] .generate-debate-page__status-badge {
 		background: #fff3e0;
 		color: #e65100;
 	}
-	.phase5-debate__point[data-status='addressed'] .phase5-debate__status-badge {
+	.generate-debate-page__point[data-status='addressed'] .generate-debate-page__status-badge {
 		background: #e8f5e9;
 		color: #2e7d32;
 	}
-	.phase5-debate__turns {
+	.generate-debate-page__turns {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 		margin-top: 8px;
 	}
-	.phase5-debate__turn {
+	.generate-debate-page__turn {
 		padding: 12px;
 		border-left: 4px solid #e0e0e0;
 	}
-	.phase5-debate__turn.phase5-debate__turn--facilitator {
+	.generate-debate-page__turn.generate-debate-page__turn--facilitator {
 		border-left-color: #1565c0;
 		background: #f8f9ff;
 	}
-	.phase5-debate__speaker {
+	.generate-debate-page__speaker {
 		margin-bottom: 4px;
 	}
-	.phase5-debate__role {
+	.generate-debate-page__role {
 		color: #757575;
 		font-size: 0.875rem;
 		margin-left: 4px;
 	}
-	.phase5-debate__speech-mode {
+	.generate-debate-page__speech-mode {
 		font-size: 0.75rem;
 		margin-left: 6px;
 		color: #555;
@@ -320,15 +320,15 @@
 		padding: 1px 5px;
 		border-radius: 3px;
 	}
-	.phase5-debate__speech-mode[data-mode='opinion'] {
+	.generate-debate-page__speech-mode[data-mode='opinion'] {
 		background: #e8f5e9;
 		color: #2e7d32;
 	}
-	.phase5-debate__speech-mode[data-mode='fact'] {
+	.generate-debate-page__speech-mode[data-mode='fact'] {
 		background: #e3f2fd;
 		color: #1565c0;
 	}
-	.phase5-debate__from-queue {
+	.generate-debate-page__from-queue {
 		font-size: 0.75rem;
 		margin-left: 4px;
 		color: #fff;
@@ -336,11 +336,11 @@
 		padding: 1px 5px;
 		border-radius: 3px;
 	}
-	.phase5-debate__content {
+	.generate-debate-page__content {
 		margin: 0;
 		line-height: 1.6;
 	}
-	.phase5-debate__nominated {
+	.generate-debate-page__nominated {
 		margin: 4px 0 0;
 		font-size: 0.75rem;
 		color: #b45309;
@@ -349,7 +349,7 @@
 		border-radius: 3px;
 		display: inline-block;
 	}
-	.phase5-debate__awarenesses {
+	.generate-debate-page__awarenesses {
 		margin-top: 8px;
 		font-size: 0.85rem;
 		color: #555;

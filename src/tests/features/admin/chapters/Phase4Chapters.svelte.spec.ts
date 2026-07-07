@@ -35,11 +35,11 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	}
 }));
 
-import Phase4Chapters from '$lib/features/admin/topic-detail/chapters/Phase4Chapters.svelte';
+import GenerateChaptersPage from '$lib/features/admin/topic-detail/chapters/GenerateChaptersPage.svelte';
 
-describe('Phase4Chapters.svelte', () => {
+describe('GenerateChaptersPage.svelte', () => {
 	it('章タイトルを表示する', async () => {
-		render(Phase4Chapters);
+		render(GenerateChaptersPage);
 		await expect.element(page.getByText('はじめに')).toBeInTheDocument();
 	});
 });

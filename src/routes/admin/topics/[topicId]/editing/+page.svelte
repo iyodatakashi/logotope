@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Phase6Editing from '$lib/features/admin/topic-detail/editing/Phase6Editing.svelte';
+	import EditingPage from '$lib/features/admin/topic-detail/editing/EditingPage.svelte';
 </script>
 
-<Phase6Editing />
+<EditingPage />

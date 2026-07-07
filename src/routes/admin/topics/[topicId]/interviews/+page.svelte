@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Phase3Interviews from '$lib/features/admin/topic-detail/research/Phase3Interviews.svelte';
+	import GenerateInterviewsPage from '$lib/features/admin/topic-detail/interview/GenerateInterviewsPage.svelte';
 </script>
 
-<Phase3Interviews />
+<GenerateInterviewsPage />

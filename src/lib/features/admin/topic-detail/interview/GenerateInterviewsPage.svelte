@@ -4,7 +4,7 @@
 	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import InterviewItem from '$lib/features/admin/topic-detail/research/InterviewItem.svelte';
+	import InterviewItem from '$lib/features/admin/topic-detail/interview/InterviewItem.svelte';
 
 	const PHASE: PhaseSlug = 'interviews';
 	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
@@ -95,19 +95,19 @@
 >
 	{#snippet progress()}
 		{#if !isStarting && totalCount > 0}
-			<div class="phase3-interviews__progress-summary">
-				<span class="phase3-interviews__count phase3-interviews__count--completed"
+			<div class="generate-interviews-page__progress-summary">
+				<span class="generate-interviews-page__count generate-interviews-page__count--completed"
 					>{completedCount} 完了</span
 				>
 				{#if pendingCount > 0}<span
-						class="phase3-interviews__count phase3-interviews__count--pending"
+						class="generate-interviews-page__count generate-interviews-page__count--pending"
 						>{pendingCount} 待機中</span
 					>{/if}
 				{#if errorCount > 0}<span
-						class="phase3-interviews__count phase3-interviews__count--error-count"
+						class="generate-interviews-page__count generate-interviews-page__count--error-count"
 						>{errorCount} エラー</span
 					>{/if}
-				<span class="phase3-interviews__count phase3-interviews__count--total"
+				<span class="generate-interviews-page__count generate-interviews-page__count--total"
 					>/ {totalCount} 件</span
 				>
 			</div>
@@ -115,7 +115,7 @@
 	{/snippet}
 	{#snippet content()}
 		{#if !isStarting && currentTopicStore.personasStore.personas.length > 0}
-			<ul class="phase3-interviews__list">
+			<ul class="generate-interviews-page__list">
 				{#each currentTopicStore.personasStore.personas as persona (persona.id)}
 					<InterviewItem {persona} />
 				{/each}
@@ -125,29 +125,29 @@
 </PhasePanel>
 
 <style>
-	.phase3-interviews__progress-summary {
+	.generate-interviews-page__progress-summary {
 		display: flex;
 		align-items: center;
 		gap: 12px;
 		font-size: 0.95rem;
 	}
-	.phase3-interviews__count {
+	.generate-interviews-page__count {
 		font-weight: 600;
 	}
-	.phase3-interviews__count.phase3-interviews__count--completed {
+	.generate-interviews-page__count.generate-interviews-page__count--completed {
 		color: #2e7d32;
 	}
-	.phase3-interviews__count.phase3-interviews__count--pending {
+	.generate-interviews-page__count.generate-interviews-page__count--pending {
 		color: #1565c0;
 	}
-	.phase3-interviews__count.phase3-interviews__count--error-count {
+	.generate-interviews-page__count.generate-interviews-page__count--error-count {
 		color: #c62828;
 	}
-	.phase3-interviews__count.phase3-interviews__count--total {
+	.generate-interviews-page__count.generate-interviews-page__count--total {
 		color: #555;
 		font-weight: 400;
 	}
-	.phase3-interviews__list {
+	.generate-interviews-page__list {
 		list-style: none;
 		padding: 0;
 	}

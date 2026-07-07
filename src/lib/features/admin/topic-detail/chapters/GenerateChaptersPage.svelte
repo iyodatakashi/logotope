@@ -99,10 +99,10 @@
 	{#snippet content()}
 		{#if !isStarting}
 			{#if chapterIssues?.issues?.length}
-				<section class="phase4-chapters__issues">
+				<section class="generate-chapters-page__issues">
 					<h3>Step 1: 生成した切り口</h3>
-					<div class="phase4-chapters__issues-grid">
-						<div class="phase4-chapters__issues-col">
+					<div class="generate-chapters-page__issues-grid">
+						<div class="generate-chapters-page__issues-col">
 							<h4>一般的な切り口（ペルソナなし）</h4>
 							<ol>
 								{#each generalIssues as issue, i (issue.id ?? i)}
@@ -110,7 +110,7 @@
 								{/each}
 							</ol>
 						</div>
-						<div class="phase4-chapters__issues-col">
+						<div class="generate-chapters-page__issues-col">
 							<h4>ペルソナ固有の切り口</h4>
 							<ol>
 								{#each personaIssues as issue, i (issue.id ?? i)}
@@ -122,35 +122,35 @@
 				</section>
 			{/if}
 			{#if scoredIssues.length}
-				<section class="phase4-chapters__issues">
+				<section class="generate-chapters-page__issues">
 					<h3>Step 2: 論点スコアリング結果</h3>
-					<ul class="phase4-chapters__scored-issues">
+					<ul class="generate-chapters-page__scored-issues">
 						{#each scoredIssues as issue, i (issue.id ?? i)}
 							<li
-								class:phase4-chapters__scored-issue--selected={issue.selected}
-								class:phase4-chapters__scored-issue--rejected={!issue.selected}
+								class:generate-chapters-page__scored-issue--selected={issue.selected}
+								class:generate-chapters-page__scored-issue--rejected={!issue.selected}
 							>
-								<span class="phase4-chapters__score">{issue.score}</span>
-								<span class="phase4-chapters__issue-source"
+								<span class="generate-chapters-page__score">{issue.score}</span>
+								<span class="generate-chapters-page__issue-source"
 									>{issue.source === 'general' ? '一般' : 'ペルソナ'}</span
 								>
-								<span class="phase4-chapters__issue-text">{issue.text}</span>
-								<span class="phase4-chapters__reason">{issue.reason}</span>
+								<span class="generate-chapters-page__issue-text">{issue.text}</span>
+								<span class="generate-chapters-page__reason">{issue.reason}</span>
 							</li>
 						{/each}
 					</ul>
 				</section>
 			{/if}
 			{#if chapterIssues?.issueGroups?.length}
-				<section class="phase4-chapters__issues">
+				<section class="generate-chapters-page__issues">
 					<h3>Step 3: グループ化結果</h3>
-					<ul class="phase4-chapters__grouping">
+					<ul class="generate-chapters-page__grouping">
 						{#each chapterIssues.issueGroups as group, i (i)}
-							<li class="phase4-chapters__group">
-								<span class="phase4-chapters__group-label">グループ {i + 1}</span>
-								<ul class="phase4-chapters__group-issues">
+							<li class="generate-chapters-page__group">
+								<span class="generate-chapters-page__group-label">グループ {i + 1}</span>
+								<ul class="generate-chapters-page__group-issues">
 									{#each group.issueIndexes as issueIndex (issueIndex)}
-										<li class="phase4-chapters__group-issue">
+										<li class="generate-chapters-page__group-issue">
 											{chapterIssues.issues[issueIndex]?.text ?? ''}
 										</li>
 									{/each}
@@ -161,14 +161,14 @@
 				</section>
 			{/if}
 			{#if chapters}
-				<section class="phase4-chapters__issues">
+				<section class="generate-chapters-page__issues">
 					<h3>Step 4: 論点精査結果</h3>
-					<ol class="phase4-chapters__chapters">
+					<ol class="generate-chapters-page__chapters">
 						{#each chapters as chapter (chapter.id)}
 							<li>
 								<strong>{chapter.title}</strong>
 								{#if chapter.discussionPoints?.length}
-									<ul class="phase4-chapters__points">
+									<ul class="generate-chapters-page__points">
 										{#each chapter.discussionPoints as point, i (i)}
 											<li>{point}</li>
 										{/each}
@@ -184,17 +184,17 @@
 </PhasePanel>
 
 <style>
-	.phase4-chapters__chapters {
+	.generate-chapters-page__chapters {
 		margin: 16px 0;
 		padding-left: 24px;
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
 	}
-	.phase4-chapters__chapters li {
+	.generate-chapters-page__chapters li {
 		line-height: 1.5;
 	}
-	.phase4-chapters__points {
+	.generate-chapters-page__points {
 		margin: 6px 0 0;
 		padding-left: 20px;
 		display: flex;
@@ -202,35 +202,35 @@
 		gap: 2px;
 		list-style: disc;
 	}
-	.phase4-chapters__points li {
+	.generate-chapters-page__points li {
 		color: #888;
 		line-height: 1.5;
 	}
-	.phase4-chapters__issues {
+	.generate-chapters-page__issues {
 		border: 1px solid #e0e0e0;
 		border-radius: 6px;
 		padding: 12px;
 	}
-	.phase4-chapters__issues h3 {
+	.generate-chapters-page__issues h3 {
 		margin: 0 0 12px;
 	}
-	.phase4-chapters__issues-grid {
+	.generate-chapters-page__issues-grid {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
 		gap: 16px;
 		padding-bottom: 12px;
 	}
-	.phase4-chapters__issues-col h4 {
+	.generate-chapters-page__issues-col h4 {
 		font-weight: bold;
 	}
 
-	.phase4-chapters__issues-col ol {
+	.generate-chapters-page__issues-col ol {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
 
-	.phase4-chapters__scored-issues {
+	.generate-chapters-page__scored-issues {
 		list-style: none;
 		margin: 0;
 		padding: 0;
@@ -239,7 +239,7 @@
 		gap: 6px;
 	}
 
-	.phase4-chapters__scored-issues li {
+	.generate-chapters-page__scored-issues li {
 		display: grid;
 		grid-template-columns: 2rem 3.5rem 1fr;
 		grid-template-rows: auto auto;
@@ -247,57 +247,57 @@
 		padding: 6px 8px;
 		border-radius: 4px;
 	}
-	.phase4-chapters__scored-issues li.phase4-chapters__scored-issue--selected {
+	.generate-chapters-page__scored-issues li.generate-chapters-page__scored-issue--selected {
 		background: #e8f5e9;
 	}
-	.phase4-chapters__scored-issues li.phase4-chapters__scored-issue--rejected {
+	.generate-chapters-page__scored-issues li.generate-chapters-page__scored-issue--rejected {
 		background: #fafafa;
 		opacity: 0.6;
 	}
-	.phase4-chapters__score {
+	.generate-chapters-page__score {
 		grid-row: 1 / 3;
 		align-self: center;
 		text-align: center;
 	}
-	.phase4-chapters__scored-issue--selected .phase4-chapters__score {
+	.generate-chapters-page__scored-issue--selected .generate-chapters-page__score {
 		color: #2e7d32;
 	}
-	.phase4-chapters__scored-issue--rejected .phase4-chapters__score {
+	.generate-chapters-page__scored-issue--rejected .generate-chapters-page__score {
 		color: #9e9e9e;
 	}
-	.phase4-chapters__issue-source {
+	.generate-chapters-page__issue-source {
 		color: #757575;
 		align-self: end;
 	}
-	.phase4-chapters__issue-text {
+	.generate-chapters-page__issue-text {
 		color: #212121;
 	}
-	.phase4-chapters__reason {
+	.generate-chapters-page__reason {
 		grid-column: 3;
 	}
 
-	.phase4-chapters__grouping {
+	.generate-chapters-page__grouping {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
 
-	.phase4-chapters__group {
+	.generate-chapters-page__group {
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
 	}
 
-	.phase4-chapters__group-label {
+	.generate-chapters-page__group-label {
 		font-weight: bold;
 	}
-	.phase4-chapters__group-issues {
+	.generate-chapters-page__group-issues {
 		margin: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 2px;
 	}
-	.phase4-chapters__group-issue {
+	.generate-chapters-page__group-issue {
 		font-weight: normal;
 	}
 </style>

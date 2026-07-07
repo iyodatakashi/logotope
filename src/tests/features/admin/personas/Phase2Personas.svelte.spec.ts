@@ -33,16 +33,16 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	}
 }));
 
-import Phase2Personas from '$lib/features/admin/topic-detail/personas/Phase2Personas.svelte';
+import GeneratePersonasPage from '$lib/features/admin/topic-detail/personas/GeneratePersonasPage.svelte';
 
-describe('Phase2Personas.svelte', () => {
+describe('GeneratePersonasPage.svelte', () => {
 	it('ペルソナデータを表示する', async () => {
-		render(Phase2Personas);
+		render(GeneratePersonasPage);
 		await expect.element(page.getByText('田中太郎')).toBeInTheDocument();
 	});
 
 	it('承認ボタンを表示する（PhasePanel経由、generated状態）', async () => {
-		render(Phase2Personas);
+		render(GeneratePersonasPage);
 		await expect
 			.element(page.getByRole('button', { name: '承認して次へ進む' }))
 			.toBeInTheDocument();

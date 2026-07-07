@@ -1,5 +1,5 @@
 <script lang="ts">
-	import PhaseFactResearch from '$lib/features/admin/topic-detail/fact-research/PhaseFactResearch.svelte';
+	import FactResearchPage from '$lib/features/admin/topic-detail/fact-research/FactResearchPage.svelte';
 </script>
 
-<PhaseFactResearch />
+<FactResearchPage />

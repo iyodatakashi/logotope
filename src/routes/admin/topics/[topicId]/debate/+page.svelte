@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Phase5Debate from '$lib/features/admin/topic-detail/debate/Phase5Debate.svelte';
+	import GenerateDebatePage from '$lib/features/admin/topic-detail/debate/GenerateDebatePage.svelte';
 </script>
 
-<Phase5Debate />
+<GenerateDebatePage />

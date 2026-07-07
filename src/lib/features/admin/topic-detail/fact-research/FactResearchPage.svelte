@@ -125,20 +125,20 @@
 				repeatGap="8px"
 			/>
 		{:else if draftFacts.length > 0}
-			<ul class="phase-fact-research">
+			<ul class="fact-research-page">
 				{#each draftFacts as fact, factIndex (factIndex)}
-					<li class="phase-fact-research__item">
+					<li class="fact-research-page__item">
 						<Textarea
 							value={fact.statement}
 							oninput={(value) => (draftFacts[factIndex].statement = value)}
 							rows={2}
 							fullWidth
 						/>
-						<div class="phase-fact-research__sources">
+						<div class="fact-research-page__sources">
 							{#each fact.sources as source, sourceIndex (sourceIndex)}
-								<div class="phase-fact-research__source">
+								<div class="fact-research-page__source">
 									<a
-										class="phase-fact-research__source-link"
+										class="fact-research-page__source-link"
 										href={source.url}
 										target="_blank"
 										rel="noopener noreferrer">{source.url}</a
@@ -152,11 +152,11 @@
 					</li>
 				{/each}
 			</ul>
-			<div class="phase-fact-research__actions">
+			<div class="fact-research-page__actions">
 				<Button variant="filled" onclick={save}>編集内容を保存する</Button>
 			</div>
 		{:else if currentTopicStore.factBaseStore.isLoaded && logicalState !== 'not_started'}
-			<p class="phase-fact-research__empty">
+			<p class="fact-research-page__empty">
 				確たる客観的事実は見つかりませんでした（事実基盤は空です）。
 			</p>
 		{/if}
@@ -164,13 +164,13 @@
 </PhasePanel>
 
 <style>
-	.phase-fact-research {
+	.fact-research-page {
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
 	}
 
-	.phase-fact-research__item {
+	.fact-research-page__item {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
@@ -180,19 +180,19 @@
 		border-radius: 4px;
 	}
 
-	.phase-fact-research__sources {
+	.fact-research-page__sources {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
 	}
 
-	.phase-fact-research__source {
+	.fact-research-page__source {
 		display: flex;
 		gap: 8px;
 		align-items: center;
 	}
 
-	.phase-fact-research__source-link {
+	.fact-research-page__source-link {
 		flex: 1;
 		min-width: 0;
 		overflow: hidden;
@@ -202,11 +202,11 @@
 		color: var(--svelte-ui-text-subtle-color);
 	}
 
-	.phase-fact-research__actions {
+	.fact-research-page__actions {
 		margin-top: 16px;
 	}
 
-	.phase-fact-research__empty {
+	.fact-research-page__empty {
 		color: var(--svelte-ui-text-subtle-color);
 	}
 </style>

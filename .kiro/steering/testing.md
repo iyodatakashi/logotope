@@ -11,10 +11,10 @@
 src/
 ├── lib/
 │   ├── stores/chapters.svelte.ts
-│   └── features/admin/debate/Phase5Debate.svelte
+│   └── features/admin/debate/GenerateDebatePage.svelte
 └── tests/                                         # テストはここに集約
     ├── stores/chapters.test.ts
-    └── features/admin/debate/Phase5Debate.svelte.spec.ts
+    └── features/admin/debate/GenerateDebatePage.svelte.spec.ts
 ```
 
 インポートは `$lib/` エイリアスを使う（相対パス禁止）：

@@ -36,13 +36,13 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	}
 }));
 
-import PhaseFactResearch from '$lib/features/admin/topic-detail/fact-research/PhaseFactResearch.svelte';
+import FactResearchPage from '$lib/features/admin/topic-detail/fact-research/FactResearchPage.svelte';
 
-describe('PhaseFactResearch.svelte', () => {
+describe('FactResearchPage.svelte', () => {
 	it('未実行（not_started）で「実行する」と「実行せず承認する」の両導線を表示する', async () => {
 		phaseStatus = 'not_started';
 		factBaseData = null;
-		render(PhaseFactResearch);
+		render(FactResearchPage);
 		await expect
 			.element(page.getByRole('button', { name: '事実リサーチを実行する' }))
 			.toBeInTheDocument();
@@ -54,7 +54,7 @@ describe('PhaseFactResearch.svelte', () => {
 	it('「実行せず承認する」で空のまま承認し次フェーズへ前進する', async () => {
 		phaseStatus = 'not_started';
 		factBaseData = null;
-		render(PhaseFactResearch);
+		render(FactResearchPage);
 		await page.getByRole('button', { name: '実行せず承認する' }).click();
 		expect(mockApproveFactResearch).toHaveBeenCalledOnce();
 		expect(mockGoto).toHaveBeenCalledWith('/admin/topics/t1/stakeholders');
@@ -68,7 +68,7 @@ describe('PhaseFactResearch.svelte', () => {
 			],
 			generatedAt: { __ts: 'now' }
 		};
-		render(PhaseFactResearch);
+		render(FactResearchPage);
 		await expect.element(page.getByText('承認して次へ進む')).toBeInTheDocument();
 		await expect
 			.element(page.getByRole('button', { name: '編集内容を保存する' }))

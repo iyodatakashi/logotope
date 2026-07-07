@@ -270,7 +270,7 @@
 
 {#if !debateCompleted}
 	<!-- 討論完了前は編集開始操作を出さない（画面側の大前提ゲート・Req 5.4） -->
-	<div class="phase6-editing__editing-gate">討論が完了すると編集を開始できます。</div>
+	<div class="editing-page__editing-gate">討論が完了すると編集を開始できます。</div>
 {:else}
 	<PhasePanel
 		{logicalState}
@@ -287,7 +287,7 @@
 	>
 		{#snippet headerControls()}
 			{#if displayChapters.length}
-				<span class="phase6-editing__diff-legend">
+				<span class="editing-page__diff-legend">
 					<Checkbox bind:value={showDiff}
 						>原本との差分を表示（<del>削除</del> / <ins>追加</ins>）</Checkbox
 					>
@@ -297,11 +297,11 @@
 		{#snippet content()}
 			<!-- 導入（intro）＝記事の先頭 -->
 			{#if introView.status !== 'missing' || editingSettled}
-				<section class="phase6-editing__narration phase6-editing__narration--intro">
-					<div class="phase6-editing__narration-header">
-						<h3 class="phase6-editing__narration-label">導入</h3>
+				<section class="editing-page__narration editing-page__narration--intro">
+					<div class="editing-page__narration-header">
+						<h3 class="editing-page__narration-label">導入</h3>
 						{#if editingSettled && introView.status !== 'final'}
-							<span class="phase6-editing__element-status" data-status={introView.status}>
+							<span class="editing-page__element-status" data-status={introView.status}>
 								{elementStatusLabel(introView.status)}
 							</span>
 							<Button
@@ -315,9 +315,9 @@
 					</div>
 					{#if introView.status !== 'missing'}
 						{#if showDiff && introView.diff}
-							<p class="phase6-editing__narration-body"><DiffText segments={introView.diff} /></p>
+							<p class="editing-page__narration-body"><DiffText segments={introView.diff} /></p>
 						{:else}
-							<p class="phase6-editing__narration-body">{introView.content}</p>
+							<p class="editing-page__narration-body">{introView.content}</p>
 						{/if}
 					{/if}
 				</section>
@@ -325,16 +325,16 @@
 
 			<!-- 本体（body＝章） -->
 			{#if displayChapters.length}
-				<div class="phase6-editing__chapters">
+				<div class="editing-page__chapters">
 					{#each displayChapters as chapter (chapter.id)}
-						<section class="phase6-editing__chapter">
-							<header class="phase6-editing__chapter-header">
-								<div class="phase6-editing__chapter-title">{chapter.title}</div>
-								<span class="phase6-editing__chapter-status" data-status={chapter.status}>
+						<section class="editing-page__chapter">
+							<header class="editing-page__chapter-header">
+								<div class="editing-page__chapter-title">{chapter.title}</div>
+								<span class="editing-page__chapter-status" data-status={chapter.status}>
 									{statusLabel(chapter.status)}
 								</span>
 								{#if chapter.failureReason}
-									<span class="phase6-editing__failure-reason"
+									<span class="editing-page__failure-reason"
 										>検証不合格: {chapter.failureReason}</span
 									>
 								{/if}
@@ -348,44 +348,44 @@
 									</Button>
 								{/if}
 							</header>
-							<div class="phase6-editing__turns">
+							<div class="editing-page__turns">
 								{#each chapter.turns as turn (turn.id)}
 									{#if turn.removed}
 										{#if showDiff}
 											<div
-												class="phase6-editing__turn phase6-editing__turn--removed"
-												class:phase6-editing__turn--facilitator={turn.name === 'ファシリテーター'}
+												class="editing-page__turn editing-page__turn--removed"
+												class:editing-page__turn--facilitator={turn.name === 'ファシリテーター'}
 											>
-												<div class="phase6-editing__speaker">
-													<div class="phase6-editing__speaker-name">{turn.name}</div>
-													{#if turn.role}<span class="phase6-editing__role">({turn.role})</span
+												<div class="editing-page__speaker">
+													<div class="editing-page__speaker-name">{turn.name}</div>
+													{#if turn.role}<span class="editing-page__role">({turn.role})</span
 														>{/if}
-													<span class="phase6-editing__removed-label">発言ごと削除</span>
+													<span class="editing-page__removed-label">発言ごと削除</span>
 												</div>
-												<p class="phase6-editing__content"><del>{turn.content}</del></p>
+												<p class="editing-page__content"><del>{turn.content}</del></p>
 											</div>
 										{/if}
 									{:else}
 										<div
-											class="phase6-editing__turn"
-											class:phase6-editing__turn--facilitator={turn.name === 'ファシリテーター'}
+											class="editing-page__turn"
+											class:editing-page__turn--facilitator={turn.name === 'ファシリテーター'}
 										>
-											<div class="phase6-editing__speaker">
-												<div class="phase6-editing__speaker-name">{turn.name}</div>
-												{#if turn.role}<span class="phase6-editing__role">({turn.role})</span>{/if}
+											<div class="editing-page__speaker">
+												<div class="editing-page__speaker-name">{turn.name}</div>
+												{#if turn.role}<span class="editing-page__role">({turn.role})</span>{/if}
 												{#if turn.speechMode}
-													<span class="phase6-editing__speech-mode" data-mode={turn.speechMode}
+													<span class="editing-page__speech-mode" data-mode={turn.speechMode}
 														>{turn.speechMode}</span
 													>
 												{/if}
 											</div>
 											{#if showDiff && turn.diff}
-												<p class="phase6-editing__content"><DiffText segments={turn.diff} /></p>
+												<p class="editing-page__content"><DiffText segments={turn.diff} /></p>
 											{:else}
-												<p class="phase6-editing__content">{turn.content}</p>
+												<p class="editing-page__content">{turn.content}</p>
 											{/if}
 											{#if turn.awarenesses.length > 0}
-												<ul class="phase6-editing__awarenesses">
+												<ul class="editing-page__awarenesses">
 													{#each turn.awarenesses as awareness, i (i)}
 														<li>💡 {awareness.personaName}: {awareness.content}</li>
 													{/each}
@@ -402,11 +402,11 @@
 
 			<!-- 締め（outro）＝本体の後 -->
 			{#if outroView.status !== 'missing' || editingSettled}
-				<section class="phase6-editing__narration phase6-editing__narration--outro">
-					<div class="phase6-editing__narration-header">
-						<h3 class="phase6-editing__narration-label">締め</h3>
+				<section class="editing-page__narration editing-page__narration--outro">
+					<div class="editing-page__narration-header">
+						<h3 class="editing-page__narration-label">締め</h3>
 						{#if editingSettled && outroView.status !== 'final'}
-							<span class="phase6-editing__element-status" data-status={outroView.status}>
+							<span class="editing-page__element-status" data-status={outroView.status}>
 								{elementStatusLabel(outroView.status)}
 							</span>
 							<Button
@@ -420,9 +420,9 @@
 					</div>
 					{#if outroView.status !== 'missing'}
 						{#if showDiff && outroView.diff}
-							<p class="phase6-editing__narration-body"><DiffText segments={outroView.diff} /></p>
+							<p class="editing-page__narration-body"><DiffText segments={outroView.diff} /></p>
 						{:else}
-							<p class="phase6-editing__narration-body">{outroView.content}</p>
+							<p class="editing-page__narration-body">{outroView.content}</p>
 						{/if}
 					{/if}
 				</section>
@@ -430,30 +430,30 @@
 
 			<!-- 所感（impressions）＝締めの後。参加者ごとの締めの所感。 -->
 			{#if displayImpressions.length}
-				<section class="phase6-editing__impressions">
-					<h3 class="phase6-editing__impressions-label">所感</h3>
-					<div class="phase6-editing__impressions-list">
+				<section class="editing-page__impressions">
+					<h3 class="editing-page__impressions-label">所感</h3>
+					<div class="editing-page__impressions-list">
 						{#each displayImpressions as impression (impression.personaId)}
-							<div class="phase6-editing__impression">
-								<div class="phase6-editing__speaker">
-									<div class="phase6-editing__speaker-name">{impression.name}</div>
-									{#if impression.role}<span class="phase6-editing__role">({impression.role})</span
+							<div class="editing-page__impression">
+								<div class="editing-page__speaker">
+									<div class="editing-page__speaker-name">{impression.name}</div>
+									{#if impression.role}<span class="editing-page__role">({impression.role})</span
 										>{/if}
 									{#if editingSettled && impression.status !== 'final'}
-										<span class="phase6-editing__element-status" data-status={impression.status}>
+										<span class="editing-page__element-status" data-status={impression.status}>
 											{elementStatusLabel(impression.status)}
 										</span>
 									{/if}
 								</div>
 								{#if impression.status !== 'missing'}
 									{#if showDiff && impression.diff}
-										<p class="phase6-editing__content"><DiffText segments={impression.diff} /></p>
+										<p class="editing-page__content"><DiffText segments={impression.diff} /></p>
 									{:else}
-										<p class="phase6-editing__content">{impression.content}</p>
+										<p class="editing-page__content">{impression.content}</p>
 									{/if}
 								{/if}
 								{#if editingSettled && impression.status !== 'final'}
-									<div class="phase6-editing__impression-regenerate">
+									<div class="editing-page__impression-regenerate">
 										<Button
 											variant="outlined"
 											onclick={() =>
@@ -476,117 +476,117 @@
 {/if}
 
 <style>
-	.phase6-editing__editing-gate {
+	.editing-page__editing-gate {
 		padding: 24px;
 		color: #757575;
 		font-size: 0.95rem;
 	}
-	.phase6-editing__narration {
+	.editing-page__narration {
 		padding: 16px;
 		margin-bottom: 24px;
 		border-left: 4px solid #7b1fa2;
 		background: #faf5fd;
 		border-radius: 3px;
 	}
-	.phase6-editing__narration--outro {
+	.editing-page__narration--outro {
 		margin-top: 24px;
 		margin-bottom: 0;
 	}
-	.phase6-editing__narration-header {
+	.editing-page__narration-header {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		margin-bottom: 8px;
 	}
-	.phase6-editing__narration-label {
+	.editing-page__narration-label {
 		margin: 0;
 		font-size: 0.8rem;
 		font-weight: 700;
 		color: #7b1fa2;
 	}
-	.phase6-editing__narration-body {
+	.editing-page__narration-body {
 		margin: 0;
 		line-height: 1.7;
 		white-space: pre-wrap;
 	}
-	.phase6-editing__element-status {
+	.editing-page__element-status {
 		font-size: 0.75rem;
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #ffebee;
 		color: #c62828;
 	}
-	.phase6-editing__element-status[data-status='draft_only'] {
+	.editing-page__element-status[data-status='draft_only'] {
 		background: #fff8e1;
 		color: #f57f17;
 	}
-	.phase6-editing__diff-legend ins {
+	.editing-page__diff-legend ins {
 		background: #e6ffed;
 		color: #22863a;
 		text-decoration: none;
 		padding: 0 2px;
 	}
-	.phase6-editing__diff-legend del {
+	.editing-page__diff-legend del {
 		background: #ffeef0;
 		color: #b31d28;
 		padding: 0 2px;
 	}
-	.phase6-editing__chapters {
+	.editing-page__chapters {
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
 	}
-	.phase6-editing__chapter-header {
+	.editing-page__chapter-header {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		margin-bottom: 8px;
 	}
-	.phase6-editing__chapter-title {
+	.editing-page__chapter-title {
 		font-size: 1.5rem;
 		font-weight: bold;
 	}
-	.phase6-editing__chapter-status {
+	.editing-page__chapter-status {
 		font-size: 0.75rem;
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #eee;
 		color: #757575;
 	}
-	.phase6-editing__chapter-status[data-status='completed'] {
+	.editing-page__chapter-status[data-status='completed'] {
 		background: #e8f5e9;
 		color: #2e7d32;
 	}
-	.phase6-editing__chapter-status[data-status='failed'] {
+	.editing-page__chapter-status[data-status='failed'] {
 		background: #ffebee;
 		color: #c62828;
 	}
-	.phase6-editing__failure-reason {
+	.editing-page__failure-reason {
 		font-size: 0.78rem;
 		color: #c62828;
 	}
-	.phase6-editing__turns {
+	.editing-page__turns {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
-	.phase6-editing__turn {
+	.editing-page__turn {
 		padding: 12px;
 		border-left: 4px solid #e0e0e0;
 	}
-	.phase6-editing__turn.phase6-editing__turn--facilitator {
+	.editing-page__turn.editing-page__turn--facilitator {
 		border-left-color: #1565c0;
 		background: #f8f9ff;
 	}
-	.phase6-editing__turn.phase6-editing__turn--removed {
+	.editing-page__turn.editing-page__turn--removed {
 		border-left-color: #e57373;
 		background: #fff5f5;
 	}
-	.phase6-editing__turn.phase6-editing__turn--removed .phase6-editing__content del {
+	.editing-page__turn.editing-page__turn--removed .editing-page__content del {
 		color: #b31d28;
 		text-decoration: line-through;
 	}
-	.phase6-editing__removed-label {
+	.editing-page__removed-label {
 		font-size: 0.72rem;
 		margin-left: 6px;
 		color: #fff;
@@ -594,61 +594,61 @@
 		padding: 1px 5px;
 		border-radius: 3px;
 	}
-	.phase6-editing__speaker {
+	.editing-page__speaker {
 		margin-bottom: 4px;
 		display: flex;
 		align-items: center;
 		gap: 6px;
 	}
-	.phase6-editing__speaker-name {
+	.editing-page__speaker-name {
 		font-weight: bold;
 	}
-	.phase6-editing__role {
+	.editing-page__role {
 		color: #757575;
 		font-size: 0.875rem;
 	}
-	.phase6-editing__speech-mode {
+	.editing-page__speech-mode {
 		font-size: 0.75rem;
 		color: #555;
 		background: #eee;
 		padding: 1px 5px;
 		border-radius: 3px;
 	}
-	.phase6-editing__content {
+	.editing-page__content {
 		margin: 0;
 		line-height: 1.6;
 	}
-	.phase6-editing__awarenesses {
+	.editing-page__awarenesses {
 		margin-top: 8px;
 		font-size: 0.85rem;
 		color: var(--svelte-ui-text-subtle-color);
 		list-style: none;
 		padding: 0;
 	}
-	.phase6-editing__impressions {
+	.editing-page__impressions {
 		margin-top: 24px;
 		padding: 16px;
 		border-left: 4px solid #00838f;
 		background: #f0fafb;
 		border-radius: 3px;
 	}
-	.phase6-editing__impressions-label {
+	.editing-page__impressions-label {
 		margin: 0 0 12px;
 		font-size: 0.8rem;
 		font-weight: 700;
 		color: #00838f;
 	}
-	.phase6-editing__impressions-list {
+	.editing-page__impressions-list {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
-	.phase6-editing__impression {
+	.editing-page__impression {
 		padding: 12px;
 		border-left: 4px solid #e0e0e0;
 		background: #fff;
 	}
-	.phase6-editing__impression-regenerate {
+	.editing-page__impression-regenerate {
 		margin-top: 8px;
 	}
 </style>

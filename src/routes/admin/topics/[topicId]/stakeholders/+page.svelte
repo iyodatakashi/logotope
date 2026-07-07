@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Phase1Stakeholders from '$lib/features/admin/topic-detail/stakeholders/Phase1Stakeholders.svelte';
+	import GenerateStakeholdersPage from '$lib/features/admin/topic-detail/stakeholders/GenerateStakeholdersPage.svelte';
 </script>
 
-<Phase1Stakeholders />
+<GenerateStakeholdersPage />

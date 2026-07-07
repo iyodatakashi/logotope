@@ -57,20 +57,20 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	}
 }));
 
-import Phase3Interviews from '$lib/features/admin/topic-detail/research/Phase3Interviews.svelte';
+import GenerateInterviewsPage from '$lib/features/admin/topic-detail/interview/GenerateInterviewsPage.svelte';
 
-describe('Phase3Interviews.svelte', () => {
+describe('GenerateInterviewsPage.svelte', () => {
 	beforeEach(() => {
 		personaList = [makePersona()];
 	});
 
 	it('取材済みのペルソナのデータを表示する', async () => {
-		render(Phase3Interviews);
+		render(GenerateInterviewsPage);
 		await expect.element(page.getByText('田中太郎')).toBeInTheDocument();
 	});
 
 	it('全員完了時は承認ボタンを表示する（PhasePanel経由、generated状態）', async () => {
-		render(Phase3Interviews);
+		render(GenerateInterviewsPage);
 		await expect
 			.element(page.getByRole('button', { name: '承認して次へ進む' }))
 			.toBeInTheDocument();
@@ -79,7 +79,7 @@ describe('Phase3Interviews.svelte', () => {
 	it('取材中（クリア済み・最終信念なし）は展開して詳細を出さない', async () => {
 		// 開始時クリアで beliefs が空・中間データなしになった in_progress 状態
 		personaList = [makePersona({ beliefs: [], interview: { status: 'in_progress' } })];
-		render(Phase3Interviews);
+		render(GenerateInterviewsPage);
 		const persona = page.getByText('田中太郎');
 		await expect.element(persona).toBeInTheDocument();
 		await persona.click();
@@ -87,7 +87,7 @@ describe('Phase3Interviews.svelte', () => {
 	});
 
 	it('展開するとドラフト信念・検証ギャップ・最終信念を段階表示する', async () => {
-		render(Phase3Interviews);
+		render(GenerateInterviewsPage);
 		await page.getByText('田中太郎').click();
 		await expect
 			.element(page.getByText('① ドラフト信念（ステレオタイプ仮説）'))

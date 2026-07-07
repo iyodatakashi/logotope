@@ -112,15 +112,15 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	}
 }));
 
-import Phase5Debate from '$lib/features/admin/topic-detail/debate/Phase5Debate.svelte';
+import GenerateDebatePage from '$lib/features/admin/topic-detail/debate/GenerateDebatePage.svelte';
 
-describe('Phase5Debate.svelte', () => {
+describe('GenerateDebatePage.svelte', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
 	it('討論 generated 時に「討論を確定して編集へ」ボタンを表示し、押下で approveDebate を呼ぶ', async () => {
-		render(Phase5Debate);
+		render(GenerateDebatePage);
 
 		const approveButton = page.getByRole('button', { name: '討論を確定して編集へ' });
 		await expect.element(approveButton).toBeInTheDocument();
@@ -130,27 +130,27 @@ describe('Phase5Debate.svelte', () => {
 	});
 
 	it('ターンの発言内容を表示する', async () => {
-		render(Phase5Debate);
+		render(GenerateDebatePage);
 
 		await expect.element(page.getByText('テスト発言内容')).toBeInTheDocument();
 	});
 
 	it('engagementsストアからエンゲージメントデータを表示する', async () => {
-		render(Phase5Debate);
+		render(GenerateDebatePage);
 
 		// p2 with mode='opinion', score=4 → displayed as "鈴木花子: full(4)"
 		await expect.element(page.getByText(/鈴木花子/)).toBeInTheDocument();
 	});
 
 	it('「前のフェーズに戻る」ボタンは存在しない', async () => {
-		render(Phase5Debate);
+		render(GenerateDebatePage);
 
 		await expect.element(page.getByText('テスト発言内容')).toBeInTheDocument();
 		expect(page.getByRole('button', { name: '前のフェーズに戻る' }).elements()).toHaveLength(0);
 	});
 
 	it('討論完了時は公開ボタンを描画しない（ターン完了後のみ表示）', async () => {
-		render(Phase5Debate);
+		render(GenerateDebatePage);
 
 		await expect.element(page.getByText('テスト発言内容')).toBeInTheDocument();
 	});

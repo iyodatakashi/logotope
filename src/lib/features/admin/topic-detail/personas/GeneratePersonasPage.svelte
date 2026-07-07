@@ -90,7 +90,7 @@
 				repeatGap="8px"
 			/>
 		{:else if currentTopicStore.personasStore.personas.length > 0}
-			<ul class="phase2-personas__list">
+			<ul class="generate-personas-page__list">
 				{#each currentTopicStore.personasStore.personas as persona (persona.id)}
 					<PersonaItem {persona} />
 				{/each}
@@ -100,7 +100,7 @@
 </PhasePanel>
 
 <style>
-	.phase2-personas__list {
+	.generate-personas-page__list {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
