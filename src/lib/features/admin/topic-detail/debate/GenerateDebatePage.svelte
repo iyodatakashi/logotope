@@ -14,7 +14,7 @@
 	let isStarting = $state(false);
 	let isResetting = $state(false);
 	// 討論を1章で終了するか最後の章まで続けるかの制御。開始/再開/やり直し時にサーバへ渡す。
-	let singleChapterMode = $state(true);
+	let singleChapterMode = $state(false);
 
 	const generate = async () => {
 		const topic = currentTopicStore.topic;
@@ -138,9 +138,7 @@
 	onApprove={approve}
 >
 	{#snippet headerControls()}
-		{#if logicalState !== 'running'}
-			<Checkbox bind:value={singleChapterMode}>1章で討論を終了する</Checkbox>
-		{/if}
+		<Checkbox bind:value={singleChapterMode}>1章で討論を終了する</Checkbox>
 	{/snippet}
 	{#snippet progress()}
 		{#if logicalState === 'running' && !isResetting}
