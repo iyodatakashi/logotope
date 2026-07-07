@@ -63,7 +63,7 @@ const makeDraftBeliefObject = () => ({
 });
 
 const makeFinalBeliefObject = () => ({
-	initialBelief: 'final-belief',
+	belief: 'final-belief',
 	interviewRecord: 'final-record'
 });
 
@@ -211,7 +211,7 @@ describe('runInterview', () => {
 			expect(result.ok).toBe(true);
 			if (result.ok) {
 				expect(result.value.interviewRecord).toBe('final-record');
-				expect(result.value.initialBelief).toBe('final-belief');
+				expect(result.value.belief).toBe('final-belief');
 				expect(result.value.sources).toHaveLength(1);
 				expect(result.value.sources[0].results).toHaveLength(2);
 			}

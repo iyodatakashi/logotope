@@ -1,6 +1,6 @@
 import { Timestamp } from 'firebase/firestore';
 
-// 不変の初期信念のみ（interview が version 0 を書き、討論は上書きしない）
+// 不変の信念のみ（interview が version 0 を書き、討論は上書きしない）
 export type BeliefForFirestore = {
 	id: string;
 	version: number;

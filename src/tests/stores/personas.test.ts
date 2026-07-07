@@ -205,7 +205,7 @@ describe('createPersonasStore', () => {
 	it('runInterview は開始時に前回の最終信念(beliefs)と中間データをクリアする', async () => {
 		const mockFn = vi
 			.fn()
-			.mockResolvedValue({ data: { interviewRecord: '', initialBelief: '', sources: [] } });
+			.mockResolvedValue({ data: { interviewRecord: '', belief: '', sources: [] } });
 		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
 
 		const store = createPersonasStore('t1');
@@ -221,7 +221,7 @@ describe('createPersonasStore', () => {
 	it('runInterviews の all=true で全ペルソナを取材する', async () => {
 		const mockFn = vi
 			.fn()
-			.mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', initialBelief: '' } });
+			.mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', belief: '' } });
 		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
 
 		const store = createPersonasStore('t1');
@@ -245,7 +245,7 @@ describe('createPersonasStore', () => {
 
 	it('runInterview は結果（completed/beliefs）を自書込せず in_progress クリアのみ行う（サーバ権威）', async () => {
 		const mockFn = vi.fn().mockResolvedValue({
-			data: { interviewRecord: 'r', initialBelief: 'b', sources: [] }
+			data: { interviewRecord: 'r', belief: 'b', sources: [] }
 		});
 		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
 

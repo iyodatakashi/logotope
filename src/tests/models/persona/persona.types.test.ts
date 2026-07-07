@@ -12,7 +12,7 @@ import type {
 } from '$lib/models/persona/persona.types';
 
 describe('persona.types - Firestore 型とアプリ型', () => {
-	it('BeliefForFirestore は初期信念のみ（id/version/content/createdAt）を持つ', () => {
+	it('BeliefForFirestore は信念のみ（id/version/content/createdAt）を持つ', () => {
 		const belief: BeliefForFirestore = {
 			id: 'b1',
 			version: 0,

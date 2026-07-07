@@ -51,7 +51,7 @@ const makePersona = (id: string, name: string, approved: boolean): Persona => ({
 	llmType: 'claude',
 	approved,
 	sortOrder: 0,
-	beliefs: [{ id: 'b0', version: 0, content: `${name}の初期信念`, createdAt: TS }],
+	beliefs: [{ id: 'b0', version: 0, content: `${name}の信念`, createdAt: TS }],
 	awarenesses: [
 		{
 			id: 'a1',
@@ -112,7 +112,7 @@ describe('buildDebateDigest', () => {
 		expect(summarizeChapter).toHaveBeenCalledTimes(2);
 	});
 
-	it('承認済みペルソナのみを stance（初期信念）・beliefShifts（気づき）付きで含める', async () => {
+	it('承認済みペルソナのみを stance（信念）・beliefShifts（気づき）付きで含める', async () => {
 		getTopicById.mockResolvedValue({ id: 't1', title: 'テーマ名', createdAt: TS, updatedAt: TS });
 		getChaptersByTopicId.mockResolvedValue([makeChapter('c1', 0, '第1章')]);
 		getPersonasByTopicId.mockResolvedValue([
@@ -127,7 +127,7 @@ describe('buildDebateDigest', () => {
 		expect(result.ok).toBe(true);
 		if (result.ok) {
 			expect(result.value.personas).toEqual([
-				{ personaId: 'p1', name: '田中', stance: '田中の初期信念', beliefShifts: ['田中の気づき'] }
+				{ personaId: 'p1', name: '田中', stance: '田中の信念', beliefShifts: ['田中の気づき'] }
 			]);
 		}
 		// 未承認ペルソナは要約プロンプトにも渡さない

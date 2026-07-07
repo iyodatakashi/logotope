@@ -35,7 +35,7 @@ vi.mock('../../../utils/prompt-formatters.js', () => ({
 
 const mockAppendAwareness = vi.fn().mockResolvedValue(undefined);
 vi.mock('../../../pipeline/debate/awareness.js', () => ({
-	getInitialBelief: vi.fn(() => '初期信念テキスト'),
+	getBelief: vi.fn(() => '信念テキスト'),
 	appendAwareness: (...args: unknown[]) => mockAppendAwareness(...args)
 }));
 

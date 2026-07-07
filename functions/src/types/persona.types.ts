@@ -23,7 +23,7 @@ export type Persona = {
 
 import type { Timestamp } from 'firebase-admin/firestore';
 
-// 不変の初期信念のみ（interview が version 0 を書き、討論は上書きしない）
+// 不変の信念のみ（interview が version 0 を書き、討論は上書きしない）
 export type Belief = {
 	id: string;
 	version: number;

@@ -134,7 +134,7 @@ describe('restartDebateFromChapter - チャプタースコープ engagements 削
 		);
 	});
 
-	it('破棄ターンに紐づく awareness を巻き戻す（triggeredByTurnId でフィルタ、初期信念は不変）', async () => {
+	it('破棄ターンに紐づく awareness を巻き戻す（triggeredByTurnId でフィルタ、信念は不変）', async () => {
 		mockChaptersGet.mockResolvedValue({
 			docs: [makeChapterDoc('ch1', [{ id: 't1' }])]
 		});
@@ -145,7 +145,7 @@ describe('restartDebateFromChapter - チャプタースコープ engagements 削
 				{
 					ref: { update: personaRefUpdate },
 					data: () => ({
-						beliefs: [{ id: 'b0', version: 0, content: '初期信念' }],
+						beliefs: [{ id: 'b0', version: 0, content: '信念' }],
 						awarenesses: [
 							{ triggeredByTurnId: 't1', content: '破棄対象' },
 							{ triggeredByTurnId: 't99', content: '残す' }

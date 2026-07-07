@@ -14,7 +14,7 @@ const makePersona = (overrides: Record<string, unknown> = {}) => ({
 	background: '',
 	interests: '',
 	approved: true,
-	beliefs: [{ version: 0, content: '初期信念の内容', createdAt: {} }],
+	beliefs: [{ version: 0, content: '信念の内容', createdAt: {} }],
 	interview: {
 		draftBelief: {
 			stanceAndGrounds: 'ドラフト立場',

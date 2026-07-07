@@ -279,10 +279,10 @@ describe('evaluateEngagement', () => {
 		expect(userContent).toContain('同意');
 		expect(userContent).toContain('共感');
 		expect(userContent).toContain('言い換え');
-		// 重複防止：既出の気づきは再記録しない
-		expect(userContent).toContain('既出');
+		// 重複防止：既存の気づきは言い換え・別角度でも再記録しない
+		expect(userContent).toContain('別角度');
 		// 過剰検出を防ぐ既定（該当なし/ほとんどは null）。回数ノルマは設けない
-		expect(userContent).toMatch(/該当なしは null|ほとんどは null/);
+		expect(userContent).toMatch(/該当が無ければ null|ほとんどのターンは null/);
 		// score/mode の主判定を変えない
 		expect(userContent).toMatch(/判定を変え|独立|切り離|別に行う/);
 	});
@@ -986,7 +986,7 @@ describe('generateTurn', () => {
 		expect(userContent).toContain('取り下げる');
 	});
 
-	it('システムプロンプトは不変の初期信念（beliefs[0]）を主軸に用い、後続 version の信念は用いない', async () => {
+	it('システムプロンプトは不変の信念（beliefs[0]）を主軸に用い、後続 version の信念は用いない', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
 		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
@@ -1087,7 +1087,7 @@ describe('generateImpression', () => {
 		vi.resetModules();
 	});
 
-	it('システムは不変の初期信念（beliefs[0]）を主軸に用い、後続 version の信念は用いない', async () => {
+	it('システムは不変の信念（beliefs[0]）を主軸に用い、後続 version の信念は用いない', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
 		vi.mocked(aiMod.generateObject).mockImplementation(async (args: unknown) => {
@@ -1098,7 +1098,7 @@ describe('generateImpression', () => {
 		const personaWithBeliefs: Persona = {
 			...mockPersona,
 			beliefs: [
-				{ id: 'b0', version: 0, content: '初期信念テキスト', createdAt: 'TS' as never },
+				{ id: 'b0', version: 0, content: '信念テキスト', createdAt: 'TS' as never },
 				{ id: 'b1', version: 1, content: '上書きされた最新信念', createdAt: 'TS' as never }
 			]
 		};
@@ -1107,7 +1107,7 @@ describe('generateImpression', () => {
 		await generateImpression(personaWithBeliefs, mockTurns);
 
 		const system = (capturedArgs[0] as { system: string }).system;
-		expect(system).toContain('初期信念テキスト');
+		expect(system).toContain('信念テキスト');
 		expect(system).not.toContain('上書きされた最新信念');
 	});
 

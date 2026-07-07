@@ -83,7 +83,7 @@ const agentOutput = {
 	draftBelief: { stanceAndGrounds: 's' },
 	verificationReport: 'report',
 	interviewRecord: 'record',
-	initialBelief: 'belief',
+	belief: 'belief',
 	sources: [{ query: 'q', summary: 'sum', results: [] }]
 };
 

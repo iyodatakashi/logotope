@@ -5,8 +5,8 @@ import type { AwarenessEvent } from '../../types/debate.types.js';
 
 const db = () => getFirestore();
 
-/** ペルソナの不変の初期信念（beliefs[0]）を返す。未保持なら空文字 */
-export const getInitialBelief = (persona: Persona): string => persona.beliefs?.[0]?.content ?? '';
+/** ペルソナの不変の信念（beliefs[0]）を返す。未保持なら空文字 */
+export const getBelief = (persona: Persona): string => persona.beliefs?.[0]?.content ?? '';
 
 /**
  * 傾聴で検出した気づきを非破壊で追記する。

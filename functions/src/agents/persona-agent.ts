@@ -9,7 +9,7 @@ import {
 	formatFactBaseSection,
 	formatAwarenessSection
 } from '../utils/prompt-formatters.js';
-import { getInitialBelief } from '../pipeline/debate/awareness.js';
+import { getBelief } from '../pipeline/debate/awareness.js';
 import type { PersonaReply, ImpressionResult, Engagement } from '../types/debate.types.js';
 import type { DebateTurn, TurnGenerationContext } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
@@ -101,7 +101,7 @@ export const buildSpeechStyleGuide = (persona: Persona & { gender?: string }): s
 const buildPersonaSystemPrompt = (
 	persona: Persona & { gender?: string },
 	interviewRecord: string,
-	initialBelief: string
+	belief: string
 ): string => {
 	const styleGuide = buildSpeechStyleGuide(persona);
 	return `あなたは以下のペルソナとして、異なる立場の人々が集まるテーマ対話の場に参加しています。あなたが発言するのは、相手の意見に同意したり補完したりするためではなく、自分の経験・立場・実感から言いたいことを伝えるためです。他の参加者の発言は、自分の考えや記憶を引き出すきっかけになることはありますが、その内容に引っ張られる必要はありません。正しいことを言う必要はなく、自分の生活や仕事から感じていることを率直に話してください。
@@ -133,9 +133,9 @@ ${styleGuide}
 ## 事前取材レコード
 ${interviewRecord}
 
-## 初期信念ドキュメント（不変の主軸）
+## 信念ドキュメント（不変の主軸）
 （討論を通じて変わらない、あなたの立場の主軸。内面の一貫性を保つための参照資料であり、発言で直接引用・言及しないこと）
-${initialBelief}
+${belief}
 
 ## 情報収集について
 数値・統計・最新動向など正確性が求められる情報を発言の根拠として示す場合は、推測や記憶だけに頼らず検索ツールを積極的に使用すること。
@@ -220,7 +220,7 @@ export const generateTurn = async (
 	try {
 		const { chapter, queuedTrigger, targetedBy, activeDiscussionPoint } = context;
 		const recentTurns = context.chapterTurns.slice(-20);
-		const initialBelief = getInitialBelief(persona);
+		const belief = getBelief(persona);
 		const styleGuide = buildSpeechStyleGuide(persona);
 		// 発言者の文脈はアクティブ論点に一本化する。論点が無ければ章タイトルを場のテーマとして提示する（focusQuestion は使わない）
 		const chapterFocusNote = activeDiscussionPoint
@@ -239,7 +239,7 @@ export const generateTurn = async (
 
 		const isFact = engagement.mode === 'fact';
 		const isQuestion = engagement.mode === 'question';
-		const system = buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', initialBelief);
+		const system = buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', belief);
 		const llmType = persona.llmType ?? 'claude';
 
 		const lastTurn = recentTurns[recentTurns.length - 1];
@@ -302,7 +302,7 @@ export const generateTurn = async (
 						)}\n【修正の方針】\n- 自分の立場・口調・論旨の方向性・指名（targetPersonaId）の整合は維持する（ただし事実の訂正によって主張の結論が変わることは許容する）\n- 誤り（incorrect）の主張は発言に含めず、訂正後の事実に基づいて組み立て直す\n- 検証不能（unverifiable）の主張は、不確実性を含む表現に改めるか取り下げる`
 				: '';
 		// 蓄積された気づきを発言の入力として反映（消費）。発言段階では新規検出せず、
-		// 初期信念を主軸に立場を反転させない範囲で踏まえる（整形側に非反転の指針を内在）
+		// 信念を主軸に立場を反転させない範囲で踏まえる（整形側に非反転の指針を内在）
 		const awarenessNote = formatAwarenessSection(persona.awarenesses);
 		const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterFocusNote}${factBaseNote}${awarenessNote}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}${factCheckNote}`;
 		const callFull = (model: ReturnType<typeof getPersonaModel>) =>
@@ -403,12 +403,12 @@ export const evaluateEngagement = async (
 		// 既存の気づきを傾聴の入力（文脈）としても読む（聞く→気づく→話すの連続性）
 		const awarenessSection = formatAwarenessSection(persona.awarenesses);
 		// score/mode の主判定とは分節した、付随的な気づき検出タスク（低干渉・厳格な閾値・簡潔にしてコスト抑制）
-		const awarenessDetectionNote = `\n\n---\n【気づき検出】score/mode の評価とは別に行う。気づきの発生源は提示会話の最後の1発言（末尾＝直前の発言）のみ。それ以前の発言は直前発言を理解するための文脈であり、発生源にはしない。直前発言を聞いて自分の見方が実際に変わった、または見落としていた視点に本当に気づいたときだけ awareness に記録する。reception=直前発言（他者）で気づいた／self=直前発言を聞いて自分の中で新たに生じた。content は一文。文体は常体（「〜した。」「〜だ。」調）で書き、敬体（です・ます調）は混ぜない。reception のとき sourceTurnId に反応した発言の番号（各行頭の [N]。通常は末尾＝直前発言）を記す。self は sourceTurnId を null にしてよい。\n次は記録しない（null）：単なる同意・共感・言い換え・既存見解の再確認、および【討論中に得た気づき】に既出の内容やその繰り返し。該当なしは null（ほとんどは null）。この検出は score/mode の判定を変えない。`;
+		const awarenessDetectionNote = `\n\n---\n【気づき検出】score/mode の評価とは別に行い、この検出は score/mode の判定を変えない。気づきの発生源は提示会話の最後の1発言（末尾＝直前の発言）のみ。それ以前の発言は直前発言を理解するための文脈であり、発生源にはしない。\n【記録する条件】直前発言によって、信念にも【討論中に得た気づき】にもまだ無い考え・視点が生じたときだけ記録する。既にどちらかにある考えは、言い換え・別角度でも、直前発言で強まっただけでも記録しない。単なる同意・共感も記録しない。該当が無ければ null（ほとんどのターンは null）。\n【記録する場合の形式】content は一文。文体は常体（「〜した。」「〜だ。」調）で書き、敬体（です・ます調）は混ぜない。reception=直前発言（他者）で気づいた／self=直前発言を聞いて自分の中で新たに生じた。reception のとき sourceTurnId に反応した発言の番号（各行頭の [N]。通常は末尾＝直前発言）を記す。self は sourceTurnId を null にしてよい。`;
 		const llmType = persona.llmType ?? 'claude';
 		const system = buildPersonaSystemPrompt(
 			persona,
 			persona.interviewRecord ?? '',
-			getInitialBelief(persona)
+			getBelief(persona)
 		);
 		const result = await generateObject({
 			model: getPersonaModel(llmType),
@@ -472,11 +472,11 @@ export const generateImpression = async (
 	personas: ReadonlyArray<Persona> = []
 ): Promise<Result<ImpressionResult, PipelineError>> => {
 	try {
-		// 見解は「固定の初期信念（主軸・system）＋討論で得た気づき（揮発部）」から都度導出する（4.1/4.3）
+		// 見解は「固定の信念（主軸・system）＋討論で得た気づき（揮発部）」から都度導出する（4.1/4.3）
 		const awarenessNote = formatAwarenessSection(persona.awarenesses);
 		const result = await generateObject({
 			model: getPersonaModel(persona.llmType ?? 'claude'),
-			system: buildPersonaSystemPrompt(persona, '', getInitialBelief(persona)),
+			system: buildPersonaSystemPrompt(persona, '', getBelief(persona)),
 			schema: impressionSchema,
 			messages: [
 				{

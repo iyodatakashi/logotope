@@ -1,6 +1,6 @@
 import { summarizeChapter } from '../../agents/debate-digest-agent.js';
 import { getChaptersByTopicId } from './chapter.js';
-import { getInitialBelief } from './awareness.js';
+import { getBelief } from './awareness.js';
 import { getPersonasByTopicId } from '../personas/personas.js';
 import { getTopicById } from '../topics/topics.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
@@ -49,7 +49,7 @@ export const buildDebateDigest = async (
 	const personaDigests: PersonaDigest[] = approvedPersonas.map((persona) => ({
 		personaId: persona.id,
 		name: persona.name,
-		stance: getInitialBelief(persona),
+		stance: getBelief(persona),
 		beliefShifts: (persona.awarenesses ?? []).map((awareness) => awareness.content)
 	}));
 

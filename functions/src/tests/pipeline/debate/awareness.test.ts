@@ -24,7 +24,7 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('nanoid', () => ({ nanoid: () => `aw-${holder.nextId++}` }));
 
 import {
-	getInitialBelief,
+	getBelief,
 	appendAwareness,
 	rollbackAwarenessesForRemovedTurns
 } from '../../../pipeline/debate/awareness.js';
@@ -58,17 +58,17 @@ beforeEach(() => {
 	holder.nextId = 0;
 });
 
-describe('getInitialBelief', () => {
+describe('getBelief', () => {
 	it('beliefs[0] の content を返す', () => {
 		const persona = basePersona({
-			beliefs: [{ id: 'b0', version: 0, content: '初期信念', createdAt: 'TS' as never }]
+			beliefs: [{ id: 'b0', version: 0, content: '信念', createdAt: 'TS' as never }]
 		});
-		expect(getInitialBelief(persona)).toBe('初期信念');
+		expect(getBelief(persona)).toBe('信念');
 	});
 
 	it('beliefs が無ければ空文字を返す', () => {
-		expect(getInitialBelief(basePersona())).toBe('');
-		expect(getInitialBelief(basePersona({ beliefs: [] }))).toBe('');
+		expect(getBelief(basePersona())).toBe('');
+		expect(getBelief(basePersona({ beliefs: [] }))).toBe('');
 	});
 });
 

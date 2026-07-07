@@ -165,7 +165,7 @@ describe('formatAwarenessSection', () => {
 		expect(section).toContain('自分の経験から気づいた');
 		expect(section).toContain('受容');
 		expect(section).toContain('自分の気づき');
-		// 初期信念（主軸）は変えず立場を反転させない旨を添える
-		expect(section).toContain('初期信念');
+		// 信念（主軸）は変えず立場を反転させない旨を添える
+		expect(section).toContain('信念');
 	});
 });

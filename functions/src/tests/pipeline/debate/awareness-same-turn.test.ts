@@ -80,7 +80,7 @@ describe('傾聴→永続→消費の同ターン反映（結合）', () => {
 		vi.clearAllMocks();
 	});
 
-	it('傾聴で検出した気づきが同一 persona 参照で同ターンの発言プロンプトに反映され、初期信念は不変', async () => {
+	it('傾聴で検出した気づきが同一 persona 参照で同ターンの発言プロンプトに反映され、信念は不変', async () => {
 		const aiMod = await import('ai');
 		// 傾聴: p1 が reception の気づきを検出する
 		vi.mocked(aiMod.generateObject).mockResolvedValue({
@@ -98,7 +98,7 @@ describe('傾聴→永続→消費の同ターン反映（結合）', () => {
 
 		const p1 = makePersona('p1', '田中', {
 			beliefs: [
-				{ id: 'b0', version: 0, content: '対面勤務が基本という初期信念', createdAt: 'TS' as never }
+				{ id: 'b0', version: 0, content: '対面勤務が基本という信念', createdAt: 'TS' as never }
 			]
 		});
 		const p2 = makePersona('p2', '佐藤');
@@ -142,11 +142,11 @@ describe('傾聴→永続→消費の同ターン反映（結合）', () => {
 		const call = captured[0] as { system: unknown; messages: Array<{ content: string }> };
 		// 直前に得た気づきが揮発部（user）に反映される
 		expect(call.messages[0].content).toContain('在宅の負担という視点は一理ある');
-		// 初期信念は system の主軸として不変（気づきで上書きされない）。
+		// 信念は system の主軸として不変（気づきで上書きされない）。
 		// claude 経路では system は cacheControl 付き SystemModelMessage（.content に安定コンテキスト）。
 		const systemText =
 			typeof call.system === 'string' ? call.system : (call.system as { content: string }).content;
-		expect(systemText).toContain('対面勤務が基本という初期信念');
+		expect(systemText).toContain('対面勤務が基本という信念');
 		// 発言結果は気づき・信念変化を出力しない（消費のみ）
 		expect(result.ok && result.value).not.toHaveProperty('awareness');
 		expect(result.ok && result.value).not.toHaveProperty('beliefChange');

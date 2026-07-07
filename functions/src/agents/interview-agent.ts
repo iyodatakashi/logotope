@@ -29,7 +29,7 @@ export type InterviewOutput = {
 	draftBelief: DraftBelief;
 	verificationReport: string;
 	interviewRecord: string;
-	initialBelief: string;
+	belief: string;
 	sources: SearchSource[];
 };
 
@@ -44,7 +44,7 @@ const draftBeliefSchema = z.object({
 });
 
 const finalBeliefSchema = z.object({
-	initialBelief: z.string(),
+	belief: z.string(),
 	interviewRecord: z.string()
 });
 
@@ -79,7 +79,7 @@ export const runInterview = async (
 			draftBelief: draftResult.value,
 			verificationReport: verifyResult.value.verificationReport,
 			interviewRecord: finalResult.value.interviewRecord,
-			initialBelief: finalResult.value.initialBelief,
+			belief: finalResult.value.belief,
 			sources: verifyResult.value.sources
 		}
 	};
@@ -239,7 +239,7 @@ const generateFinalBelief = async (
 	draft: DraftBelief,
 	verificationReport: string,
 	topicContext?: TopicContext
-): Promise<Result<{ initialBelief: string; interviewRecord: string }, PipelineError>> => {
+): Promise<Result<{ belief: string; interviewRecord: string }, PipelineError>> => {
 	const factSection = formatFactBaseSection(topicContext?.factBase);
 	try {
 		const result = await generateObject({
@@ -284,7 +284,7 @@ ${verificationReport}
 
 以下の2項目を生成してください。
 
-【initialBelief（最終信念ドキュメント）の書式】
+【belief（最終信念ドキュメント）の書式】
 - 7項目（立場と根拠・核心的主張・懸念事項・価値観・妥協点・変化の可能性・前提としている事実（立場から見た事実））を、必ず「## 見出し」+ 本文段落の形式で書く
 - 見出しは「##」のみを使う（「#」や「**項目名**」で項目名を書かない。項目全体を太字で囲まない）
 - 「## 前提としている事実（立場から見た事実）」の節には、このペルソナが前提としている事実認識（層②）を、共通見解へ均さず帰属保持して書く。実態が得られなければこの節は簡潔でよい（捏造しない）

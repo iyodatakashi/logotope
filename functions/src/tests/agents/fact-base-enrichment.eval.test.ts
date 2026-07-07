@@ -199,7 +199,7 @@ describe.skipIf(!ENABLED)('取材の挙動（interview-agent）', () => {
 			if (!result.ok) return;
 			const verdict = await judge(
 				'この信念ドキュメントの人物像は、単純なステレオタイプ（紋切り型・戯画）ではなく、その認識に至った背景・根拠・葛藤を伴う立体的な人物として描かれている。',
-				result.value.initialBelief
+				result.value.belief
 			);
 			console.info(`[eval] 非戯画化(A) ${persona.name} → ${verdict.pass} : ${verdict.reason}`);
 			expect(verdict.pass).toBe(true);
@@ -218,7 +218,7 @@ describe.skipIf(!ENABLED)('取材の挙動（interview-agent）', () => {
 			if (!result.ok) return;
 			const verdict = await judge(
 				'この信念ドキュメントは、この立場から見た事実認識（層②）を、共通見解（consensus）へ均して打ち消すのではなく、この人物に帰属する認識として保持している。「立場から見た事実」に相当する内容が、当人の視点として（consensusへの全面降伏ではなく）描かれている。',
-				result.value.initialBelief
+				result.value.belief
 			);
 			console.info(`[eval] 非平板化(B) ${persona.name} → ${verdict.pass} : ${verdict.reason}`);
 			expect(verdict.pass).toBe(true);

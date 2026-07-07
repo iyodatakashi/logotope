@@ -47,7 +47,7 @@ export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, as
 			status: 'completed',
 			completedAt: Timestamp.now()
 		},
-		beliefs: [{ version: 0, content: result.value.initialBelief, createdAt: Timestamp.now() }]
+		beliefs: [{ version: 0, content: result.value.belief, createdAt: Timestamp.now() }]
 	});
 	// 自ペルソナの completed 永続化後に全件完了をサーバ側で判定し、全件完了なら generated を確定する。
 	await confirmInterviewsGeneratedIfAllComplete(topicId);

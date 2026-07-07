@@ -22,7 +22,7 @@
 	const role = $derived(persona.specificRole ?? persona.stakeholderRole);
 	const interview = $derived(persona.interview);
 	const sources = $derived(interview?.sources ?? []);
-	const initialBelief = $derived(persona.beliefs[0]?.content ?? '');
+	const belief = $derived(persona.beliefs[0]?.content ?? '');
 
 	let expanded = $state(false);
 
@@ -65,7 +65,7 @@
 				{:else if interview?.status === 'error'}エラー
 				{:else}待機中{/if}
 			</span>
-			{#if initialBelief}
+			{#if belief}
 				<span class="interview-item__arrow">{expanded ? '▲' : '▼'}</span>
 			{/if}
 		</button>
@@ -74,7 +74,7 @@
 		{/if}
 	</div>
 
-	{#if expanded && initialBelief}
+	{#if expanded && belief}
 		<div class="interview-item__detail">
 			{#if interview?.draftBelief}
 				<div class="interview-item__section">
@@ -126,7 +126,7 @@
 				<p class="interview-item__section-label">③ 最終信念</p>
 				<div class="interview-item__md-body interview-item__md-body--belief">
 					<!-- eslint-disable-next-line svelte/no-at-html-tags -- DOMPurifyでサニタイズ済み -->
-					{@html md(initialBelief)}
+					{@html md(belief)}
 				</div>
 			</div>
 			{#if interview?.interviewRecord}

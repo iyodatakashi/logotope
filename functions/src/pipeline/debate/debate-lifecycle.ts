@@ -102,7 +102,7 @@ const discardChaptersWithSideData = async (
 		discardChapters.flatMap((chapter) => chapter.turns).map((turn) => turn.id)
 	);
 
-	// 初期信念は不変。破棄ターンに紐づく気づき（awareness）のみを巻き戻す（1.3）
+	// 信念は不変。破棄ターンに紐づく気づき（awareness）のみを巻き戻す（1.3）
 	await rollbackAwarenessesForRemovedTurns(topicId, removedTurnIds);
 	await deleteChapterEngagements(topicId, discardChapters);
 
