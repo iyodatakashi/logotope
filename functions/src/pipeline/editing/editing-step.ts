@@ -160,10 +160,8 @@ export const validateEditedChapter = (
 				);
 			}
 		}
-		if (draft.speakerType !== speakerType) return fail('ドラフトの speakerType が原本と食い違う');
-		if ((draft.personaId ?? null) !== (personaId ?? null)) {
-			return fail('ドラフトの personaId が原本と食い違う');
-		}
+		// 話者（speakerType/personaId）は保存時に由来ターンから導出するため、LLM の自己申告ラベルは検証しない。
+		// 由来が単一話者にまとまっていること（上のチェック）が本質で、ラベルの一致は導出により保証される。
 		const minIndex = Math.min(...indices);
 		if (minIndex <= prevMinIndex) return fail('時系列順序が原本と矛盾する');
 		prevMinIndex = minIndex;
@@ -176,16 +174,30 @@ export const validateEditedChapter = (
 	return { ok: true, value: true };
 };
 
-/** ドラフト列を永続形の編集後ターン列に変換する（新規 id を採番、undefined を混ぜない） */
-const toEditedTurns = (drafts: ReadonlyArray<EditedTurnDraft>): EditedTurnForFirestore[] =>
-	drafts.map((draft) => ({
-		id: nanoid(),
-		sourceTurnIds: draft.sourceTurnIds as NonEmptyArray<string>,
-		speakerType: draft.speakerType,
-		personaId: draft.personaId ?? null,
-		content: draft.content,
-		...(draft.speechMode ? { speechMode: draft.speechMode } : {})
-	}));
+/**
+ * ドラフト列を永続形の編集後ターン列に変換する（新規 id を採番、undefined を混ぜない）。
+ * 話者（speakerType/personaId）は LLM の自己申告ではなく由来ターンから導出する（ラベル間違いで章を失敗させない）。
+ * 検証通過後に呼ぶため、各ドラフトの先頭 sourceTurnId は必ず原本に実在し、由来は単一話者にまとまっている。
+ */
+const toEditedTurns = (
+	drafts: ReadonlyArray<EditedTurnDraft>,
+	rawTurns: ReadonlyArray<DebateTurn>
+): EditedTurnForFirestore[] => {
+	const turnById = new Map(rawTurns.map((turn) => [turn.id, turn]));
+	return drafts.map((draft) => {
+		const source = turnById.get(draft.sourceTurnIds[0]);
+		// 原本ターンの speakerType は実行時は必ず 'persona' | 'facilitator'（型は string のため絞り込む）。
+		const speakerType = (source?.speakerType ?? draft.speakerType) as 'persona' | 'facilitator';
+		return {
+			id: nanoid(),
+			sourceTurnIds: draft.sourceTurnIds as NonEmptyArray<string>,
+			speakerType,
+			personaId: speakerType === 'facilitator' ? null : (source?.personaId ?? null),
+			content: draft.content,
+			...(draft.speechMode ? { speechMode: draft.speechMode } : {})
+		};
+	});
+};
 
 /**
  * 章編集ステップ: 対象章をリライトして構造検証し、編集後章を保存する（completed / failed）。
@@ -243,7 +255,7 @@ export const runChapterEditStep = async (
 		chapterIndex: chapter.chapterIndex,
 		title: chapter.title,
 		discussionPoints: chapter.discussionPoints,
-		turns: toEditedTurns(result.value),
+		turns: toEditedTurns(result.value, chapter.turns),
 		status: 'completed'
 	};
 	await writeEditedChapter(topicId, chapter.id, completed);

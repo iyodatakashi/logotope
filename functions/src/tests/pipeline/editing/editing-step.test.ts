@@ -68,6 +68,16 @@ describe('validateEditedChapter', () => {
 		expect(result.ok).toBe(true);
 	});
 
+	it('ドラフトの personaId/speakerType が由来と食い違っても、由来が単一話者なら合格（ラベルは保存時に導出）', () => {
+		// LLM が話者ラベルだけ間違えたケース（sourceTurnIds は正しい）。検証では弾かない。
+		const drafts = [
+			makeDraft(['t1'], { personaId: 'wrong', speakerType: 'facilitator' }),
+			makeDraft(['t2', 't3'])
+		];
+		const result = validateEditedChapter(drafts, raw, new Set());
+		expect(result.ok).toBe(true);
+	});
+
 	it('原本に存在しない sourceTurnId は不合格', () => {
 		const result = validateEditedChapter([makeDraft(['tX'])], raw, new Set());
 		expect(result.ok).toBe(false);
@@ -170,6 +180,30 @@ describe('runChapterEditStep', () => {
 		expect(doc).toMatchObject({ chapterIndex: 0, status: 'completed' });
 		expect((doc!.turns as unknown[]).length).toBe(1);
 		expect((doc!.turns as Array<{ id: string }>)[0].id).toBeTruthy();
+	});
+
+	it('LLM が話者ラベル(personaId/speakerType)を間違えても、由来から導出して completed で保存する', async () => {
+		// sourceTurnIds は正しいが personaId/speakerType が誤り。従来は failed になっていたケース。
+		mockGenerateObject.mockResolvedValueOnce({
+			object: {
+				turns: [
+					{ sourceTurnIds: ['t1', 't2'], speakerType: 'facilitator', personaId: 'wrong', content: '連結' }
+				]
+			}
+		} as never);
+
+		const status = await runChapterEditStep('t1', 0, 'r1');
+
+		expect(status).toBe('completed');
+		const turn = (
+			holder.mock!.store.get('topics/t1/editedChapters/c1')!.turns as Array<{
+				speakerType: string;
+				personaId: string | null;
+			}>
+		)[0];
+		// 由来ターン（t1/t2 は persona p1）から導出される
+		expect(turn.speakerType).toBe('persona');
+		expect(turn.personaId).toBe('p1');
 	});
 
 	it('構造検証に不合格なら failed・turns:[] で記録する（章別フォールバック）', async () => {
