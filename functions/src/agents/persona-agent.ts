@@ -403,7 +403,7 @@ export const evaluateEngagement = async (
 		// 既存の気づきを傾聴の入力（文脈）としても読む（聞く→気づく→話すの連続性）
 		const awarenessSection = formatAwarenessSection(persona.awarenesses);
 		// score/mode の主判定とは分節した、付随的な気づき検出タスク（低干渉・厳格な閾値・簡潔にしてコスト抑制）
-		const awarenessDetectionNote = `\n\n---\n【気づき検出】score/mode の評価とは別に行い、この検出は score/mode の判定を変えない。気づきの発生源は提示会話の最後の1発言（末尾＝直前の発言）のみ。それ以前の発言は直前発言を理解するための文脈であり、発生源にはしない。\n【記録する条件】直前発言によって、信念にも【討論中に得た気づき】にもまだ無い考え・視点が生じたときだけ記録する。既にどちらかにある考えは、言い換え・別角度でも、直前発言で強まっただけでも記録しない。単なる同意・共感も記録しない。該当が無ければ null（ほとんどのターンは null）。\n【記録する場合の形式】content は一文。文体は常体（「〜した。」「〜だ。」調）で書き、敬体（です・ます調）は混ぜない。reception=直前発言（他者）で気づいた／self=直前発言を聞いて自分の中で新たに生じた。reception のとき sourceTurnId に反応した発言の番号（各行頭の [N]。通常は末尾＝直前発言）を記す。self は sourceTurnId を null にしてよい。`;
+		const awarenessDetectionNote = `\n\n---\n【気づき検出】score/mode の評価とは別に行い、この検出は score/mode の判定を変えない。気づきの発生源は提示会話の最後の1発言（末尾＝直前の発言）のみ。それ以前の発言は直前発言を理解するための文脈であり、発生源にはしない。\n【awareness の出力】awareness は、直前発言によってあなた自身の考え・見方が実際に変わり（自分の立場の盲点に気づいた・他者の視点を受け入れて理解が更新された等）、かつ その変化が信念にも【討論中に得た気づき】にもまだ無いときだけ、オブジェクトとして出力する。それ以外は null にする（ほとんどのターンは null）。新情報や他者の視点を知った・理解しただけで考えが変わっていないもの、既にある考えの言い換え・別角度・強まっただけのもの、単なる同意・共感は null。\n【出力する場合の形式】content は一文。文体は常体（「〜した。」「〜だ。」調）で書き、敬体（です・ます調）は混ぜない。reception=直前発言（他者）で気づいた／self=直前発言を聞いて自分の中で新たに生じた。reception のとき sourceTurnId に反応した発言の番号（各行頭の [N]。通常は末尾＝直前発言）を記す。self は sourceTurnId を null にしてよい。`;
 		const llmType = persona.llmType ?? 'claude';
 		const system = buildPersonaSystemPrompt(
 			persona,
