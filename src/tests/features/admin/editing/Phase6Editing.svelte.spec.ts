@@ -4,22 +4,22 @@ import { render } from 'vitest-browser-svelte';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
+type Narration = { draft: string | null; final: string | null };
+type Impression = { sortOrder: number; draft: string | null; final: string | null };
+
 const { holder } = vi.hoisted(() => ({
 	holder: {
 		phase: 'editing',
 		phaseStatus: 'generated',
 		startEditing: vi.fn(),
 		resetEditing: vi.fn(),
-		// 原本章（id/turns）
+		regenerateArticleElement: vi.fn(),
 		chapters: [] as unknown[],
-		// editedChapters ストアの getter が返す値
-		editedByChapter: new Map<string, { status: string; turns?: unknown[] }>(),
+		editedByChapter: new Map<string, { status: string; turns?: unknown[]; failureReason?: string }>(),
 		personas: [] as unknown[],
-		intro: null as string | null,
-		closing: null as string | null,
-		// 討論後コメント（原本／編集後）。編集後があればそちらを、無ければ原本にフォールバック表示する。
-		postDebateComments: [] as unknown[],
-		editedPostDebateComments: [] as unknown[]
+		intro: { draft: null, final: null } as Narration,
+		outro: { draft: null, final: null } as Narration,
+		impressions: {} as Record<string, Impression>
 	}
 }));
 
@@ -31,7 +31,8 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				phase: holder.phase,
 				phaseStatus: holder.phaseStatus,
 				startEditing: holder.startEditing,
-				resetEditing: holder.resetEditing
+				resetEditing: holder.resetEditing,
+				regenerateArticleElement: holder.regenerateArticleElement
 			};
 		},
 		get chaptersStore() {
@@ -48,13 +49,16 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				getEditedChapter: (chapterId: string) => holder.editedByChapter.get(chapterId) ?? null
 			};
 		},
-		get editedIntroClosingStore() {
+		get editorialStore() {
 			return {
 				get intro() {
 					return holder.intro;
 				},
-				get closing() {
-					return holder.closing;
+				get outro() {
+					return holder.outro;
+				},
+				get impressions() {
+					return holder.impressions;
 				}
 			};
 		},
@@ -62,20 +66,6 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 			return {
 				get personas() {
 					return holder.personas;
-				}
-			};
-		},
-		get postDebateCommentsStore() {
-			return {
-				get comments() {
-					return holder.postDebateComments;
-				}
-			};
-		},
-		get editedPostDebateCommentsStore() {
-			return {
-				get comments() {
-					return holder.editedPostDebateComments;
 				}
 			};
 		}
@@ -89,6 +79,7 @@ const persona = (id: string, name: string) => ({
 	name,
 	stakeholderRole: '役割',
 	specificRole: '',
+	approved: true,
 	beliefs: []
 });
 
@@ -100,13 +91,12 @@ describe('Phase6Editing.svelte', () => {
 		holder.chapters = [];
 		holder.editedByChapter = new Map();
 		holder.personas = [persona('p1', '田中太郎')];
-		holder.intro = null;
-		holder.closing = null;
-		holder.postDebateComments = [];
-		holder.editedPostDebateComments = [];
+		holder.intro = { draft: null, final: null };
+		holder.outro = { draft: null, final: null };
+		holder.impressions = {};
+		holder.regenerateArticleElement.mockResolvedValue(undefined);
 	});
 
-	// 差分が確定的になるよう、原本と編集後で文字集合を重複させないデータを使う。
 	const completedChapterFixture = () => {
 		holder.chapters = [
 			{
@@ -121,13 +111,7 @@ describe('Phase6Editing.svelte', () => {
 				{
 					status: 'completed',
 					turns: [
-						{
-							id: 'e1',
-							sourceTurnIds: ['t1'],
-							speakerType: 'persona',
-							personaId: 'p1',
-							content: 'カキクケコ'
-						}
+						{ id: 'e1', sourceTurnIds: ['t1'], speakerType: 'persona', personaId: 'p1', content: 'カキクケコ' }
 					]
 				}
 			]
@@ -139,7 +123,6 @@ describe('Phase6Editing.svelte', () => {
 		render(Phase6Editing);
 
 		await expect.element(page.getByText('編集済み')).toBeInTheDocument();
-		// 既定は差分表示 ON。削除された原本テキストと追加された編集後テキストの両方が見える。
 		await expect.element(page.getByText('カキクケコ')).toBeInTheDocument();
 		await expect.element(page.getByText('アイウエオ')).toBeInTheDocument();
 	});
@@ -179,64 +162,11 @@ describe('Phase6Editing.svelte', () => {
 			}
 		];
 		holder.editedByChapter = new Map([
-			[
-				'ch1',
-				{ status: 'failed', turns: [], failureReason: '原本に存在しない sourceTurnId: ghost' }
-			]
+			['ch1', { status: 'failed', turns: [], failureReason: '原本に存在しない sourceTurnId: ghost' }]
 		]);
 		render(Phase6Editing);
 
 		await expect.element(page.getByText(/検証不合格.*ghost/)).toBeInTheDocument();
-	});
-
-	// 2発言のうち t2 がどの編集後ターンにも由来しない（発言ごとカット）ケース。
-	const cutTurnFixture = () => {
-		holder.chapters = [
-			{
-				id: 'ch1',
-				title: '第一章',
-				turns: [
-					{ id: 't1', speakerType: 'persona', personaId: 'p1', content: '残る発言アイウ' },
-					{ id: 't2', speakerType: 'persona', personaId: 'p1', content: 'カットされる発言マミム' }
-				]
-			}
-		];
-		holder.editedByChapter = new Map([
-			[
-				'ch1',
-				{
-					status: 'completed',
-					turns: [
-						{
-							id: 'e1',
-							sourceTurnIds: ['t1'],
-							speakerType: 'persona',
-							personaId: 'p1',
-							content: '残る発言カキク'
-						}
-					]
-				}
-			]
-		]);
-	};
-
-	it('差分表示時、どの編集後ターンにも使われなかった原本発言を「発言ごと削除」として表示する', async () => {
-		cutTurnFixture();
-		render(Phase6Editing);
-
-		await expect.element(page.getByText('発言ごと削除')).toBeInTheDocument();
-		await expect.element(page.getByText('カットされる発言マミム')).toBeInTheDocument();
-	});
-
-	it('差分表示をオフにするとカットされた発言は表示しない', async () => {
-		cutTurnFixture();
-		render(Phase6Editing);
-
-		await expect.element(page.getByText('カットされる発言マミム')).toBeInTheDocument();
-		await page.getByRole('checkbox').click();
-
-		expect(page.getByText('カットされる発言マミム').elements()).toHaveLength(0);
-		expect(page.getByText('発言ごと削除').elements()).toHaveLength(0);
 	});
 
 	it('未生成章は原本にフォールバックし「未編集」を出す', async () => {
@@ -253,53 +183,6 @@ describe('Phase6Editing.svelte', () => {
 		await expect.element(page.getByText('未編集')).toBeInTheDocument();
 	});
 
-	it('完了章の編集後ターンに、由来ターンの気づきを結合表示する', async () => {
-		holder.personas = [
-			{
-				id: 'p1',
-				name: '田中太郎',
-				stakeholderRole: '役割',
-				specificRole: '',
-				awarenesses: [
-					{
-						id: 'a1',
-						triggeredByTurnId: 't1',
-						kind: 'self',
-						content: '別の見方に一理ある',
-						sourcePersonaId: null
-					}
-				]
-			}
-		];
-		holder.chapters = [
-			{
-				id: 'ch1',
-				title: '第一章',
-				turns: [{ id: 't1', speakerType: 'persona', personaId: 'p1', content: '原本' }]
-			}
-		];
-		holder.editedByChapter = new Map([
-			[
-				'ch1',
-				{
-					status: 'completed',
-					turns: [
-						{
-							id: 'e1',
-							sourceTurnIds: ['t1'],
-							speakerType: 'persona',
-							personaId: 'p1',
-							content: '編集後'
-						}
-					]
-				}
-			]
-		]);
-		render(Phase6Editing);
-
-		await expect.element(page.getByText(/別の見方に一理ある/)).toBeInTheDocument();
-	});
-
 	it('未実行（not_started）時は「編集を開始する」ボタンを表示し、押下で startEditing を呼ぶ', async () => {
 		holder.phaseStatus = 'not_started';
 		render(Phase6Editing);
@@ -310,61 +193,88 @@ describe('Phase6Editing.svelte', () => {
 		expect(holder.startEditing).toHaveBeenCalled();
 	});
 
-	it('生成済みのイントロを冒頭・クロージングを末尾に区別表示する', async () => {
-		holder.intro = 'これは討論のイントロ本文です';
-		holder.closing = 'これは討論のクロージング本文です';
+	it('記事を 導入 → 本体 → 締め → 所感 の順で表示する（編集後を final として表示）', async () => {
+		holder.intro = { draft: '導入原本', final: 'これは導入の編集後本文です' };
+		holder.outro = { draft: '締め原本', final: 'これは締めの編集後本文です' };
+		holder.impressions = { p1: { sortOrder: 0, draft: '所感原本', final: 'これは所感の編集後本文です' } };
 		completedChapterFixture();
 		render(Phase6Editing);
 
-		await expect.element(page.getByRole('heading', { name: 'イントロ' })).toBeInTheDocument();
-		await expect.element(page.getByText('これは討論のイントロ本文です')).toBeInTheDocument();
-		await expect.element(page.getByRole('heading', { name: 'クロージング' })).toBeInTheDocument();
-		await expect.element(page.getByText('これは討論のクロージング本文です')).toBeInTheDocument();
+		await expect.element(page.getByRole('heading', { name: '導入' })).toBeInTheDocument();
+		await expect.element(page.getByRole('heading', { name: '締め' })).toBeInTheDocument();
+		await expect.element(page.getByRole('heading', { name: '所感' })).toBeInTheDocument();
+		await expect.element(page.getByText('これは導入の編集後本文です')).toBeInTheDocument();
+		await expect.element(page.getByText('これは所感の編集後本文です')).toBeInTheDocument();
 	});
 
-	it('未生成側（null）のイントロ・クロージング領域は表示しない', async () => {
-		holder.intro = 'イントロだけ生成';
-		holder.closing = null;
-		completedChapterFixture();
+	it('編集確定後、未完成の導入（原本のみ）に状態表示と再生成ボタンを出し、押下で intro を再生成する', async () => {
+		holder.intro = { draft: '導入の原本のみ', final: null };
+		holder.outro = { draft: '締め', final: '締め' };
+		holder.impressions = { p1: { sortOrder: 0, draft: '所感', final: '所感' } };
 		render(Phase6Editing);
 
-		await expect.element(page.getByText('イントロだけ生成')).toBeInTheDocument();
-		expect(page.getByRole('heading', { name: 'クロージング' }).elements()).toHaveLength(0);
+		await expect.element(page.getByText('原本のみ（未編集）')).toBeInTheDocument();
+		const button = page.getByRole('button', { name: '再生成' });
+		await expect.element(button).toBeInTheDocument();
+		await button.click();
+		expect(holder.regenerateArticleElement).toHaveBeenCalledWith({ kind: 'intro' });
 	});
 
-	it('編集後の討論後コメントを見出し付きで表示し、既定で原本との差分（削除＋追加）を強調する', async () => {
-		completedChapterFixture();
-		holder.postDebateComments = [
-			{ id: 'c1', personaId: 'p1', content: 'サシスセソ', sortOrder: 0 }
+	it('編集確定後、欠落した所感（生成失敗）に再生成ボタンを出し、押下で impression を再生成する', async () => {
+		holder.intro = { draft: 'i', final: 'i' };
+		holder.outro = { draft: 'o', final: 'o' };
+		holder.impressions = {}; // p1 は欠落
+		render(Phase6Editing);
+
+		await expect.element(page.getByText('生成に失敗')).toBeInTheDocument();
+		const button = page.getByRole('button', { name: '再生成' });
+		await button.click();
+		expect(holder.regenerateArticleElement).toHaveBeenCalledWith({
+			kind: 'impression',
+			personaId: 'p1'
+		});
+	});
+
+	it('編集確定後、失敗章に再生成ボタンを出し、押下で chapter を再生成する', async () => {
+		holder.intro = { draft: 'i', final: 'i' };
+		holder.outro = { draft: 'o', final: 'o' };
+		holder.impressions = { p1: { sortOrder: 0, draft: '所感', final: '所感' } };
+		holder.chapters = [
+			{
+				id: 'ch1',
+				title: '第一章',
+				turns: [{ id: 't1', speakerType: 'persona', personaId: 'p1', content: '原本の発言' }]
+			}
 		];
-		holder.editedPostDebateComments = [
-			{ id: 'ec1', sourceCommentId: 'c1', personaId: 'p1', content: 'ハヒフヘホ', sortOrder: 0 }
-		];
+		holder.editedByChapter = new Map([['ch1', { status: 'failed', turns: [] }]]);
 		render(Phase6Editing);
 
-		await expect.element(page.getByRole('heading', { name: '討論後コメント' })).toBeInTheDocument();
-		// 差分 ON（既定）: 原本（削除）と編集後（追加）の両方が見える
-		await expect.element(page.getByText('ハヒフヘホ')).toBeInTheDocument();
-		await expect.element(page.getByText('サシスセソ')).toBeInTheDocument();
+		const button = page.getByRole('button', { name: '再生成' });
+		await button.click();
+		expect(holder.regenerateArticleElement).toHaveBeenCalledWith({ kind: 'chapter', chapterId: 'ch1' });
 	});
 
-	it('編集後コメントが無いときは原本の討論後コメントにフォールバック表示する（差分なし）', async () => {
-		completedChapterFixture();
-		holder.postDebateComments = [
-			{ id: 'c1', personaId: 'p1', content: '原本の討論後コメント', sortOrder: 0 }
-		];
-		holder.editedPostDebateComments = [];
+	it('編集が実行中（running）のあいだは未完成の明示・再生成ボタンを出さない（Req 3.2）', async () => {
+		holder.phaseStatus = 'running';
+		holder.intro = { draft: '導入の原本のみ', final: null };
+		holder.impressions = {};
 		render(Phase6Editing);
 
-		await expect.element(page.getByRole('heading', { name: '討論後コメント' })).toBeInTheDocument();
-		await expect.element(page.getByText('原本の討論後コメント')).toBeInTheDocument();
+		expect(page.getByRole('button', { name: '再生成' }).elements()).toHaveLength(0);
+		expect(page.getByText('原本のみ（未編集）').elements()).toHaveLength(0);
 	});
 
-	it('討論後コメントが無いときは見出しを表示しない', async () => {
-		completedChapterFixture();
+	it('再生成の処理中は当該ボタンを無効化し重複実行を防ぐ（Req 4.8）', async () => {
+		holder.intro = { draft: '導入の原本のみ', final: null };
+		holder.outro = { draft: 'o', final: 'o' };
+		holder.impressions = { p1: { sortOrder: 0, draft: '所感', final: '所感' } };
+		// 解決しない Promise で処理中状態を維持する
+		holder.regenerateArticleElement.mockReturnValue(new Promise(() => {}));
 		render(Phase6Editing);
 
-		expect(page.getByRole('heading', { name: '討論後コメント' }).elements()).toHaveLength(0);
+		const button = page.getByRole('button', { name: '再生成' });
+		await button.click();
+		await expect.element(page.getByRole('button', { name: '再生成中...' })).toBeDisabled();
 	});
 
 	it('討論が未完了のあいだは編集開始ボタンを出さず、ゲート文言を表示する', async () => {

@@ -10,6 +10,7 @@ import {
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
 import type { TopicInput } from './topic.types';
+import type { ArticleElement } from '$lib/models/editorial/editorial.types';
 import type { PhaseSlug, PhaseStatus } from '$lib/models/phase/phase.types';
 import { nextPhase } from '$lib/models/phase/phase';
 
@@ -79,6 +80,16 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 		await resetEditingCallable({ topicId: id });
 	};
 
+	// 未完成の記事要素（章／導入／締め／所感の1人）を種別ごとに個別再生成する共通入口。
+	// 編集確定後（generated/stopped）のみ受け付けられ、実行中はサーバ側で拒否される。
+	const regenerateArticleElement = async (element: ArticleElement): Promise<void> => {
+		const regenerateCallable = httpsCallable<
+			{ topicId: string; element: ArticleElement },
+			{ topicId: string }
+		>(functions, 'regenerateArticleElement', { timeout: 300000 });
+		await regenerateCallable({ topicId: id, element });
+	};
+
 	const publishDebate = async (): Promise<void> => {
 		const personasSnap = await getDocs(collection(db, 'topics', id, 'personas'));
 		const personaCount = personasSnap.size;
@@ -120,7 +131,8 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 		await deleteDoc(doc(db, 'topics', id, 'chapterAnalysis', '0'));
 	};
 
-	// 討論（chapters のターン・engagements・postDebateComments。章立ては残す）を消す。
+	// 討論（chapters のターン・engagements。章立ては残す）を消す。編集記事（editorial/editedChapters）は
+	// サーバの resetDebate が原本再生成との不整合を残さないよう破棄する。
 	// 章付随データの削除責務はサーバへ集約済み。FE は onCall を呼ぶだけにする（クライアント側で個別削除しない）。
 	const resetDebate = async (): Promise<void> => {
 		const resetDebateCallable = httpsCallable<{ topicId: string }, { topicId: string }>(
@@ -293,6 +305,7 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 		approveDebate,
 		startEditing,
 		resetEditing,
+		regenerateArticleElement,
 		publishDebate
 	};
 };

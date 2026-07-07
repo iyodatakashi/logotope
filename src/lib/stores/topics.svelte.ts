@@ -92,7 +92,7 @@ const create = () => {
 			...chaptersSnap.docs.map((docSnapshot) => docSnapshot.ref),
 			...chapterEngagementSnaps.flatMap((snap) => snap.docs.map((docSnapshot) => docSnapshot.ref)),
 			doc(db, 'topics', topicId, 'chapterAnalysis', '0'),
-			doc(db, 'topics', topicId, 'postDebateComments', '0'),
+			doc(db, 'topics', topicId, 'editorial', '0'),
 			doc(db, 'topics', topicId)
 		];
 		for (let i = 0; i < all.length; i += 500) {

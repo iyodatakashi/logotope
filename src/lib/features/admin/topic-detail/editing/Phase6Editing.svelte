@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Checkbox } from '@14ch/svelte-ui';
+	import { Checkbox, Button } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
@@ -7,13 +7,16 @@
 	import DiffText from './DiffText.svelte';
 	import { computeInlineDiff, type InlineDiffSegment } from './inlineDiff';
 	import type { EditedChapterDisplayStatus } from '$lib/models/editedChapter/editedChapter.types';
+	import type {
+		ArticleElement,
+		ElementStatus,
+		NarrationPartForFirestore
+	} from '$lib/models/editorial/editorial.types';
 
 	const PHASE: PhaseSlug = 'editing';
 	// 編集後ターンで原本との差分（削除＝赤取消線 / 追加＝緑）を強調表示するかどうか。
-	// 既定は ON にし、「何が変わったか」を開いた直後に把握できるようにする。
 	let showDiff = $state(true);
-	// 押下直後の楽観的な「実行中」表示用フラグ。編集は running をサーバが書くため、
-	// callable 往復のあいだ表示を埋める表示専用のフラグ。実状態(running)が反映されたら解除する。
+	// 押下直後の楽観的な「実行中」表示用フラグ。実状態(running)が反映されたら解除する。
 	let isStarting = $state(false);
 
 	const start = async () => {
@@ -27,7 +30,7 @@
 		}
 	};
 
-	// やり直し: 未実行へ戻してから再度開始する（旧成果物の破棄はサーバの startEditing が担う）。
+	// やり直し: 未実行へ戻してから再度開始する（旧記事の破棄はサーバの startEditing が担う）。
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
@@ -37,6 +40,26 @@
 			await topic.startEditing();
 		} finally {
 			isStarting = false;
+		}
+	};
+
+	// 未完成の記事要素を種別ごとに個別再生成する。処理中は当該要素の操作を無効化して重複実行を防ぐ。
+	const elementKey = (element: ArticleElement): string =>
+		element.kind === 'chapter'
+			? `chapter:${element.chapterId}`
+			: element.kind === 'impression'
+				? `impression:${element.personaId}`
+				: element.kind;
+	let regeneratingKeys = $state<Record<string, boolean>>({});
+	const regenerateElement = async (element: ArticleElement) => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		const key = elementKey(element);
+		regeneratingKeys = { ...regeneratingKeys, [key]: true };
+		try {
+			await topic.regenerateArticleElement(element);
+		} finally {
+			regeneratingKeys = { ...regeneratingKeys, [key]: false };
 		}
 	};
 
@@ -58,12 +81,11 @@
 		}
 	});
 
-	// 討論全体のイントロ（冒頭）・クロージング（末尾）。未生成側は null で、その領域は表示しない。
-	const intro = $derived(currentTopicStore.editedIntroClosingStore.intro);
-	const closing = $derived(currentTopicStore.editedIntroClosingStore.closing);
+	// 編集が確定（generated / stopped）したかどうか。未完成の明示と再生成ボタンは、
+	// 生成が走り終えたこの状態でのみ出す（生成中に全要素を「未完成」と誤表示しないため・Req 3.1, 3.2）。
+	const editingSettled = $derived(logicalState === 'generated' || logicalState === 'stopped');
 
-	// 編集開始の大前提ゲート（Req 5.4）。討論フェーズが完了（generated 到達 or 次段へ前進）するまでは
-	// 開始操作を出さない。サーバ側ゲート（startEditing）と二重化する。
+	// 編集開始の大前提ゲート（Req 5.4）。討論フェーズが完了するまで開始操作を出さない。
 	const debateCompleted = $derived.by(() => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return false;
@@ -73,6 +95,27 @@
 		);
 		return debateState === 'generated' || debateState === 'approved';
 	});
+
+	// 記事要素の読み取りモデル: 編集後(final)を優先し、無ければ原本(draft)を暫定表示。どちらも無ければ欠落。
+	type ElementView = { status: ElementStatus; content: string; diff: InlineDiffSegment[] | null };
+	const narrationView = (part: NarrationPartForFirestore): ElementView => {
+		if (part.final != null) {
+			return {
+				status: 'final',
+				content: part.final,
+				diff: part.draft != null ? computeInlineDiff(part.draft, part.final) : null
+			};
+		}
+		if (part.draft != null) return { status: 'draft_only', content: part.draft, diff: null };
+		return { status: 'missing', content: '', diff: null };
+	};
+
+	const introView = $derived(narrationView(currentTopicStore.editorialStore.intro));
+	const outroView = $derived(narrationView(currentTopicStore.editorialStore.outro));
+
+	// 導入・締めのラベル（未完成の状態表示用）
+	const elementStatusLabel = (status: ElementStatus): string =>
+		status === 'final' ? '編集済み' : status === 'draft_only' ? '原本のみ（未編集）' : '生成に失敗';
 
 	const personaMap = $derived(
 		new Map(currentTopicStore.personasStore.personas.map((persona) => [persona.id, persona]))
@@ -104,44 +147,39 @@
 	const statusLabel = (status: EditedChapterDisplayStatus): string =>
 		status === 'completed' ? '編集済み' : status === 'failed' ? '原本表示（失敗）' : '未編集';
 
-	// 原本章順に、章別の編集状態と表示ターンを組み立てる。
-	// 完了章は編集後ターン（由来注釈を結合）を、失敗・未生成章は原本ターンを表示する（章別フォールバック）。
 	type DisplayTurn = {
 		id: string;
 		name: string;
 		role: string;
 		content: string;
 		speechMode?: string;
-		// 原本→編集後のインライン差分。完了章の編集後ターンのみ持つ（原本フォールバックは null）。
 		diff: InlineDiffSegment[] | null;
-		// 編集で発言ごとカットされた原本ターン（差分表示時のみ取消線で見せる）。
 		removed: boolean;
 		awarenesses: { personaName: string; content: string }[];
 	};
 
+	// 原本章順に、章別の編集状態と表示ターンを組み立てる（本体＝body）。
 	const displayChapters = $derived.by(() => {
 		const store = currentTopicStore.editedChaptersStore;
 		return currentTopicStore.chaptersStore.chapters.map((chapter) => {
 			const status = store.getDisplayStatus(chapter.id);
-			// 失敗章は検証不合格理由を添えて原因把握できるようにする（Req 6.4）。
 			const failureReason =
 				status === 'failed' ? (store.getEditedChapter(chapter.id)?.failureReason ?? null) : null;
+			// 未完成（編集後の無い）章のうち、原本ターンがある章だけ個別再生成できる。
+			const canRegenerate = status !== 'completed' && chapter.turns.length > 0;
 			if (status === 'completed') {
 				const edited = store.getEditedChapter(chapter.id);
-				// 原本ターンの並び順で由来注釈の和集合を取るためのインデックス。
 				const orderOf = new Map(chapter.turns.map((turn, i) => [turn.id, i]));
 				const contentById = new Map(chapter.turns.map((turn) => [turn.id, turn.content]));
 				const usedSourceIds = new Set(
 					(edited?.turns ?? []).flatMap((editedTurn) => editedTurn.sourceTurnIds)
 				);
 
-				// 編集後ターン（連結時は複数由来）。原文と編集後の差分を持つ。
 				const editedItems = (edited?.turns ?? []).map((editedTurn) => {
 					const sourceIds = [...editedTurn.sourceTurnIds].sort(
 						(a, b) => (orderOf.get(a) ?? 0) - (orderOf.get(b) ?? 0)
 					);
 					const { name, role } = speakerLabel(editedTurn.speakerType, editedTurn.personaId);
-					// 由来ターン（連結時は複数）の原文を結合し、編集後との差分を取る。
 					const sourceText = sourceIds.map((sourceId) => contentById.get(sourceId) ?? '').join('');
 					const turn: DisplayTurn = {
 						id: editedTurn.id,
@@ -159,7 +197,6 @@
 					};
 				});
 
-				// どの編集後ターンにも由来として使われなかった原本ターン＝発言ごと削除されたもの。
 				const removedItems = chapter.turns
 					.filter((rawTurn) => !usedSourceIds.has(rawTurn.id))
 					.map((rawTurn) => {
@@ -177,11 +214,10 @@
 						return { sortIndex: orderOf.get(rawTurn.id) ?? 0, turn };
 					});
 
-				// 編集後ターンと削除ターンを原本の時系列順に混在させて表示する。
 				const turns = [...editedItems, ...removedItems]
 					.sort((a, b) => a.sortIndex - b.sortIndex)
 					.map((entry) => entry.turn);
-				return { id: chapter.id, title: chapter.title, status, failureReason, turns };
+				return { id: chapter.id, title: chapter.title, status, failureReason, canRegenerate, turns };
 			}
 			// フォールバック: 原本ターンをそのまま表示する（差分なし）。
 			const turns: DisplayTurn[] = chapter.turns.map((turn) => {
@@ -197,47 +233,31 @@
 					awarenesses: awarenessesByTurn.get(turn.id) ?? []
 				};
 			});
-			return { id: chapter.id, title: chapter.title, status, failureReason, turns };
+			return { id: chapter.id, title: chapter.title, status, failureReason, canRegenerate, turns };
 		});
 	});
 
-	// 討論後コメント。編集後（editedPostDebateComments）を優先し、未生成なら原本にフォールバックする
-	// （章と同じ編集後優先・原本フォールバックの方針）。話者名・役割は personas から解決する。
-	type DisplayComment = {
-		id: string;
+	// 所感（impressions）。承認済みペルソナ単位に、編集後 > 原本 > 欠落 で組み立てる。
+	// 未完成（draft_only / missing）は編集確定後のみ表示する（Req 3.1, 3.2, 6.6）。
+	type DisplayImpression = {
+		personaId: string;
 		name: string;
 		role: string;
+		status: ElementStatus;
 		content: string;
-		// 原本コメント→編集後のインライン差分。編集後がある場合のみ持つ。
 		diff: InlineDiffSegment[] | null;
 	};
-
-	const displayComments = $derived.by((): DisplayComment[] => {
-		const rawComments = currentTopicStore.postDebateCommentsStore.comments;
-		const editedComments = currentTopicStore.editedPostDebateCommentsStore.comments;
-		const rawContentById = new Map(rawComments.map((comment) => [comment.id, comment.content]));
-		if (editedComments.length > 0) {
-			return [...editedComments]
-				.sort((a, b) => a.sortOrder - b.sortOrder)
-				.map((comment) => {
-					const { name, role } = speakerLabel('persona', comment.personaId);
-					const sourceText = rawContentById.get(comment.sourceCommentId) ?? '';
-					return {
-						id: comment.id,
-						name,
-						role,
-						content: comment.content,
-						diff: computeInlineDiff(sourceText, comment.content)
-					};
-				});
-		}
-		// フォールバック: 原本の討論後コメントをそのまま表示する（差分なし）。
-		return [...rawComments]
-			.sort((a, b) => a.sortOrder - b.sortOrder)
-			.map((comment) => {
-				const { name, role } = speakerLabel('persona', comment.personaId);
-				return { id: comment.id, name, role, content: comment.content, diff: null };
-			});
+	const displayImpressions = $derived.by((): DisplayImpression[] => {
+		const impressions = currentTopicStore.editorialStore.impressions;
+		return currentTopicStore.personasStore.personas
+			.filter((persona) => persona.approved)
+			.map((persona): DisplayImpression => {
+				const { name, role } = speakerLabel('persona', persona.id);
+				const part = impressions[persona.id] ?? { sortOrder: 0, draft: null, final: null };
+				const view = narrationView(part);
+				return { personaId: persona.id, name, role, ...view };
+			})
+			.filter((impression) => impression.status !== 'missing' || editingSettled);
 	});
 </script>
 
@@ -252,126 +272,195 @@
 		regenerateLabel="編集をやり直す"
 		regenerateConfirm={{
 			title: '編集をやり直しますか？',
-			description: '現在の編集成果物がすべて削除され、最初から編集し直します。',
+			description: '現在の編集記事がすべて削除され、最初から編集し直します。',
 			submitLabel: '編集をやり直す'
 		}}
 		onGenerate={start}
 		onRegenerate={regenerate}
 	>
-		{#snippet progress()}
-			{#if logicalState === 'running'}
-				<p class="phase6-editing__editing-progress">編集中...</p>
-			{/if}
-		{/snippet}
-		{#snippet content()}
-			{#if intro}
-				<!-- イントロ＝章群の前。本編（章・ターン）と区別できるセクションで表示する（Req 4.1, 4.2） -->
-				<section class="phase6-editing__intro-closing phase6-editing__intro-closing--intro">
-					<h3 class="phase6-editing__intro-closing-label">イントロ</h3>
-					<p class="phase6-editing__intro-closing-body">{intro}</p>
-				</section>
-			{/if}
-			{#if displayChapters.length}
-				<div class="phase6-editing__diff-toggle">
-					<Checkbox bind:value={showDiff}
-						>原本との差分を表示（<del>削除</del> / <ins>追加</ins>）</Checkbox
-					>
+	{#snippet progress()}
+		{#if logicalState === 'running'}
+			<p class="phase6-editing__editing-progress">編集中...</p>
+		{/if}
+	{/snippet}
+	{#snippet content()}
+		<!-- 導入（intro）＝記事の先頭 -->
+		{#if introView.status !== 'missing' || editingSettled}
+			<section class="phase6-editing__narration phase6-editing__narration--intro">
+				<div class="phase6-editing__narration-header">
+					<h3 class="phase6-editing__narration-label">導入</h3>
+					{#if editingSettled && introView.status !== 'final'}
+						<span class="phase6-editing__element-status" data-status={introView.status}>
+							{elementStatusLabel(introView.status)}
+						</span>
+						<Button
+							variant="outlined"
+							onclick={() => regenerateElement({ kind: 'intro' })}
+							disabled={regeneratingKeys['intro']}
+						>
+							{regeneratingKeys['intro'] ? '再生成中...' : '再生成'}
+						</Button>
+					{/if}
 				</div>
-				<div class="phase6-editing__chapters">
-					{#each displayChapters as chapter (chapter.id)}
-						<section class="phase6-editing__chapter">
-							<header class="phase6-editing__chapter-header">
-								<strong>{chapter.title}</strong>
-								<span class="phase6-editing__chapter-status" data-status={chapter.status}>
-									{statusLabel(chapter.status)}
-								</span>
-								{#if chapter.failureReason}
-									<span class="phase6-editing__failure-reason"
-										>検証不合格: {chapter.failureReason}</span
-									>
-								{/if}
-							</header>
-							<div class="phase6-editing__turns">
-								{#each chapter.turns as turn (turn.id)}
-									{#if turn.removed}
-										<!-- 発言ごとカットされた原本ターン。差分表示時のみ取消線で見せる。 -->
-										{#if showDiff}
-											<div
-												class="phase6-editing__turn phase6-editing__turn--removed"
-												class:phase6-editing__turn--facilitator={turn.name === 'ファシリテーター'}
-											>
-												<div class="phase6-editing__speaker">
-													<strong>{turn.name}</strong>
-													{#if turn.role}<span class="phase6-editing__role">({turn.role})</span
-														>{/if}
-													<span class="phase6-editing__removed-label">発言ごと削除</span>
-												</div>
-												<p class="phase6-editing__content"><del>{turn.content}</del></p>
-											</div>
-										{/if}
-									{:else}
+				{#if introView.status !== 'missing'}
+					{#if showDiff && introView.diff}
+						<p class="phase6-editing__narration-body"><DiffText segments={introView.diff} /></p>
+					{:else}
+						<p class="phase6-editing__narration-body">{introView.content}</p>
+					{/if}
+				{/if}
+			</section>
+		{/if}
+
+		<!-- 本体（body＝章） -->
+		{#if displayChapters.length}
+			<div class="phase6-editing__diff-toggle">
+				<Checkbox bind:value={showDiff}
+					>原本との差分を表示（<del>削除</del> / <ins>追加</ins>）</Checkbox
+				>
+			</div>
+			<div class="phase6-editing__chapters">
+				{#each displayChapters as chapter (chapter.id)}
+					<section class="phase6-editing__chapter">
+						<header class="phase6-editing__chapter-header">
+							<strong>{chapter.title}</strong>
+							<span class="phase6-editing__chapter-status" data-status={chapter.status}>
+								{statusLabel(chapter.status)}
+							</span>
+							{#if chapter.failureReason}
+								<span class="phase6-editing__failure-reason">検証不合格: {chapter.failureReason}</span>
+							{/if}
+							{#if editingSettled && chapter.canRegenerate}
+								<Button
+									variant="outlined"
+									onclick={() => regenerateElement({ kind: 'chapter', chapterId: chapter.id })}
+									disabled={regeneratingKeys[`chapter:${chapter.id}`]}
+								>
+									{regeneratingKeys[`chapter:${chapter.id}`] ? '再生成中...' : '再生成'}
+								</Button>
+							{/if}
+						</header>
+						<div class="phase6-editing__turns">
+							{#each chapter.turns as turn (turn.id)}
+								{#if turn.removed}
+									{#if showDiff}
 										<div
-											class="phase6-editing__turn"
+											class="phase6-editing__turn phase6-editing__turn--removed"
 											class:phase6-editing__turn--facilitator={turn.name === 'ファシリテーター'}
 										>
 											<div class="phase6-editing__speaker">
 												<strong>{turn.name}</strong>
 												{#if turn.role}<span class="phase6-editing__role">({turn.role})</span>{/if}
-												{#if turn.speechMode}
-													<span class="phase6-editing__speech-mode" data-mode={turn.speechMode}
-														>{turn.speechMode}</span
-													>
-												{/if}
+												<span class="phase6-editing__removed-label">発言ごと削除</span>
 											</div>
-											{#if showDiff && turn.diff}
-												<p class="phase6-editing__content"><DiffText segments={turn.diff} /></p>
-											{:else}
-												<p class="phase6-editing__content">{turn.content}</p>
-											{/if}
-											{#if turn.awarenesses.length > 0}
-												<ul class="phase6-editing__awarenesses">
-													{#each turn.awarenesses as awareness, i (i)}
-														<li>💡 {awareness.personaName}: {awareness.content}</li>
-													{/each}
-												</ul>
-											{/if}
+											<p class="phase6-editing__content"><del>{turn.content}</del></p>
 										</div>
 									{/if}
-								{/each}
-							</div>
-						</section>
-					{/each}
-				</div>
-			{/if}
-			{#if displayComments.length}
-				<!-- 討論後コメント＝本編（章）の後、クロージングの前。参加者の締めの所感。 -->
-				<section class="phase6-editing__post-comments">
-					<h3 class="phase6-editing__post-comments-label">討論後コメント</h3>
-					<div class="phase6-editing__post-comments-list">
-						{#each displayComments as comment (comment.id)}
-							<div class="phase6-editing__post-comment">
-								<div class="phase6-editing__speaker">
-									<strong>{comment.name}</strong>
-									{#if comment.role}<span class="phase6-editing__role">({comment.role})</span>{/if}
-								</div>
-								{#if showDiff && comment.diff}
-									<p class="phase6-editing__content"><DiffText segments={comment.diff} /></p>
 								{:else}
-									<p class="phase6-editing__content">{comment.content}</p>
+									<div
+										class="phase6-editing__turn"
+										class:phase6-editing__turn--facilitator={turn.name === 'ファシリテーター'}
+									>
+										<div class="phase6-editing__speaker">
+											<strong>{turn.name}</strong>
+											{#if turn.role}<span class="phase6-editing__role">({turn.role})</span>{/if}
+											{#if turn.speechMode}
+												<span class="phase6-editing__speech-mode" data-mode={turn.speechMode}
+													>{turn.speechMode}</span
+												>
+											{/if}
+										</div>
+										{#if showDiff && turn.diff}
+											<p class="phase6-editing__content"><DiffText segments={turn.diff} /></p>
+										{:else}
+											<p class="phase6-editing__content">{turn.content}</p>
+										{/if}
+										{#if turn.awarenesses.length > 0}
+											<ul class="phase6-editing__awarenesses">
+												{#each turn.awarenesses as awareness, i (i)}
+													<li>💡 {awareness.personaName}: {awareness.content}</li>
+												{/each}
+											</ul>
+										{/if}
+									</div>
+								{/if}
+							{/each}
+						</div>
+					</section>
+				{/each}
+			</div>
+		{/if}
+
+		<!-- 締め（outro）＝本体の後 -->
+		{#if outroView.status !== 'missing' || editingSettled}
+			<section class="phase6-editing__narration phase6-editing__narration--outro">
+				<div class="phase6-editing__narration-header">
+					<h3 class="phase6-editing__narration-label">締め</h3>
+					{#if editingSettled && outroView.status !== 'final'}
+						<span class="phase6-editing__element-status" data-status={outroView.status}>
+							{elementStatusLabel(outroView.status)}
+						</span>
+						<Button
+							variant="outlined"
+							onclick={() => regenerateElement({ kind: 'outro' })}
+							disabled={regeneratingKeys['outro']}
+						>
+							{regeneratingKeys['outro'] ? '再生成中...' : '再生成'}
+						</Button>
+					{/if}
+				</div>
+				{#if outroView.status !== 'missing'}
+					{#if showDiff && outroView.diff}
+						<p class="phase6-editing__narration-body"><DiffText segments={outroView.diff} /></p>
+					{:else}
+						<p class="phase6-editing__narration-body">{outroView.content}</p>
+					{/if}
+				{/if}
+			</section>
+		{/if}
+
+		<!-- 所感（impressions）＝締めの後。参加者ごとの締めの所感。 -->
+		{#if displayImpressions.length}
+			<section class="phase6-editing__impressions">
+				<h3 class="phase6-editing__impressions-label">所感</h3>
+				<div class="phase6-editing__impressions-list">
+					{#each displayImpressions as impression (impression.personaId)}
+						<div class="phase6-editing__impression">
+							<div class="phase6-editing__speaker">
+								<strong>{impression.name}</strong>
+								{#if impression.role}<span class="phase6-editing__role">({impression.role})</span
+									>{/if}
+								{#if editingSettled && impression.status !== 'final'}
+									<span class="phase6-editing__element-status" data-status={impression.status}>
+										{elementStatusLabel(impression.status)}
+									</span>
 								{/if}
 							</div>
-						{/each}
-					</div>
-				</section>
-			{/if}
-			{#if closing}
-				<!-- クロージング＝章群の後。本編と区別できるセクションで表示する（Req 4.1, 4.3） -->
-				<section class="phase6-editing__intro-closing phase6-editing__intro-closing--closing">
-					<h3 class="phase6-editing__intro-closing-label">クロージング</h3>
-					<p class="phase6-editing__intro-closing-body">{closing}</p>
-				</section>
-			{/if}
-		{/snippet}
+							{#if impression.status !== 'missing'}
+								{#if showDiff && impression.diff}
+									<p class="phase6-editing__content"><DiffText segments={impression.diff} /></p>
+								{:else}
+									<p class="phase6-editing__content">{impression.content}</p>
+								{/if}
+							{/if}
+							{#if editingSettled && impression.status !== 'final'}
+								<div class="phase6-editing__impression-regenerate">
+									<Button
+										variant="outlined"
+										onclick={() =>
+											regenerateElement({ kind: 'impression', personaId: impression.personaId })}
+										disabled={regeneratingKeys[`impression:${impression.personaId}`]}
+									>
+										{regeneratingKeys[`impression:${impression.personaId}`] ? '再生成中...' : '再生成'}
+									</Button>
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			</section>
+		{/if}
+	{/snippet}
 	</PhasePanel>
 {/if}
 
@@ -381,27 +470,44 @@
 		color: #757575;
 		font-size: 0.95rem;
 	}
-	.phase6-editing__intro-closing {
+	.phase6-editing__narration {
 		padding: 16px;
 		margin-bottom: 24px;
 		border-left: 4px solid #7b1fa2;
 		background: #faf5fd;
 		border-radius: 3px;
 	}
-	.phase6-editing__intro-closing--closing {
+	.phase6-editing__narration--outro {
 		margin-top: 24px;
 		margin-bottom: 0;
 	}
-	.phase6-editing__intro-closing-label {
-		margin: 0 0 8px;
+	.phase6-editing__narration-header {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 8px;
+	}
+	.phase6-editing__narration-label {
+		margin: 0;
 		font-size: 0.8rem;
 		font-weight: 700;
 		color: #7b1fa2;
 	}
-	.phase6-editing__intro-closing-body {
+	.phase6-editing__narration-body {
 		margin: 0;
 		line-height: 1.7;
 		white-space: pre-wrap;
+	}
+	.phase6-editing__element-status {
+		font-size: 0.75rem;
+		padding: 1px 6px;
+		border-radius: 3px;
+		background: #ffebee;
+		color: #c62828;
+	}
+	.phase6-editing__element-status[data-status='draft_only'] {
+		background: #fff8e1;
+		color: #f57f17;
 	}
 	.phase6-editing__editing-progress {
 		color: #1565c0;
@@ -483,15 +589,16 @@
 	}
 	.phase6-editing__speaker {
 		margin-bottom: 4px;
+		display: flex;
+		align-items: center;
+		gap: 6px;
 	}
 	.phase6-editing__role {
 		color: #757575;
 		font-size: 0.875rem;
-		margin-left: 4px;
 	}
 	.phase6-editing__speech-mode {
 		font-size: 0.75rem;
-		margin-left: 6px;
 		color: #555;
 		background: #eee;
 		padding: 1px 5px;
@@ -508,27 +615,30 @@
 		list-style: none;
 		padding: 0;
 	}
-	.phase6-editing__post-comments {
+	.phase6-editing__impressions {
 		margin-top: 24px;
 		padding: 16px;
 		border-left: 4px solid #00838f;
 		background: #f0fafb;
 		border-radius: 3px;
 	}
-	.phase6-editing__post-comments-label {
+	.phase6-editing__impressions-label {
 		margin: 0 0 12px;
 		font-size: 0.8rem;
 		font-weight: 700;
 		color: #00838f;
 	}
-	.phase6-editing__post-comments-list {
+	.phase6-editing__impressions-list {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
-	.phase6-editing__post-comment {
+	.phase6-editing__impression {
 		padding: 12px;
 		border-left: 4px solid #e0e0e0;
 		background: #fff;
+	}
+	.phase6-editing__impression-regenerate {
+		margin-top: 8px;
 	}
 </style>
