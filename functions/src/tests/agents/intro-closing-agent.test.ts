@@ -141,8 +141,8 @@ describe('generateIntro / generateOutro', () => {
 		await generateIntro(mockInput);
 		await generateOutro(mockInput);
 
-		expect(captured[0]).toContain('イントロ');
-		expect(captured[1]).toContain('クロージング');
+		expect(captured[0]).toContain('導入');
+		expect(captured[1]).toContain('結び');
 		expect(captured[0]).not.toBe(captured[1]);
 	});
 
