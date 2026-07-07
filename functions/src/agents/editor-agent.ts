@@ -19,12 +19,6 @@ export type EditedTurnDraft = {
 	speechMode?: 'opinion' | 'fact' | 'question';
 };
 
-export type EditedImpressionDraft = {
-	sourceCommentId: string;
-	personaId: string;
-	content: string;
-};
-
 const editorSystemPrompt = `あなたは討論の書き起こしを整える熟練の編集者です。読み物としての質を高めることが役割ですが、以下の不変条件を絶対に守ってください。
 
 【保持する（改変禁止）】
@@ -61,15 +55,6 @@ const editChapterSchema = z.object({
 			personaId: z.string().nullish(),
 			content: z.string(),
 			speechMode: z.enum(['opinion', 'fact', 'question']).nullish()
-		})
-	)
-});
-
-const editImpressionsSchema = z.object({
-	comments: z.array(
-		z.object({
-			sourceCommentId: z.string(),
-			content: z.string()
 		})
 	)
 });
@@ -132,46 +117,9 @@ export const editChapter = async (
 	}
 };
 
-export const editImpressions = async (
-	comments: ReadonlyArray<{ id: string; personaId: string; content: string; sortOrder: number }>,
-	personas: ReadonlyArray<Persona>
-): Promise<Result<EditedImpressionDraft[], PipelineError>> => {
-	try {
-		const commentsSection = comments
-			.map((comment) => {
-				const persona = personas.find((candidate) => candidate.id === comment.personaId);
-				const name = persona ? persona.name : `Persona(${comment.personaId})`;
-				return `[ID:${comment.id}][${name}]: ${comment.content}`;
-			})
-			.join('\n');
-
-		const result = await generateObject({
-			model: anthropic(AI_MODELS.SONNET),
-			system: editorSystemPrompt,
-			schema: editImpressionsSchema,
-			messages: [
-				{
-					role: 'user',
-					content: `以下の事後コメントを、意味を変えずに読みやすくリライトしてください。各コメントの由来ID（[ID:...]）を sourceCommentId に設定してください。コメントの追加・削除・並べ替えはしないでください。\n\n参加者:\n${formatPersonas([...personas])}\n\n【事後コメント】\n${commentsSection}`
-				}
-			]
-		});
-
-		const personaBySource = new Map(comments.map((comment) => [comment.id, comment.personaId]));
-		const value: EditedImpressionDraft[] = result.object.comments.map((comment) => ({
-			sourceCommentId: comment.sourceCommentId,
-			personaId: personaBySource.get(comment.sourceCommentId) ?? '',
-			content: comment.content
-		}));
-		return { ok: true, value };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
-	}
-};
-
-// 導入・締めの原本テキストを、章・所感と同系の editorial 整えで編集後テキストにする。
+// 導入・締め・所感の原本テキストを、章と同系の editorial 整えで編集後テキストにする。
 // 単一の散文ブロックを意味・主張・事実を変えずに読みやすくリライトするのみ（新情報・論評を足さない）。
+// 章編集と違い「要素の除外（ドロップ）」はしない。整えた本文を必ず返す（空なら失敗として扱う）。
 const editNarration = async (
 	label: string,
 	draft: string
@@ -207,3 +155,6 @@ export const editIntro = (draft: string): Promise<Result<string, PipelineError>>
 
 export const editOutro = (draft: string): Promise<Result<string, PipelineError>> =>
 	editNarration('締め', draft);
+
+export const editImpression = (draft: string): Promise<Result<string, PipelineError>> =>
+	editNarration('所感', draft);

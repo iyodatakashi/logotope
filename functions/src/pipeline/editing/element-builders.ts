@@ -1,6 +1,6 @@
 import { generateImpression } from '../../agents/persona-agent.js';
 import { generateIntro, generateOutro } from '../../agents/intro-closing-agent.js';
-import { editImpressions, editIntro, editOutro } from '../../agents/editor-agent.js';
+import { editImpression, editIntro, editOutro } from '../../agents/editor-agent.js';
 import { buildDebateDigest } from '../debate/debate-digest.js';
 import { getTopicContext } from '../topics/topic-context.js';
 import { pipelineErrorMessage } from '../debate/utils.js';
@@ -45,10 +45,7 @@ export const buildImpressionPart = async (
 	}
 	if (draft === null) return null;
 
-	const edited = await editImpressions(
-		[{ id: persona.id, personaId: persona.id, content: draft, sortOrder }],
-		personas
-	);
+	const edited = await editImpression(draft);
 	if (!edited.ok) {
 		console.warn('[buildImpressionPart] edit failed', {
 			personaId: persona.id,
@@ -56,7 +53,7 @@ export const buildImpressionPart = async (
 		});
 		return { sortOrder, draft, final: null };
 	}
-	return { sortOrder, draft, final: edited.value[0]?.content ?? null };
+	return { sortOrder, draft, final: edited.value };
 };
 
 /**

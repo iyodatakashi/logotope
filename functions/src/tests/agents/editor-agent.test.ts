@@ -166,56 +166,37 @@ describe('editChapter', () => {
 	});
 });
 
-describe('editImpressions', () => {
-	let generateObject: ReturnType<typeof vi.fn>;
+describe('editImpression', () => {
+	let generateText: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
 		vi.resetModules();
 		const aiMod = await import('ai');
-		generateObject = vi.mocked(aiMod.generateObject);
+		generateText = vi.mocked(aiMod.generateText);
 	});
 
-	it('由来コメントを保持した編集後コメント列を返す', async () => {
-		generateObject.mockResolvedValueOnce(
-			makeObjectResult({
-				comments: [
-					{ sourceCommentId: 'c1', content: '読みやすくした感想' },
-					{ sourceCommentId: 'c2', content: '別の感想' }
-				]
-			})
-		);
-
-		const { editImpressions } = await import('../../agents/editor-agent.js');
-		const result = await editImpressions(
-			[
-				{ id: 'c1', personaId: 'p1', content: '冗長な感想1', sortOrder: 0 },
-				{ id: 'c2', personaId: 'p2', content: '冗長な感想2', sortOrder: 1 }
-			],
-			[mockPersona]
-		);
-
+	it('所感の原本を整えた編集後テキストを返す（配列でなく単一テキスト・ドロップしない）', async () => {
+		generateText.mockResolvedValueOnce({ text: '整えた所感' } as never);
+		const { editImpression } = await import('../../agents/editor-agent.js');
+		const result = await editImpression('冗長な所感の原本');
 		expect(result.ok).toBe(true);
-		if (result.ok) {
-			expect(result.value).toEqual([
-				{ sourceCommentId: 'c1', personaId: 'p1', content: '読みやすくした感想' },
-				{ sourceCommentId: 'c2', personaId: 'p2', content: '別の感想' }
-			]);
-		}
+		if (result.ok) expect(result.value).toBe('整えた所感');
+	});
+
+	it('空文字が返った場合は AI_API_ERROR を返す', async () => {
+		generateText.mockResolvedValueOnce({ text: '   ' } as never);
+		const { editImpression } = await import('../../agents/editor-agent.js');
+		const result = await editImpression('原本');
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe('AI_API_ERROR');
 	});
 
 	it('LLM 呼び出しが失敗した場合は AI_API_ERROR を返す', async () => {
-		generateObject.mockRejectedValueOnce(new Error('api down'));
-
-		const { editImpressions } = await import('../../agents/editor-agent.js');
-		const result = await editImpressions(
-			[{ id: 'c1', personaId: 'p1', content: '感想', sortOrder: 0 }],
-			[mockPersona]
-		);
-
+		generateText.mockRejectedValueOnce(new Error('api down'));
+		const { editImpression } = await import('../../agents/editor-agent.js');
+		const result = await editImpression('原本');
 		expect(result.ok).toBe(false);
-		if (!result.ok) {
-			expect(result.error.code).toBe('AI_API_ERROR');
-		}
+		if (!result.ok) expect(result.error.code).toBe('AI_API_ERROR');
 	});
 });
 
