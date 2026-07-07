@@ -6,7 +6,7 @@ export type Chapter = {
 	discussionPoints: string[];
 };
 
-export type IssueSource = 'general' | 'persona';
+export type IssueSource = 'general' | 'persona' | 'fact';
 
 export type Issue = {
 	id: string;

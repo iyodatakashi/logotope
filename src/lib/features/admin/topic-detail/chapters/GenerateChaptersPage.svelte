@@ -38,6 +38,9 @@
 	const personaIssues = $derived(
 		chapterIssues?.issues?.filter((issue) => issue.source === 'persona') ?? []
 	);
+	const factIssues = $derived(
+		chapterIssues?.issues?.filter((issue) => issue.source === 'fact') ?? []
+	);
 	const scoredIssues = $derived(
 		chapterIssues?.issues
 			?.filter((issue) => issue.score !== undefined)
@@ -118,6 +121,16 @@
 								{/each}
 							</ol>
 						</div>
+						{#if factIssues.length}
+							<div class="generate-chapters-page__issues-col">
+								<h4>確定事実に基づく切り口</h4>
+								<ol>
+									{#each factIssues as issue, i (issue.id ?? i)}
+										<li>{issue.text}</li>
+									{/each}
+								</ol>
+							</div>
+						{/if}
 					</div>
 				</section>
 			{/if}
@@ -132,7 +145,11 @@
 							>
 								<span class="generate-chapters-page__score">{issue.score}</span>
 								<span class="generate-chapters-page__issue-source"
-									>{issue.source === 'general' ? '一般' : 'ペルソナ'}</span
+									>{issue.source === 'general'
+										? '一般'
+										: issue.source === 'persona'
+											? 'ペルソナ'
+											: '事実'}</span
 								>
 								<span class="generate-chapters-page__issue-text">{issue.text}</span>
 								<span class="generate-chapters-page__reason">{issue.reason}</span>
@@ -215,10 +232,12 @@
 		margin: 0 0 12px;
 	}
 	.generate-chapters-page__issues-grid {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
+		display: flex;
 		gap: 16px;
 		padding-bottom: 12px;
+	}
+	.generate-chapters-page__issues-col {
+		flex: 1;
 	}
 	.generate-chapters-page__issues-col h4 {
 		font-weight: bold;

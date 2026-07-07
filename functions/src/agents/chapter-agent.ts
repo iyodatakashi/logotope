@@ -302,7 +302,8 @@ export const generateChapters = async (
 ): Promise<Result<Chapter[], PipelineError>> => {
 	try {
 		const contextSection = buildTopicContextSection(topicContext);
-		const [generalIssuesResult, personaIssuesResult] = await Promise.all([
+		const hasFactBase = Boolean(topicContext?.factBase?.facts.length);
+		const [generalIssuesResult, personaIssuesResult, factIssuesResult] = await Promise.all([
 			generateObject({
 				model: anthropic(AI_MODELS.SONNET),
 				system: buildNeutralitySystemPrompt(),
@@ -324,7 +325,20 @@ export const generateChapters = async (
 						content: `テーマ「${topicTitle}」について、以下の参加者それぞれの立場・専門性・利害関係から生まれる具体的な論点や関心事を5〜8件列挙してください。\n\nテーマの方向性が示されている場合は、その方向性の範囲内で論点を生成してください。\n\n参加者:\n${formatPersonas(personas)}\n\n各参加者が自身の立場・専門性・利害から強い関心や懸念を持つ側面を取り上げてください。各切り口を1〜2文で記述してください。${contextSection}`
 					}
 				]
-			})
+			}),
+			hasFactBase
+				? generateObject({
+						model: anthropic(AI_MODELS.SONNET),
+						system: buildNeutralitySystemPrompt(),
+						schema: issuesSchema,
+						messages: [
+							{
+								role: 'user',
+								content: `テーマ「${topicTitle}」について、以下に【確定した客観的事実（共通前提）】として示される事実を起点に、その事実の受け止め方・評価・扱い方で立場が分かれうる論点を4〜6件抽出してください。\n\n事実そのものの言い換えや正誤の確認ではなく、「その事実を踏まえてどう考える・どう扱うべきか」で意見が割れうる問いにしてください。特定の結論を前提にしない中立な問いの形で記述し、各論点を1〜2文で書いてください。${contextSection}`
+							}
+						]
+					})
+				: Promise.resolve({ object: { issues: [] as string[] } })
 		]);
 
 		const issues: Issue[] = [
@@ -337,6 +351,11 @@ export const generateChapters = async (
 				id: nanoid(),
 				text,
 				source: 'persona' as const
+			})),
+			...factIssuesResult.object.issues.map((text) => ({
+				id: nanoid(),
+				text,
+				source: 'fact' as const
 			}))
 		];
 
