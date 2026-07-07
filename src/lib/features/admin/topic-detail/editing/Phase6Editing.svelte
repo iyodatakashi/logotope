@@ -217,7 +217,14 @@
 				const turns = [...editedItems, ...removedItems]
 					.sort((a, b) => a.sortIndex - b.sortIndex)
 					.map((entry) => entry.turn);
-				return { id: chapter.id, title: chapter.title, status, failureReason, canRegenerate, turns };
+				return {
+					id: chapter.id,
+					title: chapter.title,
+					status,
+					failureReason,
+					canRegenerate,
+					turns
+				};
 			}
 			// フォールバック: 原本ターンをそのまま表示する（差分なし）。
 			const turns: DisplayTurn[] = chapter.turns.map((turn) => {
@@ -278,189 +285,194 @@
 		onGenerate={start}
 		onRegenerate={regenerate}
 	>
-	{#snippet progress()}
-		{#if logicalState === 'running'}
-			<p class="phase6-editing__editing-progress">編集中...</p>
-		{/if}
-	{/snippet}
-	{#snippet content()}
-		<!-- 導入（intro）＝記事の先頭 -->
-		{#if introView.status !== 'missing' || editingSettled}
-			<section class="phase6-editing__narration phase6-editing__narration--intro">
-				<div class="phase6-editing__narration-header">
-					<h3 class="phase6-editing__narration-label">導入</h3>
-					{#if editingSettled && introView.status !== 'final'}
-						<span class="phase6-editing__element-status" data-status={introView.status}>
-							{elementStatusLabel(introView.status)}
-						</span>
-						<Button
-							variant="outlined"
-							onclick={() => regenerateElement({ kind: 'intro' })}
-							disabled={regeneratingKeys['intro']}
-						>
-							{regeneratingKeys['intro'] ? '再生成中...' : '再生成'}
-						</Button>
-					{/if}
-				</div>
-				{#if introView.status !== 'missing'}
-					{#if showDiff && introView.diff}
-						<p class="phase6-editing__narration-body"><DiffText segments={introView.diff} /></p>
-					{:else}
-						<p class="phase6-editing__narration-body">{introView.content}</p>
-					{/if}
-				{/if}
-			</section>
-		{/if}
-
-		<!-- 本体（body＝章） -->
-		{#if displayChapters.length}
-			<div class="phase6-editing__diff-toggle">
-				<Checkbox bind:value={showDiff}
-					>原本との差分を表示（<del>削除</del> / <ins>追加</ins>）</Checkbox
-				>
-			</div>
-			<div class="phase6-editing__chapters">
-				{#each displayChapters as chapter (chapter.id)}
-					<section class="phase6-editing__chapter">
-						<header class="phase6-editing__chapter-header">
-							<strong>{chapter.title}</strong>
-							<span class="phase6-editing__chapter-status" data-status={chapter.status}>
-								{statusLabel(chapter.status)}
+		{#snippet progress()}
+			{#if logicalState === 'running'}
+				<p class="phase6-editing__editing-progress">編集中...</p>
+			{/if}
+		{/snippet}
+		{#snippet content()}
+			<!-- 導入（intro）＝記事の先頭 -->
+			{#if introView.status !== 'missing' || editingSettled}
+				<section class="phase6-editing__narration phase6-editing__narration--intro">
+					<div class="phase6-editing__narration-header">
+						<h3 class="phase6-editing__narration-label">導入</h3>
+						{#if editingSettled && introView.status !== 'final'}
+							<span class="phase6-editing__element-status" data-status={introView.status}>
+								{elementStatusLabel(introView.status)}
 							</span>
-							{#if chapter.failureReason}
-								<span class="phase6-editing__failure-reason">検証不合格: {chapter.failureReason}</span>
-							{/if}
-							{#if editingSettled && chapter.canRegenerate}
-								<Button
-									variant="outlined"
-									onclick={() => regenerateElement({ kind: 'chapter', chapterId: chapter.id })}
-									disabled={regeneratingKeys[`chapter:${chapter.id}`]}
-								>
-									{regeneratingKeys[`chapter:${chapter.id}`] ? '再生成中...' : '再生成'}
-								</Button>
-							{/if}
-						</header>
-						<div class="phase6-editing__turns">
-							{#each chapter.turns as turn (turn.id)}
-								{#if turn.removed}
-									{#if showDiff}
+							<Button
+								variant="outlined"
+								onclick={() => regenerateElement({ kind: 'intro' })}
+								disabled={regeneratingKeys['intro']}
+							>
+								{regeneratingKeys['intro'] ? '再生成中...' : '再生成'}
+							</Button>
+						{/if}
+					</div>
+					{#if introView.status !== 'missing'}
+						{#if showDiff && introView.diff}
+							<p class="phase6-editing__narration-body"><DiffText segments={introView.diff} /></p>
+						{:else}
+							<p class="phase6-editing__narration-body">{introView.content}</p>
+						{/if}
+					{/if}
+				</section>
+			{/if}
+
+			<!-- 本体（body＝章） -->
+			{#if displayChapters.length}
+				<div class="phase6-editing__diff-toggle">
+					<Checkbox bind:value={showDiff}
+						>原本との差分を表示（<del>削除</del> / <ins>追加</ins>）</Checkbox
+					>
+				</div>
+				<div class="phase6-editing__chapters">
+					{#each displayChapters as chapter (chapter.id)}
+						<section class="phase6-editing__chapter">
+							<header class="phase6-editing__chapter-header">
+								<div class="phase6-editing__chapter-title">{chapter.title}</div>
+								<span class="phase6-editing__chapter-status" data-status={chapter.status}>
+									{statusLabel(chapter.status)}
+								</span>
+								{#if chapter.failureReason}
+									<span class="phase6-editing__failure-reason"
+										>検証不合格: {chapter.failureReason}</span
+									>
+								{/if}
+								{#if editingSettled && chapter.canRegenerate}
+									<Button
+										variant="outlined"
+										onclick={() => regenerateElement({ kind: 'chapter', chapterId: chapter.id })}
+										disabled={regeneratingKeys[`chapter:${chapter.id}`]}
+									>
+										{regeneratingKeys[`chapter:${chapter.id}`] ? '再生成中...' : '再生成'}
+									</Button>
+								{/if}
+							</header>
+							<div class="phase6-editing__turns">
+								{#each chapter.turns as turn (turn.id)}
+									{#if turn.removed}
+										{#if showDiff}
+											<div
+												class="phase6-editing__turn phase6-editing__turn--removed"
+												class:phase6-editing__turn--facilitator={turn.name === 'ファシリテーター'}
+											>
+												<div class="phase6-editing__speaker">
+													<div class="phase6-editing__speaker-name">{turn.name}</div>
+													{#if turn.role}<span class="phase6-editing__role">({turn.role})</span
+														>{/if}
+													<span class="phase6-editing__removed-label">発言ごと削除</span>
+												</div>
+												<p class="phase6-editing__content"><del>{turn.content}</del></p>
+											</div>
+										{/if}
+									{:else}
 										<div
-											class="phase6-editing__turn phase6-editing__turn--removed"
+											class="phase6-editing__turn"
 											class:phase6-editing__turn--facilitator={turn.name === 'ファシリテーター'}
 										>
 											<div class="phase6-editing__speaker">
-												<strong>{turn.name}</strong>
+												<div class="phase6-editing__speaker-name">{turn.name}</div>
 												{#if turn.role}<span class="phase6-editing__role">({turn.role})</span>{/if}
-												<span class="phase6-editing__removed-label">発言ごと削除</span>
+												{#if turn.speechMode}
+													<span class="phase6-editing__speech-mode" data-mode={turn.speechMode}
+														>{turn.speechMode}</span
+													>
+												{/if}
 											</div>
-											<p class="phase6-editing__content"><del>{turn.content}</del></p>
-										</div>
-									{/if}
-								{:else}
-									<div
-										class="phase6-editing__turn"
-										class:phase6-editing__turn--facilitator={turn.name === 'ファシリテーター'}
-									>
-										<div class="phase6-editing__speaker">
-											<strong>{turn.name}</strong>
-											{#if turn.role}<span class="phase6-editing__role">({turn.role})</span>{/if}
-											{#if turn.speechMode}
-												<span class="phase6-editing__speech-mode" data-mode={turn.speechMode}
-													>{turn.speechMode}</span
-												>
+											{#if showDiff && turn.diff}
+												<p class="phase6-editing__content"><DiffText segments={turn.diff} /></p>
+											{:else}
+												<p class="phase6-editing__content">{turn.content}</p>
+											{/if}
+											{#if turn.awarenesses.length > 0}
+												<ul class="phase6-editing__awarenesses">
+													{#each turn.awarenesses as awareness, i (i)}
+														<li>💡 {awareness.personaName}: {awareness.content}</li>
+													{/each}
+												</ul>
 											{/if}
 										</div>
-										{#if showDiff && turn.diff}
-											<p class="phase6-editing__content"><DiffText segments={turn.diff} /></p>
-										{:else}
-											<p class="phase6-editing__content">{turn.content}</p>
-										{/if}
-										{#if turn.awarenesses.length > 0}
-											<ul class="phase6-editing__awarenesses">
-												{#each turn.awarenesses as awareness, i (i)}
-													<li>💡 {awareness.personaName}: {awareness.content}</li>
-												{/each}
-											</ul>
-										{/if}
-									</div>
-								{/if}
-							{/each}
-						</div>
-					</section>
-				{/each}
-			</div>
-		{/if}
-
-		<!-- 締め（outro）＝本体の後 -->
-		{#if outroView.status !== 'missing' || editingSettled}
-			<section class="phase6-editing__narration phase6-editing__narration--outro">
-				<div class="phase6-editing__narration-header">
-					<h3 class="phase6-editing__narration-label">締め</h3>
-					{#if editingSettled && outroView.status !== 'final'}
-						<span class="phase6-editing__element-status" data-status={outroView.status}>
-							{elementStatusLabel(outroView.status)}
-						</span>
-						<Button
-							variant="outlined"
-							onclick={() => regenerateElement({ kind: 'outro' })}
-							disabled={regeneratingKeys['outro']}
-						>
-							{regeneratingKeys['outro'] ? '再生成中...' : '再生成'}
-						</Button>
-					{/if}
-				</div>
-				{#if outroView.status !== 'missing'}
-					{#if showDiff && outroView.diff}
-						<p class="phase6-editing__narration-body"><DiffText segments={outroView.diff} /></p>
-					{:else}
-						<p class="phase6-editing__narration-body">{outroView.content}</p>
-					{/if}
-				{/if}
-			</section>
-		{/if}
-
-		<!-- 所感（impressions）＝締めの後。参加者ごとの締めの所感。 -->
-		{#if displayImpressions.length}
-			<section class="phase6-editing__impressions">
-				<h3 class="phase6-editing__impressions-label">所感</h3>
-				<div class="phase6-editing__impressions-list">
-					{#each displayImpressions as impression (impression.personaId)}
-						<div class="phase6-editing__impression">
-							<div class="phase6-editing__speaker">
-								<strong>{impression.name}</strong>
-								{#if impression.role}<span class="phase6-editing__role">({impression.role})</span
-									>{/if}
-								{#if editingSettled && impression.status !== 'final'}
-									<span class="phase6-editing__element-status" data-status={impression.status}>
-										{elementStatusLabel(impression.status)}
-									</span>
-								{/if}
+									{/if}
+								{/each}
 							</div>
-							{#if impression.status !== 'missing'}
-								{#if showDiff && impression.diff}
-									<p class="phase6-editing__content"><DiffText segments={impression.diff} /></p>
-								{:else}
-									<p class="phase6-editing__content">{impression.content}</p>
-								{/if}
-							{/if}
-							{#if editingSettled && impression.status !== 'final'}
-								<div class="phase6-editing__impression-regenerate">
-									<Button
-										variant="outlined"
-										onclick={() =>
-											regenerateElement({ kind: 'impression', personaId: impression.personaId })}
-										disabled={regeneratingKeys[`impression:${impression.personaId}`]}
-									>
-										{regeneratingKeys[`impression:${impression.personaId}`] ? '再生成中...' : '再生成'}
-									</Button>
-								</div>
-							{/if}
-						</div>
+						</section>
 					{/each}
 				</div>
-			</section>
-		{/if}
-	{/snippet}
+			{/if}
+
+			<!-- 締め（outro）＝本体の後 -->
+			{#if outroView.status !== 'missing' || editingSettled}
+				<section class="phase6-editing__narration phase6-editing__narration--outro">
+					<div class="phase6-editing__narration-header">
+						<h3 class="phase6-editing__narration-label">締め</h3>
+						{#if editingSettled && outroView.status !== 'final'}
+							<span class="phase6-editing__element-status" data-status={outroView.status}>
+								{elementStatusLabel(outroView.status)}
+							</span>
+							<Button
+								variant="outlined"
+								onclick={() => regenerateElement({ kind: 'outro' })}
+								disabled={regeneratingKeys['outro']}
+							>
+								{regeneratingKeys['outro'] ? '再生成中...' : '再生成'}
+							</Button>
+						{/if}
+					</div>
+					{#if outroView.status !== 'missing'}
+						{#if showDiff && outroView.diff}
+							<p class="phase6-editing__narration-body"><DiffText segments={outroView.diff} /></p>
+						{:else}
+							<p class="phase6-editing__narration-body">{outroView.content}</p>
+						{/if}
+					{/if}
+				</section>
+			{/if}
+
+			<!-- 所感（impressions）＝締めの後。参加者ごとの締めの所感。 -->
+			{#if displayImpressions.length}
+				<section class="phase6-editing__impressions">
+					<h3 class="phase6-editing__impressions-label">所感</h3>
+					<div class="phase6-editing__impressions-list">
+						{#each displayImpressions as impression (impression.personaId)}
+							<div class="phase6-editing__impression">
+								<div class="phase6-editing__speaker">
+									<div class="phase6-editing__speaker-name">{impression.name}</div>
+									{#if impression.role}<span class="phase6-editing__role">({impression.role})</span
+										>{/if}
+									{#if editingSettled && impression.status !== 'final'}
+										<span class="phase6-editing__element-status" data-status={impression.status}>
+											{elementStatusLabel(impression.status)}
+										</span>
+									{/if}
+								</div>
+								{#if impression.status !== 'missing'}
+									{#if showDiff && impression.diff}
+										<p class="phase6-editing__content"><DiffText segments={impression.diff} /></p>
+									{:else}
+										<p class="phase6-editing__content">{impression.content}</p>
+									{/if}
+								{/if}
+								{#if editingSettled && impression.status !== 'final'}
+									<div class="phase6-editing__impression-regenerate">
+										<Button
+											variant="outlined"
+											onclick={() =>
+												regenerateElement({ kind: 'impression', personaId: impression.personaId })}
+											disabled={regeneratingKeys[`impression:${impression.personaId}`]}
+										>
+											{regeneratingKeys[`impression:${impression.personaId}`]
+												? '再生成中...'
+												: '再生成'}
+										</Button>
+									</div>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				</section>
+			{/if}
+		{/snippet}
 	</PhasePanel>
 {/if}
 
@@ -539,6 +551,10 @@
 		gap: 8px;
 		margin-bottom: 8px;
 	}
+	.phase6-editing__chapter-title {
+		font-size: 1.5rem;
+		font-weight: bold;
+	}
 	.phase6-editing__chapter-status {
 		font-size: 0.75rem;
 		padding: 1px 6px;
@@ -592,6 +608,9 @@
 		display: flex;
 		align-items: center;
 		gap: 6px;
+	}
+	.phase6-editing__speaker-name {
+		font-weight: bold;
 	}
 	.phase6-editing__role {
 		color: #757575;
