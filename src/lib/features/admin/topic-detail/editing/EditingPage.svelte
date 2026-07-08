@@ -6,16 +6,14 @@
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import DiffText from './DiffText.svelte';
 	import { computeInlineDiff, type InlineDiffSegment } from './inlineDiff';
+	import NarrationSection from './NarrationSection.svelte';
+	import ImpressionSection from './ImpressionSection.svelte';
 	import type { Chapter } from '$lib/models/chapter/chapter.types';
 	import type {
 		EditedChapter,
 		EditedChapterDisplayStatus
 	} from '$lib/models/editedChapter/editedChapter.types';
-	import type {
-		ArticleElement,
-		ElementStatus,
-		Narration
-	} from '$lib/models/editorial/editorial.types';
+	import type { ArticleElement } from '$lib/models/editorial/editorial.types';
 
 	const PHASE: PhaseSlug = 'editing';
 	// 編集後ターンで原本との差分（削除＝赤取消線 / 追加＝緑）を強調表示するかどうか。
@@ -85,9 +83,9 @@
 		}
 	});
 
-	// 編集が確定（generated / stopped）したかどうか。未完成の明示と再生成ボタンは、
-	// 生成が走り終えたこの状態でのみ出す（生成中に全要素を「未完成」と誤表示しないため・Req 3.1, 3.2）。
-	const editingSettled = $derived(logicalState === 'generated' || logicalState === 'stopped');
+	// 編集の生成が走り終えたか（generated=全章成功 / stopped=途中終了。どちらも「もう動いていない」）。
+	// 未完成の明示と再生成ボタンは、この状態でのみ出す（生成中に全要素を「未完成」と誤表示しないため・Req 3.1, 3.2）。
+	const isEditingFinished = $derived(logicalState === 'generated' || logicalState === 'stopped');
 
 	// 編集開始の大前提ゲート（Req 5.4）。討論フェーズが完了するまで開始操作を出さない。
 	const debateCompleted = $derived.by(() => {
@@ -100,26 +98,6 @@
 		return debateState === 'generated' || debateState === 'approved';
 	});
 
-	// 記事要素の読み取りモデル: 編集後(final)を優先し、無ければ原本(draft)を暫定表示。どちらも無ければ欠落。
-	type ElementView = { status: ElementStatus; content: string; diff: InlineDiffSegment[] | null };
-	const narrationView = (part: Narration): ElementView => {
-		if (part.final != null) {
-			return {
-				status: 'final',
-				content: part.final,
-				diff: part.draft != null ? computeInlineDiff(part.draft, part.final) : null
-			};
-		}
-		if (part.draft != null) return { status: 'draft_only', content: part.draft, diff: null };
-		return { status: 'missing', content: '', diff: null };
-	};
-
-	const introView = $derived(narrationView(currentTopicStore.editorialStore.intro));
-	const outroView = $derived(narrationView(currentTopicStore.editorialStore.outro));
-
-	// 導入・締めのラベル（未完成の状態表示用）
-	const elementStatusLabel = (status: ElementStatus): string =>
-		status === 'final' ? '編集済み' : status === 'draft_only' ? '原本のみ（未編集）' : '生成に失敗';
 
 	const personaMap = $derived(
 		new Map(currentTopicStore.personasStore.personas.map((persona) => [persona.id, persona]))
@@ -248,20 +226,21 @@
 			};
 		});
 
-	// 所感（impressions）。承認済みペルソナ単位に、編集後 > 原本 > 欠落 で組み立てる。
-	// 未完成（draft_only / missing）は編集確定後のみ表示する（Req 3.1, 3.2, 6.6）。
-	// models の Impression に persona 情報と差分（描画派生）を足した画面ローカルの読み取りモデル。
+	// 所感（impressions）。承認済みペルソナ単位に name/role と所感オブジェクト(part)を組み立てる。
+	// 本文なし（欠落）は編集確定後のみ表示する（Req 3.1, 3.2, 6.6）。status/content の派生は ImpressionSection 内。
 	const displayImpressions = $derived.by(() => {
 		const impressions = currentTopicStore.editorialStore.impressions;
 		return currentTopicStore.personasStore.personas
 			.filter((persona) => persona.approved)
 			.map((persona) => {
 				const { name, role } = speakerLabel('persona', persona.id);
-				const impression = impressions.find((item) => item.personaId === persona.id);
-				const view = narrationView(impression ?? { draft: null, final: null });
-				return { personaId: persona.id, name, role, ...view };
+				const part = impressions.find((item) => item.personaId === persona.id) ?? {
+					draft: null,
+					final: null
+				};
+				return { personaId: persona.id, name, role, part };
 			})
-			.filter((impression) => impression.status !== 'missing' || editingSettled);
+			.filter(({ part }) => part.final != null || part.draft != null || isEditingFinished);
 	});
 </script>
 
@@ -292,181 +271,125 @@
 			{/if}
 		{/snippet}
 		{#snippet content()}
-			<!-- 導入（intro）＝記事の先頭 -->
-			{#if introView.status !== 'missing' || editingSettled}
-				<section class="editing-page__narration editing-page__narration--intro">
-					<div class="editing-page__narration-header">
-						<h3 class="editing-page__narration-label">導入</h3>
-						{#if editingSettled && introView.status !== 'final'}
-							<span class="editing-page__element-status" data-status={introView.status}>
-								{elementStatusLabel(introView.status)}
-							</span>
-							<Button
-								variant="outlined"
-								onclick={() => regenerateElement({ kind: 'intro' })}
-								disabled={regeneratingKeys['intro']}
-							>
-								{regeneratingKeys['intro'] ? '再生成中...' : '再生成'}
-							</Button>
-						{/if}
-					</div>
-					{#if introView.status !== 'missing'}
-						{#if showDiff && introView.diff}
-							<p class="editing-page__narration-body"><DiffText segments={introView.diff} /></p>
-						{:else}
-							<p class="editing-page__narration-body">{introView.content}</p>
-						{/if}
-					{/if}
-				</section>
-			{/if}
+			<div class="editing-page__content">
+				<!-- 導入（intro）＝記事の先頭。生成前でも枠は常に出す。 -->
+				<NarrationSection
+					label="導入"
+					part={currentTopicStore.editorialStore.intro}
+					{showDiff}
+					{isEditingFinished}
+					regenerating={regeneratingKeys['intro']}
+					onRegenerate={() => regenerateElement({ kind: 'intro' })}
+				/>
 
-			<!-- 本体（body＝章） -->
-			{#if displayChapters.length}
-				<div class="editing-page__chapters">
-					{#each displayChapters as chapter (chapter.id)}
-						<section class="editing-page__chapter">
-							<header class="editing-page__chapter-header">
-								<div class="editing-page__chapter-title">{chapter.title}</div>
-								<span class="editing-page__chapter-status" data-status={chapter.status}>
-									{statusLabel(chapter.status)}
-								</span>
-								{#if chapter.failureReason}
-									<span class="editing-page__failure-reason"
-										>検証不合格: {chapter.failureReason}</span
-									>
-								{/if}
-								{#if editingSettled && chapter.canRegenerate}
-									<Button
-										variant="outlined"
-										onclick={() => regenerateElement({ kind: 'chapter', chapterId: chapter.id })}
-										disabled={regeneratingKeys[`chapter:${chapter.id}`]}
-									>
-										{regeneratingKeys[`chapter:${chapter.id}`] ? '再生成中...' : '再生成'}
-									</Button>
-								{/if}
-							</header>
-							<div class="editing-page__turns">
-								{#each chapter.turns as turn (turn.id)}
-									{#if turn.removed}
-										{#if showDiff}
+				<!-- 本体（body＝章） -->
+				{#if displayChapters.length}
+					<div class="editing-page__chapters">
+						{#each displayChapters as chapter (chapter.id)}
+							<section class="editing-page__chapter">
+								<header class="editing-page__chapter-header">
+									<div class="editing-page__chapter-title">{chapter.title}</div>
+									<span class="editing-page__chapter-status" data-status={chapter.status}>
+										{statusLabel(chapter.status)}
+									</span>
+									{#if chapter.failureReason}
+										<span class="editing-page__failure-reason"
+											>検証不合格: {chapter.failureReason}</span
+										>
+									{/if}
+									{#if isEditingFinished && chapter.canRegenerate}
+										<Button
+											variant="outlined"
+											onclick={() => regenerateElement({ kind: 'chapter', chapterId: chapter.id })}
+											loading={regeneratingKeys[`chapter:${chapter.id}`]}
+										>
+											再生成
+										</Button>
+									{/if}
+								</header>
+								<div class="editing-page__turns">
+									{#each chapter.turns as turn (turn.id)}
+										{#if turn.removed}
+											{#if showDiff}
+												<div
+													class="editing-page__turn editing-page__turn--removed"
+													class:editing-page__turn--facilitator={turn.name === 'ファシリテーター'}
+												>
+													<div class="editing-page__speaker">
+														<div class="editing-page__speaker-name">{turn.name}</div>
+														{#if turn.role}<span class="editing-page__role">({turn.role})</span
+															>{/if}
+														<span class="editing-page__removed-label">発言ごと削除</span>
+													</div>
+													<p class="editing-page__content"><del>{turn.content}</del></p>
+												</div>
+											{/if}
+										{:else}
 											<div
-												class="editing-page__turn editing-page__turn--removed"
+												class="editing-page__turn"
 												class:editing-page__turn--facilitator={turn.name === 'ファシリテーター'}
 											>
 												<div class="editing-page__speaker">
 													<div class="editing-page__speaker-name">{turn.name}</div>
 													{#if turn.role}<span class="editing-page__role">({turn.role})</span>{/if}
-													<span class="editing-page__removed-label">発言ごと削除</span>
+													{#if turn.speechMode}
+														<span class="editing-page__speech-mode" data-mode={turn.speechMode}
+															>{turn.speechMode}</span
+														>
+													{/if}
 												</div>
-												<p class="editing-page__content"><del>{turn.content}</del></p>
-											</div>
-										{/if}
-									{:else}
-										<div
-											class="editing-page__turn"
-											class:editing-page__turn--facilitator={turn.name === 'ファシリテーター'}
-										>
-											<div class="editing-page__speaker">
-												<div class="editing-page__speaker-name">{turn.name}</div>
-												{#if turn.role}<span class="editing-page__role">({turn.role})</span>{/if}
-												{#if turn.speechMode}
-													<span class="editing-page__speech-mode" data-mode={turn.speechMode}
-														>{turn.speechMode}</span
-													>
+												{#if showDiff && turn.diff}
+													<p class="editing-page__content"><DiffText segments={turn.diff} /></p>
+												{:else}
+													<p class="editing-page__content">{turn.content}</p>
+												{/if}
+												{#if turn.awarenesses.length > 0}
+													<ul class="editing-page__awarenesses">
+														{#each turn.awarenesses as awareness, i (i)}
+															<li>💡 {awareness.personaName}: {awareness.content}</li>
+														{/each}
+													</ul>
 												{/if}
 											</div>
-											{#if showDiff && turn.diff}
-												<p class="editing-page__content"><DiffText segments={turn.diff} /></p>
-											{:else}
-												<p class="editing-page__content">{turn.content}</p>
-											{/if}
-											{#if turn.awarenesses.length > 0}
-												<ul class="editing-page__awarenesses">
-													{#each turn.awarenesses as awareness, i (i)}
-														<li>💡 {awareness.personaName}: {awareness.content}</li>
-													{/each}
-												</ul>
-											{/if}
-										</div>
-									{/if}
-								{/each}
-							</div>
-						</section>
-					{/each}
-				</div>
-			{/if}
-
-			<!-- 締め（outro）＝本体の後 -->
-			{#if outroView.status !== 'missing' || editingSettled}
-				<section class="editing-page__narration editing-page__narration--outro">
-					<div class="editing-page__narration-header">
-						<h3 class="editing-page__narration-label">締め</h3>
-						{#if editingSettled && outroView.status !== 'final'}
-							<span class="editing-page__element-status" data-status={outroView.status}>
-								{elementStatusLabel(outroView.status)}
-							</span>
-							<Button
-								variant="outlined"
-								onclick={() => regenerateElement({ kind: 'outro' })}
-								disabled={regeneratingKeys['outro']}
-							>
-								{regeneratingKeys['outro'] ? '再生成中...' : '再生成'}
-							</Button>
-						{/if}
-					</div>
-					{#if outroView.status !== 'missing'}
-						{#if showDiff && outroView.diff}
-							<p class="editing-page__narration-body"><DiffText segments={outroView.diff} /></p>
-						{:else}
-							<p class="editing-page__narration-body">{outroView.content}</p>
-						{/if}
-					{/if}
-				</section>
-			{/if}
-
-			<!-- 所感（impressions）＝締めの後。参加者ごとの締めの所感。 -->
-			{#if displayImpressions.length}
-				<section class="editing-page__impressions">
-					<h3 class="editing-page__impressions-label">所感</h3>
-					<div class="editing-page__impressions-list">
-						{#each displayImpressions as impression (impression.personaId)}
-							<div class="editing-page__impression">
-								<div class="editing-page__speaker">
-									<div class="editing-page__speaker-name">{impression.name}</div>
-									{#if impression.role}<span class="editing-page__role">({impression.role})</span
-										>{/if}
-									{#if editingSettled && impression.status !== 'final'}
-										<span class="editing-page__element-status" data-status={impression.status}>
-											{elementStatusLabel(impression.status)}
-										</span>
-									{/if}
+										{/if}
+									{/each}
 								</div>
-								{#if impression.status !== 'missing'}
-									{#if showDiff && impression.diff}
-										<p class="editing-page__content"><DiffText segments={impression.diff} /></p>
-									{:else}
-										<p class="editing-page__content">{impression.content}</p>
-									{/if}
-								{/if}
-								{#if editingSettled && impression.status !== 'final'}
-									<div class="editing-page__impression-regenerate">
-										<Button
-											variant="outlined"
-											onclick={() =>
-												regenerateElement({ kind: 'impression', personaId: impression.personaId })}
-											disabled={regeneratingKeys[`impression:${impression.personaId}`]}
-										>
-											{regeneratingKeys[`impression:${impression.personaId}`]
-												? '再生成中...'
-												: '再生成'}
-										</Button>
-									</div>
-								{/if}
-							</div>
+							</section>
 						{/each}
 					</div>
-				</section>
-			{/if}
+				{/if}
+
+				<!-- 締め（outro）＝本体の後。生成前でも枠は常に出す。 -->
+				<NarrationSection
+					label="締め"
+					part={currentTopicStore.editorialStore.outro}
+					{showDiff}
+					{isEditingFinished}
+					regenerating={regeneratingKeys['outro']}
+					onRegenerate={() => regenerateElement({ kind: 'outro' })}
+				/>
+
+				<!-- 所感（impressions）＝締めの後。参加者ごとの締めの所感。 -->
+				{#if displayImpressions.length}
+					<section class="editing-page__impressions">
+						<h3 class="editing-page__impressions-label">所感</h3>
+						<div class="editing-page__impressions-list">
+							{#each displayImpressions as impression (impression.personaId)}
+								<ImpressionSection
+									name={impression.name}
+									role={impression.role}
+									part={impression.part}
+									{showDiff}
+									{isEditingFinished}
+									regenerating={regeneratingKeys[`impression:${impression.personaId}`]}
+									onRegenerate={() =>
+										regenerateElement({ kind: 'impression', personaId: impression.personaId })}
+								/>
+							{/each}
+						</div>
+					</section>
+				{/if}
+			</div>
 		{/snippet}
 	</PhasePanel>
 {/if}
@@ -477,44 +400,11 @@
 		color: #757575;
 		font-size: 0.95rem;
 	}
-	.editing-page__narration {
-		padding: 16px;
-		margin-bottom: 24px;
-		border-left: 4px solid #7b1fa2;
-		background: #faf5fd;
-		border-radius: 3px;
-	}
-	.editing-page__narration--outro {
-		margin-top: 24px;
-		margin-bottom: 0;
-	}
-	.editing-page__narration-header {
+
+	.editing-page__content {
 		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 8px;
-	}
-	.editing-page__narration-label {
-		margin: 0;
-		font-size: 0.8rem;
-		font-weight: 700;
-		color: #7b1fa2;
-	}
-	.editing-page__narration-body {
-		margin: 0;
-		line-height: 1.7;
-		white-space: pre-wrap;
-	}
-	.editing-page__element-status {
-		font-size: 0.75rem;
-		padding: 1px 6px;
-		border-radius: 3px;
-		background: #ffebee;
-		color: #c62828;
-	}
-	.editing-page__element-status[data-status='draft_only'] {
-		background: #fff8e1;
-		color: #f57f17;
+		flex-direction: column;
+		gap: 16px;
 	}
 	.editing-page__diff-legend ins {
 		background: #e6ffed;
@@ -638,13 +528,5 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-	}
-	.editing-page__impression {
-		padding: 12px;
-		border-left: 4px solid #e0e0e0;
-		background: #fff;
-	}
-	.editing-page__impression-regenerate {
-		margin-top: 8px;
 	}
 </style>
