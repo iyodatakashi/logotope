@@ -32,8 +32,6 @@ export type AgendaItemState = {
 	point: string;
 	status: AgendaItemStatus;
 	introducedOrder?: number;
-	spokenPersonaIds?: string[]; // 当該論点で発言済みのペルソナID（集合・重複なし）
-	relevantPersonaIds?: string[]; // 当該論点で立場を聞くべき関連参加者ID（論点投入時に記録）
 };
 
 export type ChapterProgressStatus = 'pending' | 'running' | 'completed';

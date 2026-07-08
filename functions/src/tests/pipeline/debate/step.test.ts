@@ -40,8 +40,7 @@ vi.mock('../../../pipeline/debate/engagement.js', () => ({
 		.mockResolvedValue({ personaId: 'p1', score: 0, mode: 'none' })
 }));
 vi.mock('../../../pipeline/debate/speaker-selection.js', () => ({
-	selectSpeaker: vi.fn(() => ({ personaId: 'p1', reason: 'score' })),
-	hasHighEngagement: vi.fn(() => false)
+	selectSpeaker: vi.fn(() => ({ personaId: 'p1', reason: 'score' }))
 }));
 vi.mock('../../../pipeline/debate/queued-intents.js', () => ({
 	expireQueuedIntents: vi.fn().mockResolvedValue(undefined),
@@ -52,8 +51,7 @@ vi.mock('../../../pipeline/debate/debate-state.js', () => ({
 	updateSpeakerStats: vi.fn()
 }));
 vi.mock('../../../pipeline/debate/intervention.js', () => ({
-	progressAgenda: vi.fn().mockResolvedValue('none'),
-	countConsecutivePersonaTargets: vi.fn(() => 0)
+	progressAgenda: vi.fn().mockResolvedValue('none')
 }));
 
 import {
@@ -126,20 +124,15 @@ const makePayload = (overrides: Partial<StepPayload> = {}): StepPayload => ({
 	...overrides
 });
 
-describe('performOpenStep - 関連参加者記録の配線（5.2）', () => {
+describe('performOpenStep - 論点提示の配線（インデックスのみ・4.3）', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
-	it('オープニングの論点投入で、有効IDへフィルタした関連参加者を記録し発言済みを空初期化する', async () => {
+	it('オープニングの論点投入で先頭論点を introduced にし、カバレッジ由来フィールドを設定しない', async () => {
 		vi.mocked(generateOpening).mockResolvedValue({
 			ok: true,
-			value: {
-				content: '問いかけ',
-				targetPersonaId: 'p1',
-				selectedAgendaItemIndex: 0,
-				relevantPersonaIds: ['p1', 'p2', 'pX'] // pX は非参加者 → フィルタされる
-			}
+			value: { content: '問いかけ', targetPersonaId: 'p1', selectedAgendaItemIndex: 0 }
 		});
 		vi.mocked(generateFacilitatorTurn).mockResolvedValue({ status: 'committed', id: 'f1' });
 
@@ -148,8 +141,9 @@ describe('performOpenStep - 関連参加者記録の配線（5.2）', () => {
 
 		const active = ctx.state.agenda[0];
 		expect(active.status).toBe('introduced');
-		expect(active.relevantPersonaIds).toEqual(['p1', 'p2']);
-		expect(active.spokenPersonaIds).toEqual([]);
+		// 立場カバレッジ由来フィールドは提示処理で設定されない
+		expect(active.relevantPersonaIds).toBeUndefined();
+		expect(active.spokenPersonaIds).toBeUndefined();
 	});
 });
 
@@ -221,12 +215,12 @@ describe('performTurnStep - 早期終了間際の継続保護（非LLM・Task 4�
 	});
 });
 
-describe('performTurnStep - 発言者記録の配線（5.1）', () => {
+describe('performTurnStep - 発言コミット後にカバレッジを記録しない（4.2）', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
-	it('通常ターンのコミット後、現アクティブ論点へ話者を記録し永続化する', async () => {
+	it('通常ターンのコミット後、現アクティブ論点へ発言者を記録しない', async () => {
 		vi.mocked(generatePersonaTurn).mockResolvedValue({
 			status: 'committed',
 			personaId: 'p1',
@@ -235,18 +229,10 @@ describe('performTurnStep - 発言者記録の配線（5.1）', () => {
 			queuedEntries: []
 		} as never);
 
-		// アクティブ論点C（introduced）。発言者 p1 が記録されるべき
+		// アクティブ論点C（introduced）。発言済み集合は更新されない
 		const state = makeState(
 			[{ id: 't0', speakerType: 'facilitator', content: '導入', createdAt: '' }],
-			[
-				{
-					point: '論点C',
-					status: 'introduced',
-					introducedOrder: 1,
-					relevantPersonaIds: ['p1'],
-					spokenPersonaIds: []
-				}
-			]
+			[{ point: '論点C', status: 'introduced', introducedOrder: 1 }]
 		);
 		const chapterDoc: ChapterEntry = {
 			id: 'ch1',
@@ -264,9 +250,8 @@ describe('performTurnStep - 発言者記録の配線（5.1）', () => {
 			interventionCooldown: 2
 		});
 
-		expect(ctx.state.agenda[0].spokenPersonaIds).toContain('p1');
-		// state ベースの書き出しで永続化される（agendaItemStatuses の update が呼ばれる）
-		expect(mockUpdate).toHaveBeenCalled();
+		// 発言者記録は撤去済み。アクティブ論点に発言済み集合は生えない
+		expect(ctx.state.agenda[0].spokenPersonaIds).toBeUndefined();
 	});
 });
 
@@ -376,7 +361,7 @@ describe('performTurnStep - 最後の論点消化のみ（committed-no-turn・Ta
 	it('progressAgenda が chapter-exhausted なら、ペルソナ発言を生成せず chapter-exhausted を返す', async () => {
 		vi.mocked(progressAgenda).mockResolvedValueOnce('chapter-exhausted');
 
-		// 末尾に未応答指名なし（no-target トリガー）で介入評価まで到達させる
+		// 末尾に未応答指名なし・ファシリテーター発言後（クールダウン充足）で介入評価まで到達させる
 		const opening: DebateTurn = {
 			id: 't0',
 			speakerType: 'facilitator',

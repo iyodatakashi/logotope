@@ -35,7 +35,6 @@ export type FacilitatorReply = {
 	content?: string;
 	targetPersonaId?: string;
 	selectedAgendaItemIndex?: number;
-	relevantPersonaIds?: string[]; // 論点投入時に判定する「立場を聞くべき関連参加者」（opening / 介入）
 };
 
 export type PersonaReply = {

@@ -23,9 +23,6 @@ vi.mock('../../../agents/facilitator-agent.js', () => ({
 	assessActiveAgendaItem: vi.fn(),
 	generateInterventionUtterance: vi.fn()
 }));
-vi.mock('../../../pipeline/debate/speaker-selection.js', () => ({
-	hasHighEngagement: vi.fn(() => false)
-}));
 vi.mock('../../../pipeline/debate/queued-intents.js', () => ({
 	addQueuedIntents: vi.fn().mockResolvedValue(undefined)
 }));
@@ -132,8 +129,7 @@ describe('結合: 介入で未提示論点を投入 → 新しいアクティブ
 			chapterId: 'ch1',
 			state,
 			engagements: [],
-			interventionCooldown: 2,
-			trigger: { kind: 'no-target' }
+			interventionCooldown: 2
 		});
 
 		// 投入論点 B が introduced になり、最新のアクティブ論点として解決される（前進元 A は addressed）
@@ -172,8 +168,7 @@ describe('結合: 介入で未提示論点を投入 → 新しいアクティブ
 			chapterId: 'ch1',
 			state,
 			engagements: [],
-			interventionCooldown: 2,
-			trigger: { kind: 'no-target' }
+			interventionCooldown: 2
 		});
 
 		// 判定の判断軸（第1引数 activeAgendaItem）が新しいアクティブ論点 B に更新されている

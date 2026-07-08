@@ -234,8 +234,7 @@ describe('Task 5.2: 介入経路で未提示論点が渡され introduced へ更
 			chapterId: 'ch1',
 			state,
 			engagements: [],
-			interventionCooldown: 2,
-			trigger: { kind: 'no-target' }
+			interventionCooldown: 2
 		});
 
 		// 判定は introduced 不在のため章タイトル '章' を判断軸にする

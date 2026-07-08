@@ -14,24 +14,16 @@ import { updateChapterStatus } from './chapter.js';
 import { getTopicContext } from '../topics/topic-context.js';
 import { generateOpening, generateChapterIntroduction } from '../../agents/facilitator-agent.js';
 import { selectSpeaker } from './speaker-selection.js';
-import {
-	CONTINUE_CHAPTER_THRESHOLD,
-	PERSONA_CHAIN_INTERVENTION_COOLDOWN
-} from '../../constants/debate.constants.js';
+import { CONTINUE_CHAPTER_THRESHOLD } from '../../constants/debate.constants.js';
 import { evaluateEngagements, evaluateEngagementWithFallback } from './engagement.js';
 import { expireQueuedIntents, addQueuedIntents, consumeQueuedIntent } from './queued-intents.js';
 import {
 	initAgendaItems,
 	markIntroduced,
-	recordSpeakerOnActiveAgendaItem,
 	saveAgendaItemStatuses,
 	deleteAgendaItemStatuses
 } from './agenda.js';
-import {
-	progressAgenda,
-	countConsecutivePersonaTargets,
-	type InterventionTrigger
-} from './intervention.js';
+import { progressAgenda } from './intervention.js';
 import { updateSpeakerStats } from './debate-state.js';
 import { generateFacilitatorTurn, generatePersonaTurn } from './turn.js';
 import type { PersonaTurnCommit } from './turn.js';
@@ -61,12 +53,6 @@ type ExecuteTurnResult =
 	| Extract<AppendResult, { status: 'rejected' }>
 	| { status: 'skipped' };
 
-/** 関連参加者IDを参加者リストの有効IDへフィルタする（記録前の前処理。未指定は undefined のまま） */
-const filterValidPersonaIds = (
-	ids: string[] | undefined,
-	personas: Persona[]
-): string[] | undefined => ids?.filter((id) => personas.some((persona) => persona.id === id));
-
 /** 末尾ターンが誰かを指名（直接質問）していれば、その指名先と指名元を返す。なければ undefined */
 const getLastTargetPersona = (
 	turns: DebateTurn[]
@@ -77,8 +63,9 @@ const getLastTargetPersona = (
 };
 
 /**
- * 発言コミット後の共通後処理: 消化したキューを除去 → 発言統計を更新 → 論点カバレッジへ話者を記録。
+ * 発言コミット後の共通後処理: 消化したキューを除去 → 発言統計を更新。
  * executeTurn の freeze 分岐と通常分岐の両方から、コミット成功時に同一の手順で呼ぶ。
+ * 論点ステータスの永続は遷移発生箇所（progressAgenda / open ステップ）に一本化する。
  */
 const finalizeCommittedTurn = async ({
 	topicId,
@@ -101,10 +88,6 @@ const finalizeCommittedTurn = async ({
 		queuedEntries: reply.queuedEntries
 	});
 	updateSpeakerStats({ state, personas, personaId: reply.personaId });
-	// 立場カバレッジ: 現アクティブ論点の発言済み集合へ話者を冪等記録し、永続型からそのまま書き出す
-	// （Partial転送形を介さず state ベースで永続化。集合のため resume 後も二重化しない）
-	recordSpeakerOnActiveAgendaItem(state, reply.personaId);
-	await saveAgendaItemStatuses(topicId, chapterId, state);
 };
 
 /**
@@ -234,43 +217,28 @@ const executeTurn = async ({
 		chapterTurns: getChapterTurns()
 	});
 
-	// ファシリテーター介入を試みるトリガーを構築する。介入は継続扱いで quietStreak を 0 にする。
-	// - target なし: 従来どおり no-target（drift→stall）。
-	// - ペルソナ指名チェーン中: persona-chain（drift のみ・チェーン長をシグナルに）。
-	// - facilitator 指名（章導入・前回介入の指名先）: 割り込まず指名先に応答させる（trigger なし）。
-	const interventionTrigger: InterventionTrigger | undefined = !targetPersona
-		? { kind: 'no-target' }
-		: targetPersona.targetedBy === 'persona'
-			? { kind: 'persona-chain', chainLength: countConsecutivePersonaTargets(getChapterTurns()) }
-			: undefined;
-
-	if (interventionTrigger) {
-		// 指名チェーン経路は評価頻度を間引く（既定より長いクールダウン）。no-target は既定どおり。
-		const triggerCooldown =
-			interventionTrigger.kind === 'persona-chain'
-				? PERSONA_CHAIN_INTERVENTION_COOLDOWN
-				: interventionCooldown;
-		const progress = await progressAgenda({
-			topicId,
-			personas,
-			chapter,
-			chapterId,
-			state,
-			engagements,
-			interventionCooldown: triggerCooldown,
-			trigger: interventionTrigger,
-			chapterTurns: getChapterTurns(),
-			chapterTurnStartIndex: chapterTurnStartInState,
-			progressPatch: { quietStreak: 0 }
-		});
-		if (progress === 'intervened') {
-			await saveAgendaItemStatuses(topicId, chapterId, state);
-			return { status: 'committed', quietStreak: 0 };
-		}
-		if (progress === 'chapter-exhausted') {
-			// 最後の論点が出尽くし・発言なし（addressed のみ永続済み）。ペルソナ発言を挟まず章終了へ渡す
-			return { status: 'chapter-exhausted', quietStreak };
-		}
+	// ファシリテーター介入を常時委譲する。末尾の指名状態（指名なし・ペルソナ間指名・ファシリテーター指名）に
+	// 関わらず、単一クールダウンで進行評価を1回行う。クールダウン判定は progressAgenda 内で自己完結し、
+	// ファシリテーター発言直後はペルソナターン数 0 で自然にスキップされる。介入は継続扱いで quietStreak を 0 にする。
+	const progress = await progressAgenda({
+		topicId,
+		personas,
+		chapter,
+		chapterId,
+		state,
+		engagements,
+		interventionCooldown,
+		chapterTurns: getChapterTurns(),
+		chapterTurnStartIndex: chapterTurnStartInState,
+		progressPatch: { quietStreak: 0 }
+	});
+	if (progress === 'intervened') {
+		await saveAgendaItemStatuses(topicId, chapterId, state);
+		return { status: 'committed', quietStreak: 0 };
+	}
+	if (progress === 'chapter-exhausted') {
+		// 最後の論点が出尽くし・発言なし（addressed のみ永続済み）。ペルソナ発言を挟まず章終了へ渡す
+		return { status: 'chapter-exhausted', quietStreak };
 	}
 
 	// 次の話者を決定（指名 > キュー > スコア）し、選ばれなかった意欲者の意図はキューに積む
@@ -344,11 +312,7 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 			chapterTurnStartIndex: chapterTurnStartInState
 		});
 		if (fac.status === 'committed') {
-			markIntroduced(
-				state,
-				openingResult.value.selectedAgendaItemIndex,
-				filterValidPersonaIds(openingResult.value.relevantPersonaIds, personas)
-			);
+			markIntroduced(state, openingResult.value.selectedAgendaItemIndex);
 			await saveAgendaItemStatuses(topicId, chapterDoc.id, state);
 		}
 	} else {
@@ -363,11 +327,7 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 				chapterTurnStartIndex: chapterTurnStartInState
 			});
 			if (fac.status === 'committed') {
-				markIntroduced(
-					state,
-					introResult.value.selectedAgendaItemIndex,
-					filterValidPersonaIds(introResult.value.relevantPersonaIds, personas)
-				);
+				markIntroduced(state, introResult.value.selectedAgendaItemIndex);
 				await saveAgendaItemStatuses(topicId, chapterDoc.id, state);
 			}
 		}

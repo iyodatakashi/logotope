@@ -197,13 +197,12 @@ describe('generateInterventionUtterance - 行動（発言生成）の独立', ()
 			expect(content).toMatch(/折衷|混ぜ/);
 		});
 
-		it('返り値に selectedAgendaItemIndex と relevantPersonaIds を含める', async () => {
+		it('返り値に selectedAgendaItemIndex を含める（relevantPersonaIds は付けない）', async () => {
 			generateObject.mockResolvedValueOnce(
 				makeObjectResult({
 					content: '論点投入',
 					targetPersonaId: 'p1',
-					selectedAgendaItemIndex: 1,
-					relevantPersonaIds: ['p2', 'p3']
+					selectedAgendaItemIndex: 1
 				})
 			);
 			const { generateInterventionUtterance } = await import('../../agents/facilitator-agent.js');
@@ -216,7 +215,7 @@ describe('generateInterventionUtterance - 行動（発言生成）の独立', ()
 			expect(result.ok).toBe(true);
 			if (result.ok) {
 				expect(result.value.selectedAgendaItemIndex).toBe(1);
-				expect(result.value.relevantPersonaIds).toEqual(['p2', 'p3']);
+				expect(result.value).not.toHaveProperty('relevantPersonaIds');
 			}
 		});
 
@@ -268,43 +267,6 @@ describe('generateInterventionUtterance - 行動（発言生成）の独立', ()
 				expect(result.value.targetPersonaId).toBe('p1');
 				expect(result.value.selectedAgendaItemIndex).toBeUndefined();
 				expect(result.value.relevantPersonaIds).toBeUndefined();
-			}
-		});
-	});
-
-	describe('bring-in（未発言の関連参加者の引き込み）', () => {
-		it('未発言者の名前とアクティブ項目維持・新論点非投入の指示がプロンプトに含まれる', async () => {
-			const { generateInterventionUtterance } = await import('../../agents/facilitator-agent.js');
-			const content = await captureContent(() =>
-				generateInterventionUtterance(
-					{ kind: 'bring-in', activeAgendaItem: 'いまの論点W', unheardRelevant: ['田中', '佐藤'] },
-					makeChapter(),
-					[makeTurn('発言')],
-					[mockPersona]
-				)
-			);
-			expect(content).toContain('いまの論点W');
-			expect(content).toContain('田中');
-			expect(content).toContain('佐藤');
-			expect(content).toMatch(/立場/);
-			expect(content).toMatch(/新しい論点を投入せず|いまの論点を維持/);
-		});
-
-		it('返り値に selectedAgendaItemIndex を付けない（アクティブ項目を維持）', async () => {
-			generateObject.mockResolvedValueOnce(
-				makeObjectResult({ content: '田中さんはどうですか', targetPersonaId: 'p2' })
-			);
-			const { generateInterventionUtterance } = await import('../../agents/facilitator-agent.js');
-			const result = await generateInterventionUtterance(
-				{ kind: 'bring-in', activeAgendaItem: 'いまの論点W', unheardRelevant: ['田中'] },
-				makeChapter(),
-				[makeTurn('発言')],
-				[mockPersona]
-			);
-			expect(result.ok).toBe(true);
-			if (result.ok) {
-				expect(result.value.selectedAgendaItemIndex).toBeUndefined();
-				expect(result.value.targetPersonaId).toBe('p2');
 			}
 		});
 	});
@@ -506,7 +468,7 @@ describe('章導入の入口一本化 - 二重提示の解消（2.2）', () => {
 	});
 });
 
-describe('論点投入時の関連参加者返却（3.1）', () => {
+describe('オープニング/導入で関連参加者を要求しない（4.3）', () => {
 	let generateObject: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
@@ -526,13 +488,9 @@ describe('論点投入時の関連参加者返却（3.1）', () => {
 		return callArgs.messages[0].content;
 	};
 
-	it('generateOpening: 返却に relevantPersonaIds を含める', async () => {
+	it('generateOpening: 返却に relevantPersonaIds を含めない', async () => {
 		generateObject.mockResolvedValueOnce(
-			makeObjectResult({
-				targetPersonaId: 'p1',
-				content: '問いかけ',
-				relevantPersonaIds: ['p1', 'p2']
-			})
+			makeObjectResult({ targetPersonaId: 'p1', content: '問いかけ' })
 		);
 		const { generateOpening } = await import('../../agents/facilitator-agent.js');
 		const result = await generateOpening(
@@ -542,17 +500,25 @@ describe('論点投入時の関連参加者返却（3.1）', () => {
 		);
 		expect(result.ok).toBe(true);
 		if (result.ok) {
-			expect(result.value.relevantPersonaIds).toEqual(['p1', 'p2']);
+			expect(result.value).not.toHaveProperty('relevantPersonaIds');
 		}
 	});
 
-	it('generateOpening: 関連参加者を全員一律に含めない旨の指示がプロンプトに含まれる', async () => {
+	it('generateOpening: プロンプトが関連参加者リストの生成を要求しない', async () => {
 		const content = await captureContent(() =>
 			import('../../agents/facilitator-agent.js').then(({ generateOpening }) =>
 				generateOpening('テーマ', [mockPersona], makeChapter({ agenda: ['論点1'] }))
 			)
 		);
-		expect(content).toContain('relevantPersonaIds');
-		expect(content).toMatch(/立場を聞くべき|一律に含めない|絞っ/);
+		expect(content).not.toContain('relevantPersonaIds');
+	});
+
+	it('generateChapterIntroduction: プロンプトが関連参加者リストの生成を要求しない', async () => {
+		const content = await captureContent(() =>
+			import('../../agents/facilitator-agent.js').then(({ generateChapterIntroduction }) =>
+				generateChapterIntroduction(makeChapter({ agenda: ['論点1'] }), [mockPersona])
+			)
+		);
+		expect(content).not.toContain('relevantPersonaIds');
 	});
 });

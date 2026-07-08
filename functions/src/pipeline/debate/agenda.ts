@@ -39,11 +39,7 @@ export const getActiveAgendaItem = (state: DebateState): string | undefined =>
  * オープニング/導入・介入で提示した論点を introduced に更新する。提示遷移の唯一の経路。
  * index は「未提示(untouched)論点リスト」上の位置なので、そこから実体を引いて状態を変える。
  */
-export const markIntroduced = (
-	state: DebateState,
-	index: number | undefined,
-	relevantPersonaIds?: string[]
-): void => {
+export const markIntroduced = (state: DebateState, index: number | undefined): void => {
 	if (index === undefined) return;
 	const untouched = state.agenda.filter(
 		(agendaItem) => agendaItem.status === 'untouched'
@@ -62,31 +58,6 @@ export const markIntroduced = (
 	);
 	target.status = 'introduced';
 	target.introducedOrder = maxOrder + 1;
-	// 立場カバレッジ追跡を開始: 関連参加者を記録し、発言済み集合を空で初期化する
-	target.relevantPersonaIds = relevantPersonaIds ?? [];
-	target.spokenPersonaIds = [];
-};
-
-/**
- * 発言コミット時、現アクティブ論点（最新 introduced）の発言済み集合に話者を冪等追加する（集合）。
- * アクティブ論点が無ければ何もしない（state 不変）。
- */
-export const recordSpeakerOnActiveAgendaItem = (state: DebateState, personaId: string): void => {
-	const active = getActiveAgendaItemState(state);
-	if (!active) return;
-	const spoken = active.spokenPersonaIds ?? [];
-	active.spokenPersonaIds = spoken.includes(personaId) ? spoken : [...spoken, personaId];
-};
-
-/**
- * 現アクティブ論点の未発言の関連参加者（relevantPersonaIds − spokenPersonaIds）を返す。
- * アクティブ論点が無い、または関連参加者が空・欠損なら空配列（純関数・state 不変）。
- */
-export const getUnheardRelevant = (state: DebateState): string[] => {
-	const active = getActiveAgendaItemState(state);
-	if (!active) return [];
-	const spoken = active.spokenPersonaIds ?? [];
-	return (active.relevantPersonaIds ?? []).filter((id) => !spoken.includes(id));
 };
 
 /** 再確認で実は議論済みと判定された論点を addressed に更新する */
@@ -110,12 +81,6 @@ export const saveAgendaItemStatuses = async (
 				status: agendaItem.status,
 				...(agendaItem.introducedOrder !== undefined
 					? { introducedOrder: agendaItem.introducedOrder }
-					: {}),
-				...(agendaItem.spokenPersonaIds !== undefined
-					? { spokenPersonaIds: agendaItem.spokenPersonaIds }
-					: {}),
-				...(agendaItem.relevantPersonaIds !== undefined
-					? { relevantPersonaIds: agendaItem.relevantPersonaIds }
 					: {})
 			}))
 		});

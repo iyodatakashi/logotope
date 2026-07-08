@@ -1,12 +1,12 @@
 /**
- * 介入ゲート緩和（Task 4）の結合テスト。
- * インメモリ Firestore 上で advanceDebate を 1 ステップ駆動し、ペルソナ指名チェーン中の
- * 介入評価・発火時のファシリテーターのみ保存・facilitator 指名時の非介入・チェーン長リセットを検証する。
+ * アジェンダ進行一本化（agenda-progression-unification）の結合テスト。
+ * インメモリ Firestore 上で advanceDebate を 1 ステップ駆動し、末尾指名状態に関わらず単一クールダウンで
+ * 3値判定が1回走ること（2.2）・exhausted が指名チェーンに封じられず前進すること（1.1）・
+ * 旧形式カバレッジフィールドを含む章からの復元と続行（4.4）・ハードキャップ終端（5.3）を検証する。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createFirestoreMock } from '../../helpers/firestore-mock.js';
 import type { StepPayload } from '../../../types/step.types.js';
-import type { DebateTurn } from '../../../types/turn.types.js';
 
 const { holder } = vi.hoisted(() => ({
 	holder: {
@@ -82,7 +82,6 @@ vi.mock('../../../pipeline/debate/enqueue-step.js', () => ({
 }));
 
 import { advanceDebate } from '../../../pipeline/debate/debate-orchestrator.js';
-import { countConsecutivePersonaTargets } from '../../../pipeline/debate/intervention.js';
 import { MAX_TURNS } from '../../../constants/debate.constants.js';
 
 const TOPIC_ID = 'topic1';
@@ -190,9 +189,35 @@ const noTargetTurns = (count: number): Array<Record<string, unknown>> => {
 	return turns;
 };
 
-describe('介入ゲート: ペルソナ指名チェーン中の drift 発火', () => {
-	// chainTurns(5) = opening + ペルソナ指名 5 件（persona-chain クールダウン 5 を満たす）。expectedTurnIndex=6
-	it('引き戻し発火時はファシリテーターターンのみ保存し、同ステップでペルソナ応答を生成しない', async () => {
+describe('末尾指名状態に関わらず単一クールダウンで3値判定が1回走る（2.2）', () => {
+	// chainTurns(5) = opening + ペルソナ指名 5 件。ペルソナターン 5 ≥ 既定クールダウン 3 で評価対象。expectedTurnIndex=6
+	it('ペルソナ指名チェーン中でも exhausted なら前進する（チェーンは前進を封じない・1.1）', async () => {
+		seedCoverage(
+			chainTurns(5),
+			['論点A', '論点B'],
+			[
+				{ point: '論点A', status: 'introduced', introducedOrder: 1 },
+				{ point: '論点B', status: 'untouched' }
+			]
+		);
+		mockAssessAgenda.mockResolvedValue({ ok: true, value: { verdict: 'exhausted' } });
+		mockGenerateUtterance.mockResolvedValue({
+			ok: true,
+			value: { content: '論点Bへ移ります', targetPersonaId: 'p2', selectedAgendaItemIndex: 0 }
+		});
+
+		await advanceDebate(turnPayload(6));
+
+		// 指名チェーン中でも判定は1回走り、前進元 A が addressed・未提示 B が introduced になる
+		expect(mockAssessAgenda).toHaveBeenCalledTimes(1);
+		expect(persistedStatuses().find((s) => s.point === '論点A')?.status).toBe('addressed');
+		expect(persistedStatuses().find((s) => s.point === '論点B')?.status).toBe('introduced');
+		const turns = chapterTurns();
+		expect(turns[6].speakerType).toBe('facilitator'); // 司会のみ保存（応答は次ターン）
+		expect(mockGenerateTurn).not.toHaveBeenCalled();
+	});
+
+	it('引き戻し（drifted）はファシリテーターのみ保存し、同ステップでペルソナ応答を生成しない（3.1）', async () => {
 		seedChapter(chainTurns(5));
 		mockAssessAgenda.mockResolvedValue({ ok: true, value: { verdict: 'drifted' } });
 		mockGenerateUtterance.mockResolvedValue({
@@ -208,20 +233,7 @@ describe('介入ゲート: ペルソナ指名チェーン中の drift 発火', (
 		expect(mockGenerateTurn).not.toHaveBeenCalled();
 	});
 
-	it('引き戻し発火後はチェーン長が 0 にリセットされる（末尾が facilitator）', async () => {
-		seedChapter(chainTurns(5));
-		mockAssessAgenda.mockResolvedValue({ ok: true, value: { verdict: 'drifted' } });
-		mockGenerateUtterance.mockResolvedValue({
-			ok: true,
-			value: { content: '本題に戻しましょう', targetPersonaId: 'p2' }
-		});
-
-		await advanceDebate(turnPayload(6));
-
-		expect(countConsecutivePersonaTargets(chapterTurns() as DebateTurn[])).toBe(0);
-	});
-
-	it('判定が継続（ongoing）なら指名先（直前ターンの target）が応答する', async () => {
+	it('判定が継続（ongoing）なら指名先（直前ターンの target）が応答する（2.4）', async () => {
 		seedChapter(chainTurns(5));
 		// 既定の ongoing（介入しない）
 
@@ -232,22 +244,22 @@ describe('介入ゲート: ペルソナ指名チェーン中の drift 発火', (
 		expect(turns[6].speakerType).toBe('persona');
 		expect(turns[6].personaId).toBe('p2');
 	});
+});
 
-	it('チェーンがクールダウン未満（5 未満）のうちは介入を評価せず指名先が応答する', async () => {
-		seedChapter(chainTurns(3)); // ペルソナ指名 3 件 → 3 < 5 で評価対象外。expectedTurnIndex=4
+describe('クールダウン未達・ファシリテーター発言直後は判定を呼ばない（2.1）', () => {
+	it('ペルソナターンがクールダウン未満（2 < 3）のうちは判定を呼ばず指名先が応答する', async () => {
+		seedChapter(chainTurns(2)); // ペルソナ指名 2 件 → 2 < 3 で評価対象外。expectedTurnIndex=3
 		mockAssessAgenda.mockResolvedValue({ ok: true, value: { verdict: 'drifted' } });
 
-		await advanceDebate(turnPayload(4));
+		await advanceDebate(turnPayload(3));
 
 		const turns = chapterTurns();
 		expect(mockAssessAgenda).not.toHaveBeenCalled();
-		expect(turns[4].speakerType).toBe('persona');
-		expect(turns[4].personaId).toBe('p2');
+		expect(turns[3].speakerType).toBe('persona');
+		expect(turns[3].personaId).toBe('p1');
 	});
-});
 
-describe('介入ゲート: facilitator 指名は介入せず指名先が応答', () => {
-	it('末尾が targetedBy=facilitator の指名なら判定せず指名先が応答する', async () => {
+	it('末尾が facilitator 発言（ターン数 0）なら判定を呼ばず指名先が応答する', async () => {
 		seedChapter([...chainTurns(5), facilitatorTarget('f2', 'p1')]); // 末尾 facilitator 指名。expectedTurnIndex=7
 		mockAssessAgenda.mockResolvedValue({ ok: true, value: { verdict: 'drifted' } });
 
@@ -296,11 +308,11 @@ const persistedStatuses = (): SeedStatus[] =>
 	(holder.mock!.store.get(`topics/${TOPIC_ID}/chapters/ch1`)?.agendaItemStatuses ??
 		[]) as SeedStatus[];
 
-describe('カバレッジ・ゲート結合（6.2）', () => {
-	it('未発言の関連参加者が残る間は次論点が introduced 化されず引き込み介入のみ保存される', async () => {
+describe('互換: 旧形式カバレッジフィールドを含む章からの復元と続行（4.4）', () => {
+	it('旧形式フィールド（spoken/relevant）が残る章でもエラーなく続行し、判定継続で指名先が応答する', async () => {
 		seedCoverage(
 			chainTurns(5),
-			['論点A', '論点B'],
+			['論点A'],
 			[
 				{
 					point: '論点A',
@@ -308,57 +320,19 @@ describe('カバレッジ・ゲート結合（6.2）', () => {
 					introducedOrder: 1,
 					relevantPersonaIds: ['p1', 'p2'],
 					spokenPersonaIds: ['p1']
-				},
-				{ point: '論点B', status: 'untouched' }
+				}
 			]
 		);
-		// 判定は出尽くしだが、未発言 p2 が残るためゲートが前進を阻止し引き込み（bring-in）に留める
-		mockAssessAgenda.mockResolvedValue({ ok: true, value: { verdict: 'exhausted' } });
-		mockGenerateUtterance.mockResolvedValue({
-			ok: true,
-			value: { content: 'p2さんはどう？', targetPersonaId: 'p2' }
-		});
-
-		await advanceDebate(turnPayload(6));
-
-		const turns = chapterTurns();
-		expect(turns).toHaveLength(7);
-		expect(turns[6].speakerType).toBe('facilitator'); // ファシリテーターのみ保存（応答は次ターン）
-		expect(mockGenerateTurn).not.toHaveBeenCalled();
-		expect(persistedStatuses().find((s) => s.point === '論点B')?.status).toBe('untouched');
-	});
-
-	it('引き込み先が未発言の関連参加者でない介入は採用せず指名先が応答する', async () => {
-		seedCoverage(
-			chainTurns(5),
-			['論点A', '論点B'],
-			[
-				{
-					point: '論点A',
-					status: 'introduced',
-					introducedOrder: 1,
-					relevantPersonaIds: ['p1', 'p2'],
-					spokenPersonaIds: ['p1']
-				},
-				{ point: '論点B', status: 'untouched' }
-			]
-		);
-		// 指名先 p1 は発言済み（未発言 [p2] に属さない）→ 不採用、通常フローへ
-		mockAssessAgenda.mockResolvedValue({ ok: true, value: { verdict: 'exhausted' } });
-		mockGenerateUtterance.mockResolvedValue({
-			ok: true,
-			value: { content: 'p1さん再度', targetPersonaId: 'p1' }
-		});
+		// 既定の ongoing（介入しない）。旧フィールドは復元されるが参照されず無害
 
 		await advanceDebate(turnPayload(6));
 
 		const turns = chapterTurns();
 		expect(turns[6].speakerType).toBe('persona');
-		expect(persistedStatuses().find((s) => s.point === '論点B')?.status).toBe('untouched');
+		expect(turns[6].personaId).toBe('p2');
 	});
 
-	it('関連参加者が全員表明済みなら次論点への前進が起こり関連参加者が記録される', async () => {
-		// no-target トリガーで前進を評価する（チェーン中は前進しないため）。盛り上がりは低く（前進抑止を外す）
+	it('前進時の永続で旧形式カバレッジフィールドが除去される（自然消滅）', async () => {
 		seedCoverage(
 			noTargetTurns(5),
 			['論点A', '論点B'],
@@ -373,55 +347,24 @@ describe('カバレッジ・ゲート結合（6.2）', () => {
 				{ point: '論点B', status: 'untouched' }
 			]
 		);
-		mockEvaluateEngagements.mockResolvedValue([
-			{ personaId: 'p1', score: 1, mode: 'opinion' },
-			{ personaId: 'p2', score: 1, mode: 'opinion' }
-		]);
-		// 未発言者なし → ゲート不活性。出尽くし → 論点投入が成立する
 		mockAssessAgenda.mockResolvedValue({ ok: true, value: { verdict: 'exhausted' } });
 		mockGenerateUtterance.mockResolvedValue({
 			ok: true,
-			value: {
-				content: '論点Bへ移ります',
-				targetPersonaId: 'p2',
-				selectedAgendaItemIndex: 0,
-				relevantPersonaIds: ['p1']
-			}
+			value: { content: '論点Bへ移ります', targetPersonaId: 'p2', selectedAgendaItemIndex: 0 }
 		});
 
 		await advanceDebate(turnPayload(6));
 
+		const pointA = persistedStatuses().find((s) => s.point === '論点A');
 		const pointB = persistedStatuses().find((s) => s.point === '論点B');
+		// 前進元 A は addressed、次論点 B は introduced
+		expect(pointA?.status).toBe('addressed');
 		expect(pointB?.status).toBe('introduced');
-		expect(pointB?.relevantPersonaIds).toEqual(['p1']);
-		expect(pointB?.spokenPersonaIds).toEqual([]);
-		// 前進元（論点A）は addressed 化される
-		expect(persistedStatuses().find((s) => s.point === '論点A')?.status).toBe('addressed');
-	});
-
-	it('resume 後の発言者記録は集合のため二重化しない', async () => {
-		seedCoverage(
-			chainTurns(5),
-			['論点A'],
-			[
-				{
-					point: '論点A',
-					status: 'introduced',
-					introducedOrder: 1,
-					relevantPersonaIds: ['p2'],
-					spokenPersonaIds: ['p2']
-				}
-			]
-		);
-		// drift 見送り → 指名先 p2（既に発言済み）が応答する
-
-		await advanceDebate(turnPayload(6));
-
-		const turns = chapterTurns();
-		expect(turns[6].speakerType).toBe('persona');
-		expect(turns[6].personaId).toBe('p2');
-		// 既に記録済みの p2 を再記録しても集合は二重化しない
-		expect(persistedStatuses().find((s) => s.point === '論点A')?.spokenPersonaIds).toEqual(['p2']);
+		// 旧形式フィールドは書き出されない（次回保存で自然消滅・4.4）
+		expect(pointA?.spokenPersonaIds).toBeUndefined();
+		expect(pointA?.relevantPersonaIds).toBeUndefined();
+		expect(pointB?.spokenPersonaIds).toBeUndefined();
+		expect(pointB?.relevantPersonaIds).toBeUndefined();
 	});
 });
 

@@ -33,8 +33,7 @@ export const buildNeutralitySystemPrompt = (): string =>
 
 const facilitatorReplyWithTargetSchema = z.object({
 	targetPersonaId: z.string(),
-	content: z.string(),
-	relevantPersonaIds: z.array(z.string()).nullish()
+	content: z.string()
 });
 
 export type AgendaAssessment =
@@ -78,21 +77,18 @@ export const assessActiveAgendaItem = async (
 
 export type InterventionAction =
 	| { kind: 'introduce'; untouchedAgendaItems: string[] } // リストから1件選び投入
-	| { kind: 'pull-back'; activeAgendaItem: string } // active へ引き戻す
-	| { kind: 'bring-in'; activeAgendaItem: string; unheardRelevant: string[] }; // 未発言の関連参加者を active へ引き込む
+	| { kind: 'pull-back'; activeAgendaItem: string }; // active へ引き戻す
 
 export type InterventionUtterance = {
 	content: string;
 	targetPersonaId: string;
 	selectedAgendaItemIndex?: number; // introduce のときのみ（untouched リスト上の index）
-	relevantPersonaIds?: string[]; // introduce のときのみ
 };
 
 const introduceUtteranceSchema = z.object({
 	content: z.string(),
 	targetPersonaId: z.string(),
-	selectedAgendaItemIndex: z.number(),
-	relevantPersonaIds: z.array(z.string()).nullish()
+	selectedAgendaItemIndex: z.number()
 });
 
 const utteranceSchema = z.object({
@@ -101,10 +97,9 @@ const utteranceSchema = z.object({
 });
 
 /**
- * 行動（発言生成）: 決定済みの介入行動について司会発言・指名先・関連参加者を生成する。
+ * 行動（発言生成）: 決定済みの介入行動について司会発言・指名先を生成する。
  * - introduce: 未提示リスト内の1件を選び、その論点そのものに正面から切り込む問いを返す（折衷禁止・リスト外発明禁止）。リストが空なら発言を生成しない。
  * - pull-back: active 論点へ引き戻す（項目投入・消化はしない）。
- * - bring-in: 未発言の関連参加者を指名し active 論点を維持する（項目投入・消化はしない）。
  */
 export const generateInterventionUtterance = async (
 	action: InterventionAction,
@@ -140,40 +135,14 @@ export const generateInterventionUtterance = async (
 				messages: [
 					{
 						role: 'user',
-						content: `いまの論点は出尽くしました。次の未提示論点を1件だけ投入し、その論点そのものに正面から切り込む問いで議論を前進させてください。\n\n${baseContext}\n\n【未提示論点リスト（インデックス順）】\n${pointsList}\n\n手順:\n(1) 上記リストから投入する論点を1件選び、selectedAgendaItemIndex にそのインデックスを指定する（リスト外の論点を作らないこと）。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する。\n(3) content は、selectedAgendaItemIndex で選んだ論点そのものを主題として正面から切り込む問いにする。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」と名前で呼びかけ、その論点に話を完全に切り替えること。直前までの会話の流れを引きずった問いや、新論点の語を端々に混ぜつつ実質は流れの続きになっている中途半端な折衷は禁止です。\n(4) relevantPersonaIds に、この新しい論点について特に立場を聞くべき参加者のIDを列挙する。全員を一律に含めず、その論点に関係する参加者に絞ってください。`
+						content: `いまの論点は出尽くしました。次の未提示論点を1件だけ投入し、その論点そのものに正面から切り込む問いで議論を前進させてください。\n\n${baseContext}\n\n【未提示論点リスト（インデックス順）】\n${pointsList}\n\n手順:\n(1) 上記リストから投入する論点を1件選び、selectedAgendaItemIndex にそのインデックスを指定する（リスト外の論点を作らないこと）。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する。\n(3) content は、selectedAgendaItemIndex で選んだ論点そのものを主題として正面から切り込む問いにする。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」と名前で呼びかけ、その論点に話を完全に切り替えること。直前までの会話の流れを引きずった問いや、新論点の語を端々に混ぜつつ実質は流れの続きになっている中途半端な折衷は禁止です。`
 					}
 				]
 			});
-			const { content, targetPersonaId, selectedAgendaItemIndex, relevantPersonaIds } =
-				result.object;
+			const { content, targetPersonaId, selectedAgendaItemIndex } = result.object;
 			return {
 				ok: true,
-				value: {
-					content,
-					targetPersonaId,
-					selectedAgendaItemIndex,
-					relevantPersonaIds: relevantPersonaIds ?? undefined
-				}
-			};
-		}
-
-		if (action.kind === 'bring-in') {
-			const result = await generateObject({
-				model: anthropic(AI_MODELS.SONNET),
-				system: buildNeutralitySystemPrompt(),
-				schema: utteranceSchema,
-				messages: [
-					{
-						role: 'user',
-						content: `【立場カバレッジ（最優先）】いまの論点「${action.activeAgendaItem}」について、まだ立場を聞けていない参加者が残っています: ${action.unheardRelevant.join(
-							'、'
-						)}。\n新しい論点を投入せず、いまの論点を維持したまま、上記の未発言者の中から1人を選んで targetPersonaId にそのIDを設定し、content で「○○さん、〜についてはどうですか？」と名前で呼びかけて、その論点に対する立場を引き出してください。\n\n${baseContext}`
-					}
-				]
-			});
-			return {
-				ok: true,
-				value: { content: result.object.content, targetPersonaId: result.object.targetPersonaId }
+				value: { content, targetPersonaId, selectedAgendaItemIndex }
 			};
 		}
 
@@ -222,19 +191,18 @@ export const generateOpening = async (
 			messages: [
 				{
 					role: 'user',
-					content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${entryContext}${factNote}\n\n冒頭発言（2〜3文）の構成：\n1. 上記の入口となる問いの趣旨に沿って、「このテーマに詳しくない人でも感覚的に答えられる」オープンな問いかけをする。固有名詞（特定の映像作品・企業名・人名・統計）や専門用語を使わないこと。誰もが「自分の立場から答えられそう」と感じる入口となる問いにする。\n2. 最初の発言者にその問いを向ける\n3. relevantPersonaIds に、この入口となる問いについて特に立場を聞くべき参加者のIDを列挙する。全員を一律に含めず、その論点に関係する参加者に絞ってください。\n\n「議論を始めましょう」などの抽象的な言葉は禁止。専門知識なしでも答えられる具体的な問いで始める。targetPersonaIdには必ず上記リストのIDを使用してください。`
+					content: `テーマ「${topicTitle}」の討論を開始してください。\n\n参加者:\n${formatPersonas(personas)}${entryContext}${factNote}\n\n冒頭発言（2〜3文）の構成：\n1. 上記の入口となる問いの趣旨に沿って、「このテーマに詳しくない人でも感覚的に答えられる」オープンな問いかけをする。固有名詞（特定の映像作品・企業名・人名・統計）や専門用語を使わないこと。誰もが「自分の立場から答えられそう」と感じる入口となる問いにする。\n2. 最初の発言者にその問いを向ける\n\n「議論を始めましょう」などの抽象的な言葉は禁止。専門知識なしでも答えられる具体的な問いで始める。targetPersonaIdには必ず上記リストのIDを使用してください。`
 				}
 			]
 		});
 
-		const { content, targetPersonaId, relevantPersonaIds } = result.object;
+		const { content, targetPersonaId } = result.object;
 		return {
 			ok: true,
 			value: {
 				content,
 				targetPersonaId,
-				selectedAgendaItemIndex: hasPoints ? 0 : undefined,
-				relevantPersonaIds: relevantPersonaIds ?? undefined
+				selectedAgendaItemIndex: hasPoints ? 0 : undefined
 			}
 		};
 	} catch (err) {
