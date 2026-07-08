@@ -30,12 +30,23 @@ const buildTopicContextSection = (topicContext?: TopicContext): string => {
 
 const SCORE_THRESHOLD = 7;
 
+const CHAPTER_GENERATION_GOAL = `【ゴール】
+これは討論コンテンツの章立てを作る作業です。目指すのは「章ごとに主題が明確で、読みやすい討論コンテンツ」。各章は1つの主題に絞られ、視聴者がその主題を見失わずに読み進められる状態を目標とします。主題がぼやける細切れの章や、章をまたいだ同じ話の繰り返しは読みやすさを損なうため避けます。`;
+
 const scoringResultSchema = z.object({
 	scoredIssues: z.array(
 		z.object({
 			index: z.number().int(),
 			score: z.number().int().min(0).max(10),
 			reason: z.string()
+		})
+	)
+});
+
+const dedupeResultSchema = z.object({
+	duplicateGroups: z.array(
+		z.object({
+			indexes: z.array(z.number().int())
 		})
 	)
 });
@@ -111,6 +122,57 @@ ${issueList}
 - 論点同士を比較した相対評価でスコアを決定すること
 
 各論点の index（0始まり）、score（0〜10の整数）、reason（採点理由）を返してください。${contextSection}`;
+};
+
+const dedupeIssues = async (
+	topicTitle: string,
+	issues: Issue[],
+	topicContext?: TopicContext
+): Promise<Issue[]> => {
+	const result = await generateObject({
+		model: anthropic(AI_MODELS.SONNET),
+		system: buildNeutralitySystemPrompt(),
+		schema: dedupeResultSchema,
+		messages: [
+			{
+				role: 'user',
+				content: buildDedupePrompt(topicTitle, issues, topicContext)
+			}
+		]
+	});
+
+	const removed = new Set<number>();
+	for (const group of result.object.duplicateGroups) {
+		const valid = group.indexes.filter((index) => index >= 0 && index < issues.length);
+		if (valid.length <= 1) continue;
+		const keeper = valid.reduce((best, index) =>
+			(issues[index].score ?? 0) > (issues[best].score ?? 0) ? index : best
+		);
+		for (const index of valid) {
+			if (index !== keeper) removed.add(index);
+		}
+	}
+
+	return issues.filter((_, index) => !removed.has(index));
+};
+
+const buildDedupePrompt = (
+	topicTitle: string,
+	issues: Issue[],
+	topicContext?: TopicContext
+): string => {
+	const contextSection = buildTopicContextSection(topicContext);
+	const issueList = issues.map((issue, i) => `${i}. [${issue.source}] ${issue.text}`).join('\n');
+	return `テーマ「${topicTitle}」について挙がった以下の論点には、表現は違っても実質的に同じことを問うている重複が含まれます。重複している論点を洗い出してグループにまとめてください。
+
+【論点一覧（index: 論点テキスト）】
+${issueList}
+
+【判定基準】
+- 「結局そこで何を問うているのか」が同じ論点は重複とみなす。一般の素朴な疑問と専門的な論点が、同じことを別の言い方で問うている場合も重複に含む。
+- 財源・効果・公平性・時期などの切り口や観点が異なるだけの論点は重複ではない（別々の論点として残す）。あくまで同じ問いの言い換えだけを重複とする。
+
+実質的に同じ問いをまとめた duplicateGroups（各グループは重複する論点の index 配列）を返してください。重複が1つもなければ空配列を返してください。${contextSection}`;
 };
 
 const selectIssues = (issues: Issue[]): Issue[] => {
@@ -199,17 +261,25 @@ const buildGroupingPrompt = (
 	const issueList = selectedIssues
 		.map((issue, i) => `${i}. [${issue.source}] ${issue.text}`)
 		.join('\n');
-	return `テーマ「${topicTitle}」の採用論点を意味的な近さでグループ化してください。タイトルは生成しない。
+	return `${CHAPTER_GENERATION_GOAL}
+
+テーマ「${topicTitle}」の採用論点を章立てします。各グループが1つの章＝1つの主題になります。タイトルは生成しない。
 
 【採用論点（index: 論点テキスト）】
 ${issueList}
 
-【グループ化のルール】
-- 意味的に近い論点を同じグループにまとめる
-- index の配列のみを返す。タイトルは不要
-- 採用論点が収束している場合、グループ数1を許容する
+【手順】
+1. まず、この討論を貫く「大きな主題」を数個だけ見つける。主題とは、読み手が「この章は結局この話」と一言で言える討論の柱のこと。個々の細かい切り口をそのまま主題にしない。
+2. 次に、すべての論点をその数個の主題のいずれかに割り当てる。問いの核が同じ・重なる論点は同じ主題に入れる。金額・制度名・登場人物といった表面的な題材が違っても、核が同じなら同じ主題にまとめる。
 
-各グループの issueIndexes（論点の index 配列）を返してください。全論点がいずれかのグループに割り当てられるよう漏れなく配置してください。${contextSection}`;
+【考え方】
+- 論点の数だけ章を作らない。まず主題を数個に絞り、そこへ論点を振り分ける発想で臨む。
+- 同じ対象（同じ制度・施策・期間・当事者）を、財源・効果・公平性・時期・実現性などの異なる切り口から論じているだけの論点は、切り口が違っても1つの主題に束ねる。切り口ごとに章を分けない。（例:「◯◯の財源はどうするか」と「◯◯は本当に効果があるか」は、どちらも◯◯という同じ対象の是非なので同じ主題）
+- 論点1つだけで立つ主題は原則作らない。近い主題に束ねられないか必ず検討する。
+- 主題が明確で読み手が筋を追えることが最優先。迷ったら分けずにまとめる。
+- index の配列のみを返す。タイトルは不要。
+
+各グループ（主題）の issueIndexes（論点の index 配列）を返してください。全論点を漏れなくいずれかの主題へ割り当ててください。${contextSection}`;
 };
 
 const buildChapters = async (
@@ -256,17 +326,18 @@ const buildBuildingPrompt = (
 			return `## グループ ${i + 1}\n${issueTexts}`;
 		})
 		.join('\n\n');
-	return `テーマ「${topicTitle}」の各グループについて、割り当て論点を素材に章タイトルと agenda を生成してください。
+	return `${CHAPTER_GENERATION_GOAL}
+
+テーマ「${topicTitle}」の各グループ（＝各章）について、章タイトルと agenda を生成してください。
 
 【グループと論点】
 ${groupList}
 
-【再構成のルール】
-- 各グループに対応する章の title と agenda を生成する。agenda は統合後に実質的に異なる論点だけを残し、件数は問わない（無理に増やさない・水増ししない）
-- 各 agendaItem は、専門知識のない一般の人々が日常感覚で理解できる「問いの形」で書く（例:「〜なのはなぜか」「どこまでなら許されるか」）
-- 第1章の論点は特に平易で日常的な表現にする
-- 章内・章間で意味的に重複する論点は1つに寄せ、各論点は最も適切な1つの章にのみ属させる。他の章の主題に踏み込む問いは作らない
-- 特定のペルソナ名・発言を前提にしない汎用的な問いの形で生成する
+【章タイトルと agenda の考え方】
+- 章タイトルはその章の主題を一言で表す。agenda はその主題を討論で扱うための「問い」のリスト。
+- agenda は、割り当てられた論点を問いに言い換えたもの。選ばれた論点がそのまま素材であり、新しい論点を足したり1つの論点を水増しで分割したりしない（読みやすさを損ね、討論で同じ話が繰り返される）。同一主題内で実質的に重複する論点だけは1つの問いに束ねる。
+- 各 agendaItem は、割り当て論点の中身を保ったまま、専門知識のない一般の人が日常感覚で理解できる「問いの形」にする（例:「〜なのはなぜか」「どこまでなら許されるか」）。第1章は特に平易にする。
+- 特定のペルソナ名・発言を前提にしない汎用的な問いにする。他の章の主題に踏み込む問いは作らない。
 
 入力のグループ順のまま、各グループの title と agenda（文字列配列）を返してください。${contextSection}`;
 };
@@ -343,7 +414,8 @@ export const generateChapters = async (
 		await onProgress?.({ step: 'issues_generated', issues });
 
 		const scoredIssues = await scoreIssues(topicTitle, issues, topicContext);
-		const selectedIssues = selectIssues(scoredIssues);
+		const dedupedIssues = await dedupeIssues(topicTitle, scoredIssues, topicContext);
+		const selectedIssues = selectIssues(dedupedIssues);
 
 		const issuesWithSelection: Issue[] = scoredIssues.map((issue) => ({
 			...issue,
