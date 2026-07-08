@@ -38,7 +38,7 @@ const facilitatorReplyWithTargetSchema = z.object({
 });
 
 export type AgendaAssessment =
-	| { verdict: 'exhausted' } // 主要な意見・対立が出て新規性が尽きた
+	| { verdict: 'exhausted' } // 主要な意見・異なる立場が出て新規性が尽きた
 	| { verdict: 'drifted' } // 会話が active 項目から逸脱している
 	| { verdict: 'ongoing' }; // まだ深まっている＝介入不要
 
@@ -64,7 +64,7 @@ export const assessActiveAgendaItem = async (
 			messages: [
 				{
 					role: 'user',
-					content: `現在の討論を評価し、いまの論点「${activeAgendaItem}」の状態を判定してください。発言の生成や次の論点の選択・指名は行わず、判定だけを返してください。\n\n会話履歴（現在の章のみ）:\n${formatTurns(recentTurns.slice(-20), personas)}\n\n参加者:\n${formatPersonas(personas)}\n\n【三択判定】会話の流れを踏まえ、次のいずれかを verdict として返してください:\n- exhausted: いまの論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）\n- drifted: 会話がいまの論点から明確に逸脱している（別の話題にずれて流れている）\n- ongoing: まだ新しい視点・反論・具体例が出ており、本題に沿って議論が深まっている最中（介入不要）\n\nexhausted と ongoing を混同しないこと。直前の流れをもう少し深掘りしたい・流れが生きていると感じるなら ongoing を選んでください。`
+					content: `現在の討論を評価し、いまの論点「${activeAgendaItem}」の状態を判定してください。発言の生成や次の論点の選択・指名は行わず、判定だけを返してください。\n\n会話履歴（現在の章のみ）:\n${formatTurns(recentTurns.slice(-20), personas)}\n\n参加者:\n${formatPersonas(personas)}\n\n【三択判定】会話の流れを踏まえ、次のいずれかを verdict として返してください:\n- exhausted: いまの論点について主要な意見や異なる立場がひととおり出ており、最近のやり取りが新しい視点・論拠・具体例を加えていない（やり取りに新たな発展性がない＝出尽くし）\n- drifted: 会話がいまの論点から明確に逸脱している（別の話題にずれて流れている）\n- ongoing: まだ新しい視点・論拠・具体例が出ており、本題に沿って議論が深まっている最中（介入不要）\n\nexhausted と ongoing を混同しないこと。直前の流れをもう少し深掘りしたい・流れが生きていると感じるなら ongoing を選んでください。`
 				}
 			]
 		});
