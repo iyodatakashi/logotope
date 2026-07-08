@@ -1,6 +1,6 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import type {
-	DiscussionPointState,
+	AgendaItemState,
 	ChapterProgress,
 	ChapterEntry
 } from '../../types/chapter.types.js';
@@ -12,7 +12,7 @@ const db = () => getFirestore();
 type ChapterDocData = {
 	chapterIndex: number;
 	title: string;
-	discussionPoints?: string[];
+	agenda?: string[];
 	turns?: Array<{
 		id: string;
 		speakerType: string;
@@ -30,7 +30,7 @@ const toChapterEntry = (id: string, data: ChapterDocData): ChapterEntry => ({
 	id,
 	chapterIndex: data.chapterIndex,
 	title: data.title,
-	discussionPoints: data.discussionPoints ?? [],
+	agenda: data.agenda ?? [],
 	turns: (data.turns ?? []).map((turn) => ({
 		id: turn.id,
 		speakerType: turn.speakerType,
@@ -93,7 +93,7 @@ export const getDebateTurnsByTopicId = async (topicId: string): Promise<DebateTu
 };
 
 /**
- * chapter doc から章進捗を復元する。quietStreak 未設定は 0、discussionPointStatuses 未設定は
+ * chapter doc から章進捗を復元する。quietStreak 未設定は 0、agendaItemStatuses 未設定は
  * 章の論点から untouched 初期化する。同一の永続データから同一の出力を返す（決定論）。
  */
 export const loadChapterProgress = async (
@@ -103,14 +103,14 @@ export const loadChapterProgress = async (
 ): Promise<ChapterProgress> => {
 	const snap = await db().doc(`topics/${topicId}/chapters/${chapterId}`).get();
 	const data = snap.data() as
-		| { quietStreak?: number; discussionPointStatuses?: DiscussionPointState[] }
+		| { quietStreak?: number; agendaItemStatuses?: AgendaItemState[] }
 		| undefined;
-	const discussionPointStatuses =
-		data?.discussionPointStatuses ??
-		(chapter.discussionPoints ?? []).map((point) => ({ point, status: 'untouched' as const }));
+	const agendaItemStatuses =
+		data?.agendaItemStatuses ??
+		(chapter.agenda ?? []).map((point) => ({ point, status: 'untouched' as const }));
 	return {
 		quietStreak: data?.quietStreak ?? 0,
-		discussionPointStatuses
+		agendaItemStatuses
 	};
 };
 
@@ -134,7 +134,7 @@ export const discardChaptersFrom = async (
 	for (const chapter of discardChapters) {
 		await db().doc(`topics/${topicId}/chapters/${chapter.id}`).update({
 			turns: [],
-			discussionPointStatuses: FieldValue.delete(),
+			agendaItemStatuses: FieldValue.delete(),
 			quietStreak: FieldValue.delete(),
 			status: 'pending'
 		});

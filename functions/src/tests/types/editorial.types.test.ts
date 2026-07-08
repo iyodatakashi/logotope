@@ -54,7 +54,7 @@ describe('editorial.types 編集後章', () => {
 			const chapter: EditedChapterForFirestore = {
 				chapterIndex: 0,
 				title: '章タイトル',
-				discussionPoints: ['論点A'],
+				agenda: ['論点A'],
 				turns: [],
 				status
 			};

@@ -20,7 +20,7 @@ import type { Chapter } from '../../../types/chapter.types.js';
 
 const persona = { id: 'p1', name: '田中太郎' } as Persona;
 const personas: ReadonlyArray<Persona> = [persona];
-const chapter = { id: 'ch1', title: '章', discussionPoints: [] } as Chapter;
+const chapter = { id: 'ch1', title: '章', agenda: [] } as Chapter;
 const context: TurnGenerationContext = { chapterTurns: [], chapter };
 const factCheckContext: FactCheckContext = {
 	topicTitle: 'T',

@@ -41,9 +41,11 @@ vi.mock('../../../agents/facilitator-agent.js', () => ({
 	generateChapterIntroduction: vi.fn(async () => ({ ok: true, value: { content: 'intro' } })),
 	generateChapterSummary: vi.fn(async () => ({ ok: true, value: 'summary' })),
 	generateOutro: vi.fn(async () => ({ ok: true, value: 'closing' })),
-	evaluateTopicDrift: vi.fn(async () => ({ ok: true, value: { content: undefined } })),
-	evaluateStallIntervention: vi.fn(async () => ({ ok: true, value: { content: undefined } })),
-	evaluateDiscussionPointCoverage: vi.fn(async () => ({ ok: true, value: [] }))
+	assessActiveAgendaItem: vi.fn(async () => ({ ok: true, value: { verdict: 'ongoing' } })),
+	generateInterventionUtterance: vi.fn(async () => ({
+		ok: true,
+		value: { content: '介入', targetPersonaId: 'p2' }
+	}))
 }));
 vi.mock('../../../pipeline/debate/engagement.js', () => ({
 	evaluateEngagements: vi.fn(async () => [
@@ -95,7 +97,7 @@ const seed = () => {
 	holder.mock.store.set(`topics/${TOPIC_ID}/chapters/ch1`, {
 		chapterIndex: 0,
 		title: '章0',
-		discussionPoints: [],
+		agenda: [],
 		turns: [{ id: 'opening', speakerType: 'facilitator', content: 'opening', createdAt: 'TS' }],
 		status: 'running'
 	});
@@ -177,5 +179,48 @@ describe('終端冪等: 最終章 chapter-end', () => {
 		expect(holder.mock!.store.get(`topics/${TOPIC_ID}`)?.phaseStatus).toBe('generated');
 		// 最終章の終端では後続ステップ（次章 open 等）を投入しない
 		expect(stepQueue).toHaveLength(0);
+	});
+});
+
+describe('committed-no-turn: 最後の論点消化で章がその場で終了する（Task 5）', () => {
+	it('最後の論点が出尽くしになると、余計な発言なしに章が completed 化し generated 確定する', async () => {
+		// 論点A のみ・introduced（active）で未提示なし。末尾に未応答指名なし・クールダウン充足（persona×3）。
+		const turns = [
+			{ id: 'opening', speakerType: 'facilitator', content: 'opening', createdAt: 'TS' },
+			{ id: 't1', speakerType: 'persona', personaId: 'p1', content: '1', createdAt: 'TS' },
+			{ id: 't2', speakerType: 'persona', personaId: 'p2', content: '2', createdAt: 'TS' },
+			{ id: 't3', speakerType: 'persona', personaId: 'p1', content: '3', createdAt: 'TS' }
+		];
+		holder.mock!.store.set(`topics/${TOPIC_ID}/chapters/ch1`, {
+			chapterIndex: 0,
+			title: '章0',
+			agenda: ['論点A'],
+			agendaItemStatuses: [{ point: '論点A', status: 'introduced', introducedOrder: 1 }],
+			turns,
+			status: 'running'
+		});
+		stepQueue.length = 0;
+		enqueuedKeys.clear();
+
+		// active 論点は出尽くし判定・意欲は低（高意欲ゲートを通す）
+		const fac = await import('../../../agents/facilitator-agent.js');
+		vi.mocked(fac.assessActiveAgendaItem).mockResolvedValueOnce({
+			ok: true,
+			value: { verdict: 'exhausted' }
+		});
+		const eng = await import('../../../pipeline/debate/engagement.js');
+		vi.mocked(eng.evaluateEngagements).mockResolvedValueOnce([
+			{ personaId: 'p1', score: 1, mode: 'none' },
+			{ personaId: 'p2', score: 1, mode: 'none' }
+		] as never);
+
+		const before = chapterTurns().length; // 4
+		await advanceDebate(turnPayload(4));
+
+		// 余計なペルソナ発言を追記しない（committed-no-turn）
+		expect(chapterTurns().length).toBe(before);
+		// 章はその場で completed 化し、討論は generated 確定する（盛り上がり不問で一気通貫）
+		expect(holder.mock!.store.get(`topics/${TOPIC_ID}/chapters/ch1`)?.status).toBe('completed');
+		expect(holder.mock!.store.get(`topics/${TOPIC_ID}`)?.phaseStatus).toBe('generated');
 	});
 });

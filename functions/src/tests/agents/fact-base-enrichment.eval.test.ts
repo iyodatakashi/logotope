@@ -229,7 +229,7 @@ describe.skipIf(!ENABLED)('取材の挙動（interview-agent）', () => {
 
 // --- 討論: 層②優先の安定（衝突点で優先しつつ全否認しない）（R8.8, R8.9） ---
 describe.skipIf(!TURN_ENABLED)('討論ターンの層②優先（persona-agent）', () => {
-	const chapter: Chapter = { id: 'ch1', title: '生命の起源をどう考えるか', discussionPoints: [] };
+	const chapter: Chapter = { id: 'ch1', title: '生命の起源をどう考えるか', agenda: [] };
 	const factBase: FactBase = {
 		facts: [
 			{

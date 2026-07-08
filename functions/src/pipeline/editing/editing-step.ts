@@ -28,14 +28,14 @@ export type RawEditChapter = {
 	id: string;
 	chapterIndex: number;
 	title: string;
-	discussionPoints: string[];
+	agenda: string[];
 	turns: DebateTurn[];
 };
 
 type RawChapterDoc = {
 	chapterIndex: number;
 	title: string;
-	discussionPoints?: string[];
+	agenda?: string[];
 	turns?: Array<Partial<DebateTurn> & { id: string; speakerType: string; content: string }>;
 };
 
@@ -48,7 +48,7 @@ export const readRawChapters = async (topicId: string): Promise<RawEditChapter[]
 			id: docSnap.id,
 			chapterIndex: data.chapterIndex,
 			title: data.title,
-			discussionPoints: data.discussionPoints ?? [],
+			agenda: data.agenda ?? [],
 			turns: (data.turns ?? []).map((turn) => ({
 				id: turn.id,
 				speakerType: turn.speakerType,
@@ -223,7 +223,7 @@ export const runChapterEditStep = async (
 	const protectedTurnIds = computeProtectedTurnIds(chapter.turns, personas);
 
 	const result = await editChapter(
-		{ title: chapter.title, discussionPoints: chapter.discussionPoints, turns: chapter.turns },
+		{ title: chapter.title, agenda: chapter.agenda, turns: chapter.turns },
 		personas,
 		protectedTurnIds
 	);
@@ -242,7 +242,7 @@ export const runChapterEditStep = async (
 		const failed: EditedChapterForFirestore = {
 			chapterIndex: chapter.chapterIndex,
 			title: chapter.title,
-			discussionPoints: chapter.discussionPoints,
+			agenda: chapter.agenda,
 			turns: [],
 			status: 'failed',
 			failureReason: reason
@@ -254,7 +254,7 @@ export const runChapterEditStep = async (
 	const completed: EditedChapterForFirestore = {
 		chapterIndex: chapter.chapterIndex,
 		title: chapter.title,
-		discussionPoints: chapter.discussionPoints,
+		agenda: chapter.agenda,
 		turns: toEditedTurns(result.value, chapter.turns),
 		status: 'completed'
 	};

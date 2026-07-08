@@ -69,11 +69,11 @@ const makeState = (over: Partial<DebateState> = {}): DebateState => ({
 	silenceMap: new Map(),
 	speakCount: new Map(),
 	queuedIntents: new Map(),
-	discussionPoints: [],
+	agenda: [],
 	...over
 });
 
-const makeChapter = (): Chapter => ({ id: 'ch1', title: 'テスト章', discussionPoints: [] });
+const makeChapter = (): Chapter => ({ id: 'ch1', title: 'テスト章', agenda: [] });
 
 describe('傾聴→永続→消費の同ターン反映（結合）', () => {
 	beforeEach(() => {

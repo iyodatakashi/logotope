@@ -71,7 +71,7 @@ describe('editChapter', () => {
 		const result = await editChapter(
 			{
 				title: '第1章',
-				discussionPoints: ['論点A'],
+				agenda: ['論点A'],
 				turns: [makeTurn('t1', '冗長な発言その1'), makeTurn('t2', '冗長な発言その2')]
 			},
 			[mockPersona],
@@ -107,7 +107,7 @@ describe('editChapter', () => {
 		await editChapter(
 			{
 				title: '第1章',
-				discussionPoints: ['論点A'],
+				agenda: ['論点A'],
 				turns: [makeTurn('t1', '発言1'), makeTurn('t2', '発言2')]
 			},
 			[mockPersona],
@@ -138,7 +138,7 @@ describe('editChapter', () => {
 
 		const { editChapter } = await import('../../agents/editor-agent.js');
 		const result = await editChapter(
-			{ title: '第1章', discussionPoints: [], turns: [makeTurn('t1', '発言1')] },
+			{ title: '第1章', agenda: [], turns: [makeTurn('t1', '発言1')] },
 			[mockPersona],
 			new Set<string>()
 		);
@@ -154,7 +154,7 @@ describe('editChapter', () => {
 
 		const { editChapter } = await import('../../agents/editor-agent.js');
 		const result = await editChapter(
-			{ title: '第1章', discussionPoints: [], turns: [makeTurn('t1', '発言1')] },
+			{ title: '第1章', agenda: [], turns: [makeTurn('t1', '発言1')] },
 			[mockPersona],
 			new Set<string>()
 		);

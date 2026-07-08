@@ -76,7 +76,7 @@ const seedTopic = () => {
 	mock.store.set('topics/t1/chapters/c1', {
 		chapterIndex: 0,
 		title: '第1章',
-		discussionPoints: ['論点'],
+		agenda: ['論点'],
 		turns: [
 			{ id: 't1a', speakerType: 'persona', personaId: 'p1', content: '発言1a', createdAt: 'TS' },
 			{ id: 't1b', speakerType: 'persona', personaId: 'p1', content: '発言1b', createdAt: 'TS' }
@@ -85,7 +85,7 @@ const seedTopic = () => {
 	mock.store.set('topics/t1/chapters/c2', {
 		chapterIndex: 1,
 		title: '第2章',
-		discussionPoints: ['論点'],
+		agenda: ['論点'],
 		turns: [{ id: 't2a', speakerType: 'persona', personaId: 'p1', content: '発言2a', createdAt: 'TS' }]
 	});
 };

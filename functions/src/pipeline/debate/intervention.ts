@@ -1,10 +1,16 @@
 import { Timestamp } from 'firebase-admin/firestore';
-import { evaluateTopicDrift, evaluateStallIntervention } from '../../agents/facilitator-agent.js';
+import {
+	assessActiveAgendaItem,
+	generateInterventionUtterance,
+	type InterventionAction
+} from '../../agents/facilitator-agent.js';
 import {
 	markIntroduced,
-	getActiveDiscussionPoint,
-	getUnheardRelevant
-} from './discussion-points.js';
+	markAddressed,
+	getActiveAgendaItem,
+	getUnheardRelevant,
+	saveAgendaItemStatuses
+} from './agenda.js';
 import { hasHighEngagement } from './speaker-selection.js';
 import { addQueuedIntents } from './queued-intents.js';
 import { addTurn } from './turn.js';
@@ -23,7 +29,7 @@ export const shouldEvaluateIntervention = (
 /**
  * 章ローカル永続ターン列の末尾から、連続するペルソナ間指名（targetedBy='persona'）の数を返す。
  * ファシリテーター発言・指名なしペルソナ発言・targetedBy='facilitator' 指名に当たった時点で打ち切る。
- * 出尽くしを疑わせるソフトシグナルとして evaluateTopicDrift に渡す（決定的・I/O なし）。
+ * step 層が persona-chain トリガーのチェーン長シグナルとして用いる（決定的・I/O なし）。
  */
 export const countConsecutivePersonaTargets = (chapterTurns: readonly DebateTurn[]): number => {
 	let count = 0;
@@ -113,8 +119,26 @@ export type InterventionTrigger =
 	| { kind: 'no-target' }
 	| { kind: 'persona-chain'; chainLength: number };
 
-/** 介入が必要か評価し、発火した場合は state を更新して true を返す */
-export const tryIntervention = async ({
+/**
+ * progressAgenda の結果。
+ * - 'intervened': 介入発言を1ターン永続した（継続扱い）。
+ * - 'chapter-exhausted': 最後の論点が出尽くし、発言を生成せず active を addressed のみ立てた
+ *   （committed-no-turn）。呼び出し側は余計な発言を挟まず章終了へ配線する。
+ * - 'none': 介入なし（通常フローへ）。
+ */
+export type AgendaProgress = 'intervened' | 'chapter-exhausted' | 'none';
+
+/**
+ * 章アジェンダの前進を編成する: ゲート（許容行動の絞り込み）→ 判定（出尽くし/論点ずれ/継続）→
+ * 消化記録（addressed）→ 行動（発言生成）。発言を1ターン永続したら true を返す。
+ *
+ * ゲート層（既存の保持対象挙動の写像）:
+ * - クールダウン未達: 評価しない
+ * - unheardActive（立場カバレッジ未充足）: 前進・消化を封じ bring-in に限定
+ * - trigger=persona-chain: 前進しない（引き戻し・引き込みのみ）
+ * - hasHighEngagement: 前進を抑止（強い意欲者が残る＝出尽くしていない扱い）
+ */
+export const progressAgenda = async ({
 	topicId,
 	personas,
 	chapter,
@@ -138,27 +162,25 @@ export const tryIntervention = async ({
 	chapterTurns?: DebateTurn[];
 	chapterTurnStartIndex?: number;
 	progressPatch?: ProgressPatch;
-}): Promise<boolean> => {
+}): Promise<AgendaProgress> => {
 	// 介入判定の対象とする発言履歴（呼び出し側が章ローカルのターン列を渡す。未指定なら全ターン）
 	const currentChapterTurns = chapterTurns ?? state.turns;
-	// いずれかの介入が発火したらここに { 発言内容, 指名先, 提示する論点index, 関連参加者 } が入る
-	let intervention:
-		| {
-				content: string;
-				targetPersonaId?: string;
-				selectedDiscussionPointIndex?: number;
-				relevantPersonaIds?: string[];
-		  }
-		| undefined;
 
-	// まだ提示していない（untouched）論点。介入時にファシリテーターへ投入候補として渡す。
-	// 提示済み（introduced）を除くことで論点の再提示を防ぎ、markIntroduced の index 空間とそろえる。
-	const untouchedDiscussionPoints = state.discussionPoints
-		.filter((discussionPoint) => discussionPoint.status === 'untouched')
-		.map((discussionPoint) => discussionPoint.point);
+	// ゲート: クールダウン未達なら評価しない
+	if (
+		!shouldEvaluateIntervention(
+			countPersonaTurnsSinceFacilitator(currentChapterTurns),
+			interventionCooldown
+		)
+	) {
+		return 'none';
+	}
 
-	// 立場カバレッジ・ゲート: 現アクティブ論点で未発言の関連参加者を導出する。残る間は前進を封じ引き込みを優先する。
-	// アクティブ論点が無い／関連参加者が空なら空配列となりゲートは不活性（従来挙動）。
+	// 判断軸はアクティブ論点（最新 introduced）。不在時は章タイトルへフォールバック（消化対象は無し）
+	const activePoint = getActiveAgendaItem(state);
+	const activeFocus = activePoint ?? chapter.title;
+
+	// 立場カバレッジ・ゲート: 現アクティブ論点で未発言の関連参加者。残る間は前進を封じ引き込みを優先する。
 	const unheardRelevantIds = getUnheardRelevant(state);
 	const unheardActive = unheardRelevantIds.length > 0;
 	// ファシリテーターには名前で渡す（プロンプトで指名させるため）。検証には ID を使う。
@@ -166,68 +188,73 @@ export const tryIntervention = async ({
 		.map((id) => personas.find((persona) => persona.id === id)?.name)
 		.filter((name): name is string => name !== undefined);
 
-	// クールダウン（前回ファシリテーター発言から十分なペルソナ発言が経過）を満たすときだけ介入を評価する
-	if (
-		shouldEvaluateIntervention(
-			countPersonaTurnsSinceFacilitator(currentChapterTurns),
-			interventionCooldown
-		)
-	) {
-		if (trigger.kind === 'persona-chain') {
-			// 指名チェーン中: drift のみ評価。未発言の関連参加者が残る間は候補を withhold して次論点投入を封じる。
-			// chainLength を「まず未発言者を引き込むべき」シグナルとして drift に渡す。
-			intervention = await tryTopicDriftIntervention({
-				personas,
-				chapter,
-				chapterTurns: currentChapterTurns,
-				state,
-				untouchedDiscussionPoints: unheardActive ? [] : untouchedDiscussionPoints,
-				chainLength: trigger.chainLength,
-				unheardRelevant: unheardRelevantNames
-			});
-		} else {
-			// no-target: 高意欲者がいる、または未発言の関連参加者が残る場合は論点投入候補を withhold し、
-			// 明確な逸脱・引き込みのみ検出させる（未提示論点リストを渡さないことで option 2 を封じる）
-			const driftPoints =
-				hasHighEngagement(engagements) || unheardActive ? [] : untouchedDiscussionPoints;
-			// 介入は2段カスケード: まず論点ずれ介入を試し、起きなければ出尽くし(スタール)介入を試す
-			intervention = await tryTopicDriftIntervention({
-				personas,
-				chapter,
-				chapterTurns: currentChapterTurns,
-				state,
-				untouchedDiscussionPoints: driftPoints,
-				unheardRelevant: unheardRelevantNames
-			});
-			if (!intervention) {
-				intervention = await tryStallIntervention({
-					personas,
-					chapter,
-					chapterTurns: currentChapterTurns,
-					state,
-					engagements,
-					untouchedDiscussionPoints: unheardActive ? [] : untouchedDiscussionPoints,
-					unheardRelevant: unheardRelevantNames
-				});
-			}
+	// 判定（純粋・content なし）
+	const assessment = await assessActiveAgendaItem(activeFocus, currentChapterTurns, personas);
+	if (!assessment.ok) throw new Error(pipelineErrorMessage(assessment.error));
+	const { verdict } = assessment.value;
+
+	// まだ深まっている → 介入しない
+	if (verdict === 'ongoing') return 'none';
+
+	// 行動を決める（ゲートを写像）
+	let action: InterventionAction;
+	if (unheardActive) {
+		// ゲート: 未発言の関連参加者が残る間は前進・消化を封じ、引き込みに限定する（3.3）
+		action = {
+			kind: 'bring-in',
+			activeAgendaItem: activeFocus,
+			unheardRelevant: unheardRelevantNames
+		};
+	} else if (verdict === 'drifted') {
+		// 引き戻し（消化しない）（3.4）
+		action = { kind: 'pull-back', activeAgendaItem: activeFocus };
+	} else {
+		// exhausted（未発言者なし）
+		if (trigger.kind === 'persona-chain') return 'none'; // ゲート: チェーン中は前進しない
+		if (hasHighEngagement(engagements)) return 'none'; // ゲート: 強い意欲者が残る間は前進を抑止
+
+		// 前進: 前進元（active）を addressed 化してから次項目を提示する（3.1）
+		if (activePoint !== undefined) markAddressed(state, activePoint);
+
+		// まだ提示していない（untouched）論点。markIntroduced の index 空間とそろえる。
+		const untouchedAgendaItems = state.agenda
+			.filter((agendaItem) => agendaItem.status === 'untouched')
+			.map((agendaItem) => agendaItem.point);
+
+		if (untouchedAgendaItems.length === 0) {
+			// 最後の項目: 新項目を発明せず・発言も生成せず、addressed のみ立てて永続する（3.2）。
+			// 呼び出し側は余計なペルソナ発言を挟まず章終了へ渡す（committed-no-turn）。
+			await saveAgendaItemStatuses(topicId, chapterId, state);
+			return 'chapter-exhausted';
 		}
+		action = { kind: 'introduce', untouchedAgendaItems };
 	}
-	if (!intervention) return false;
 
-	// 強制ゲート: 未発言の関連参加者が残る間は、LLM が index を返しても markIntroduced 前に無効化して前進を阻止する。
-	// 候補 withhold（誘導）だけでは markIntroduced が state の untouched から index を解決して advance しうるため。
-	if (unheardActive) intervention.selectedDiscussionPointIndex = undefined;
-	// 引き込み先の検証: 未発言者が残る状況の同論点介入は、指名先が未発言の関連参加者に属さなければ採用しない。
-	if (!isAdoptableBringIn(intervention.targetPersonaId, unheardRelevantIds)) return false;
-
-	// 介入が論点を1つ投入した場合、markIntroduced 経由で introduced 化し introducedOrder を採番する。
-	// selectedDiscussionPointIndex は untouched 候補リスト上の index で、markIntroduced の index 空間と一致する。
-	// 論点投入時はファシリテーター返却の関連参加者を有効IDへフィルタして同時に記録する（index 無しの引き込みでは無視される）。
-	markIntroduced(
-		state,
-		intervention.selectedDiscussionPointIndex,
-		intervention.relevantPersonaIds?.filter((id) => personas.some((persona) => persona.id === id))
+	// 行動（発言生成）
+	const utterance = await generateInterventionUtterance(
+		action,
+		chapter,
+		currentChapterTurns,
+		personas
 	);
+	if (!utterance.ok) throw new Error(pipelineErrorMessage(utterance.error));
+	const targetId = validPersonaId(utterance.value.targetPersonaId, personas);
+
+	if (action.kind === 'bring-in') {
+		// 引き込み先が未発言の関連参加者に属する場合のみ採用（前進・消化はしない）
+		if (!isAdoptableBringIn(targetId, unheardRelevantIds)) return 'none';
+	} else if (action.kind === 'pull-back') {
+		if (!targetId) return 'none';
+	} else {
+		// introduce: 論点を introduced 化（index は untouched リスト上の位置）。関連参加者を有効IDへフィルタして記録。
+		markIntroduced(
+			state,
+			utterance.value.selectedAgendaItemIndex,
+			utterance.value.relevantPersonaIds?.filter((id) =>
+				personas.some((persona) => persona.id === id)
+			)
+		);
+	}
 
 	// 介入ターンの直前時点で意欲の高かった他ペルソナの意図をキューに積んでおく
 	// （speakerSelection.personaId='' は「除外する話者なし」を意味する）
@@ -243,113 +270,13 @@ export const tryIntervention = async ({
 	await persistInterventionTurn({
 		topicId,
 		state,
-		content: intervention.content,
-		targetPersonaId: intervention.targetPersonaId,
+		content: utterance.value.content,
+		targetPersonaId: targetId,
 		chapterId: chapter.id,
 		chapterTurnStartIndex,
 		progressPatch
 	});
-	return true;
-};
-
-/** 論点ずれ＋出尽くしチェック: 介入すべきなら介入内容を返す。chainLength は出尽くしを疑うソフトシグナル */
-const tryTopicDriftIntervention = async ({
-	personas,
-	chapter,
-	chapterTurns,
-	state,
-	untouchedDiscussionPoints,
-	chainLength,
-	unheardRelevant = []
-}: {
-	personas: Persona[];
-	chapter: Chapter;
-	chapterTurns: DebateTurn[];
-	state: DebateState;
-	untouchedDiscussionPoints: string[];
-	chainLength?: number;
-	unheardRelevant?: string[];
-}): Promise<
-	| {
-			content: string;
-			targetPersonaId: string;
-			selectedDiscussionPointIndex?: number;
-			relevantPersonaIds?: string[];
-	  }
-	| undefined
-> => {
-	// 判断軸はアクティブ論点（不在時は章タイトル）。アクティブ論点も title も無ければ undefined のまま渡す（7.3）
-	const activeFocus = getActiveDiscussionPoint(state) ?? chapter.title;
-	// カバレッジ・ゲートが不活性（unheardRelevant 空）なら従来どおりの options 形に保つ（後方互換）
-	const options = {
-		...(chainLength !== undefined ? { chainLength } : {}),
-		...(unheardRelevant.length > 0 ? { unheardRelevant } : {})
-	};
-	const result = await evaluateTopicDrift(
-		chapterTurns,
-		personas,
-		state.speakCount,
-		chapter,
-		activeFocus,
-		untouchedDiscussionPoints.length > 0 ? untouchedDiscussionPoints : undefined,
-		Object.keys(options).length > 0 ? options : undefined
-	);
-	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
-	if (!result.value.content) return undefined;
-	const targetId = validPersonaId(result.value.targetPersonaId, personas);
-	if (!targetId) return undefined;
-	return {
-		content: result.value.content,
-		targetPersonaId: targetId,
-		selectedDiscussionPointIndex: result.value.selectedDiscussionPointIndex,
-		relevantPersonaIds: result.value.relevantPersonaIds
-	};
-};
-
-/** 出尽くし介入: 高意欲者（>= QUEUE_THRESHOLD_SCORE）がいない場合のみ発火する。ドリフト介入と同じクールダウンを共有する */
-const tryStallIntervention = async ({
-	personas,
-	chapter,
-	chapterTurns,
-	state,
-	engagements,
-	untouchedDiscussionPoints,
-	unheardRelevant = []
-}: {
-	personas: Persona[];
-	chapter: Chapter;
-	chapterTurns: DebateTurn[];
-	state: DebateState;
-	engagements: Engagement[];
-	untouchedDiscussionPoints: string[];
-	unheardRelevant?: string[];
-}): Promise<
-	| {
-			content: string;
-			targetPersonaId?: string;
-			selectedDiscussionPointIndex?: number;
-			relevantPersonaIds?: string[];
-	  }
-	| undefined
-> => {
-	if (hasHighEngagement(engagements)) return undefined;
-	const activeFocus = getActiveDiscussionPoint(state) ?? chapter.title;
-	const result = await evaluateStallIntervention(
-		chapterTurns,
-		personas,
-		state.speakCount,
-		chapter,
-		activeFocus,
-		untouchedDiscussionPoints.length > 0 ? untouchedDiscussionPoints : undefined,
-		unheardRelevant.length > 0 ? { unheardRelevant } : undefined
-	);
-	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
-	if (!result.value.content) return undefined;
-	const targetId = validPersonaId(result.value.targetPersonaId, personas);
-	return {
-		content: result.value.content,
-		targetPersonaId: targetId ?? undefined,
-		selectedDiscussionPointIndex: result.value.selectedDiscussionPointIndex,
-		relevantPersonaIds: result.value.relevantPersonaIds
-	};
+	// 消化・提示の状態変更を永続する
+	await saveAgendaItemStatuses(topicId, chapterId, state);
+	return 'intervened';
 };

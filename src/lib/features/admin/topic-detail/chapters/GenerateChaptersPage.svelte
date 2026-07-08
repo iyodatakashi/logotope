@@ -167,9 +167,9 @@
 						{#each chapters as chapter (chapter.id)}
 							<li>
 								<strong>{chapter.title}</strong>
-								{#if chapter.discussionPoints?.length}
+								{#if chapter.agenda?.length}
 									<ul class="generate-chapters-page__points">
-										{#each chapter.discussionPoints as point, i (i)}
+										{#each chapter.agenda as point, i (i)}
 											<li>{point}</li>
 										{/each}
 									</ul>

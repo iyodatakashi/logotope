@@ -12,11 +12,7 @@
  */
 import { updateChapterStatus } from './chapter.js';
 import { getTopicContext } from '../topics/topic-context.js';
-import {
-	generateOpening,
-	generateChapterIntroduction,
-	evaluateDiscussionPointCoverage
-} from '../../agents/facilitator-agent.js';
+import { generateOpening, generateChapterIntroduction } from '../../agents/facilitator-agent.js';
 import { selectSpeaker } from './speaker-selection.js';
 import {
 	CONTINUE_CHAPTER_THRESHOLD,
@@ -25,15 +21,14 @@ import {
 import { evaluateEngagements, evaluateEngagementWithFallback } from './engagement.js';
 import { expireQueuedIntents, addQueuedIntents, consumeQueuedIntent } from './queued-intents.js';
 import {
-	initDiscussionPoints,
+	initAgendaItems,
 	markIntroduced,
-	markAddressed,
-	recordSpeakerOnActivePoint,
-	saveDiscussionPointStatuses,
-	deleteDiscussionPointStatuses
-} from './discussion-points.js';
+	recordSpeakerOnActiveAgendaItem,
+	saveAgendaItemStatuses,
+	deleteAgendaItemStatuses
+} from './agenda.js';
 import {
-	tryIntervention,
+	progressAgenda,
 	countConsecutivePersonaTargets,
 	type InterventionTrigger
 } from './intervention.js';
@@ -55,9 +50,14 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 const db = () => getFirestore();
 
-/** executeTurn の結果。committed は quietStreak を、rejected は追記棄却理由を、skipped は停止を表す（R9.2） */
+/**
+ * executeTurn の結果。committed は quietStreak を、rejected は追記棄却理由を、skipped は停止を表す（R9.2）。
+ * chapter-exhausted は最後の論点が出尽くし・発言なしで addressed のみ立てた状態（committed-no-turn）を表し、
+ * 余計なペルソナ発言を挟まず章終了へ渡すシグナル。
+ */
 type ExecuteTurnResult =
 	| { status: 'committed'; quietStreak: number }
+	| { status: 'chapter-exhausted'; quietStreak: number }
 	| Extract<AppendResult, { status: 'rejected' }>
 	| { status: 'skipped' };
 
@@ -103,8 +103,8 @@ const finalizeCommittedTurn = async ({
 	updateSpeakerStats({ state, personas, personaId: reply.personaId });
 	// 立場カバレッジ: 現アクティブ論点の発言済み集合へ話者を冪等記録し、永続型からそのまま書き出す
 	// （Partial転送形を介さず state ベースで永続化。集合のため resume 後も二重化しない）
-	recordSpeakerOnActivePoint(state, reply.personaId);
-	await saveDiscussionPointStatuses(topicId, chapterId, state);
+	recordSpeakerOnActiveAgendaItem(state, reply.personaId);
+	await saveAgendaItemStatuses(topicId, chapterId, state);
 };
 
 /**
@@ -250,7 +250,7 @@ const executeTurn = async ({
 			interventionTrigger.kind === 'persona-chain'
 				? PERSONA_CHAIN_INTERVENTION_COOLDOWN
 				: interventionCooldown;
-		const intervened = await tryIntervention({
+		const progress = await progressAgenda({
 			topicId,
 			personas,
 			chapter,
@@ -263,9 +263,13 @@ const executeTurn = async ({
 			chapterTurnStartIndex: chapterTurnStartInState,
 			progressPatch: { quietStreak: 0 }
 		});
-		if (intervened) {
-			await saveDiscussionPointStatuses(topicId, chapterId, state);
+		if (progress === 'intervened') {
+			await saveAgendaItemStatuses(topicId, chapterId, state);
 			return { status: 'committed', quietStreak: 0 };
+		}
+		if (progress === 'chapter-exhausted') {
+			// 最後の論点が出尽くし・発言なし（addressed のみ永続済み）。ペルソナ発言を挟まず章終了へ渡す
+			return { status: 'chapter-exhausted', quietStreak };
 		}
 	}
 
@@ -321,8 +325,8 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 
 	// 章を running にし、論点をすべて untouched で初期化して保存する
 	await updateChapterStatus(topicId, chapterDoc.id, 'running');
-	state.discussionPoints = initDiscussionPoints(chapter);
-	await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
+	state.agenda = initAgendaItems(chapter);
+	await saveAgendaItemStatuses(topicId, chapterDoc.id, state);
 
 	// 事実基盤（共通前提）はサーバ権威の getTopicContext で供給し、ファシリテーターの導入に背景として渡す（R8.1）。
 	const { factBase } = await getTopicContext(topicId);
@@ -342,10 +346,10 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 		if (fac.status === 'committed') {
 			markIntroduced(
 				state,
-				openingResult.value.selectedDiscussionPointIndex,
+				openingResult.value.selectedAgendaItemIndex,
 				filterValidPersonaIds(openingResult.value.relevantPersonaIds, personas)
 			);
-			await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
+			await saveAgendaItemStatuses(topicId, chapterDoc.id, state);
 		}
 	} else {
 		const introResult = await generateChapterIntroduction(chapter, personas, factBase);
@@ -361,10 +365,10 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 			if (fac.status === 'committed') {
 				markIntroduced(
 					state,
-					introResult.value.selectedDiscussionPointIndex,
+					introResult.value.selectedAgendaItemIndex,
 					filterValidPersonaIds(introResult.value.relevantPersonaIds, personas)
 				);
-				await saveDiscussionPointStatuses(topicId, chapterDoc.id, state);
+				await saveAgendaItemStatuses(topicId, chapterDoc.id, state);
 			}
 		}
 	}
@@ -373,15 +377,14 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 };
 
 /**
- * 早期終了の手前で論点カバレッジを再確認・補正する。
- * 盛り上がりが落ちて早期終了しそうでも、明示的に話されないまま実は消化された論点を拾い上げ、
- * それでも未消化が残るなら quietStreak を 0 に戻して章を続行させる（取りこぼし防止）。
- * 発火条件・閾値・LLM 判定・addressed 更新は不変。補正後の quietStreak を返す。
+ * 早期終了の手前で継続保護を効かせる（非LLM）。
+ * 盛り上がりが落ちて早期終了しそうでも、未消化の論点が残る間は quietStreak を 0 に戻して章を続行させる
+ * （取りこぼし防止）。消化(addressed)判定は出尽くし判断由来に一本化したため、ここでは LLM を呼ばず
+ * 永続状態のみを見る。全論点 addressed（または論点なし章）なら従来どおり早期終了を許す。補正後の quietStreak を返す。
  */
 const reconcileEarlyEndCoverage = async ({
 	topicId,
 	chapterId,
-	personas,
 	state,
 	chapterTurnStartInState,
 	turnsPerChapter,
@@ -389,7 +392,6 @@ const reconcileEarlyEndCoverage = async ({
 }: {
 	topicId: string;
 	chapterId: string;
-	personas: Persona[];
 	state: DebateState;
 	chapterTurnStartInState: number;
 	turnsPerChapter: number;
@@ -399,27 +401,8 @@ const reconcileEarlyEndCoverage = async ({
 	if (!isEarlyEndCandidate(chapterTurnCountNow, turnsPerChapter, quietStreak)) {
 		return quietStreak;
 	}
-	const incomplete = state.discussionPoints.filter(
-		(discussionPoint) => discussionPoint.status !== 'addressed'
-	);
-	if (incomplete.length === 0) return quietStreak;
-
-	// LLM に「未消化論点のうち実際には議論された index」を判定させる
-	const coverageResult = await evaluateDiscussionPointCoverage(
-		state.turns.slice(chapterTurnStartInState),
-		incomplete.map((discussionPoint) => discussionPoint.point),
-		personas
-	);
-	if (!coverageResult.ok) return quietStreak;
-
-	// 実は議論済みと判定された論点を addressed に更新する
-	for (const index of coverageResult.value) {
-		const point = incomplete[index]?.point;
-		if (point !== undefined) markAddressed(state, point);
-	}
-	await saveDiscussionPointStatuses(topicId, chapterId, state);
-	// まだ未消化が残るなら早期終了を取り消して継続（quietStreak リセット）
-	if (state.discussionPoints.some((discussionPoint) => discussionPoint.status !== 'addressed')) {
+	// 未消化が残るなら早期終了を取り消して継続（quietStreak リセット）
+	if (state.agenda.some((agendaItem) => agendaItem.status !== 'addressed')) {
 		await db().doc(`topics/${topicId}/chapters/${chapterId}`).update({ quietStreak: 0 });
 		return 0;
 	}
@@ -465,6 +448,10 @@ export const performTurnStep = async (
 	if (result.status === 'rejected' && result.reason === 'generation_mismatch') {
 		return { status: 'stale_generation' };
 	}
+	// 最後の論点が出尽くし・発言なし（committed-no-turn）。終了判定は orchestrator に委ね、reconcile は不要
+	if (result.status === 'chapter-exhausted') {
+		return { status: 'chapter-exhausted', quietStreak: result.quietStreak };
+	}
 	// 並走敗者（index_mismatch）・討論停止（skipped）は従来どおり conflict → resumeFromFresh
 	if (result.status !== 'committed') return { status: 'conflict' };
 
@@ -475,7 +462,6 @@ export const performTurnStep = async (
 	const finalEndCount = await reconcileEarlyEndCoverage({
 		topicId,
 		chapterId: chapterDoc.id,
-		personas,
 		state,
 		chapterTurnStartInState,
 		turnsPerChapter: options.turnsPerChapter,
@@ -498,6 +484,6 @@ export const completeChapterStep = async (
 	const { chapterDoc } = ctx;
 	const { topicId } = payload;
 	await updateChapterStatus(topicId, chapterDoc.id, 'completed');
-	await deleteDiscussionPointStatuses(topicId, chapterDoc.id);
+	await deleteAgendaItemStatuses(topicId, chapterDoc.id);
 	return true;
 };

@@ -82,7 +82,7 @@ const makeState = (overrides?: Partial<DebateState>): DebateState => ({
 	silenceMap: new Map(),
 	speakCount: new Map(),
 	queuedIntents: new Map(),
-	discussionPoints: [],
+	agenda: [],
 	...overrides
 });
 

@@ -2,7 +2,7 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { generateTurn } from '../../agents/persona-agent.js';
 import { verifyAndReviseDraft } from './inline-fact-check.js';
-import { getActiveDiscussionPoint } from './discussion-points.js';
+import { getActiveAgendaItem } from './agenda.js';
 import { getTopicContext } from '../topics/topic-context.js';
 import { isDebateActive } from './debate-lifecycle.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
@@ -50,7 +50,7 @@ const buildTurnRecord = (id: string, turn: NewTurnFields): Record<string, unknow
 
 /**
  * 章ローカル `turns.length === expectedTurnIndex` のときだけ1ターン追記し、runId 世代照合と
- * 進捗（quietStreak / discussionPointStatuses）更新を同一トランザクションで行う冪等追記。
+ * 進捗（quietStreak / agendaItemStatuses）更新を同一トランザクションで行う冪等追記。
  * 不一致時は例外を投げず rejected を返して副作用を残さない。
  */
 export const addTurn = async (input: AppendTurnInput): Promise<AppendResult> => {
@@ -79,8 +79,8 @@ export const addTurn = async (input: AppendTurnInput): Promise<AppendResult> => 
 		if (progressPatch?.quietStreak !== undefined) {
 			update.quietStreak = progressPatch.quietStreak;
 		}
-		if (progressPatch?.discussionPointStatuses !== undefined) {
-			update.discussionPointStatuses = progressPatch.discussionPointStatuses;
+		if (progressPatch?.agendaItemStatuses !== undefined) {
+			update.agendaItemStatuses = progressPatch.agendaItemStatuses;
 		}
 		tx.update(chapterRef, update);
 		return { status: 'committed', id };
@@ -207,7 +207,7 @@ export const generatePersonaTurn = async ({
 		.map((otherPersona) => ({ id: otherPersona.id, name: otherPersona.name }));
 
 	// ファシリテーターが直近に提示した（introduced）論点を、発言者が踏まえられるよう渡す
-	const activeDiscussionPoint = getActiveDiscussionPoint(state);
+	const activeAgendaItem = getActiveAgendaItem(state);
 
 	// 事実基盤（共通前提）はサーバ権威の getTopicContext で供給し、全ペルソナへ同一値を渡す（R8.1/9.3）。
 	const { factBase } = await getTopicContext(topicId);
@@ -216,7 +216,7 @@ export const generatePersonaTurn = async ({
 	const generationContext: TurnGenerationContext = {
 		chapterTurns,
 		chapter,
-		activeDiscussionPoint,
+		activeAgendaItem,
 		queuedTrigger,
 		targetedBy:
 			speakerSelection.reason === 'targeted_by_facilitator' ||
@@ -244,7 +244,7 @@ export const generatePersonaTurn = async ({
 	const factCheckContext: FactCheckContext = {
 		topicTitle,
 		chapterTitle: chapter.title,
-		discussionScope: activeDiscussionPoint ?? chapter.title,
+		discussionScope: activeAgendaItem ?? chapter.title,
 		currentDate: currentDateString()
 	};
 	const { reply, trace } = await verifyAndReviseDraft({

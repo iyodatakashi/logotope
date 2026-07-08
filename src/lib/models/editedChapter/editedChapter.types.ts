@@ -5,7 +5,7 @@ export type EditingChapterStatus = 'pending' | 'completed' | 'failed';
 export type EditedChapterForFirestore = {
 	chapterIndex: number;
 	title: string;
-	discussionPoints: string[];
+	agenda: string[];
 	turns: EditedTurnForFirestore[];
 	status: EditingChapterStatus;
 	failureReason?: string; // status='failed' のときの構造検証不合格理由（管理画面での把握・診断用）

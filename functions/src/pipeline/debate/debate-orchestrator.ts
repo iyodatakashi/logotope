@@ -31,7 +31,7 @@ import { isEarlyEndCandidate } from './utils.js';
 import { loadQueuedIntents } from './queued-intents.js';
 import { performOpenStep, performTurnStep, completeChapterStep } from './step.js';
 import type { DebateOptions } from '../../types/debate.types.js';
-import type { DiscussionPointState } from '../../types/chapter.types.js';
+import type { AgendaItemState } from '../../types/chapter.types.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { NextStep, StepPayload, StepContext } from '../../types/step.types.js';
 
@@ -59,17 +59,17 @@ export const decideNextStep = ({
 	chapterTurns,
 	globalTurnCount,
 	quietStreak,
-	discussionPoints,
+	agenda,
 	options
 }: {
 	chapterTurns: DebateTurn[];
 	globalTurnCount: number;
 	quietStreak: number;
-	discussionPoints: DiscussionPointState[];
+	agenda: AgendaItemState[];
 	options: DebateOptions;
 }): TurnFollowupStep => {
 	// 論点リストを持つ章は消化のため上限を高めに取る（AGENDA_TURN_CAP_RATIO > TURN_CAP_RATIO）
-	const hasPoints = discussionPoints.length > 0;
+	const hasPoints = agenda.length > 0;
 	// この章の強制終了ターン数。目標ターン数 × 比率で算出する
 	const cap = Math.ceil(
 		options.turnsPerChapter * (hasPoints ? AGENDA_TURN_CAP_RATIO : TURN_CAP_RATIO)
@@ -78,13 +78,16 @@ export const decideNextStep = ({
 	// 次に追記すべき章ローカル位置（= 現在のターン数）。frontier 照合に使う
 	const expectedTurnIndex = chapterTurnCount;
 
-	// 章上限に到達、または討論全体の上限に到達したか
+	// 章上限に到達、または討論全体の上限に到達したか（cap は最優先のハード終了条件）
 	const hitCap = chapterTurnCount >= cap || globalTurnCount >= options.maxTurns;
 	// 一定割合まで進み、かつ盛り上がりが連続して低いなら早期終了（判定式は isEarlyEndCandidate に一本化）
 	const earlyEnd = isEarlyEndCandidate(chapterTurnCount, options.turnsPerChapter, quietStreak);
+	// 章の全 agendaItem が消化済み（addressed）なら盛り上がりに関わらず章を終了する。
+	// 論点を持たない章には適用しない（hasPoints ガード）。（4.1/4.3/4.4）
+	const allAddressed = hasPoints && agenda.every((item) => item.status === 'addressed');
 
 	// まだ終了条件に達していなければ、通常のターンを続ける
-	if (!hitCap && !earlyEnd) {
+	if (!hitCap && !earlyEnd && !allAddressed) {
 		return { kind: 'turn', expectedTurnIndex };
 	}
 
@@ -133,7 +136,7 @@ const loadStepContext = async (payload: StepPayload): Promise<StepContext> => {
 		existingTurns,
 		personas,
 		persistedQueuedIntents,
-		progress.discussionPointStatuses
+		progress.agendaItemStatuses
 	);
 	state.runId = runId; // 世代照合用の runId を載せる（古い世代のタスクの追記を弾くため）
 	return {
@@ -188,7 +191,7 @@ const enqueueAfterTurn = async (
 		chapterTurns: ctx.state.turns.slice(ctx.chapterTurnStartInState),
 		globalTurnCount: ctx.state.turns.length,
 		quietStreak,
-		discussionPoints: ctx.state.discussionPoints,
+		agenda: ctx.state.agenda,
 		options: buildStepOptions(payload)
 	});
 	await enqueueNextStep(payload, ctx.chapterDoc.id, {
@@ -214,6 +217,29 @@ const resumeFromFresh = async (payload: StepPayload): Promise<void> => {
 	await enqueueAfterTurn(ctx, payload, ctx.quietStreak);
 };
 
+/**
+ * 章を completed 化し、最終章なら討論を generated 確定、非最終章なら次章 open を投入する（冪等・終端配線）。
+ * chapter-end ステップと、committed-no-turn（最後の論点消化のみ）のインライン終了の両方から呼ぶ。
+ */
+const finalizeChapterEnd = async (ctx: StepContext, payload: StepPayload): Promise<boolean> => {
+	const committed = await completeChapterStep(ctx, payload);
+	if (ctx.isLastChapter) {
+		// 最終章: コメント生成に依存せず討論を generated 確定して終端する（enqueue なし）
+		await confirmDebateGenerated(payload.topicId);
+	} else {
+		// 非最終章: 次章の open を投入して討論を継続する
+		const nextChapter = ctx.chapters[payload.chapterIndex + 1];
+		if (nextChapter) {
+			await enqueueNextStep(payload, nextChapter.id, {
+				chapterIndex: payload.chapterIndex + 1,
+				stepKind: 'open',
+				expectedTurnIndex: 0
+			});
+		}
+	}
+	return committed;
+};
+
 /** turn を dispatch し、実行結果と payload.finalResponse から次ステップを投入する */
 const advanceTurn = async (
 	ctx: StepContext,
@@ -221,12 +247,22 @@ const advanceTurn = async (
 	options: DebateOptions
 ): Promise<boolean> => {
 	const exec = await performTurnStep(ctx, payload, options);
-	if (exec.status === 'completed') return false;
+	// 既に完了した章に当たった turn タスク。committed-no-turn がインライン終了した後のリトライでも、
+	// 次段（次章 open / generated 確定）を確実に投入してチェーンを途切れさせない（冪等）。
+	if (exec.status === 'completed') {
+		await finalizeChapterEnd(ctx, payload);
+		return false;
+	}
 	// 生成中に世代交代が起きて addTurn が弾いた場合は、旧世代タスクなので resume せず終了する（R9.2/9.3）
 	if (exec.status === 'stale_generation') return false;
 	if (exec.status === 'conflict') {
 		await resumeFromFresh(payload);
 		return false;
+	}
+	// 最後の論点が出尽くし・発言なし（committed-no-turn）。frontier は前進しないため enqueue 経由では
+	// 同一キー衝突で章末に到達できない。余計な発言を挟まずその場で章終了を配線する（4.1）。
+	if (exec.status === 'chapter-exhausted') {
+		return finalizeChapterEnd(ctx, payload);
 	}
 	// advanced: 実行コミット or frontier 前進。最終応答の直後は章末へ直行、通常は decideNextStep へ
 	if (payload.finalResponse) await enqueueChapterEnd(ctx, payload);
@@ -268,24 +304,8 @@ export const advanceDebate = async (payload: StepPayload): Promise<boolean> => {
 		}
 		case 'turn':
 			return advanceTurn(ctx, payload, options);
-		case 'chapter-end': {
-			// 章を completed 化し論点状態をクリーンアップする（発話生成なし）
-			const committed = await completeChapterStep(ctx, payload);
-			if (ctx.isLastChapter) {
-				// 最終章: コメント生成に依存せず討論を generated 確定して終端する（enqueue なし）
-				await confirmDebateGenerated(payload.topicId);
-			} else {
-				// 非最終章: 次章の open を投入して討論を継続する
-				const nextChapter = ctx.chapters[payload.chapterIndex + 1];
-				if (nextChapter) {
-					await enqueueNextStep(payload, nextChapter.id, {
-						chapterIndex: payload.chapterIndex + 1,
-						stepKind: 'open',
-						expectedTurnIndex: 0
-					});
-				}
-			}
-			return committed;
-		}
+		case 'chapter-end':
+			// 章を completed 化し論点状態をクリーンアップして次段を配線する（発話生成なし）
+			return finalizeChapterEnd(ctx, payload);
 	}
 };

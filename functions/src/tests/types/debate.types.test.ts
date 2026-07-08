@@ -6,8 +6,8 @@ import type {
 	FacilitatorReply
 } from '../../types/debate.types.js';
 import type {
-	DiscussionPointStatus,
-	DiscussionPointState,
+	AgendaItemStatus,
+	AgendaItemState,
 	ChapterForFirestore,
 	ChapterProgressStatus,
 	ChapterProgress
@@ -76,13 +76,13 @@ describe('debate.types - questionモード型定義', () => {
 });
 
 describe('debate.types - 論点追跡型定義', () => {
-	it('DiscussionPointStatus は3ステータスを表す', () => {
-		const statuses: DiscussionPointStatus[] = ['untouched', 'introduced', 'addressed'];
+	it('AgendaItemStatus は3ステータスを表す', () => {
+		const statuses: AgendaItemStatus[] = ['untouched', 'introduced', 'addressed'];
 		expect(statuses).toHaveLength(3);
 	});
 
-	it('DiscussionPointState は論点とステータスを持つ', () => {
-		const state: DiscussionPointState = {
+	it('AgendaItemState は論点とステータスを持つ', () => {
+		const state: AgendaItemState = {
 			point: '自由とは何か',
 			status: 'untouched'
 		};
@@ -90,33 +90,33 @@ describe('debate.types - 論点追跡型定義', () => {
 		expect(state.status).toBe('untouched');
 	});
 
-	it('DebateState に discussionPoints フィールドが含まれる', () => {
+	it('DebateState に agenda フィールドが含まれる', () => {
 		const state: DebateState = {
 			turns: [],
 			silenceMap: new Map(),
 			speakCount: new Map(),
 			queuedIntents: new Map(),
-			discussionPoints: [{ point: '論点1', status: 'introduced' }]
+			agenda: [{ point: '論点1', status: 'introduced' }]
 		};
-		expect(state.discussionPoints).toHaveLength(1);
-		expect(state.discussionPoints[0].status).toBe('introduced');
+		expect(state.agenda).toHaveLength(1);
+		expect(state.agenda[0].status).toBe('introduced');
 	});
 
-	it('FacilitatorReply に selectedDiscussionPointIndex が含まれる', () => {
+	it('FacilitatorReply に selectedAgendaItemIndex が含まれる', () => {
 		const reply: FacilitatorReply = {
 			content: 'では次の論点に移りましょう',
-			selectedDiscussionPointIndex: 2
+			selectedAgendaItemIndex: 2
 		};
-		expect(reply.selectedDiscussionPointIndex).toBe(2);
+		expect(reply.selectedAgendaItemIndex).toBe(2);
 	});
 
-	it('Chapter に discussionPoints フィールドが含まれる', () => {
+	it('Chapter に agenda フィールドが含まれる', () => {
 		const chapter: Chapter = {
 			id: 'ch1',
 			title: 'テスト章',
-			discussionPoints: ['論点A', '論点B', '論点C']
+			agenda: ['論点A', '論点B', '論点C']
 		};
-		expect(chapter.discussionPoints).toHaveLength(3);
+		expect(chapter.agenda).toHaveLength(3);
 	});
 });
 
@@ -125,7 +125,7 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
-			discussionPoints: ['論点A', '論点B'],
+			agenda: ['論点A', '論点B'],
 			turns: [],
 			status: 'pending'
 		};
@@ -134,16 +134,16 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 		expect(chapter.status).toBe('pending');
 	});
 
-	it('ChapterForFirestore は discussionPointStatuses を任意で持つ', () => {
+	it('ChapterForFirestore は agendaItemStatuses を任意で持つ', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 1,
 			title: '核心',
-			discussionPoints: ['論点A'],
+			agenda: ['論点A'],
 			turns: [],
-			discussionPointStatuses: [{ point: '論点A', status: 'introduced' }],
+			agendaItemStatuses: [{ point: '論点A', status: 'introduced' }],
 			status: 'running'
 		};
-		expect(chapter.discussionPointStatuses).toHaveLength(1);
+		expect(chapter.agendaItemStatuses).toHaveLength(1);
 	});
 
 	it('ChapterProgressStatus は3つの進行状態を表す', () => {
@@ -165,7 +165,7 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
-			discussionPoints: ['論点A'],
+			agenda: ['論点A'],
 			turns: [],
 			quietStreak: 2,
 			status: 'running'
@@ -177,7 +177,7 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
-			discussionPoints: ['論点A'],
+			agenda: ['論点A'],
 			turns: [],
 			status: 'pending'
 		};
@@ -187,10 +187,10 @@ describe('debate.types - チャプタードキュメント型定義', () => {
 	it('ChapterProgress は章終了カウンタと論点ステータスを持つ', () => {
 		const progress: ChapterProgress = {
 			quietStreak: 0,
-			discussionPointStatuses: [{ point: '論点A', status: 'untouched' }]
+			agendaItemStatuses: [{ point: '論点A', status: 'untouched' }]
 		};
 		expect(progress.quietStreak).toBe(0);
-		expect(progress.discussionPointStatuses).toHaveLength(1);
+		expect(progress.agendaItemStatuses).toHaveLength(1);
 	});
 });
 
@@ -209,13 +209,13 @@ describe('debate.types - ターン追記入力・結果型定義', () => {
 		expect(turn).not.toHaveProperty('createdAt');
 	});
 
-	it('ProgressPatch は quietStreak と discussionPointStatuses を任意で持つ', () => {
+	it('ProgressPatch は quietStreak と agendaItemStatuses を任意で持つ', () => {
 		const patch: ProgressPatch = {
 			quietStreak: 1,
-			discussionPointStatuses: [{ point: '論点A', status: 'addressed' }]
+			agendaItemStatuses: [{ point: '論点A', status: 'addressed' }]
 		};
 		expect(patch.quietStreak).toBe(1);
-		expect(patch.discussionPointStatuses).toHaveLength(1);
+		expect(patch.agendaItemStatuses).toHaveLength(1);
 	});
 
 	it('AppendTurnInput は expectedTurnIndex と progressPatch を持つ', () => {

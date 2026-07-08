@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { decideNextStep } from '../../../pipeline/debate/debate-orchestrator.js';
 import type { DebateOptions } from '../../../types/debate.types.js';
-import type { DiscussionPointState } from '../../../types/chapter.types.js';
+import type { AgendaItemState } from '../../../types/chapter.types.js';
 import type { DebateTurn } from '../../../types/turn.types.js';
 
 const options: DebateOptions = { turnsPerChapter: 15, maxTurns: 200, interventionCooldown: 3 };
@@ -28,7 +28,7 @@ const base = (overrides: Partial<Parameters<typeof decideNextStep>[0]> = {}) => 
 	chapterTurns: turns(5),
 	globalTurnCount: 5,
 	quietStreak: 0,
-	discussionPoints: [] as DiscussionPointState[],
+	agenda: [] as AgendaItemState[],
 	options,
 	isLastChapter: false,
 	...overrides
@@ -103,7 +103,7 @@ describe('decideNextStep', () => {
 			base({
 				chapterTurns: turns(30),
 				globalTurnCount: 30,
-				discussionPoints: [{ point: '論点A', status: 'introduced' }]
+				agenda: [{ point: '論点A', status: 'introduced' }]
 			})
 		);
 		// noPoints の cap=23 を超えても論点ありなら cap=38 で継続
@@ -113,5 +113,72 @@ describe('decideNextStep', () => {
 	it('同一入力から常に同一の出力を返す（決定論）', () => {
 		const args = base({ chapterTurns: turns(23), globalTurnCount: 23 });
 		expect(decideNextStep(args)).toEqual(decideNextStep(args));
+	});
+
+	describe('全項目消化による章終了（Requirement 4）', () => {
+		it('4.1 全 agendaItem が addressed なら上限未達・盛り上がり中でも chapter-end を返す', () => {
+			const result = decideNextStep(
+				base({
+					chapterTurns: turns(5),
+					globalTurnCount: 5,
+					quietStreak: 0, // 盛り上がり中（早期終了カウンタは 0）
+					agenda: [
+						{ point: '論点A', status: 'addressed' },
+						{ point: '論点B', status: 'addressed' }
+					]
+				})
+			);
+			expect(result).toEqual({ kind: 'chapter-end', expectedTurnIndex: 5 });
+		});
+
+		it('4.1/6.1 未消化が1件でも残るなら継続（turn）', () => {
+			const result = decideNextStep(
+				base({
+					chapterTurns: turns(5),
+					globalTurnCount: 5,
+					quietStreak: 0,
+					agenda: [
+						{ point: '論点A', status: 'addressed' },
+						{ point: '論点B', status: 'introduced' }
+					]
+				})
+			);
+			expect(result.kind).toBe('turn');
+		});
+
+		it('4.2 全 addressed でも末尾に未応答の指名が残れば最終応答ターン（+1）を1回挟む', () => {
+			const chapterTurns = [
+				...turns(5),
+				personaTurn(5, { targetPersonaId: 'p2', targetedBy: 'persona' })
+			];
+			const result = decideNextStep(
+				base({
+					chapterTurns,
+					globalTurnCount: 6,
+					quietStreak: 0,
+					agenda: [{ point: '論点A', status: 'addressed' }]
+				})
+			);
+			expect(result).toEqual({ kind: 'turn', expectedTurnIndex: 6, finalResponse: true });
+		});
+
+		it('4.3 quietStreak が低くても（早期終了非成立）全 addressed なら章終了する', () => {
+			const result = decideNextStep(
+				base({
+					chapterTurns: turns(3),
+					globalTurnCount: 3,
+					quietStreak: 0,
+					agenda: [{ point: '論点A', status: 'addressed' }]
+				})
+			);
+			expect(result.kind).toBe('chapter-end');
+		});
+
+		it('4.4 agendaItem を持たない章には本条件を適用しない（従来どおり継続）', () => {
+			const result = decideNextStep(
+				base({ chapterTurns: turns(5), globalTurnCount: 5, quietStreak: 0, agenda: [] })
+			);
+			expect(result).toEqual({ kind: 'turn', expectedTurnIndex: 5 });
+		});
 	});
 });

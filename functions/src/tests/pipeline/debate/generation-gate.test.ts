@@ -43,9 +43,11 @@ vi.mock('../../../agents/facilitator-agent.js', () => ({
 	generateChapterIntroduction: vi.fn(async () => ({ ok: true, value: { content: 'intro' } })),
 	generateChapterSummary: vi.fn(async () => ({ ok: true, value: 'summary' })),
 	generateOutro: vi.fn(async () => ({ ok: true, value: 'closing' })),
-	evaluateTopicDrift: vi.fn(async () => ({ ok: true, value: { content: undefined } })),
-	evaluateStallIntervention: vi.fn(async () => ({ ok: true, value: { content: undefined } })),
-	evaluateDiscussionPointCoverage: vi.fn(async () => ({ ok: true, value: [] }))
+	assessActiveAgendaItem: vi.fn(async () => ({ ok: true, value: { verdict: 'ongoing' } })),
+	generateInterventionUtterance: vi.fn(async () => ({
+		ok: true,
+		value: { content: '介入', targetPersonaId: 'p2' }
+	}))
 }));
 vi.mock('../../../pipeline/debate/engagement.js', () => ({
 	evaluateEngagements: vi.fn(async () => [
@@ -100,7 +102,7 @@ const seed = () => {
 	holder.mock.store.set(CHAPTER_PATH, {
 		chapterIndex: 0,
 		title: '章0',
-		discussionPoints: [],
+		agenda: [],
 		turns: [{ id: 'opening', speakerType: 'facilitator', content: 'opening', createdAt: 'TS' }],
 		status: 'running'
 	});

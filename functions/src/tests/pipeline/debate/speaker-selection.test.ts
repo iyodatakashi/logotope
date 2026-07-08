@@ -58,7 +58,7 @@ const makeState = (silenceMap: Map<string, number> = new Map()) => ({
 	silenceMap,
 	speakCount: new Map<string, number>(),
 	queuedIntents: new Map<string, QueuedIntent[]>(),
-	discussionPoints: []
+	agenda: []
 });
 
 describe('selectSpeaker - モード優先度タイブレーク（スコア・沈黙が同点）', () => {

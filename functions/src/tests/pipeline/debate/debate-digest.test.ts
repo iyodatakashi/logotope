@@ -23,7 +23,7 @@ const makeChapter = (id: string, index: number, title: string): ChapterEntry => 
 	id,
 	chapterIndex: index,
 	title,
-	discussionPoints: [`論点${index}`],
+	agenda: [`論点${index}`],
 	turns: [
 		{
 			id: `${id}-t1`,
@@ -105,8 +105,8 @@ describe('buildDebateDigest', () => {
 		if (result.ok) {
 			expect(result.value.topicTitle).toBe('テーマ名');
 			expect(result.value.chapters).toEqual([
-				{ title: '第1章', discussionPoints: ['論点0'], summary: '第1章の中立要約' },
-				{ title: '第2章', discussionPoints: ['論点1'], summary: '第2章の中立要約' }
+				{ title: '第1章', agenda: ['論点0'], summary: '第1章の中立要約' },
+				{ title: '第2章', agenda: ['論点1'], summary: '第2章の中立要約' }
 			]);
 		}
 		expect(summarizeChapter).toHaveBeenCalledTimes(2);

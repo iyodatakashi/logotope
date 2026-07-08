@@ -29,7 +29,8 @@ vi.mock('../../utils/prompt-formatters.js', () => ({
 }));
 vi.mock('../../agents/facilitator-agent.js', () => ({
 	buildNeutralitySystemPrompt: vi.fn(() => 'system'),
-	evaluateTopicDrift: vi.fn(),
+	assessActiveAgendaItem: vi.fn(),
+	generateInterventionUtterance: vi.fn(),
 	generateOpening: vi.fn()
 }));
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'test-chapter-id') }));
@@ -85,8 +86,8 @@ beforeEach(() => {
 	vi.clearAllMocks();
 });
 
-describe('Task 5.2: チャプター生成で discussionPoints が返される', () => {
-	it('生成された discussionPoints が章データに含まれる', async () => {
+describe('Task 5.2: チャプター生成で agenda が返される', () => {
+	it('生成された agenda が章データに含まれる', async () => {
 		const { generateObject } = await import('ai');
 		vi.mocked(generateObject)
 			.mockResolvedValueOnce({ object: { issues: ['一般論点1', '一般論点2'] } } as never)
@@ -110,7 +111,7 @@ describe('Task 5.2: チャプター生成で discussionPoints が返される', 
 					chapters: [
 						{
 							title: '第1章',
-							discussionPoints: ['論点A', '論点B', '論点C']
+							agenda: ['論点A', '論点B', '論点C']
 						}
 					]
 				}
@@ -122,7 +123,7 @@ describe('Task 5.2: チャプター生成で discussionPoints が返される', 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
 
-		expect(result.value[0].discussionPoints).toEqual(['論点A', '論点B', '論点C']);
+		expect(result.value[0].agenda).toEqual(['論点A', '論点B', '論点C']);
 	});
 
 	it('章生成プロンプトに第1章の日常感覚制約が含まれる（グループ化プロンプトではなく章生成プロンプト）', async () => {
@@ -146,7 +147,7 @@ describe('Task 5.2: チャプター生成で discussionPoints が返される', 
 				capturedArgs.push(args);
 				return {
 					object: {
-						chapters: [{ title: '第1章', discussionPoints: ['論点1'] }]
+						chapters: [{ title: '第1章', agenda: ['論点1'] }]
 					}
 				} as never;
 			});
@@ -161,7 +162,7 @@ describe('Task 5.2: チャプター生成で discussionPoints が返される', 
 });
 
 describe('Task 5.2: 開幕発言に論点1が反映される（論点あり章）', () => {
-	it('discussionPoints がある章の開幕で論点1がプロンプトに含まれる', async () => {
+	it('agenda がある章の開幕で論点1がプロンプトに含まれる', async () => {
 		const capturedArgs: unknown[] = [];
 		const { generateObject } = await import('ai');
 		vi.mocked(generateObject).mockImplementationOnce(async (args) => {
@@ -174,18 +175,18 @@ describe('Task 5.2: 開幕発言に論点1が反映される（論点あり章�
 		// facilitator-agent のモックを解除して実際の実装を使う
 		const { generateOpening } = await import('../../agents/facilitator-agent.js');
 		vi.mocked(generateOpening).mockImplementationOnce(async (_title, _personas, chapter) => {
-			const promptText = `${chapter.discussionPoints?.join(' ')}`;
+			const promptText = `${chapter.agenda?.join(' ')}`;
 			capturedArgs.push({ system: promptText });
 			return {
 				ok: true,
-				value: { content: '開幕', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
+				value: { content: '開幕', targetPersonaId: 'p1', selectedAgendaItemIndex: 0 }
 			};
 		});
 
 		await generateOpening('統合テストテーマ', [mockPersona], {
 			id: 'ch1',
 			title: '第1章',
-			discussionPoints: ['日常感覚の問い', '具体的な論点']
+			agenda: ['日常感覚の問い', '具体的な論点']
 		});
 
 		const callArgs = capturedArgs[0] as { system: string };
@@ -193,15 +194,20 @@ describe('Task 5.2: 開幕発言に論点1が反映される（論点あり章�
 	});
 });
 
-describe('Task 5.2: 介入経路で未完了論点が渡され着手へ更新される', () => {
-	it('tryIntervention が未完了論点を evaluateTopicDrift に渡し、投入後 introduced になる', async () => {
-		const { evaluateTopicDrift } = await import('../../agents/facilitator-agent.js');
-		const driftSpy = vi.mocked(evaluateTopicDrift).mockResolvedValueOnce({
+describe('Task 5.2: 介入経路で未提示論点が渡され introduced へ更新される', () => {
+	it('progressAgenda が未提示論点を introduce 行動へ渡し、投入後 introduced になる', async () => {
+		const { assessActiveAgendaItem, generateInterventionUtterance } = await import(
+			'../../agents/facilitator-agent.js'
+		);
+		const assessSpy = vi
+			.mocked(assessActiveAgendaItem)
+			.mockResolvedValueOnce({ ok: true, value: { verdict: 'exhausted' } });
+		const utterSpy = vi.mocked(generateInterventionUtterance).mockResolvedValueOnce({
 			ok: true,
-			value: { content: '論点を投入', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
+			value: { content: '論点を投入', targetPersonaId: 'p1', selectedAgendaItemIndex: 0 }
 		});
 
-		const { tryIntervention } = await import('../../pipeline/debate/intervention.js');
+		const { progressAgenda } = await import('../../pipeline/debate/intervention.js');
 		const state = {
 			turns: [
 				{ id: 'f1', speakerType: 'facilitator', content: '開幕', createdAt: '' },
@@ -211,38 +217,38 @@ describe('Task 5.2: 介入経路で未完了論点が渡され着手へ更新さ
 			silenceMap: new Map<string, number>(),
 			speakCount: new Map<string, number>(),
 			queuedIntents: new Map(),
-			discussionPoints: [
+			agenda: [
 				{ point: '未消化論点X', status: 'untouched' as const },
 				{ point: '未消化論点Y', status: 'untouched' as const }
 			]
 		};
 
-		await tryIntervention({
+		await progressAgenda({
 			topicId: TOPIC_ID,
 			personas: [mockPersona],
 			chapter: {
 				id: 'ch1',
 				title: '章',
-				discussionPoints: ['未消化論点X', '未消化論点Y']
+				agenda: ['未消化論点X', '未消化論点Y']
 			},
+			chapterId: 'ch1',
 			state,
 			engagements: [],
 			interventionCooldown: 2,
 			trigger: { kind: 'no-target' }
 		});
 
-		// 5番目は activeFocus（introduced 不在のため章タイトル '章'）、6番目が untouched 候補リスト
-		expect(driftSpy).toHaveBeenCalledWith(
+		// 判定は introduced 不在のため章タイトル '章' を判断軸にする
+		expect(assessSpy).toHaveBeenCalledWith('章', expect.anything(), expect.anything());
+		// introduce 行動には未提示論点リストが渡る
+		expect(utterSpy).toHaveBeenCalledWith(
+			{ kind: 'introduce', untouchedAgendaItems: ['未消化論点X', '未消化論点Y'] },
 			expect.anything(),
 			expect.anything(),
-			expect.anything(),
-			expect.anything(),
-			'章',
-			['未消化論点X', '未消化論点Y'],
-			undefined
+			expect.anything()
 		);
 
-		expect(state.discussionPoints[0].status).toBe('introduced');
-		expect(state.discussionPoints[1].status).toBe('untouched');
+		expect(state.agenda[0].status).toBe('introduced');
+		expect(state.agenda[1].status).toBe('untouched');
 	});
 });

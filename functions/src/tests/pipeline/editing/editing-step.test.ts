@@ -156,7 +156,7 @@ describe('runChapterEditStep', () => {
 		holder.mock!.store.set('topics/t1/chapters/c1', {
 			chapterIndex: 0,
 			title: '第1章',
-			discussionPoints: ['論点'],
+			agenda: ['論点'],
 			turns: [
 				{ id: 't1', speakerType: 'persona', personaId: 'p1', content: '発言1', createdAt: 'TS' },
 				{ id: 't2', speakerType: 'persona', personaId: 'p1', content: '発言2', createdAt: 'TS' }
@@ -237,7 +237,7 @@ describe('runChapterEditStep', () => {
 		holder.mock!.store.set('topics/t1/chapters/c1', {
 			chapterIndex: 0,
 			title: '第1章',
-			discussionPoints: [],
+			agenda: [],
 			turns: []
 		});
 
@@ -273,7 +273,7 @@ describe('runImpressionsStep', () => {
 		holder.mock!.store.set('topics/t1/chapters/c1', {
 			chapterIndex: 0,
 			title: '第1章',
-			discussionPoints: [],
+			agenda: [],
 			turns: [{ id: 't1', speakerType: 'persona', personaId: 'p1', content: '発言', createdAt: 'TS' }]
 		});
 	});

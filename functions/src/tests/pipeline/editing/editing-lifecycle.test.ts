@@ -29,7 +29,7 @@ const makeChapter = (
 ): EditedChapterForFirestore => ({
 	chapterIndex,
 	title: `章${chapterIndex}`,
-	discussionPoints: [],
+	agenda: [],
 	turns: [],
 	status
 });

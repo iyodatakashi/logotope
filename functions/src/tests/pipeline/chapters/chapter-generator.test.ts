@@ -34,8 +34,8 @@ import { planChapters } from '../../../pipeline/chapters/chapter-generator.js';
 import type { Topic } from '../../../types/topic.types.js';
 
 const mockChapters = [
-	{ id: 'c1', title: '第1章', discussionPoints: ['論点A'] },
-	{ id: 'c2', title: '第2章', discussionPoints: [] }
+	{ id: 'c1', title: '第1章', agenda: ['論点A'] },
+	{ id: 'c2', title: '第2章', agenda: [] }
 ];
 
 const mockChaptersResult = {

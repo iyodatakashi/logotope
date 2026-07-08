@@ -1,8 +1,8 @@
 /**
  * step.ts のカバレッジ配線（5.1 / 5.2）を検証する。
- * - 5.1: 通常ターンのコミット後に現アクティブ論点へ話者を冪等記録し、saveDiscussionPointStatuses で永続化する。
+ * - 5.1: 通常ターンのコミット後に現アクティブ論点へ話者を冪等記録し、saveAgendaItemStatuses で永続化する。
  * - 5.2: オープニングの論点投入で、ファシリテーター返却の関連参加者を（有効IDへフィルタして）記録する。
- * discussion-points.js は実物を使い、I/O 依存（agents / turn / firestore 等）のみモックする。
+ * agenda.js は実物を使い、I/O 依存（agents / turn / firestore 等）のみモックする。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DebateState } from '../../../types/debate.types.js';
@@ -21,8 +21,7 @@ vi.mock('firebase-admin/firestore', () => ({
 
 vi.mock('../../../agents/facilitator-agent.js', () => ({
 	generateOpening: vi.fn(),
-	generateChapterIntroduction: vi.fn(),
-	evaluateDiscussionPointCoverage: vi.fn()
+	generateChapterIntroduction: vi.fn()
 }));
 vi.mock('../../../pipeline/debate/turn.js', () => ({
 	generateFacilitatorTurn: vi.fn(),
@@ -53,7 +52,7 @@ vi.mock('../../../pipeline/debate/debate-state.js', () => ({
 	updateSpeakerStats: vi.fn()
 }));
 vi.mock('../../../pipeline/debate/intervention.js', () => ({
-	tryIntervention: vi.fn().mockResolvedValue(false),
+	progressAgenda: vi.fn().mockResolvedValue('none'),
 	countConsecutivePersonaTargets: vi.fn(() => 0)
 }));
 
@@ -69,28 +68,29 @@ import {
 	evaluateEngagements,
 	evaluateEngagementWithFallback
 } from '../../../pipeline/debate/engagement.js';
+import { progressAgenda } from '../../../pipeline/debate/intervention.js';
 
 const personas: Persona[] = [
 	{ id: 'p1', name: 'P1' } as Persona,
 	{ id: 'p2', name: 'P2' } as Persona
 ];
 
-const makeChapter = (discussionPoints: string[] = []): Chapter => ({
+const makeChapter = (agenda: string[] = []): Chapter => ({
 	id: 'ch1',
 	title: 'テスト章',
-	discussionPoints
+	agenda
 });
 
 const makeState = (
 	turns: DebateTurn[] = [],
-	discussionPoints: DebateState['discussionPoints'] = []
+	agenda: DebateState['agenda'] = []
 ): DebateState => ({
 	turns: [...turns],
 	lastSpeakerId: undefined,
 	silenceMap: new Map(),
 	speakCount: new Map(),
 	queuedIntents: new Map(),
-	discussionPoints
+	agenda
 });
 
 const makeCtx = (overrides: Partial<StepContext>): StepContext => {
@@ -99,7 +99,7 @@ const makeCtx = (overrides: Partial<StepContext>): StepContext => {
 		id: 'ch1',
 		chapterIndex: 0,
 		title: 'テスト章',
-		discussionPoints: chapter.discussionPoints,
+		agenda: chapter.agenda,
 		turns: [],
 		status: 'pending'
 	};
@@ -137,7 +137,7 @@ describe('performOpenStep - 関連参加者記録の配線（5.2）', () => {
 			value: {
 				content: '問いかけ',
 				targetPersonaId: 'p1',
-				selectedDiscussionPointIndex: 0,
+				selectedAgendaItemIndex: 0,
 				relevantPersonaIds: ['p1', 'p2', 'pX'] // pX は非参加者 → フィルタされる
 			}
 		});
@@ -146,10 +146,78 @@ describe('performOpenStep - 関連参加者記録の配線（5.2）', () => {
 		const ctx = makeCtx({ chapter: makeChapter(['論点1']) });
 		await performOpenStep(ctx, makePayload({ stepKind: 'open' }));
 
-		const active = ctx.state.discussionPoints[0];
+		const active = ctx.state.agenda[0];
 		expect(active.status).toBe('introduced');
 		expect(active.relevantPersonaIds).toEqual(['p1', 'p2']);
 		expect(active.spokenPersonaIds).toEqual([]);
+	});
+});
+
+describe('performTurnStep - 早期終了間際の継続保護（非LLM・Task 4）', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.mocked(generatePersonaTurn).mockResolvedValue({
+			status: 'committed',
+			personaId: 'p1',
+			turnId: 'tn1',
+			beliefChange: null,
+			queuedEntries: []
+		} as never);
+	});
+
+	const options = { turnsPerChapter: 4, maxTurns: 100, interventionCooldown: 2 };
+
+	// 章ローカル3ターン（turnsPerChapter=4 → 早期閾値 ceil(3)=3）で早期終了圏に入れる
+	const earlyEndCtx = (agenda: DebateState['agenda']): StepContext => {
+		const turns: DebateTurn[] = [
+			{ id: 't0', speakerType: 'facilitator', content: '導入', createdAt: '' },
+			{ id: 't1', speakerType: 'persona', content: '1', createdAt: '' },
+			{ id: 't2', speakerType: 'persona', content: '2', createdAt: '' }
+		];
+		const chapterDoc: ChapterEntry = {
+			id: 'ch1',
+			chapterIndex: 0,
+			title: 'テスト章',
+			agenda: agenda.map((a) => a.point),
+			turns,
+			status: 'running'
+		};
+		return makeCtx({
+			chapterDoc,
+			state: makeState(turns, agenda),
+			chapterTurnStartInState: 0,
+			quietStreak: 4 // 低意欲コミットで +1 → 5（QUIET_STREAK_LIMIT）で早期終了圏
+		});
+	};
+
+	it('未消化論点が残るなら quietStreak を 0 に戻して継続する（消化判定LLMを呼ばない）', async () => {
+		vi.mocked(evaluateEngagements).mockResolvedValueOnce([
+			{ personaId: 'p1', score: 1, mode: 'none' }
+		] as never);
+
+		const ctx = earlyEndCtx([{ point: '論点A', status: 'introduced' }]);
+		const result = await performTurnStep(
+			ctx,
+			makePayload({ stepKind: 'turn', expectedTurnIndex: 3 }),
+			options
+		);
+
+		expect(result).toEqual({ status: 'advanced', quietStreak: 0 });
+	});
+
+	it('全論点が addressed なら継続保護は働かず早期終了カウンタを維持する', async () => {
+		vi.mocked(evaluateEngagements).mockResolvedValueOnce([
+			{ personaId: 'p1', score: 1, mode: 'none' }
+		] as never);
+
+		const ctx = earlyEndCtx([{ point: '論点A', status: 'addressed' }]);
+		const result = await performTurnStep(
+			ctx,
+			makePayload({ stepKind: 'turn', expectedTurnIndex: 3 }),
+			options
+		);
+
+		expect(result).toEqual({ status: 'advanced', quietStreak: 5 });
 	});
 });
 
@@ -184,7 +252,7 @@ describe('performTurnStep - 発言者記録の配線（5.1）', () => {
 			id: 'ch1',
 			chapterIndex: 0,
 			title: 'テスト章',
-			discussionPoints: ['論点C'],
+			agenda: ['論点C'],
 			turns: [{ id: 't0', speakerType: 'facilitator', content: '導入', createdAt: '' }],
 			status: 'running'
 		};
@@ -196,8 +264,8 @@ describe('performTurnStep - 発言者記録の配線（5.1）', () => {
 			interventionCooldown: 2
 		});
 
-		expect(ctx.state.discussionPoints[0].spokenPersonaIds).toContain('p1');
-		// state ベースの書き出しで永続化される（discussionPointStatuses の update が呼ばれる）
+		expect(ctx.state.agenda[0].spokenPersonaIds).toContain('p1');
+		// state ベースの書き出しで永続化される（agendaItemStatuses の update が呼ばれる）
 		expect(mockUpdate).toHaveBeenCalled();
 	});
 });
@@ -277,7 +345,7 @@ describe('performTurnStep - 章末+1（freeze）の指名者のみ評価（2.1�
 			id: 'ch1',
 			chapterIndex: 0,
 			title: 'テスト章',
-			discussionPoints: [],
+			agenda: [],
 			turns: [targetedTurn],
 			status: 'running'
 		};
@@ -299,6 +367,46 @@ describe('performTurnStep - 章末+1（freeze）の指名者のみ評価（2.1�
 	});
 });
 
+describe('performTurnStep - 最後の論点消化のみ（committed-no-turn・Task 5）', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.mocked(evaluateEngagements).mockResolvedValue([]);
+	});
+
+	it('progressAgenda が chapter-exhausted なら、ペルソナ発言を生成せず chapter-exhausted を返す', async () => {
+		vi.mocked(progressAgenda).mockResolvedValueOnce('chapter-exhausted');
+
+		// 末尾に未応答指名なし（no-target トリガー）で介入評価まで到達させる
+		const opening: DebateTurn = {
+			id: 't0',
+			speakerType: 'facilitator',
+			content: '導入',
+			createdAt: ''
+		};
+		const state = makeState([opening], [{ point: '論点A', status: 'introduced', introducedOrder: 1 }]);
+		const chapterDoc: ChapterEntry = {
+			id: 'ch1',
+			chapterIndex: 0,
+			title: 'テスト章',
+			agenda: ['論点A'],
+			turns: [opening],
+			status: 'running'
+		};
+		const ctx = makeCtx({ chapterDoc, state, chapterTurnStartInState: 0, quietStreak: 2 });
+
+		const result = await performTurnStep(
+			ctx,
+			makePayload({ stepKind: 'turn', expectedTurnIndex: 1 }),
+			{ turnsPerChapter: 10, maxTurns: 100, interventionCooldown: 2 }
+		);
+
+		// 余計なペルソナ発言は生成しない
+		expect(vi.mocked(generatePersonaTurn)).not.toHaveBeenCalled();
+		// 章終了へ渡すシグナルを返す（quietStreak は据え置く）
+		expect(result).toEqual({ status: 'chapter-exhausted', quietStreak: 2 });
+	});
+});
+
 describe('completeChapterStep - 章末の完了確定＋論点クリーンアップ（生成なし）', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -309,7 +417,7 @@ describe('completeChapterStep - 章末の完了確定＋論点クリーンアッ
 			id: 'ch1',
 			chapterIndex: 0,
 			title: 'テスト章',
-			discussionPoints: ['論点A'],
+			agenda: ['論点A'],
 			turns: [{ id: 't0', speakerType: 'facilitator', content: '導入', createdAt: '' }],
 			status: 'running'
 		};
@@ -320,8 +428,8 @@ describe('completeChapterStep - 章末の完了確定＋論点クリーンアッ
 		expect(result).toBe(true);
 		// 章 completed 確定
 		expect(vi.mocked(updateChapterStatus)).toHaveBeenCalledWith('topic1', 'ch1', 'completed');
-		// 論点状態クリーンアップ（discussionPointStatuses の delete で update される）
-		expect(mockUpdate).toHaveBeenCalledWith({ discussionPointStatuses: 'DELETE' });
+		// 論点状態クリーンアップ（agendaItemStatuses の delete で update される）
+		expect(mockUpdate).toHaveBeenCalledWith({ agendaItemStatuses: 'DELETE' });
 		// LLM 生成・ターン追記は一切行わない
 		expect(vi.mocked(generateFacilitatorTurn)).not.toHaveBeenCalled();
 		expect(vi.mocked(generatePersonaTurn)).not.toHaveBeenCalled();

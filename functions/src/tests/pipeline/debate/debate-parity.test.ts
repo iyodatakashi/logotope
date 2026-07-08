@@ -37,15 +37,13 @@ vi.mock('../../../agents/persona-agent.js', () => ({
 	generateImpression: vi.fn(async () => ({ ok: true, value: { content: 'comment' } }))
 }));
 
-const mockEvaluateTopicDrift = vi.fn();
-const mockEvaluateStallIntervention = vi.fn();
-const mockEvaluateCoverage = vi.fn();
+const mockAssessAgenda = vi.fn();
+const mockGenerateUtterance = vi.fn();
 vi.mock('../../../agents/facilitator-agent.js', () => ({
 	generateOpening: vi.fn(async () => ({ ok: true, value: { content: 'opening' } })),
 	generateChapterIntroduction: vi.fn(async () => ({ ok: true, value: { content: 'intro' } })),
-	evaluateTopicDrift: (...a: unknown[]) => mockEvaluateTopicDrift(...a),
-	evaluateStallIntervention: (...a: unknown[]) => mockEvaluateStallIntervention(...a),
-	evaluateDiscussionPointCoverage: (...a: unknown[]) => mockEvaluateCoverage(...a)
+	assessActiveAgendaItem: (...a: unknown[]) => mockAssessAgenda(...a),
+	generateInterventionUtterance: (...a: unknown[]) => mockGenerateUtterance(...a)
 }));
 
 const mockEvaluateEngagements = vi.fn();
@@ -89,7 +87,7 @@ import { advanceDebate } from '../../../pipeline/debate/debate-orchestrator.js';
 const TOPIC_ID = 'topic1';
 const RUN_ID = 'run1';
 
-type SeedChapter = { id: string; chapterIndex: number; discussionPoints: string[] };
+type SeedChapter = { id: string; chapterIndex: number; agenda: string[] };
 
 const seedStore = (chapters: SeedChapter[]) => {
 	holder.mock = createFirestoreMock();
@@ -103,7 +101,7 @@ const seedStore = (chapters: SeedChapter[]) => {
 		holder.mock.store.set(`topics/${TOPIC_ID}/chapters/${ch.id}`, {
 			chapterIndex: ch.chapterIndex,
 			title: `章${ch.chapterIndex}`,
-			discussionPoints: ch.discussionPoints,
+			agenda: ch.agenda,
 			turns: [],
 			status: 'pending'
 		});
@@ -172,13 +170,16 @@ describe('行動等価性: 旧 while ループ vs 新 per-turn チェーン', ()
 			ok: true,
 			value: { content: 'turn', speechMode: 'opinion', beliefChange: null }
 		}));
-		mockEvaluateTopicDrift.mockResolvedValue({ ok: true, value: { content: undefined } });
-		mockEvaluateStallIntervention.mockResolvedValue({ ok: true, value: { content: undefined } });
-		mockEvaluateCoverage.mockResolvedValue({ ok: true, value: [] });
+		// 既定は継続（ongoing）＝介入しない
+		mockAssessAgenda.mockResolvedValue({ ok: true, value: { verdict: 'ongoing' } });
+		mockGenerateUtterance.mockResolvedValue({
+			ok: true,
+			value: { content: '介入', targetPersonaId: 'p2' }
+		});
 	});
 
 	it('論点なし単一章: ターン列ゴールデン', async () => {
-		const chapters: SeedChapter[] = [{ id: 'ch1', chapterIndex: 0, discussionPoints: [] }];
+		const chapters: SeedChapter[] = [{ id: 'ch1', chapterIndex: 0, agenda: [] }];
 		const seq = await runNewChain(chapters);
 		expect(seq.length).toBeGreaterThan(0);
 		// 各 index に1ターンのみ・終端まで進む（重複なし）
@@ -187,29 +188,28 @@ describe('行動等価性: 旧 while ループ vs 新 per-turn チェーン', ()
 
 	it('論点なし複数章: 章遷移を含むターン列ゴールデン', async () => {
 		const chapters: SeedChapter[] = [
-			{ id: 'ch1', chapterIndex: 0, discussionPoints: [] },
-			{ id: 'ch2', chapterIndex: 1, discussionPoints: [] }
+			{ id: 'ch1', chapterIndex: 0, agenda: [] },
+			{ id: 'ch2', chapterIndex: 1, agenda: [] }
 		];
 		const seq = await runNewChain(chapters);
 		expect(seq).toMatchSnapshot();
 	});
 
-	it('論点あり単一章（カバレッジ評価経路）: ターン列ゴールデン', async () => {
+	it('論点あり単一章（未消化継続保護）: ターン列ゴールデン', async () => {
 		const chapters: SeedChapter[] = [
-			{ id: 'ch1', chapterIndex: 0, discussionPoints: ['論点A', '論点B'] }
+			{ id: 'ch1', chapterIndex: 0, agenda: ['論点A', '論点B'] }
 		];
-		// 低意欲を返して早期終了カウンタを進め、カバレッジ評価を発火させる
+		// 低意欲でも、論点が消化されない間は継続保護（非LLM）で早期終了せず cap まで進む
 		mockEvaluateEngagements.mockImplementation(async () => [
 			{ personaId: 'p1', score: 2, mode: 'opinion' },
 			{ personaId: 'p2', score: 2, mode: 'opinion' }
 		]);
-		mockEvaluateCoverage.mockResolvedValue({ ok: true, value: [0, 1] });
 		const seq = await runNewChain(chapters);
 		expect(seq).toMatchSnapshot();
 	});
 
 	it('指名（直接質問）が連続する章: +1 最終応答を含むターン列ゴールデン', async () => {
-		const chapters: SeedChapter[] = [{ id: 'ch1', chapterIndex: 0, discussionPoints: [] }];
+		const chapters: SeedChapter[] = [{ id: 'ch1', chapterIndex: 0, agenda: [] }];
 		// 各ペルソナが相手を指名し続ける → 指名駆動の順序＋章末 +1 応答を再現
 		mockGenerateTurn.mockImplementation(async (persona: { id: string }) => ({
 			ok: true,
@@ -226,19 +226,16 @@ describe('行動等価性: 旧 while ループ vs 新 per-turn チェーン', ()
 	});
 
 	it('介入が発火する章: ファシリテーター介入を含むターン列ゴールデン', async () => {
-		const chapters: SeedChapter[] = [{ id: 'ch1', chapterIndex: 0, discussionPoints: ['論点A'] }];
-		// 低意欲 → スタール介入が発火する
+		const chapters: SeedChapter[] = [{ id: 'ch1', chapterIndex: 0, agenda: ['論点A'] }];
+		// 低意欲 + 論点ずれ判定 → 引き戻し介入が発火する
 		mockEvaluateEngagements.mockImplementation(async () => [
 			{ personaId: 'p1', score: 1, mode: 'none' },
 			{ personaId: 'p2', score: 1, mode: 'none' }
 		]);
-		mockEvaluateStallIntervention.mockResolvedValue({
+		mockAssessAgenda.mockResolvedValue({ ok: true, value: { verdict: 'drifted' } });
+		mockGenerateUtterance.mockResolvedValue({
 			ok: true,
-			value: {
-				content: '介入',
-				targetPersonaId: undefined,
-				selectedDiscussionPointIndex: undefined
-			}
+			value: { content: '介入', targetPersonaId: 'p2' }
 		});
 		const seq = await runNewChain(chapters);
 		expect(seq).toMatchSnapshot();

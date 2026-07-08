@@ -64,8 +64,8 @@ const outroInstruction = `これは番組の最後に、司会者が視聴者へ
 const formatDigestBrief = (digest: DebateDigest): string => {
 	const chapters = digest.chapters
 		.map((chapter, i) => {
-			const points = chapter.discussionPoints.length
-				? `\n  論点: ${chapter.discussionPoints.join(' / ')}`
+			const points = chapter.agenda.length
+				? `\n  論点: ${chapter.agenda.join(' / ')}`
 				: '';
 			return `第${i + 1}章「${chapter.title}」${points}`;
 		})
@@ -79,8 +79,8 @@ const formatDigestBrief = (digest: DebateDigest): string => {
 const formatDigestFull = (digest: DebateDigest): string => {
 	const chapters = digest.chapters
 		.map((chapter, i) => {
-			const points = chapter.discussionPoints.length
-				? `\n  論点: ${chapter.discussionPoints.join(' / ')}`
+			const points = chapter.agenda.length
+				? `\n  論点: ${chapter.agenda.join(' / ')}`
 				: '';
 			return `第${i + 1}章「${chapter.title}」${points}\n  ${chapter.summary}`;
 		})

@@ -153,7 +153,7 @@ const makeState = () => ({
 	silenceMap: new Map(),
 	speakCount: new Map(),
 	queuedIntents: new Map(),
-	discussionPoints: []
+	agenda: []
 });
 
 const draftReply = (overrides: Record<string, unknown> = {}) => ({

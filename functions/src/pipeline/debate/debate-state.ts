@@ -1,7 +1,7 @@
 import type { QueuedIntent, DebateState } from '../../types/debate.types.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
-import type { DiscussionPointState } from '../../types/chapter.types.js';
+import type { AgendaItemState } from '../../types/chapter.types.js';
 import { INTENT_EXPIRY_TURNS } from '../../constants/debate.constants.js';
 
 /**
@@ -12,7 +12,7 @@ export const getDebateState = (
 	inputTurns: ReadonlyArray<DebateTurn>,
 	personas: ReadonlyArray<Persona>,
 	persistedQueuedIntents: ReadonlyMap<string, ReadonlyArray<QueuedIntent>>,
-	discussionPoints: DiscussionPointState[] = []
+	agenda: AgendaItemState[] = []
 ): DebateState => {
 	const turns = [...inputTurns];
 
@@ -67,7 +67,7 @@ export const getDebateState = (
 		speakCount,
 		lastSpeakerId,
 		queuedIntents,
-		discussionPoints
+		agenda
 	};
 };
 

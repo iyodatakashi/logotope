@@ -37,53 +37,161 @@ const facilitatorReplyWithTargetSchema = z.object({
 	relevantPersonaIds: z.array(z.string()).nullish()
 });
 
-const interventionSchema = z.object({
-	targetPersonaId: z.string().optional(),
-	content: z.string().optional(),
-	selectedDiscussionPointIndex: z.number().optional(),
-	relevantPersonaIds: z.array(z.string()).nullish()
+export type AgendaAssessment =
+	| { verdict: 'exhausted' } // 主要な意見・対立が出て新規性が尽きた
+	| { verdict: 'drifted' } // 会話が active 項目から逸脱している
+	| { verdict: 'ongoing' }; // まだ深まっている＝介入不要
+
+const agendaAssessmentSchema = z.object({
+	verdict: z.enum(['exhausted', 'drifted', 'ongoing'])
 });
 
-const coverageSchema = z.object({
-	addressedIndices: z.array(z.number()).nullish()
-});
-
-const runInterventionCheck = async (
-	turns: DebateTurn[],
-	personas: Persona[],
-	currentChapter: Chapter | undefined,
-	activeFocus: string | undefined,
-	criteriaSection: string
-): Promise<Result<FacilitatorReply, PipelineError>> => {
+/**
+ * 判定のみ（行動なし）: アクティブなアジェンダ項目と直近の会話から
+ * 「出尽くし(exhausted) / 論点ずれ(drifted) / 継続(ongoing)」の3値を返す純粋判定。
+ * content・項目選択・指名は生成しない（融合介入から判定ロジックのみを抽出）。
+ */
+export const assessActiveAgendaItem = async (
+	activeAgendaItem: string,
+	recentTurns: DebateTurn[],
+	personas: Persona[]
+): Promise<Result<AgendaAssessment, PipelineError>> => {
 	try {
-		// 判断軸は呼び出し側が解決したアクティブ論点（不在時は章タイトル）。不在なら章タイトルへフォールバック
-		const focus = activeFocus ?? currentChapter?.title;
-		const chapterContext = currentChapter
-			? `\n\n【この章のミッション】「${currentChapter.title}」\nいまの論点: ${focus}\n司会の役割: この章の間、会話が常にこのいまの論点に関連するよう誘導する。`
-			: '';
-
 		const result = await generateObject({
 			model: anthropic(AI_MODELS.SONNET),
 			system: buildNeutralitySystemPrompt(),
-			schema: interventionSchema,
+			schema: agendaAssessmentSchema,
 			messages: [
 				{
 					role: 'user',
-					content: `現在の討論を評価し、司会として介入すべきか判断してください。\n\n会話履歴（現在の章のみ）:\n${formatTurns(turns.slice(-20), personas)}\n\n参加者:\n${formatPersonas(personas)}${chapterContext}${criteriaSection}`
+					content: `現在の討論を評価し、いまの論点「${activeAgendaItem}」の状態を判定してください。発言の生成や次の論点の選択・指名は行わず、判定だけを返してください。\n\n会話履歴（現在の章のみ）:\n${formatTurns(recentTurns.slice(-20), personas)}\n\n参加者:\n${formatPersonas(personas)}\n\n【三択判定】会話の流れを踏まえ、次のいずれかを verdict として返してください:\n- exhausted: いまの論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）\n- drifted: 会話がいまの論点から明確に逸脱している（別の話題にずれて流れている）\n- ongoing: まだ新しい視点・反論・具体例が出ており、本題に沿って議論が深まっている最中（介入不要）\n\nexhausted と ongoing を混同しないこと。直前の流れをもう少し深掘りしたい・流れが生きていると感じるなら ongoing を選んでください。`
 				}
 			]
 		});
 
-		const { content, targetPersonaId, selectedDiscussionPointIndex, relevantPersonaIds } =
-			result.object;
+		return { ok: true, value: { verdict: result.object.verdict } };
+	} catch (err) {
+		const message = err instanceof Error ? err.message : String(err);
+		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+	}
+};
+
+export type InterventionAction =
+	| { kind: 'introduce'; untouchedAgendaItems: string[] } // リストから1件選び投入
+	| { kind: 'pull-back'; activeAgendaItem: string } // active へ引き戻す
+	| { kind: 'bring-in'; activeAgendaItem: string; unheardRelevant: string[] }; // 未発言の関連参加者を active へ引き込む
+
+export type InterventionUtterance = {
+	content: string;
+	targetPersonaId: string;
+	selectedAgendaItemIndex?: number; // introduce のときのみ（untouched リスト上の index）
+	relevantPersonaIds?: string[]; // introduce のときのみ
+};
+
+const introduceUtteranceSchema = z.object({
+	content: z.string(),
+	targetPersonaId: z.string(),
+	selectedAgendaItemIndex: z.number(),
+	relevantPersonaIds: z.array(z.string()).nullish()
+});
+
+const utteranceSchema = z.object({
+	content: z.string(),
+	targetPersonaId: z.string()
+});
+
+/**
+ * 行動（発言生成）: 決定済みの介入行動について司会発言・指名先・関連参加者を生成する。
+ * - introduce: 未提示リスト内の1件を選び、その論点そのものに正面から切り込む問いを返す（折衷禁止・リスト外発明禁止）。リストが空なら発言を生成しない。
+ * - pull-back: active 論点へ引き戻す（項目投入・消化はしない）。
+ * - bring-in: 未発言の関連参加者を指名し active 論点を維持する（項目投入・消化はしない）。
+ */
+export const generateInterventionUtterance = async (
+	action: InterventionAction,
+	chapter: Chapter,
+	recentTurns: DebateTurn[],
+	personas: Persona[]
+): Promise<Result<InterventionUtterance, PipelineError>> => {
+	const baseContext = `【この章のミッション】「${chapter.title}」\n\n会話履歴（現在の章のみ）:\n${formatTurns(
+		recentTurns.slice(-20),
+		personas
+	)}\n\n参加者:\n${formatPersonas(personas)}`;
+
+	try {
+		if (action.kind === 'introduce') {
+			// リストが空なら投入行動は起こさない（LLM を呼ばずに終える）
+			if (action.untouchedAgendaItems.length === 0) {
+				return {
+					ok: false,
+					error: {
+						code: 'VALIDATION_ERROR',
+						message: '未提示論点が無いため投入発言は生成できません',
+						field: 'untouchedAgendaItems'
+					}
+				};
+			}
+			const pointsList = action.untouchedAgendaItems
+				.map((point, i) => `${i}. ${point}`)
+				.join('\n');
+			const result = await generateObject({
+				model: anthropic(AI_MODELS.SONNET),
+				system: buildNeutralitySystemPrompt(),
+				schema: introduceUtteranceSchema,
+				messages: [
+					{
+						role: 'user',
+						content: `いまの論点は出尽くしました。次の未提示論点を1件だけ投入し、その論点そのものに正面から切り込む問いで議論を前進させてください。\n\n${baseContext}\n\n【未提示論点リスト（インデックス順）】\n${pointsList}\n\n手順:\n(1) 上記リストから投入する論点を1件選び、selectedAgendaItemIndex にそのインデックスを指定する（リスト外の論点を作らないこと）。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する。\n(3) content は、selectedAgendaItemIndex で選んだ論点そのものを主題として正面から切り込む問いにする。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」と名前で呼びかけ、その論点に話を完全に切り替えること。直前までの会話の流れを引きずった問いや、新論点の語を端々に混ぜつつ実質は流れの続きになっている中途半端な折衷は禁止です。\n(4) relevantPersonaIds に、この新しい論点について特に立場を聞くべき参加者のIDを列挙する。全員を一律に含めず、その論点に関係する参加者に絞ってください。`
+					}
+				]
+			});
+			const { content, targetPersonaId, selectedAgendaItemIndex, relevantPersonaIds } =
+				result.object;
+			return {
+				ok: true,
+				value: {
+					content,
+					targetPersonaId,
+					selectedAgendaItemIndex,
+					relevantPersonaIds: relevantPersonaIds ?? undefined
+				}
+			};
+		}
+
+		if (action.kind === 'bring-in') {
+			const result = await generateObject({
+				model: anthropic(AI_MODELS.SONNET),
+				system: buildNeutralitySystemPrompt(),
+				schema: utteranceSchema,
+				messages: [
+					{
+						role: 'user',
+						content: `【立場カバレッジ（最優先）】いまの論点「${action.activeAgendaItem}」について、まだ立場を聞けていない参加者が残っています: ${action.unheardRelevant.join(
+							'、'
+						)}。\n新しい論点を投入せず、いまの論点を維持したまま、上記の未発言者の中から1人を選んで targetPersonaId にそのIDを設定し、content で「○○さん、〜についてはどうですか？」と名前で呼びかけて、その論点に対する立場を引き出してください。\n\n${baseContext}`
+					}
+				]
+			});
+			return {
+				ok: true,
+				value: { content: result.object.content, targetPersonaId: result.object.targetPersonaId }
+			};
+		}
+
+		// pull-back
+		const result = await generateObject({
+			model: anthropic(AI_MODELS.SONNET),
+			system: buildNeutralitySystemPrompt(),
+			schema: utteranceSchema,
+			messages: [
+				{
+					role: 'user',
+					content: `会話がいまの論点「${action.activeAgendaItem}」から逸脱しています。新しい論点は投入せず、いまの論点へ引き戻してください。\n\n${baseContext}\n\nふさわしい参加者を1人選んで targetPersonaId に設定し、content は「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻し・振り直しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて、いまの論点について具体的に問いかけてください。`
+				}
+			]
+		});
 		return {
 			ok: true,
-			value: {
-				content,
-				targetPersonaId,
-				selectedDiscussionPointIndex,
-				relevantPersonaIds: relevantPersonaIds ?? undefined
-			}
+			value: { content: result.object.content, targetPersonaId: result.object.targetPersonaId }
 		};
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
@@ -98,10 +206,10 @@ export const generateOpening = async (
 	factBase?: FactBase
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	try {
-		const hasPoints = (firstChapter?.discussionPoints?.length ?? 0) > 0;
+		const hasPoints = (firstChapter?.agenda?.length ?? 0) > 0;
 		// 入口は先頭論点を唯一の切り口にする。論点を持たない章は章タイトルを入口にする
 		const entryPoint =
-			hasPoints && firstChapter ? firstChapter.discussionPoints[0] : firstChapter?.title;
+			hasPoints && firstChapter ? firstChapter.agenda[0] : firstChapter?.title;
 		const entryContext = entryPoint
 			? `\n\n第1章「${firstChapter!.title}」の入口となる問い: ${entryPoint}。この問いを最初の問いかけの切り口として使ってください。`
 			: '';
@@ -125,7 +233,7 @@ export const generateOpening = async (
 			value: {
 				content,
 				targetPersonaId,
-				selectedDiscussionPointIndex: hasPoints ? 0 : undefined,
+				selectedAgendaItemIndex: hasPoints ? 0 : undefined,
 				relevantPersonaIds: relevantPersonaIds ?? undefined
 			}
 		};
@@ -135,89 +243,15 @@ export const generateOpening = async (
 	}
 };
 
-/**
- * 立場カバレッジ・セクション: 未発言の関連参加者が残るとき、新論点を投入させず同論点を維持して
- * その中の1人を名前で指名し立場を問わせる。出尽くし（新規性のなさ）だけでは前進させない（二軸化）。
- */
-const buildCoverageSection = (unheardRelevant: string[]): string =>
-	unheardRelevant.length === 0
-		? ''
-		: `\n\n【立場カバレッジ（最優先）】いまの論点について、まだ立場を聞けていない参加者が残っています: ${unheardRelevant.join('、')}。\nこの場合は新しい論点を投入せず（selectedDiscussionPointIndex は省略）、いまの論点を維持したまま、上記の未発言者の中から1人を選んで targetPersonaId にそのIDを設定し、content で「○○さん、〜についてはどうですか？」と名前で呼びかけてその論点に対する立場を引き出してください。\n出尽くし（応酬に新規性・発展性がないこと）だけを理由に次の論点へ進めないこと。立場がまだ出そろっていない間は前進させません。`;
-
-/** A（論点ずれ＋出尽くし）: 会話の逸脱、または応酬の発展性が尽きたときに介入し、論点を引き戻す／次論点を投入する。指名済みターンでも上書きしうる */
-export const evaluateTopicDrift = async (
-	turns: DebateTurn[],
-	personas: Persona[],
-	speakCount: Map<string, number> = new Map(),
-	currentChapter?: Chapter,
-	activeFocus?: string,
-	untouchedDiscussionPoints?: string[],
-	options?: { chainLength?: number; unheardRelevant?: string[] }
-): Promise<Result<FacilitatorReply, PipelineError>> => {
-	const speakCountInfo = personas
-		.map((persona) => `${persona.name}: ${speakCount.get(persona.id) ?? 0}回`)
-		.join(', ');
-
-	const focus = activeFocus ?? currentChapter?.title;
-	const hasPoints = (untouchedDiscussionPoints?.length ?? 0) > 0;
-	const pointsContext = hasPoints
-		? `\n\n【未提示論点リスト（インデックス順）】\n${untouchedDiscussionPoints!.map((point, i) => `${i}. ${point}`).join('\n')}\n\n【三択判断】会話の流れを踏まえ、次のいずれかを選んでください:\n1. 会話がいまの論点から明確に逸脱している（別の話題に流れている）→ 引き戻す（content・targetPersonaId を指定。selectedDiscussionPointIndex は省略）\n2. いまの論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）→ 未提示論点を1件投入して議論を前進させる（content・targetPersonaId・selectedDiscussionPointIndex を指定）。投入すべき未提示論点が無ければいまの論点へ引き戻し・振り直す\n3. まだ新しい視点・反論・具体例が出ており、本題に沿って議論が深まっている最中 → 介入しない（content・targetPersonaId を省略）\n\n論点を投入する場合は selectedDiscussionPointIndex に上記リストのインデックスを指定してください。\n\n【選択肢2を選ぶ場合の必須要件】content は、selectedDiscussionPointIndex で選んだ未提示論点そのものに正面から切り込む問いにしてください。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」と名前で呼びかけ、その論点を主題として話を完全に切り替えること。直前までの会話の流れ（いまの論点）を引きずった問いや、新論点の語を端々に混ぜつつ実質は流れの続きになっている中途半端な問いにしないでください。\n\n【関連参加者の指定】選択肢2で論点を投入する場合は、その新しい論点について特に立場を聞くべき参加者のIDを relevantPersonaIds に列挙してください。全員を一律に含めず、その論点に関係する参加者に絞ってください。\n\n【混ぜない】選択肢2と3を混同しないこと。直前の流れをもう少し深掘りしたい・流れが生きていると感じるなら選択肢3（介入しない）を選んでください。論点を切り替えるなら選択肢2を選び、その新論点に話を全面的に移してください。「端は新論点・本題は流れの続き」という折衷は禁止です。`
-		: '';
-
-	const fallbackCriteria = hasPoints
-		? ''
-		: '\n\n会話の流れを踏まえ、次のいずれかに当てはまる場合に介入してください。(1) 会話がいまの論点から明確に逸脱している（別の話題に流れている）。(2) いまの論点について主要な意見や対立がひととおり出ており、最近のやり取りが新しい視点・反論・具体例を加えていない（応酬に新たな発展性がない＝出尽くし）。まだ新しい視点・反論・具体例が出て議論が深まっている最中なら介入せず、content と targetPersonaId は省略してください。\n\n介入する場合は、いまの論点に引き戻す問いを決め、ふさわしい参加者を1人選んで targetPersonaId に設定してください。content は、まず話が逸れている／堂々巡りになっていることに触れて「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻し・振り直しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて具体的に問いかけてください。';
-
-	const unheardRelevant = options?.unheardRelevant ?? [];
-	const coverageSection = buildCoverageSection(unheardRelevant);
-
-	const chainLength = options?.chainLength ?? 0;
-	const chainSignal =
-		chainLength > 0
-			? unheardRelevant.length > 0
-				? `\n\n【補足シグナル】同じ相手への指名が ${chainLength} 回連続しています。これは出尽くしではなく、まず未発言の関連参加者を同じ論点へ引き込むことを検討すべきシグナルです。未発言者が残る間は新しい論点へ進めず、引き込みを優先してください。`
-				: `\n\n【補足シグナル】同じ相手への指名が ${chainLength} 回連続しています。同じ主張の往復が続いていないか、新しい視点・反論・具体例が加わっているかを、出尽くし判断の参考にしてください。`
-			: '';
-
-	const criteria = `\n\n累計発言数: ${speakCountInfo}${pointsContext}${fallbackCriteria}${coverageSection}${chainSignal}`;
-	return runInterventionCheck(turns, personas, currentChapter, focus, criteria);
-};
-
-/** B（出尽くし）: 今の論点で議論が落ち着いたとき、まだ議論されていない新しい論点に切り替えて次の話者を振る */
-export const evaluateStallIntervention = async (
-	turns: DebateTurn[],
-	personas: Persona[],
-	speakCount: Map<string, number> = new Map(),
-	currentChapter?: Chapter,
-	activeFocus?: string,
-	untouchedDiscussionPoints?: string[],
-	options?: { unheardRelevant?: string[] }
-): Promise<Result<FacilitatorReply, PipelineError>> => {
-	const speakCountInfo = personas
-		.map((persona) => `${persona.name}: ${speakCount.get(persona.id) ?? 0}回`)
-		.join(', ');
-
-	const focus = activeFocus ?? currentChapter?.title;
-	const hasPoints = (untouchedDiscussionPoints?.length ?? 0) > 0;
-	const pointsContext = hasPoints
-		? `\n\n【未提示論点リスト（インデックス順）】\n${untouchedDiscussionPoints!.map((point, i) => `${i}. ${point}`).join('\n')}\n\n流れが有効な方向に進んでいればそれを優先してください。流れが落ち着いていれば未提示論点から最適な1件を投入し、selectedDiscussionPointIndex に該当インデックスを指定してください。1介入1論点です。\n\n論点を投入する場合は、その新しい論点について特に立場を聞くべき参加者のIDを relevantPersonaIds に列挙してください。全員を一律に含めず、その論点に関係する参加者に絞ってください。`
-		: '';
-
-	const coverageSection = buildCoverageSection(options?.unheardRelevant ?? []);
-
-	const criteria = `\n\n累計発言数: ${speakCountInfo}${pointsContext}${coverageSection}\n\nいまの論点「${focus}」は議論が出尽くし、落ち着いています。まだ十分に議論されていない新しい論点に切り替えて、特定の参加者に振ってください。章をいつ終えるかはあなたの判断対象外です。\n\n手順：\n(1) この章の趣旨に沿って、まだ十分に議論されていない新しい論点を決める。\n(2) その論点を話すのにふさわしい参加者を1人選び、targetPersonaId に参加者リストのIDを設定する（必須）。基準: 関連性が高い人。同程度なら発言数の少ない人を優先。\n(3) content を書く。targetPersonaId の参加者に「○○さん、〜についてはどうですか？」のように名前で呼びかけ、(1)で決めた論点に関する具体的な問いかけにする。\n\n適切な切り替え先が無ければ content と targetPersonaId は省略してください。`;
-	return runInterventionCheck(turns, personas, currentChapter, focus, criteria);
-};
-
 export const generateChapterIntroduction = async (
 	nextChapter: Chapter,
 	personas: Persona[],
 	factBase?: FactBase
 ): Promise<Result<FacilitatorReply, PipelineError>> => {
 	try {
-		const hasPoints = (nextChapter.discussionPoints?.length ?? 0) > 0;
+		const hasPoints = (nextChapter.agenda?.length ?? 0) > 0;
 		// 入口は先頭論点を唯一の切り口にする。論点を持たない章は章タイトルを入口にする
-		const entryPoint = hasPoints ? nextChapter.discussionPoints[0] : nextChapter.title;
+		const entryPoint = hasPoints ? nextChapter.agenda[0] : nextChapter.title;
 		const entryContext = `\n\nこの章の入口となる問い: ${entryPoint}。この問いを導入の問いかけの切り口として使ってください。`;
 		const factNote = facilitatorFactBaseNote(factBase);
 
@@ -236,7 +270,7 @@ export const generateChapterIntroduction = async (
 		const { content, targetPersonaId } = result.object;
 		return {
 			ok: true,
-			value: { content, targetPersonaId, selectedDiscussionPointIndex: hasPoints ? 0 : undefined }
+			value: { content, targetPersonaId, selectedAgendaItemIndex: hasPoints ? 0 : undefined }
 		};
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
@@ -244,29 +278,3 @@ export const generateChapterIntroduction = async (
 	}
 };
 
-export const evaluateDiscussionPointCoverage = async (
-	chapterTurns: DebateTurn[],
-	incompletePoints: string[],
-	personas: ReadonlyArray<Persona> = []
-): Promise<Result<number[], PipelineError>> => {
-	try {
-		const pointsList = incompletePoints.map((point, i) => `${i}. ${point}`).join('\n');
-
-		const result = await generateObject({
-			model: anthropic(AI_MODELS.SONNET),
-			system: buildNeutralitySystemPrompt(),
-			schema: coverageSchema,
-			messages: [
-				{
-					role: 'user',
-					content: `以下の各論点について、チャプターのターンで実質的な議論が行われたか評価してください。\n\n【未完了論点リスト】\n${pointsList}\n\n【チャプターターン】\n${formatTurns(chapterTurns, personas)}\n\n評価基準: 各論点について、それが「議論の主題として正面から俎上に載り、その論点そのものに向けたやり取り（問いかけと応答、賛否や具体例の交換）が成立している」場合のみ消化済みと判定してください。\n\n次のものは消化済みに含めないでください:\n- 別の論点を議論する中で、付随的・一時的に触れられただけのもの（ある発言の中で例や補足として一度言及された程度のもの）。\n- 話題として名前が出ただけで、その論点を正面から問う発言や、それに対する実質的な応答が無いもの。\n\n判断に迷う場合は消化済みとせず、未消化のまま残してください（取りこぼしより過剰な消化判定を避ける）。消化済みと判定した論点のインデックスのみを addressedIndices に含めてください。`
-				}
-			]
-		});
-
-		return { ok: true, value: result.object.addressedIndices ?? [] };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
-	}
-};

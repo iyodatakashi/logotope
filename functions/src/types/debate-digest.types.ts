@@ -4,7 +4,7 @@
 
 export type ChapterDigest = {
 	title: string;
-	discussionPoints: string[];
+	agenda: string[];
 	summary: string; // 章のやり取り・提示された立場を圧縮した中立の散文
 };
 

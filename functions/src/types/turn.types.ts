@@ -1,5 +1,5 @@
 import type { Timestamp } from 'firebase-admin/firestore';
-import type { Chapter, DiscussionPointState } from './chapter.types.js';
+import type { Chapter, AgendaItemState } from './chapter.types.js';
 import type { FactCheckFinding, FactCheckVerdict } from './fact-check.types.js';
 import type { FactBase } from './topic.types.js';
 
@@ -51,7 +51,7 @@ export type NewTurnFields = {
 
 export type ProgressPatch = {
 	quietStreak?: number;
-	discussionPointStatuses?: DiscussionPointState[];
+	agendaItemStatuses?: AgendaItemState[];
 };
 
 export type AppendTurnInput = {
@@ -70,7 +70,7 @@ export type AppendResult =
 export type TurnGenerationContext = {
 	chapterTurns: ReadonlyArray<DebateTurn>;
 	chapter: Chapter;
-	activeDiscussionPoint?: string;
+	activeAgendaItem?: string;
 	queuedTrigger?: { speakerName: string; content: string };
 	targetedBy?: 'facilitator' | 'persona';
 	otherPersonas?: ReadonlyArray<{ id: string; name: string }>;

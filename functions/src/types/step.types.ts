@@ -41,4 +41,5 @@ export type TurnExecution =
 	| { status: 'completed' } // 章は既に完了 → 何もしない
 	| { status: 'conflict' } // 追記競合/停止 → resumeFromFresh
 	| { status: 'stale_generation' } // 世代交代を addTurn が検出 → resume せず終了（R9）
+	| { status: 'chapter-exhausted'; quietStreak: number } // 最後の論点消化のみ・発言なし → 章終了へ（committed-no-turn）
 	| { status: 'advanced'; quietStreak: number }; // 実行コミット or frontier 前進 → 次へ

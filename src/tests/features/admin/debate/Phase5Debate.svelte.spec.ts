@@ -28,7 +28,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 							id: 'ch1',
 							chapterIndex: 0,
 							title: 'テスト章',
-							discussionPoints: [],
+							agenda: [],
 							turns: [
 								{
 									id: 't1',

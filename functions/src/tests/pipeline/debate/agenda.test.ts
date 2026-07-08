@@ -9,18 +9,18 @@ vi.mock('firebase-admin/firestore', () => ({
 
 import {
 	markIntroduced,
-	getActiveDiscussionPoint,
-	recordSpeakerOnActivePoint,
+	getActiveAgendaItem,
+	recordSpeakerOnActiveAgendaItem,
 	getUnheardRelevant,
-	saveDiscussionPointStatuses
-} from '../../../pipeline/debate/discussion-points.js';
+	saveAgendaItemStatuses
+} from '../../../pipeline/debate/agenda.js';
 import type { DebateState } from '../../../types/debate.types.js';
-import type { DiscussionPointState } from '../../../types/chapter.types.js';
+import type { AgendaItemState } from '../../../types/chapter.types.js';
 
-const makeState = (points: DiscussionPointState[]): DebateState =>
-	({ discussionPoints: points }) as DebateState;
+const makeState = (points: AgendaItemState[]): DebateState =>
+	({ agenda: points }) as DebateState;
 
-describe('getActiveDiscussionPoint', () => {
+describe('getActiveAgendaItem', () => {
 	it('提示済み論点が複数あるとき提示連番が最大の1件を返す', () => {
 		const state = makeState([
 			{ point: '論点A', status: 'introduced', introducedOrder: 1 },
@@ -28,7 +28,7 @@ describe('getActiveDiscussionPoint', () => {
 			{ point: '論点C', status: 'introduced', introducedOrder: 2 }
 		]);
 
-		expect(getActiveDiscussionPoint(state)).toBe('論点B');
+		expect(getActiveAgendaItem(state)).toBe('論点B');
 	});
 
 	it('提示済みが無いとき undefined を返す', () => {
@@ -37,7 +37,7 @@ describe('getActiveDiscussionPoint', () => {
 			{ point: '論点B', status: 'addressed' }
 		]);
 
-		expect(getActiveDiscussionPoint(state)).toBeUndefined();
+		expect(getActiveAgendaItem(state)).toBeUndefined();
 	});
 
 	it('addressed は除外し introduced のみを対象とする', () => {
@@ -46,7 +46,7 @@ describe('getActiveDiscussionPoint', () => {
 			{ point: '論点B', status: 'introduced', introducedOrder: 2 }
 		]);
 
-		expect(getActiveDiscussionPoint(state)).toBe('論点B');
+		expect(getActiveAgendaItem(state)).toBe('論点B');
 	});
 });
 
@@ -59,8 +59,8 @@ describe('markIntroduced', () => {
 
 		markIntroduced(state, 1);
 
-		expect(state.discussionPoints[1].status).toBe('introduced');
-		expect(state.discussionPoints[1].introducedOrder).toBe(1);
+		expect(state.agenda[1].status).toBe('introduced');
+		expect(state.agenda[1].introducedOrder).toBe(1);
 	});
 
 	it('複数提示で introducedOrder が単調増加し、直近を一意に識別できる', () => {
@@ -75,7 +75,7 @@ describe('markIntroduced', () => {
 		markIntroduced(state, 1); // 論点B → order 2
 		markIntroduced(state, 2); // 論点C → order 3
 
-		const latest = state.discussionPoints
+		const latest = state.agenda
 			.filter((p) => p.status === 'introduced')
 			.reduce((a, b) => ((b.introducedOrder ?? 0) > (a.introducedOrder ?? 0) ? b : a));
 		expect(latest.point).toBe('論点C');
@@ -84,8 +84,8 @@ describe('markIntroduced', () => {
 	it('index が undefined のとき何もしない', () => {
 		const state = makeState([{ point: '論点A', status: 'untouched' }]);
 		markIntroduced(state, undefined);
-		expect(state.discussionPoints[0].status).toBe('untouched');
-		expect(state.discussionPoints[0].introducedOrder).toBeUndefined();
+		expect(state.agenda[0].status).toBe('untouched');
+		expect(state.agenda[0].introducedOrder).toBeUndefined();
 	});
 
 	it('候補は未提示（untouched）のみで、提示済み論点は index 空間から除外する', () => {
@@ -98,11 +98,11 @@ describe('markIntroduced', () => {
 		// untouched のみの候補リスト [論点B, 論点C] の index 0 は 論点B を指す
 		markIntroduced(state, 0);
 
-		expect(state.discussionPoints[1].status).toBe('introduced');
-		expect(state.discussionPoints[1].introducedOrder).toBe(2);
+		expect(state.agenda[1].status).toBe('introduced');
+		expect(state.agenda[1].introducedOrder).toBe(2);
 		// 既に introduced の論点A は再採番されない
-		expect(state.discussionPoints[0].introducedOrder).toBe(1);
-		expect(state.discussionPoints[2].status).toBe('untouched');
+		expect(state.agenda[0].introducedOrder).toBe(1);
+		expect(state.agenda[2].status).toBe('untouched');
 	});
 
 	it('関連参加者を記録し、発言済み集合を空で初期化する', () => {
@@ -110,8 +110,8 @@ describe('markIntroduced', () => {
 
 		markIntroduced(state, 0, ['p1', 'p2']);
 
-		expect(state.discussionPoints[0].relevantPersonaIds).toEqual(['p1', 'p2']);
-		expect(state.discussionPoints[0].spokenPersonaIds).toEqual([]);
+		expect(state.agenda[0].relevantPersonaIds).toEqual(['p1', 'p2']);
+		expect(state.agenda[0].spokenPersonaIds).toEqual([]);
 	});
 
 	it('関連参加者が未指定でも発言済み集合は空で初期化する', () => {
@@ -119,22 +119,22 @@ describe('markIntroduced', () => {
 
 		markIntroduced(state, 0);
 
-		expect(state.discussionPoints[0].spokenPersonaIds).toEqual([]);
-		expect(state.discussionPoints[0].relevantPersonaIds).toEqual([]);
+		expect(state.agenda[0].spokenPersonaIds).toEqual([]);
+		expect(state.agenda[0].relevantPersonaIds).toEqual([]);
 	});
 });
 
-describe('recordSpeakerOnActivePoint', () => {
+describe('recordSpeakerOnActiveAgendaItem', () => {
 	it('現アクティブ論点（最新 introduced）の発言済み集合に話者を追加する', () => {
 		const state = makeState([
 			{ point: '論点A', status: 'introduced', introducedOrder: 1, spokenPersonaIds: [] },
 			{ point: '論点B', status: 'introduced', introducedOrder: 2, spokenPersonaIds: [] }
 		]);
 
-		recordSpeakerOnActivePoint(state, 'p1');
+		recordSpeakerOnActiveAgendaItem(state, 'p1');
 
-		expect(state.discussionPoints[1].spokenPersonaIds).toEqual(['p1']);
-		expect(state.discussionPoints[0].spokenPersonaIds).toEqual([]);
+		expect(state.agenda[1].spokenPersonaIds).toEqual(['p1']);
+		expect(state.agenda[0].spokenPersonaIds).toEqual([]);
 	});
 
 	it('同一話者を複数回記録しても重複しない（冪等）', () => {
@@ -142,26 +142,26 @@ describe('recordSpeakerOnActivePoint', () => {
 			{ point: '論点A', status: 'introduced', introducedOrder: 1, spokenPersonaIds: [] }
 		]);
 
-		recordSpeakerOnActivePoint(state, 'p1');
-		recordSpeakerOnActivePoint(state, 'p1');
+		recordSpeakerOnActiveAgendaItem(state, 'p1');
+		recordSpeakerOnActiveAgendaItem(state, 'p1');
 
-		expect(state.discussionPoints[0].spokenPersonaIds).toEqual(['p1']);
+		expect(state.agenda[0].spokenPersonaIds).toEqual(['p1']);
 	});
 
 	it('発言済み集合が欠損していても追加できる', () => {
 		const state = makeState([{ point: '論点A', status: 'introduced', introducedOrder: 1 }]);
 
-		recordSpeakerOnActivePoint(state, 'p1');
+		recordSpeakerOnActiveAgendaItem(state, 'p1');
 
-		expect(state.discussionPoints[0].spokenPersonaIds).toEqual(['p1']);
+		expect(state.agenda[0].spokenPersonaIds).toEqual(['p1']);
 	});
 
 	it('アクティブ論点が無いとき何もしない', () => {
 		const state = makeState([{ point: '論点A', status: 'untouched' }]);
 
-		recordSpeakerOnActivePoint(state, 'p1');
+		recordSpeakerOnActiveAgendaItem(state, 'p1');
 
-		expect(state.discussionPoints[0].spokenPersonaIds).toBeUndefined();
+		expect(state.agenda[0].spokenPersonaIds).toBeUndefined();
 	});
 });
 
@@ -230,7 +230,7 @@ describe('getUnheardRelevant', () => {
 	});
 });
 
-describe('saveDiscussionPointStatuses', () => {
+describe('saveAgendaItemStatuses', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
@@ -246,10 +246,10 @@ describe('saveDiscussionPointStatuses', () => {
 			}
 		]);
 
-		await saveDiscussionPointStatuses('t1', 'ch1', state);
+		await saveAgendaItemStatuses('t1', 'ch1', state);
 
 		expect(mockUpdate).toHaveBeenCalledWith({
-			discussionPointStatuses: [
+			agendaItemStatuses: [
 				{
 					point: '論点A',
 					status: 'introduced',
@@ -272,10 +272,10 @@ describe('saveDiscussionPointStatuses', () => {
 			}
 		]);
 
-		await saveDiscussionPointStatuses('t1', 'ch1', state);
+		await saveAgendaItemStatuses('t1', 'ch1', state);
 
 		expect(mockUpdate).toHaveBeenCalledWith({
-			discussionPointStatuses: [
+			agendaItemStatuses: [
 				{
 					point: '論点A',
 					status: 'introduced',
@@ -290,10 +290,10 @@ describe('saveDiscussionPointStatuses', () => {
 	it('2集合が欠損する論点は当該フィールドを書き出さない（後方互換）', async () => {
 		const state = makeState([{ point: '論点A', status: 'untouched' }]);
 
-		await saveDiscussionPointStatuses('t1', 'ch1', state);
+		await saveAgendaItemStatuses('t1', 'ch1', state);
 
 		expect(mockUpdate).toHaveBeenCalledWith({
-			discussionPointStatuses: [{ point: '論点A', status: 'untouched' }]
+			agendaItemStatuses: [{ point: '論点A', status: 'untouched' }]
 		});
 	});
 });

@@ -34,14 +34,14 @@ export const buildDebateDigest = async (
 	for (const chapter of chapters) {
 		const summary = await summarizeChapter({
 			title: chapter.title,
-			discussionPoints: chapter.discussionPoints,
+			agenda: chapter.agenda,
 			turns: chapter.turns,
 			personas: approvedPersonas
 		});
 		if (!summary.ok) return summary;
 		chapterDigests.push({
 			title: chapter.title,
-			discussionPoints: chapter.discussionPoints,
+			agenda: chapter.agenda,
 			summary: summary.value
 		});
 	}

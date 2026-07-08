@@ -22,7 +22,7 @@ const makeEdited = (
 	id: 'ch1',
 	chapterIndex: 0,
 	title: 'テスト章',
-	discussionPoints: [],
+	agenda: [],
 	turns: [],
 	status: 'completed',
 	...overrides

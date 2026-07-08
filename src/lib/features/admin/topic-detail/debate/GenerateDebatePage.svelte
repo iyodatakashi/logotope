@@ -149,9 +149,9 @@
 							currentTopicStore.chaptersStore.currentChapter}
 					>
 						<div class="generate-debate-page__chapter-title">{chapter.title}</div>
-						{#if chapter === currentTopicStore.chaptersStore.currentChapter && chapter.discussionPointStatuses?.length}
+						{#if chapter === currentTopicStore.chaptersStore.currentChapter && chapter.agendaItemStatuses?.length}
 							<ul class="generate-debate-page__points">
-								{#each chapter.discussionPointStatuses as dp (dp.point)}
+								{#each chapter.agendaItemStatuses as dp (dp.point)}
 									<li class="generate-debate-page__point" data-status={dp.status}>
 										<span class="generate-debate-page__status-badge"
 											>{dp.status === 'untouched'
@@ -164,9 +164,9 @@
 									</li>
 								{/each}
 							</ul>
-						{:else if chapter.discussionPoints?.length}
+						{:else if chapter.agenda?.length}
 							<ul class="generate-debate-page__points">
-								{#each chapter.discussionPoints as point (point)}
+								{#each chapter.agenda as point (point)}
 									<li class="generate-debate-page__point">{point}</li>
 								{/each}
 							</ul>

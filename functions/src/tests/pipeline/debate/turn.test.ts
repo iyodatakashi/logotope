@@ -127,7 +127,7 @@ const makeDebateState = () => ({
 	silenceMap: new Map(),
 	speakCount: new Map(),
 	queuedIntents: new Map(),
-	discussionPoints: []
+	agenda: []
 });
 
 const makeDebateTurn = (
@@ -733,19 +733,19 @@ describe('addTurn - 冪等トランザクション追記', () => {
 		expect(result).toEqual({ status: 'committed', id: 'mock-turn-id' });
 	});
 
-	it('progressPatch を指定すると同一更新で quietStreak / discussionPointStatuses を書く', async () => {
+	it('progressPatch を指定すると同一更新で quietStreak / agendaItemStatuses を書く', async () => {
 		await addTurn(
 			baseInput({
 				expectedTurnIndex: 0,
 				progressPatch: {
 					quietStreak: 3,
-					discussionPointStatuses: [{ point: '論点A', status: 'addressed' }]
+					agendaItemStatuses: [{ point: '論点A', status: 'addressed' }]
 				}
 			})
 		);
 		const [, update] = mockTxUpdate.mock.calls[0];
 		expect((update as { quietStreak: number }).quietStreak).toBe(3);
-		expect((update as { discussionPointStatuses: unknown[] }).discussionPointStatuses).toEqual([
+		expect((update as { agendaItemStatuses: unknown[] }).agendaItemStatuses).toEqual([
 			{ point: '論点A', status: 'addressed' }
 		]);
 	});

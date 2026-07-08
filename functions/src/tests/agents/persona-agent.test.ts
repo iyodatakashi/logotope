@@ -61,7 +61,7 @@ const mockPersona: Persona = {
 const mockChapter: Chapter = {
 	id: 'ch1',
 	title: 'テスト章',
-	discussionPoints: []
+	agenda: []
 };
 
 const mockTurns: DebateTurn[] = [];
@@ -689,7 +689,7 @@ describe('generateTurn', () => {
 		expect(userContent).toContain('targetPersonaId');
 	});
 
-	it('activeDiscussionPoint があるとき論点がプロンプトに注入される', async () => {
+	it('activeAgendaItem があるとき論点がプロンプトに注入される', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
 		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
@@ -700,7 +700,7 @@ describe('generateTurn', () => {
 		const { generateTurn } = await import('../../agents/persona-agent.js');
 		await generateTurn(
 			mockPersona,
-			makeContext({ activeDiscussionPoint: '在宅勤務は生産性を上げるか' }),
+			makeContext({ activeAgendaItem: '在宅勤務は生産性を上げるか' }),
 			makeEngagement({ mode: 'opinion', intentSummary: '意見を述べたい' })
 		);
 
@@ -782,7 +782,7 @@ describe('generateTurn', () => {
 		expect(userContent).not.toContain('【確定した客観的事実（共通前提）】');
 	});
 
-	it('activeDiscussionPoint が無いとき章タイトルを場のテーマとして提示し、focusQuestion は含めない', async () => {
+	it('activeAgendaItem が無いとき章タイトルを場のテーマとして提示し、focusQuestion は含めない', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
 		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {

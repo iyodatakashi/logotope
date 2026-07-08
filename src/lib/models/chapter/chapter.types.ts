@@ -2,19 +2,19 @@ import type { Turn, TurnForFirestore } from '$lib/models/turn/turn.types';
 
 export type ChapterProgressStatus = 'pending' | 'running' | 'completed';
 
-export type DiscussionPointStatus = 'untouched' | 'introduced' | 'addressed';
+export type AgendaItemStatus = 'untouched' | 'introduced' | 'addressed';
 
-export type DiscussionPointState = {
+export type AgendaItemState = {
 	point: string;
-	status: DiscussionPointStatus;
+	status: AgendaItemStatus;
 };
 
 export type ChapterForFirestore = {
 	chapterIndex: number;
 	title: string;
-	discussionPoints: string[];
+	agenda: string[];
 	turns: TurnForFirestore[];
-	discussionPointStatuses?: DiscussionPointState[];
+	agendaItemStatuses?: AgendaItemState[];
 	status: ChapterProgressStatus;
 };
 

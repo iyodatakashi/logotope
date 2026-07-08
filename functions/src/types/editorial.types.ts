@@ -22,7 +22,7 @@ export type EditingChapterStatus = 'pending' | 'completed' | 'failed';
 export type EditedChapterForFirestore = {
 	chapterIndex: number;
 	title: string; // 原本からコピー（編集対象外）
-	discussionPoints: string[]; // 原本からコピー
+	agenda: string[]; // 原本からコピー
 	turns: EditedTurnForFirestore[];
 	status: EditingChapterStatus;
 	failureReason?: string; // status='failed' のときの構造検証不合格理由（管理画面での把握・診断用）

@@ -1,5 +1,5 @@
 import type { DebateTurn } from './turn.types.js';
-import type { DiscussionPointState } from './chapter.types.js';
+import type { AgendaItemState } from './chapter.types.js';
 import type { AwarenessKind } from './persona.types.js';
 
 // 傾聴段階で検出する気づき（永続前の値）。永続形は AwarenessForFirestore
@@ -27,14 +27,14 @@ export type DebateState = {
 	speakCount: Map<string, number>;
 	lastSpeakerId?: string;
 	queuedIntents: Map<string, QueuedIntent[]>;
-	discussionPoints: DiscussionPointState[];
+	agenda: AgendaItemState[];
 	runId?: string;
 };
 
 export type FacilitatorReply = {
 	content?: string;
 	targetPersonaId?: string;
-	selectedDiscussionPointIndex?: number;
+	selectedAgendaItemIndex?: number;
 	relevantPersonaIds?: string[]; // 論点投入時に判定する「立場を聞くべき関連参加者」（opening / 介入）
 };
 

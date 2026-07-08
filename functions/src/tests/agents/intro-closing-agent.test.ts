@@ -20,7 +20,7 @@ const mockDigest: DebateDigest = {
 	chapters: [
 		{
 			title: '第1章 働き方の変化',
-			discussionPoints: ['生産性', '孤独感'],
+			agenda: ['生産性', '孤独感'],
 			summary: '生産性の向上と孤独感の増大の双方の立場が示された。'
 		}
 	],

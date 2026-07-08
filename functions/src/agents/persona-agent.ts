@@ -218,13 +218,13 @@ export const generateTurn = async (
 	personas: ReadonlyArray<Persona> = []
 ): Promise<Result<PersonaReply, PipelineError>> => {
 	try {
-		const { chapter, queuedTrigger, targetedBy, activeDiscussionPoint } = context;
+		const { chapter, queuedTrigger, targetedBy, activeAgendaItem } = context;
 		const recentTurns = context.chapterTurns.slice(-20);
 		const belief = getBelief(persona);
 		const styleGuide = buildSpeechStyleGuide(persona);
 		// 発言者の文脈はアクティブ論点に一本化する。論点が無ければ章タイトルを場のテーマとして提示する（focusQuestion は使わない）
-		const chapterFocusNote = activeDiscussionPoint
-			? `\n\n【いま向き合う論点】${activeDiscussionPoint}\nファシリテーターがこの論点を場に出しています。これを意識し、自分の立場・経験から具体的に語ること（無理に同意せず、自分の角度で）。`
+		const chapterFocusNote = activeAgendaItem
+			? `\n\n【いま向き合う論点】${activeAgendaItem}\nファシリテーターがこの論点を場に出しています。これを意識し、自分の立場・経験から具体的に語ること（無理に同意せず、自分の角度で）。`
 			: `\n\n【この章のテーマ】${chapter.title}\nいまはこのテーマについて話しています。自分の立場・経験から具体的に語ること。`;
 		const queuedNote = queuedTrigger
 			? `\n\n【持ち越しの言いたいこと】少し前に${queuedTrigger.speakerName}が「${queuedTrigger.content.slice(0, 80)}」と言ったのを聞いて、あなたはこれに何か言いたいと思っていました。会話の流れに沿って、適切であればこの話題に触れてください。`

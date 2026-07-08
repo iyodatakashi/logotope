@@ -30,7 +30,7 @@ const makeChapter = (
 ): EditedChapterForFirestore => ({
 	chapterIndex,
 	title: `章${chapterIndex}`,
-	discussionPoints: ['論点'],
+	agenda: ['論点'],
 	turns:
 		status === 'failed'
 			? []

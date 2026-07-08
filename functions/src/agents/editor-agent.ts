@@ -77,14 +77,14 @@ const formatTurnsWithIds = (
 		.join('\n');
 
 export const editChapter = async (
-	chapter: { title: string; discussionPoints: string[]; turns: DebateTurn[] },
+	chapter: { title: string; agenda: string[]; turns: DebateTurn[] },
 	personas: ReadonlyArray<Persona>,
 	protectedTurnIds: ReadonlySet<string>
 ): Promise<Result<EditedTurnDraft[], PipelineError>> => {
 	try {
 		const pointsSection =
-			chapter.discussionPoints.length > 0
-				? `\n\nこの章の論点:\n${chapter.discussionPoints.map((point) => `- ${point}`).join('\n')}`
+			chapter.agenda.length > 0
+				? `\n\nこの章の論点:\n${chapter.agenda.map((point) => `- ${point}`).join('\n')}`
 				: '';
 		const protectedSection =
 			protectedTurnIds.size > 0

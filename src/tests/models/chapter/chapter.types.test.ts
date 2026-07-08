@@ -13,7 +13,7 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 0,
 			title: '導入',
-			discussionPoints: ['論点A', '論点B'],
+			agenda: ['論点A', '論点B'],
 			turns: [],
 			status: 'pending'
 		};
@@ -21,7 +21,7 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 		expect(chapter.status).toBe('pending');
 	});
 
-	it('ChapterForFirestore は turns と discussionPointStatuses を保持する', () => {
+	it('ChapterForFirestore は turns と agendaItemStatuses を保持する', () => {
 		const turn: TurnForFirestore = {
 			id: 't1',
 			speakerType: 'persona',
@@ -31,13 +31,13 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 		const chapter: ChapterForFirestore = {
 			chapterIndex: 1,
 			title: '核心',
-			discussionPoints: ['論点A'],
+			agenda: ['論点A'],
 			turns: [turn],
-			discussionPointStatuses: [{ point: '論点A', status: 'introduced' }],
+			agendaItemStatuses: [{ point: '論点A', status: 'introduced' }],
 			status: 'running'
 		};
 		expect(chapter.turns).toHaveLength(1);
-		expect(chapter.discussionPointStatuses).toHaveLength(1);
+		expect(chapter.agendaItemStatuses).toHaveLength(1);
 	});
 
 	it('Issue は id・text・source と段階的に付与されるスコア・選別フラグを持つ', () => {

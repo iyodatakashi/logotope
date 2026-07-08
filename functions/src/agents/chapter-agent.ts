@@ -53,7 +53,7 @@ const chapterResultSchema = z.object({
 	chapters: z.array(
 		z.object({
 			title: z.string(),
-			discussionPoints: z.array(z.string())
+			agenda: z.array(z.string())
 		})
 	)
 });
@@ -236,7 +236,7 @@ const buildChapters = async (
 		return {
 			id: nanoid(),
 			title: authored?.title ?? topicTitle,
-			discussionPoints: authored?.discussionPoints ?? fallbackPoints
+			agenda: authored?.agenda ?? fallbackPoints
 		};
 	});
 };
@@ -256,19 +256,19 @@ const buildBuildingPrompt = (
 			return `## グループ ${i + 1}\n${issueTexts}`;
 		})
 		.join('\n\n');
-	return `テーマ「${topicTitle}」の各グループについて、割り当て論点を素材に章タイトルと discussionPoints を生成してください。
+	return `テーマ「${topicTitle}」の各グループについて、割り当て論点を素材に章タイトルと agenda を生成してください。
 
 【グループと論点】
 ${groupList}
 
 【再構成のルール】
-- 各グループに対応する章の title と discussionPoints を生成する。discussionPoints は統合後に実質的に異なる論点だけを残し、件数は問わない（無理に増やさない・水増ししない）
-- 各 discussionPoint は、専門知識のない一般の人々が日常感覚で理解できる「問いの形」で書く（例:「〜なのはなぜか」「どこまでなら許されるか」）
+- 各グループに対応する章の title と agenda を生成する。agenda は統合後に実質的に異なる論点だけを残し、件数は問わない（無理に増やさない・水増ししない）
+- 各 agendaItem は、専門知識のない一般の人々が日常感覚で理解できる「問いの形」で書く（例:「〜なのはなぜか」「どこまでなら許されるか」）
 - 第1章の論点は特に平易で日常的な表現にする
 - 章内・章間で意味的に重複する論点は1つに寄せ、各論点は最も適切な1つの章にのみ属させる。他の章の主題に踏み込む問いは作らない
 - 特定のペルソナ名・発言を前提にしない汎用的な問いの形で生成する
 
-入力のグループ順のまま、各グループの title と discussionPoints（文字列配列）を返してください。${contextSection}`;
+入力のグループ順のまま、各グループの title と agenda（文字列配列）を返してください。${contextSection}`;
 };
 
 export const sortChaptersByGeneralIssueCount = (

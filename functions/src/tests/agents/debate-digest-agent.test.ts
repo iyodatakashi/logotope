@@ -58,7 +58,7 @@ describe('summarizeChapter', () => {
 		const { summarizeChapter } = await import('../../agents/debate-digest-agent.js');
 		const result = await summarizeChapter({
 			title: '第1章',
-			discussionPoints: ['論点A'],
+			agenda: ['論点A'],
 			turns: [makeTurn('t1', '私は賛成だ'), makeTurn('t2', '私は反対だ', 'p2')],
 			personas: [mockPersona]
 		});
@@ -80,7 +80,7 @@ describe('summarizeChapter', () => {
 		const { summarizeChapter } = await import('../../agents/debate-digest-agent.js');
 		await summarizeChapter({
 			title: '第1章',
-			discussionPoints: [],
+			agenda: [],
 			turns: [makeTurn('t1', '発言')],
 			personas: [mockPersona]
 		});
@@ -97,7 +97,7 @@ describe('summarizeChapter', () => {
 		const { summarizeChapter } = await import('../../agents/debate-digest-agent.js');
 		const result = await summarizeChapter({
 			title: '第1章',
-			discussionPoints: [],
+			agenda: [],
 			turns: [makeTurn('t1', '発言')],
 			personas: [mockPersona]
 		});
@@ -114,7 +114,7 @@ describe('summarizeChapter', () => {
 		const { summarizeChapter } = await import('../../agents/debate-digest-agent.js');
 		const result = await summarizeChapter({
 			title: '第1章',
-			discussionPoints: [],
+			agenda: [],
 			turns: [makeTurn('t1', '発言')],
 			personas: [mockPersona]
 		});

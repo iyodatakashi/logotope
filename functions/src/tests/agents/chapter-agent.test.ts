@@ -67,10 +67,10 @@ const makeGroupingResult = (issueGroups: unknown[] = [{ issueIndexes: [0] }]) =>
 	object: { issueGroups }
 });
 const makeBuildResult = (
-	chapters: unknown[] = [{ title: '第1章', discussionPoints: ['論点A', '論点B', '論点C'] }]
+	chapters: unknown[] = [{ title: '第1章', agenda: ['論点A', '論点B', '論点C'] }]
 ) => ({ object: { chapters } });
 
-describe('generateChapters - discussionPoints', () => {
+describe('generateChapters - agenda', () => {
 	let generateObject: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
@@ -79,7 +79,7 @@ describe('generateChapters - discussionPoints', () => {
 		generateObject = vi.mocked(aiMod.generateObject);
 	});
 
-	it('AI が返した discussionPoints を章に含める', async () => {
+	it('AI が返した agenda を章に含める', async () => {
 		generateObject
 			.mockResolvedValueOnce(makeIssuesResult(['issue1']))
 			.mockResolvedValueOnce(makeIssuesResult(['issue2']))
@@ -92,8 +92,8 @@ describe('generateChapters - discussionPoints', () => {
 			.mockResolvedValueOnce(makeGroupingResult([{ issueIndexes: [0] }, { issueIndexes: [1] }]))
 			.mockResolvedValueOnce(
 				makeBuildResult([
-					{ title: '第1章', discussionPoints: ['論点A', '論点B', '論点C'] },
-					{ title: '第2章', discussionPoints: ['論点D', '論点E'] }
+					{ title: '第1章', agenda: ['論点A', '論点B', '論点C'] },
+					{ title: '第2章', agenda: ['論点D', '論点E'] }
 				])
 			);
 
@@ -102,25 +102,25 @@ describe('generateChapters - discussionPoints', () => {
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
-			expect(result.value.some((c) => c.discussionPoints.includes('論点A'))).toBe(true);
-			expect(result.value.some((c) => c.discussionPoints.includes('論点D'))).toBe(true);
+			expect(result.value.some((c) => c.agenda.includes('論点A'))).toBe(true);
+			expect(result.value.some((c) => c.agenda.includes('論点D'))).toBe(true);
 		}
 	});
 
-	it('AI が discussionPoints を返さない場合は欠落章の論点テキストでフォールバック', async () => {
+	it('AI が agenda を返さない場合は欠落章の論点テキストでフォールバック', async () => {
 		generateObject
 			.mockResolvedValueOnce(makeIssuesResult(['issue1']))
 			.mockResolvedValueOnce(makeIssuesResult(['issue2']))
 			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
 			.mockResolvedValueOnce(makeGroupingResult([{ issueIndexes: [0] }]))
-			.mockResolvedValueOnce(makeBuildResult([{ title: '第1章', discussionPoints: [] }]));
+			.mockResolvedValueOnce(makeBuildResult([{ title: '第1章', agenda: [] }]));
 
 		const { generateChapters } = await import('../../agents/chapter-agent.js');
 		const result = await generateChapters('テストテーマ', [mockPersona]);
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
-			expect(result.value[0].discussionPoints).toEqual([]);
+			expect(result.value[0].agenda).toEqual([]);
 		}
 	});
 
@@ -284,7 +284,7 @@ describe('generateChapters - topicContext対応', () => {
 		const msg = captured.find((m: unknown) => (m as { role: string }).role === 'user') as {
 			content: string;
 		};
-		expect(msg.content).not.toContain('【確定した客観的事実（共通前提）】');
+		expect(msg.content).not.toContain('このテーマについて確認された客観的事実です');
 	});
 
 	it('topicContextなしで既存プロンプトと同一動作（後方互換）', async () => {
@@ -666,8 +666,8 @@ describe('Task 2.1: groupIssues - グループ化フォールバック', () => {
 			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
 				capturedBuilding.push(args.messages[0].content);
 				return makeBuildResult([
-					{ title: '章1', discussionPoints: ['dp1'] },
-					{ title: '章2', discussionPoints: ['dp2'] }
+					{ title: '章1', agenda: ['dp1'] },
+					{ title: '章2', agenda: ['dp2'] }
 				]);
 			});
 
@@ -722,7 +722,7 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 		generateObject = vi.mocked(aiMod.generateObject);
 	});
 
-	it('返却章数が入力より少ない場合、欠落章は論点テキストをdiscussionPointsにフォールバック', async () => {
+	it('返却章数が入力より少ない場合、欠落章は論点テキストをagendaにフォールバック', async () => {
 		generateObject
 			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
 			.mockResolvedValueOnce(makeIssuesResult(['per1']))
@@ -737,7 +737,7 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 				makeBuildResult([
 					{
 						title: '章1',
-						discussionPoints: ['再構成1', '再構成2', '再構成3']
+						agenda: ['再構成1', '再構成2', '再構成3']
 					}
 					// 章2 欠落 → per1 (issues[1].text) をそのまま流用
 				])
@@ -750,12 +750,12 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 		if (result.ok) {
 			expect(result.value).toHaveLength(2);
 			// 章はsortされる可能性があるので、どちらかが再構成済みで、もう一方がフォールバック
-			const fallbackChapter = result.value.find((c) => c.discussionPoints.includes('per1'));
+			const fallbackChapter = result.value.find((c) => c.agenda.includes('per1'));
 			expect(fallbackChapter).toBeDefined();
 		}
 	});
 
-	it('各章に nanoid・title・discussionPoints が付与される（focusQuestion は廃止）', async () => {
+	it('各章に nanoid・title・agenda が付与される（focusQuestion は廃止）', async () => {
 		generateObject
 			.mockResolvedValueOnce(makeIssuesResult(['gen1']))
 			.mockResolvedValueOnce(makeIssuesResult(['per1']))
@@ -770,7 +770,7 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 				makeBuildResult([
 					{
 						title: '固有タイトル',
-						discussionPoints: ['dp1', 'dp2', 'dp3']
+						agenda: ['dp1', 'dp2', 'dp3']
 					}
 				])
 			);
@@ -783,7 +783,7 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 			const chapter = result.value[0];
 			expect(chapter.id).toBe('test-id'); // nanoid mock
 			expect(chapter.title).toBe('固有タイトル');
-			expect(chapter.discussionPoints).toEqual(['dp1', 'dp2', 'dp3']);
+			expect(chapter.agenda).toEqual(['dp1', 'dp2', 'dp3']);
 		}
 	});
 
@@ -857,9 +857,9 @@ describe('Task 2.3: sortChaptersByGeneralIssueCount - 並べ替え純粋関数',
 			{ issueIndexes: [0] } // 1 general
 		];
 		const chapters = [
-			{ id: 'c0', title: '章0', discussionPoints: [] },
-			{ id: 'c1', title: '章1', discussionPoints: [] },
-			{ id: 'c2', title: '章2', discussionPoints: [] }
+			{ id: 'c0', title: '章0', agenda: [] },
+			{ id: 'c1', title: '章1', agenda: [] },
+			{ id: 'c2', title: '章2', agenda: [] }
 		];
 
 		const sorted = sortChaptersByGeneralIssueCount(chapters, issueGroups, issues);
@@ -881,8 +881,8 @@ describe('Task 2.3: sortChaptersByGeneralIssueCount - 並べ替え純粋関数',
 			{ issueIndexes: [0, 2] } // 1 general (同数)
 		];
 		const chapters = [
-			{ id: 'c0', title: '章0', discussionPoints: [] },
-			{ id: 'c1', title: '章1', discussionPoints: [] }
+			{ id: 'c0', title: '章0', agenda: [] },
+			{ id: 'c1', title: '章1', agenda: [] }
 		];
 
 		const sorted = sortChaptersByGeneralIssueCount(chapters, issueGroups, issues);
@@ -904,8 +904,8 @@ describe('Task 2.3: sortChaptersByGeneralIssueCount - 並べ替え純粋関数',
 			{ issueIndexes: [0] } // 1 general
 		];
 		const chapters = [
-			{ id: 'c0', title: '章0', discussionPoints: [] },
-			{ id: 'c1', title: '章1', discussionPoints: [] }
+			{ id: 'c0', title: '章0', agenda: [] },
+			{ id: 'c1', title: '章1', agenda: [] }
 		];
 		const originalChapters = [...chapters];
 		const originalGroups = [...issueGroups];

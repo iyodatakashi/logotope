@@ -20,10 +20,10 @@ import {
 	getChapterById
 } from '../../../pipeline/debate/chapter.js';
 
-const makeChapter = (discussionPoints: string[] = []): Chapter => ({
+const makeChapter = (agenda: string[] = []): Chapter => ({
 	id: 'ch1',
 	title: 'テスト章',
-	discussionPoints
+	agenda
 });
 
 describe('loadChapterProgress', () => {
@@ -43,37 +43,37 @@ describe('loadChapterProgress', () => {
 		expect(progress.quietStreak).toBe(4);
 	});
 
-	it('discussionPointStatuses 未設定なら章の論点から untouched 初期化する', async () => {
+	it('agendaItemStatuses 未設定なら章の論点から untouched 初期化する', async () => {
 		mockGet.mockResolvedValue({ exists: true, data: () => ({}) });
 		const progress = await loadChapterProgress('t1', 'ch1', makeChapter(['論点A', '論点B']));
-		expect(progress.discussionPointStatuses).toEqual([
+		expect(progress.agendaItemStatuses).toEqual([
 			{ point: '論点A', status: 'untouched' },
 			{ point: '論点B', status: 'untouched' }
 		]);
 	});
 
-	it('discussionPointStatuses が永続化されていればそれを復元する', async () => {
+	it('agendaItemStatuses が永続化されていればそれを復元する', async () => {
 		mockGet.mockResolvedValue({
 			exists: true,
 			data: () => ({
-				discussionPointStatuses: [
+				agendaItemStatuses: [
 					{ point: '論点A', status: 'addressed' },
 					{ point: '論点B', status: 'introduced' }
 				]
 			})
 		});
 		const progress = await loadChapterProgress('t1', 'ch1', makeChapter(['論点A', '論点B']));
-		expect(progress.discussionPointStatuses).toEqual([
+		expect(progress.agendaItemStatuses).toEqual([
 			{ point: '論点A', status: 'addressed' },
 			{ point: '論点B', status: 'introduced' }
 		]);
 	});
 
-	it('discussionPointStatuses の2集合（発言済み・関連参加者）を復元する', async () => {
+	it('agendaItemStatuses の2集合（発言済み・関連参加者）を復元する', async () => {
 		mockGet.mockResolvedValue({
 			exists: true,
 			data: () => ({
-				discussionPointStatuses: [
+				agendaItemStatuses: [
 					{
 						point: '論点A',
 						status: 'introduced',
@@ -85,7 +85,7 @@ describe('loadChapterProgress', () => {
 			})
 		});
 		const progress = await loadChapterProgress('t1', 'ch1', makeChapter(['論点A']));
-		expect(progress.discussionPointStatuses).toEqual([
+		expect(progress.agendaItemStatuses).toEqual([
 			{
 				point: '論点A',
 				status: 'introduced',
@@ -100,18 +100,18 @@ describe('loadChapterProgress', () => {
 		mockGet.mockResolvedValue({
 			exists: true,
 			data: () => ({
-				discussionPointStatuses: [{ point: '論点A', status: 'introduced', introducedOrder: 1 }]
+				agendaItemStatuses: [{ point: '論点A', status: 'introduced', introducedOrder: 1 }]
 			})
 		});
 		const progress = await loadChapterProgress('t1', 'ch1', makeChapter(['論点A']));
-		expect(progress.discussionPointStatuses[0].spokenPersonaIds).toBeUndefined();
-		expect(progress.discussionPointStatuses[0].relevantPersonaIds).toBeUndefined();
+		expect(progress.agendaItemStatuses[0].spokenPersonaIds).toBeUndefined();
+		expect(progress.agendaItemStatuses[0].relevantPersonaIds).toBeUndefined();
 	});
 
 	it('論点のない章では空配列を返す', async () => {
 		mockGet.mockResolvedValue({ exists: true, data: () => ({}) });
 		const progress = await loadChapterProgress('t1', 'ch1', makeChapter([]));
-		expect(progress.discussionPointStatuses).toEqual([]);
+		expect(progress.agendaItemStatuses).toEqual([]);
 	});
 
 	it('同一の永続データから同一の出力を返す（決定論）', async () => {
@@ -119,7 +119,7 @@ describe('loadChapterProgress', () => {
 			exists: true,
 			data: () => ({
 				quietStreak: 2,
-				discussionPointStatuses: [{ point: '論点A', status: 'introduced' }]
+				agendaItemStatuses: [{ point: '論点A', status: 'introduced' }]
 			})
 		});
 		const a = await loadChapterProgress('t1', 'ch1', makeChapter(['論点A']));
@@ -173,21 +173,21 @@ describe('turns 復元で targetedBy を保持する', () => {
 
 /**
  * 回帰: focusQuestion を持つ既存ドキュメントを読み出してもエラーにならず、
- * title / discussionPoints のみで ChapterEntry を構成する（後方互換, 1.4）。
+ * title / agenda のみで ChapterEntry を構成する（後方互換, 1.4）。
  */
 describe('回帰: focusQuestion を持つ既存データの読み出し', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
-	it('legacy focusQuestion フィールドは無視され、title / discussionPoints で読み出せる', async () => {
+	it('legacy focusQuestion フィールドは無視され、title / agenda で読み出せる', async () => {
 		mockGet.mockResolvedValue({
 			exists: true,
 			data: () => ({
 				chapterIndex: 0,
 				title: 'レガシー章',
 				focusQuestion: '廃止されたフォーカス問い',
-				discussionPoints: ['論点A', '論点B'],
+				agenda: ['論点A', '論点B'],
 				turns: [],
 				status: 'completed'
 			})
@@ -197,7 +197,7 @@ describe('回帰: focusQuestion を持つ既存データの読み出し', () => 
 
 		expect(entry).not.toBeNull();
 		expect(entry!.title).toBe('レガシー章');
-		expect(entry!.discussionPoints).toEqual(['論点A', '論点B']);
+		expect(entry!.agenda).toEqual(['論点A', '論点B']);
 		// focusQuestion はランタイム型から廃止済みのため ChapterEntry には現れない
 		expect((entry as Record<string, unknown>).focusQuestion).toBeUndefined();
 	});

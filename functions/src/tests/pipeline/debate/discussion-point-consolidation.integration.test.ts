@@ -2,7 +2,7 @@
  * discussion-point-consolidation の結合・回帰検証（タスク6）。
  * - 章開始 → オープニングが先頭論点を introduced 化 → 後続の文脈解決でアクティブ論点が入る。
  * - 介入で未提示論点を投入 → それが新しいアクティブ論点になり、次の drift 評価の基準（activeFocus）が更新される。
- * - introducedOrder 未採番（移行期データ）でも getActiveDiscussionPoint がエラーにならない。
+ * - introducedOrder 未採番（移行期データ）でも getActiveAgendaItem がエラーにならない。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DebateState } from '../../../types/debate.types.js';
@@ -20,8 +20,8 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 vi.mock('../../../agents/facilitator-agent.js', () => ({
-	evaluateTopicDrift: vi.fn(),
-	evaluateStallIntervention: vi.fn()
+	assessActiveAgendaItem: vi.fn(),
+	generateInterventionUtterance: vi.fn()
 }));
 vi.mock('../../../pipeline/debate/speaker-selection.js', () => ({
 	hasHighEngagement: vi.fn(() => false)
@@ -39,13 +39,13 @@ vi.mock('../../../pipeline/debate/utils.js', () => ({
 }));
 
 import {
-	getActiveDiscussionPoint,
+	getActiveAgendaItem,
 	markIntroduced,
-	initDiscussionPoints
-} from '../../../pipeline/debate/discussion-points.js';
+	initAgendaItems
+} from '../../../pipeline/debate/agenda.js';
 
 const mockPersonas: Persona[] = [{ id: 'p1', name: 'テスト' } as Persona];
-const mockChapter: Chapter = { id: 'ch1', title: '章', discussionPoints: ['A', 'B', 'C'] };
+const mockChapter: Chapter = { id: 'ch1', title: '章', agenda: ['A', 'B', 'C'] };
 
 const makeTurn = (speakerType: 'persona' | 'facilitator', id: string): DebateTurn => ({
 	id,
@@ -56,7 +56,7 @@ const makeTurn = (speakerType: 'persona' | 'facilitator', id: string): DebateTur
 
 const makeState = (
 	turns: DebateTurn[],
-	discussionPoints: DebateState['discussionPoints']
+	agenda: DebateState['agenda']
 ): DebateState =>
 	({
 		turns: [...turns],
@@ -64,42 +64,44 @@ const makeState = (
 		silenceMap: new Map(),
 		speakCount: new Map(),
 		queuedIntents: new Map(),
-		discussionPoints
+		agenda
 	}) as DebateState;
 
 describe('結合: 章開始 → オープニングが先頭論点を提示 → 後続文脈にアクティブ論点が入る', () => {
-	it('オープニングの markIntroduced(0) で先頭論点が introduced 化し getActiveDiscussionPoint が返す', () => {
-		const chapter: Chapter = { id: 'ch1', title: '章', discussionPoints: ['先頭論点', '次の論点'] };
-		const state = makeState([], initDiscussionPoints(chapter));
+	it('オープニングの markIntroduced(0) で先頭論点が introduced 化し getActiveAgendaItem が返す', () => {
+		const chapter: Chapter = { id: 'ch1', title: '章', agenda: ['先頭論点', '次の論点'] };
+		const state = makeState([], initAgendaItems(chapter));
 
 		// 章開始時、全論点は untouched
-		expect(getActiveDiscussionPoint(state)).toBeUndefined();
+		expect(getActiveAgendaItem(state)).toBeUndefined();
 
 		// オープニングは untouched 候補リストの index=0 を提示する
 		markIntroduced(state, 0);
 
 		// 後続ターン（turn.ts）が参照するアクティブ論点が先頭論点になる
-		expect(getActiveDiscussionPoint(state)).toBe('先頭論点');
-		expect(state.discussionPoints[0].status).toBe('introduced');
-		expect(state.discussionPoints[0].introducedOrder).toBe(1);
+		expect(getActiveAgendaItem(state)).toBe('先頭論点');
+		expect(state.agenda[0].status).toBe('introduced');
+		expect(state.agenda[0].introducedOrder).toBe(1);
 	});
 
 	it('論点を持たない章では章開始後もアクティブ論点は不在（呼び出し側が title へフォールバック）', () => {
-		const chapter: Chapter = { id: 'ch1', title: 'タイトルのみ章', discussionPoints: [] };
-		const state = makeState([], initDiscussionPoints(chapter));
+		const chapter: Chapter = { id: 'ch1', title: 'タイトルのみ章', agenda: [] };
+		const state = makeState([], initAgendaItems(chapter));
 		markIntroduced(state, undefined);
-		expect(getActiveDiscussionPoint(state)).toBeUndefined();
+		expect(getActiveAgendaItem(state)).toBeUndefined();
 	});
 });
 
-describe('結合: 介入で未提示論点を投入 → 新しいアクティブ論点になり drift 基準が更新される', () => {
-	let evaluateTopicDrift: ReturnType<typeof vi.fn>;
+describe('結合: 介入で未提示論点を投入 → 新しいアクティブ論点になり判定基準が更新される', () => {
+	let assessActiveAgendaItem: ReturnType<typeof vi.fn>;
+	let generateInterventionUtterance: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
 		vi.resetModules();
 		const mod = await import('../../../agents/facilitator-agent.js');
-		evaluateTopicDrift = vi.mocked(mod.evaluateTopicDrift);
+		assessActiveAgendaItem = vi.mocked(mod.assessActiveAgendaItem);
+		generateInterventionUtterance = vi.mocked(mod.generateInterventionUtterance);
 	});
 
 	const cooldownReadyTurns = [
@@ -108,10 +110,11 @@ describe('結合: 介入で未提示論点を投入 → 新しいアクティブ
 		makeTurn('persona', 'p2')
 	];
 
-	it('投入された未提示論点が introduced 化し getActiveDiscussionPoint が返す', async () => {
-		evaluateTopicDrift.mockResolvedValueOnce({
+	it('投入された未提示論点が introduced 化し getActiveAgendaItem が返す', async () => {
+		assessActiveAgendaItem.mockResolvedValueOnce({ ok: true, value: { verdict: 'exhausted' } });
+		generateInterventionUtterance.mockResolvedValueOnce({
 			ok: true,
-			value: { content: '次の論点を投入', targetPersonaId: 'p1', selectedDiscussionPointIndex: 0 }
+			value: { content: '次の論点を投入', targetPersonaId: 'p1', selectedAgendaItemIndex: 0 }
 		});
 
 		// A は提示済み、B/C は未提示。untouched 候補は [B, C]
@@ -121,25 +124,35 @@ describe('結合: 介入で未提示論点を投入 → 新しいアクティブ
 			{ point: 'C', status: 'untouched' }
 		]);
 
-		const { tryIntervention } = await import('../../../pipeline/debate/intervention.js');
-		await tryIntervention({
+		const { progressAgenda } = await import('../../../pipeline/debate/intervention.js');
+		await progressAgenda({
 			topicId: 'topic1',
 			personas: mockPersonas,
 			chapter: mockChapter,
+			chapterId: 'ch1',
 			state,
 			engagements: [],
 			interventionCooldown: 2,
 			trigger: { kind: 'no-target' }
 		});
 
-		// 投入論点 B が introduced になり、最新のアクティブ論点として解決される
-		expect(state.discussionPoints[1].status).toBe('introduced');
-		expect(getActiveDiscussionPoint(state)).toBe('B');
+		// 投入論点 B が introduced になり、最新のアクティブ論点として解決される（前進元 A は addressed）
+		expect(state.agenda[1].status).toBe('introduced');
+		expect(state.agenda[0].status).toBe('addressed');
+		expect(getActiveAgendaItem(state)).toBe('B');
+		// introduce 行動には untouched 候補 [B, C] が渡る
+		expect(generateInterventionUtterance).toHaveBeenCalledWith(
+			{ kind: 'introduce', untouchedAgendaItems: ['B', 'C'] },
+			expect.anything(),
+			expect.anything(),
+			expect.anything()
+		);
 	});
 
-	it('最新の introduced 論点が次の drift 評価に activeFocus として渡る', async () => {
-		// 引き戻し介入（論点投入なし）で発火させ、stall へカスケードさせない
-		evaluateTopicDrift.mockResolvedValueOnce({
+	it('最新の introduced 論点が次の判定に activeFocus として渡る', async () => {
+		// 引き戻し（論点投入なし）で発火させる
+		assessActiveAgendaItem.mockResolvedValueOnce({ ok: true, value: { verdict: 'drifted' } });
+		generateInterventionUtterance.mockResolvedValueOnce({
 			ok: true,
 			value: { content: 'B に引き戻す', targetPersonaId: 'p1' }
 		});
@@ -151,26 +164,26 @@ describe('結合: 介入で未提示論点を投入 → 新しいアクティブ
 			{ point: 'C', status: 'untouched' }
 		]);
 
-		const { tryIntervention } = await import('../../../pipeline/debate/intervention.js');
-		await tryIntervention({
+		const { progressAgenda } = await import('../../../pipeline/debate/intervention.js');
+		await progressAgenda({
 			topicId: 'topic1',
 			personas: mockPersonas,
 			chapter: mockChapter,
+			chapterId: 'ch1',
 			state,
 			engagements: [],
 			interventionCooldown: 2,
 			trigger: { kind: 'no-target' }
 		});
 
-		// drift の判断軸（5番目の引数 activeFocus）が新しいアクティブ論点 B に更新されている
-		expect(evaluateTopicDrift).toHaveBeenCalledWith(
+		// 判定の判断軸（第1引数 activeAgendaItem）が新しいアクティブ論点 B に更新されている
+		expect(assessActiveAgendaItem).toHaveBeenCalledWith('B', expect.anything(), expect.anything());
+		// 引き戻し行動も active=B を対象にする
+		expect(generateInterventionUtterance).toHaveBeenCalledWith(
+			{ kind: 'pull-back', activeAgendaItem: 'B' },
 			expect.anything(),
 			expect.anything(),
-			expect.anything(),
-			expect.anything(),
-			'B',
-			['C'],
-			undefined
+			expect.anything()
 		);
 	});
 });
@@ -184,7 +197,7 @@ describe('回帰: introducedOrder 未採番（移行期データ）でもアク�
 				{ point: 'B', status: 'introduced' }
 			]
 		);
-		expect(() => getActiveDiscussionPoint(state)).not.toThrow();
-		expect(getActiveDiscussionPoint(state)).toBeDefined();
+		expect(() => getActiveAgendaItem(state)).not.toThrow();
+		expect(getActiveAgendaItem(state)).toBeDefined();
 	});
 });

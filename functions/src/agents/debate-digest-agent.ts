@@ -26,14 +26,14 @@ const summarizeChapterSystemPrompt = `あなたは討論の記録を要約する
 
 export const summarizeChapter = async (input: {
 	title: string;
-	discussionPoints: string[];
+	agenda: string[];
 	turns: ReadonlyArray<DebateTurn>;
 	personas: ReadonlyArray<Persona>;
 }): Promise<Result<string, PipelineError>> => {
 	try {
 		const pointsSection =
-			input.discussionPoints.length > 0
-				? `\n\nこの章の論点:\n${input.discussionPoints.map((point) => `- ${point}`).join('\n')}`
+			input.agenda.length > 0
+				? `\n\nこの章の論点:\n${input.agenda.map((point) => `- ${point}`).join('\n')}`
 				: '';
 
 		const result = await generateText({

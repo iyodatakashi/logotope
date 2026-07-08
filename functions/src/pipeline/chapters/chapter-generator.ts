@@ -41,7 +41,7 @@ export const planChapters = async (topicId: string): Promise<void> => {
 				.set({
 					chapterIndex: i,
 					title: chapter.title,
-					discussionPoints: chapter.discussionPoints ?? [],
+					agenda: chapter.agenda ?? [],
 					turns: [],
 					status: 'pending'
 				})
