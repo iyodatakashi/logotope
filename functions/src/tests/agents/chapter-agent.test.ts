@@ -63,6 +63,10 @@ const makeScoringResult = (
 		{ index: 1, score: 7, reason: '良い論点' }
 	]
 ) => ({ object: { scoredIssues: overrides } });
+// 重複排除（scoring と grouping の間の LLM 呼び出し）。既定は重複なし（no-op）。
+const makeDedupeResult = (duplicateGroups: unknown[] = []) => ({
+	object: { duplicateGroups }
+});
 const makeGroupingResult = (issueGroups: unknown[] = [{ issueIndexes: [0] }]) => ({
 	object: { issueGroups }
 });
@@ -89,6 +93,7 @@ describe('generateChapters - agenda', () => {
 					{ index: 1, score: 7, reason: '良い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult([{ issueIndexes: [0] }, { issueIndexes: [1] }]))
 			.mockResolvedValueOnce(
 				makeBuildResult([
@@ -112,6 +117,7 @@ describe('generateChapters - agenda', () => {
 			.mockResolvedValueOnce(makeIssuesResult(['issue1']))
 			.mockResolvedValueOnce(makeIssuesResult(['issue2']))
 			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult([{ issueIndexes: [0] }]))
 			.mockResolvedValueOnce(makeBuildResult([{ title: '第1章', agenda: [] }]));
 
@@ -135,6 +141,7 @@ describe('generateChapters - agenda', () => {
 					{ index: 1, score: 7, reason: '良い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockImplementationOnce(async (args: unknown) => {
 				capturedArgs.push(args);
 				return makeGroupingResult();
@@ -164,6 +171,7 @@ describe('generateChapters - topicContext対応', () => {
 					{ index: 1, score: 7, reason: '良い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult())
 			.mockResolvedValueOnce(makeBuildResult());
 	};
@@ -183,6 +191,7 @@ describe('generateChapters - topicContext対応', () => {
 			})
 			.mockResolvedValueOnce(makeIssuesResult(['i2']))
 			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult())
 			.mockResolvedValueOnce(makeBuildResult());
 
@@ -204,6 +213,7 @@ describe('generateChapters - topicContext対応', () => {
 				return makeIssuesResult(['i2']);
 			})
 			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult())
 			.mockResolvedValueOnce(makeBuildResult());
 
@@ -225,6 +235,7 @@ describe('generateChapters - topicContext対応', () => {
 			})
 			.mockResolvedValueOnce(makeIssuesResult(['i2']))
 			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult())
 			.mockResolvedValueOnce(makeBuildResult());
 
@@ -246,6 +257,7 @@ describe('generateChapters - topicContext対応', () => {
 			})
 			.mockResolvedValueOnce(makeIssuesResult(['i2']))
 			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult())
 			.mockResolvedValueOnce(makeBuildResult());
 
@@ -273,6 +285,7 @@ describe('generateChapters - topicContext対応', () => {
 			})
 			.mockResolvedValueOnce(makeIssuesResult(['i2']))
 			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult())
 			.mockResolvedValueOnce(makeBuildResult());
 
@@ -298,6 +311,7 @@ describe('generateChapters - topicContext対応', () => {
 			})
 			.mockResolvedValueOnce(makeIssuesResult(['i']))
 			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult())
 			.mockResolvedValueOnce(makeBuildResult());
 
@@ -319,6 +333,7 @@ describe('generateChapters - topicContext対応', () => {
 			})
 			.mockResolvedValueOnce(makeIssuesResult(['i']))
 			.mockResolvedValueOnce(makeScoringResult([{ index: 0, score: 8, reason: '良い' }]))
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult())
 			.mockResolvedValueOnce(makeBuildResult());
 
@@ -342,6 +357,7 @@ describe('generateChapters - topicContext対応', () => {
 				capturedScoring.push(...args.messages);
 				return makeScoringResult([{ index: 0, score: 8, reason: '良い' }]);
 			})
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult())
 			.mockResolvedValueOnce(makeBuildResult());
 
@@ -384,6 +400,7 @@ describe('generateChapters - topicContext対応', () => {
 					{ index: 2, score: 3, reason: '低い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult())
 			.mockResolvedValueOnce(makeBuildResult());
 
@@ -426,6 +443,7 @@ describe('Task 7.1: scoreIssues - スコアリング', () => {
 					{ index: 1, score: 7, reason: 'persona good' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
 				capturedGrouping.push(args.messages[0].content);
 				return makeGroupingResult([{ issueIndexes: [0, 1] }]);
@@ -450,6 +468,7 @@ describe('Task 7.1: scoreIssues - スコアリング', () => {
 					// index 1 (per1) 欠落 → score=0
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
 				capturedGrouping.push(args.messages[0].content);
 				return makeGroupingResult([{ issueIndexes: [0] }]);
@@ -476,6 +495,7 @@ describe('Task 7.1: scoreIssues - スコアリング', () => {
 					{ index: 1, score: 7, reason: 'good' }
 				]);
 			})
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult())
 			.mockResolvedValueOnce(makeBuildResult());
 
@@ -510,6 +530,7 @@ describe('Task 7.1: selectIssues - 選別ルール', () => {
 					{ index: 2, score: 3, reason: '閾値未満' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
 				capturedGrouping.push(args.messages[0].content);
 				return makeGroupingResult([{ issueIndexes: [0] }]);
@@ -535,6 +556,7 @@ describe('Task 7.1: selectIssues - 選別ルール', () => {
 					{ index: 1, score: 3, reason: '低い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
 				capturedGrouping.push(args.messages[0].content);
 				return makeGroupingResult([{ issueIndexes: [0] }]);
@@ -561,6 +583,7 @@ describe('Task 7.1: selectIssues - 選別ルール', () => {
 					{ index: 2, score: 8, reason: '高い（persona）' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
 				capturedGrouping.push(args.messages[0].content);
 				return makeGroupingResult([{ issueIndexes: [0, 1, 2] }]);
@@ -588,6 +611,7 @@ describe('Task 7.1: selectIssues - 選別ルール', () => {
 					{ index: 2, score: 7, reason: '閾値上（persona）' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
 				capturedGrouping.push(args.messages[0].content);
 				return makeGroupingResult([{ issueIndexes: [0, 1] }]);
@@ -626,6 +650,7 @@ describe('Task 2.1: groupIssues - グループ化フォールバック', () => {
 					{ index: 1, score: 7, reason: '良い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult([])) // 0グループ → フォールバック
 			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
 				capturedBuilding.push(args.messages[0].content);
@@ -656,6 +681,7 @@ describe('Task 2.1: groupIssues - グループ化フォールバック', () => {
 					{ index: 2, score: 8, reason: '良い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(
 				makeGroupingResult([
 					{ issueIndexes: [0] },
@@ -692,6 +718,7 @@ describe('Task 2.1: groupIssues - グループ化フォールバック', () => {
 					{ index: 2, score: 8, reason: '良い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(
 				makeGroupingResult([
 					{ issueIndexes: [0, 2] }
@@ -732,6 +759,7 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 					{ index: 1, score: 7, reason: '良い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult([{ issueIndexes: [0] }, { issueIndexes: [1] }]))
 			.mockResolvedValueOnce(
 				makeBuildResult([
@@ -765,6 +793,7 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 					{ index: 1, score: 7, reason: '良い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult([{ issueIndexes: [0, 1] }]))
 			.mockResolvedValueOnce(
 				makeBuildResult([
@@ -798,6 +827,7 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 					{ index: 1, score: 7, reason: '良い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult([{ issueIndexes: [0, 1] }]))
 			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
 				capturedBuilding.push(args.messages[0].content);
@@ -825,6 +855,7 @@ describe('Task 2.2: buildChapters - 章生成', () => {
 					{ index: 1, score: 7, reason: '良い' }
 				])
 			)
+			.mockResolvedValueOnce(makeDedupeResult())
 			.mockResolvedValueOnce(makeGroupingResult([{ issueIndexes: [0, 1] }]))
 			.mockImplementationOnce(async (args: { messages: { content: string }[] }) => {
 				capturedBuilding.push(args.messages[0].content);

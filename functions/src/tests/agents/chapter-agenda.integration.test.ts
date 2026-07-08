@@ -101,6 +101,7 @@ describe('Task 5.2: チャプター生成で agenda が返される', () => {
 					]
 				}
 			} as never)
+			.mockResolvedValueOnce({ object: { duplicateGroups: [] } } as never)
 			.mockResolvedValueOnce({
 				object: {
 					issueGroups: [{ issueIndexes: [0, 1, 2] }]
@@ -140,6 +141,7 @@ describe('Task 5.2: チャプター生成で agenda が返される', () => {
 					]
 				}
 			} as never)
+			.mockResolvedValueOnce({ object: { duplicateGroups: [] } } as never)
 			.mockResolvedValueOnce({
 				object: { issueGroups: [{ issueIndexes: [0] }] }
 			} as never)
