@@ -6,8 +6,8 @@ import { getTopicContext } from '../topics/topic-context.js';
 import { pipelineErrorMessage } from '../debate/utils.js';
 import type { IntroClosingInput } from '../../agents/intro-closing-agent.js';
 import type {
-	NarrationPartForFirestore,
-	ImpressionPartForFirestore
+	Narration,
+	ImpressionForFirestore
 } from '../../types/editorial.types.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
@@ -29,7 +29,7 @@ export const buildImpressionPart = async (
 	turns: DebateTurn[],
 	personas: ReadonlyArray<Persona>,
 	sortOrder: number
-): Promise<ImpressionPartForFirestore | null> => {
+): Promise<ImpressionForFirestore | null> => {
 	let draft: string | null = null;
 	for (let attempt = 1; attempt <= MAX_PERSONA_ATTEMPTS; attempt++) {
 		const result = await generateImpression(persona, turns, personas);
@@ -63,7 +63,7 @@ export const buildImpressionPart = async (
 export const buildNarrationPart = async (
 	kind: 'intro' | 'outro',
 	input: IntroClosingInput
-): Promise<NarrationPartForFirestore> => {
+): Promise<Narration> => {
 	const generate = kind === 'intro' ? generateIntro : generateOutro;
 	const edit = kind === 'intro' ? editIntro : editOutro;
 

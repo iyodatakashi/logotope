@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createFirestoreMock } from '../../helpers/firestore-mock.js';
-import type { ImpressionPartForFirestore } from '../../../types/editorial.types.js';
+import type { ImpressionForFirestore } from '../../../types/editorial.types.js';
 
 const { holder } = vi.hoisted(() => ({
 	holder: {
@@ -28,7 +28,7 @@ const impression = (
 	sortOrder: number,
 	draft: string | null,
 	final: string | null
-): ImpressionPartForFirestore => ({ sortOrder, draft, final });
+): ImpressionForFirestore => ({ sortOrder, draft, final });
 
 beforeEach(() => {
 	holder.mock = createFirestoreMock();

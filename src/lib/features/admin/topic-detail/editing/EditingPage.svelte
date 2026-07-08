@@ -6,11 +6,15 @@
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import DiffText from './DiffText.svelte';
 	import { computeInlineDiff, type InlineDiffSegment } from './inlineDiff';
-	import type { EditedChapterDisplayStatus } from '$lib/models/editedChapter/editedChapter.types';
+	import type { Chapter } from '$lib/models/chapter/chapter.types';
+	import type {
+		EditedChapter,
+		EditedChapterDisplayStatus
+	} from '$lib/models/editedChapter/editedChapter.types';
 	import type {
 		ArticleElement,
 		ElementStatus,
-		NarrationPartForFirestore
+		Narration
 	} from '$lib/models/editorial/editorial.types';
 
 	const PHASE: PhaseSlug = 'editing';
@@ -98,7 +102,7 @@
 
 	// 記事要素の読み取りモデル: 編集後(final)を優先し、無ければ原本(draft)を暫定表示。どちらも無ければ欠落。
 	type ElementView = { status: ElementStatus; content: string; diff: InlineDiffSegment[] | null };
-	const narrationView = (part: NarrationPartForFirestore): ElementView => {
+	const narrationView = (part: Narration): ElementView => {
 		if (part.final != null) {
 			return {
 				status: 'final',
@@ -167,101 +171,94 @@
 				status === 'failed' ? (store.getEditedChapter(chapter.id)?.failureReason ?? null) : null;
 			// 未完成（編集後の無い）章のうち、原本ターンがある章だけ個別再生成できる。
 			const canRegenerate = status !== 'completed' && chapter.turns.length > 0;
-			if (status === 'completed') {
-				const edited = store.getEditedChapter(chapter.id);
-				const orderOf = new Map(chapter.turns.map((turn, i) => [turn.id, i]));
-				const contentById = new Map(chapter.turns.map((turn) => [turn.id, turn.content]));
-				const usedSourceIds = new Set(
-					(edited?.turns ?? []).flatMap((editedTurn) => editedTurn.sourceTurnIds)
-				);
-
-				const editedItems = (edited?.turns ?? []).map((editedTurn) => {
-					const sourceIds = [...editedTurn.sourceTurnIds].sort(
-						(a, b) => (orderOf.get(a) ?? 0) - (orderOf.get(b) ?? 0)
-					);
-					const { name, role } = speakerLabel(editedTurn.speakerType, editedTurn.personaId);
-					const sourceText = sourceIds.map((sourceId) => contentById.get(sourceId) ?? '').join('');
-					const turn: DisplayTurn = {
-						id: editedTurn.id,
-						name,
-						role,
-						content: editedTurn.content,
-						speechMode: editedTurn.speechMode,
-						diff: computeInlineDiff(sourceText, editedTurn.content),
-						removed: false,
-						awarenesses: sourceIds.flatMap((sourceId) => awarenessesByTurn.get(sourceId) ?? [])
-					};
-					return {
-						sortIndex: Math.min(...sourceIds.map((sourceId) => orderOf.get(sourceId) ?? 0)),
-						turn
-					};
-				});
-
-				const removedItems = chapter.turns
-					.filter((rawTurn) => !usedSourceIds.has(rawTurn.id))
-					.map((rawTurn) => {
-						const { name, role } = speakerLabel(rawTurn.speakerType, rawTurn.personaId);
-						const turn: DisplayTurn = {
-							id: rawTurn.id,
-							name,
-							role,
-							content: rawTurn.content,
-							speechMode: rawTurn.speechMode,
-							diff: null,
-							removed: true,
-							awarenesses: []
-						};
-						return { sortIndex: orderOf.get(rawTurn.id) ?? 0, turn };
-					});
-
-				const turns = [...editedItems, ...removedItems]
-					.sort((a, b) => a.sortIndex - b.sortIndex)
-					.map((entry) => entry.turn);
-				return {
-					id: chapter.id,
-					title: chapter.title,
-					status,
-					failureReason,
-					canRegenerate,
-					turns
-				};
-			}
-			// フォールバック: 原本ターンをそのまま表示する（差分なし）。
-			const turns: DisplayTurn[] = chapter.turns.map((turn) => {
-				const { name, role } = speakerLabel(turn.speakerType, turn.personaId);
-				return {
-					id: turn.id,
-					name,
-					role,
-					content: turn.content,
-					speechMode: turn.speechMode,
-					diff: null,
-					removed: false,
-					awarenesses: awarenessesByTurn.get(turn.id) ?? []
-				};
-			});
+			const turns =
+				status === 'completed'
+					? buildEditedTurns(chapter, store.getEditedChapter(chapter.id))
+					: buildRawTurns(chapter);
 			return { id: chapter.id, title: chapter.title, status, failureReason, canRegenerate, turns };
 		});
 	});
 
+	// 編集済み章: 編集後ターン（原本ターンを統合しうる）と、どこにも使われず削除された原本ターンを、
+	// 原本の順序でひとつの列にマージする。差分は結合元テキストと編集後テキストの比較で出す。
+	const buildEditedTurns = (chapter: Chapter, edited: EditedChapter | null): DisplayTurn[] => {
+		const orderOf = new Map(chapter.turns.map((turn, i) => [turn.id, i]));
+		const contentById = new Map(chapter.turns.map((turn) => [turn.id, turn.content]));
+		const usedSourceIds = new Set(
+			(edited?.turns ?? []).flatMap((editedTurn) => editedTurn.sourceTurnIds)
+		);
+
+		const editedItems = (edited?.turns ?? []).map((editedTurn) => {
+			const sourceIds = [...editedTurn.sourceTurnIds].sort(
+				(a, b) => (orderOf.get(a) ?? 0) - (orderOf.get(b) ?? 0)
+			);
+			const { name, role } = speakerLabel(editedTurn.speakerType, editedTurn.personaId);
+			const sourceText = sourceIds.map((sourceId) => contentById.get(sourceId) ?? '').join('');
+			const turn: DisplayTurn = {
+				id: editedTurn.id,
+				name,
+				role,
+				content: editedTurn.content,
+				speechMode: editedTurn.speechMode,
+				diff: computeInlineDiff(sourceText, editedTurn.content),
+				removed: false,
+				awarenesses: sourceIds.flatMap((sourceId) => awarenessesByTurn.get(sourceId) ?? [])
+			};
+			return {
+				sortIndex: Math.min(...sourceIds.map((sourceId) => orderOf.get(sourceId) ?? 0)),
+				turn
+			};
+		});
+
+		const removedItems = chapter.turns
+			.filter((rawTurn) => !usedSourceIds.has(rawTurn.id))
+			.map((rawTurn) => {
+				const { name, role } = speakerLabel(rawTurn.speakerType, rawTurn.personaId);
+				const turn: DisplayTurn = {
+					id: rawTurn.id,
+					name,
+					role,
+					content: rawTurn.content,
+					speechMode: rawTurn.speechMode,
+					diff: null,
+					removed: true,
+					awarenesses: []
+				};
+				return { sortIndex: orderOf.get(rawTurn.id) ?? 0, turn };
+			});
+
+		return [...editedItems, ...removedItems]
+			.sort((a, b) => a.sortIndex - b.sortIndex)
+			.map((entry) => entry.turn);
+	};
+
+	// 未編集・失敗の章のフォールバック: 原本ターンをそのまま表示する（差分なし）。
+	const buildRawTurns = (chapter: Chapter): DisplayTurn[] =>
+		chapter.turns.map((turn) => {
+			const { name, role } = speakerLabel(turn.speakerType, turn.personaId);
+			return {
+				id: turn.id,
+				name,
+				role,
+				content: turn.content,
+				speechMode: turn.speechMode,
+				diff: null,
+				removed: false,
+				awarenesses: awarenessesByTurn.get(turn.id) ?? []
+			};
+		});
+
 	// 所感（impressions）。承認済みペルソナ単位に、編集後 > 原本 > 欠落 で組み立てる。
 	// 未完成（draft_only / missing）は編集確定後のみ表示する（Req 3.1, 3.2, 6.6）。
-	type DisplayImpression = {
-		personaId: string;
-		name: string;
-		role: string;
-		status: ElementStatus;
-		content: string;
-		diff: InlineDiffSegment[] | null;
-	};
-	const displayImpressions = $derived.by((): DisplayImpression[] => {
+	// models の Impression に persona 情報と差分（描画派生）を足した画面ローカルの読み取りモデル。
+	const displayImpressions = $derived.by(() => {
 		const impressions = currentTopicStore.editorialStore.impressions;
 		return currentTopicStore.personasStore.personas
 			.filter((persona) => persona.approved)
-			.map((persona): DisplayImpression => {
+			.map((persona) => {
 				const { name, role } = speakerLabel('persona', persona.id);
-				const part = impressions[persona.id] ?? { sortOrder: 0, draft: null, final: null };
-				const view = narrationView(part);
+				const impression = impressions.find((item) => item.personaId === persona.id);
+				const view = narrationView(impression ?? { draft: null, final: null });
 				return { personaId: persona.id, name, role, ...view };
 			})
 			.filter((impression) => impression.status !== 'missing' || editingSettled);

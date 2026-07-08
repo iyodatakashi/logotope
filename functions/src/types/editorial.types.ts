@@ -29,13 +29,13 @@ export type EditedChapterForFirestore = {
 };
 
 // 導入・締めの記事要素。原本 draft と編集後 final を持ち、未生成/失敗は null。
-export type NarrationPartForFirestore = {
+export type Narration = {
 	draft: string | null;
 	final: string | null;
 };
 
 // 所感の記事要素（承認ペルソナごと）。sortOrder で表示順を保ち、原本 draft と編集後 final を持つ。
-export type ImpressionPartForFirestore = {
+export type ImpressionForFirestore = {
 	sortOrder: number;
 	draft: string | null;
 	final: string | null;
@@ -44,9 +44,9 @@ export type ImpressionPartForFirestore = {
 // 導入・締め・所感をまとめた統合ドキュメント editorial/0。所感は personaId をキーにしたマップにし、
 // 記事要素ごとの部分上書き（blind write・衝突なし）を可能にする。本体(章)は別保存（editedChapters）。
 export type EditorialForFirestore = {
-	intro: NarrationPartForFirestore;
-	outro: NarrationPartForFirestore;
-	impressions: Record<string, ImpressionPartForFirestore>;
+	intro: Narration;
+	outro: Narration;
+	impressions: Record<string, ImpressionForFirestore>;
 };
 
 // 個別再生成の対象となる記事要素。共通入口 onCall（regenerateArticleElement）の request と種別振り分けに使う。

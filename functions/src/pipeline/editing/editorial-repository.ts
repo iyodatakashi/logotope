@@ -1,8 +1,8 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import type {
 	EditorialForFirestore,
-	NarrationPartForFirestore,
-	ImpressionPartForFirestore
+	Narration,
+	ImpressionForFirestore
 } from '../../types/editorial.types.js';
 
 // 導入・締め・所感を1つにまとめた統合ドキュメント editorial/0 の読み取りと部分上書き（blind write）。
@@ -13,7 +13,7 @@ const db = () => getFirestore();
 
 const editorialRef = (topicId: string) => db().doc(`topics/${topicId}/editorial/0`);
 
-const emptyNarration = (): NarrationPartForFirestore => ({ draft: null, final: null });
+const emptyNarration = (): Narration => ({ draft: null, final: null });
 
 /** 統合ドキュメントを読み取る。欠落項目は空（draft/final=null・impressions={}）で補完して返す */
 export const readEditorial = async (topicId: string): Promise<EditorialForFirestore> => {
@@ -29,7 +29,7 @@ export const readEditorial = async (topicId: string): Promise<EditorialForFirest
 /** 導入を部分上書きする（intro 項目のみ・他要素不変） */
 export const setIntro = async (
 	topicId: string,
-	part: NarrationPartForFirestore
+	part: Narration
 ): Promise<void> => {
 	await editorialRef(topicId).update({ intro: part });
 };
@@ -37,7 +37,7 @@ export const setIntro = async (
 /** 締めを部分上書きする（outro 項目のみ・他要素不変） */
 export const setOutro = async (
 	topicId: string,
-	part: NarrationPartForFirestore
+	part: Narration
 ): Promise<void> => {
 	await editorialRef(topicId).update({ outro: part });
 };
@@ -46,7 +46,7 @@ export const setOutro = async (
 export const setImpression = async (
 	topicId: string,
 	personaId: string,
-	part: ImpressionPartForFirestore
+	part: ImpressionForFirestore
 ): Promise<void> => {
 	await editorialRef(topicId).update({ [`impressions.${personaId}`]: part });
 };
