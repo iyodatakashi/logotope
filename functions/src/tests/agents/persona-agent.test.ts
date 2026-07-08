@@ -13,7 +13,7 @@ vi.mock('ai', () => ({
 }));
 
 vi.mock('../../llm/models.js', () => ({
-	getPersonaModel: vi.fn(() => 'mock-model')
+	sonnet: 'mock-model'
 }));
 
 vi.mock('../../search/search-service.js', () => ({
@@ -52,7 +52,6 @@ const mockPersona: Persona = {
 	interests: 'テスト関心事',
 	nationality: '日本',
 	engagementLevel: 'moderate',
-	llmType: 'claude',
 	approved: true,
 	sortOrder: 0,
 	interviewRecord: 'テスト取材記録'
@@ -689,6 +688,25 @@ describe('generateTurn', () => {
 		expect(userContent).toContain('targetPersonaId');
 	});
 
+	it('出力が空でも別モデルへフォールバックせず、generateText は1回のみでエラー Result を返す（3.1/3.2）', async () => {
+		const aiMod = await import('ai');
+		const spy = vi.mocked(aiMod.generateText);
+		spy.mockClear();
+		spy.mockImplementation(async () => makeGenerateTextResult(undefined) as never);
+
+		const { generateTurn } = await import('../../agents/persona-agent.js');
+		// llmType の値に依存せず単一モデルで生成し、フォールバック再試行をしないことを確認する。
+		const result = await generateTurn(
+			{ ...mockPersona, llmType: 'gpt' } as Persona,
+			makeContext(),
+			makeEngagement()
+		);
+
+		expect(result.ok).toBe(false);
+		if (!result.ok) expect(result.error.code).toBe('AI_API_ERROR');
+		expect(spy).toHaveBeenCalledTimes(1);
+	});
+
 	it('activeAgendaItem があるとき論点がプロンプトに注入される', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
@@ -1143,7 +1161,7 @@ describe('generateImpression', () => {
 
 // Task 1.1: ペルソナ安定コンテキストのプロンプトキャッシュ配置。
 // claude 経路のみ安定コンテキストを cacheControl 付き system メッセージにし、
-// gemini/gpt 経路と事後コメントは従来の文字列 system で呼ぶ。出力スキーマは不変。
+// 発言・engagement は cacheControl 付き system、事後コメントは従来の文字列 system で呼ぶ。出力スキーマは不変。
 describe('プロンプトキャッシュ配置（Task 1.1）', () => {
 	beforeEach(() => {
 		vi.resetModules();
@@ -1204,7 +1222,7 @@ describe('プロンプトキャッシュ配置（Task 1.1）', () => {
 		expectCachedSystem(capturedArgs[0] as { system: unknown }, '田中太郎');
 	});
 
-	it('gemini 経路の evaluateEngagement は従来の文字列 system で呼ぶ（キャッシュ非適用）', async () => {
+	it('legacy llmType 値によらず evaluateEngagement は cacheControl 付き system で呼ぶ（単一 Claude）', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
 		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
@@ -1215,12 +1233,12 @@ describe('プロンプトキャッシュ配置（Task 1.1）', () => {
 		});
 
 		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
-		await evaluateEngagement({ ...mockPersona, llmType: 'gemini' }, mockTurns, ['佐藤花子']);
+		await evaluateEngagement({ ...mockPersona, llmType: 'gemini' } as Persona, mockTurns, ['佐藤花子']);
 
-		expect(typeof (capturedArgs[0] as { system: unknown }).system).toBe('string');
+		expectCachedSystem(capturedArgs[0] as { system: unknown }, '田中太郎');
 	});
 
-	it('gpt 経路の generateTurn は従来の文字列 system で呼ぶ（キャッシュ非適用）', async () => {
+	it('legacy llmType 値によらず generateTurn は cacheControl 付き system で呼ぶ（単一 Claude）', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
 		vi.mocked(aiMod.generateText).mockImplementation(async (args) => {
@@ -1229,9 +1247,9 @@ describe('プロンプトキャッシュ配置（Task 1.1）', () => {
 		});
 
 		const { generateTurn } = await import('../../agents/persona-agent.js');
-		await generateTurn({ ...mockPersona, llmType: 'gpt' }, makeContext(), makeEngagement());
+		await generateTurn({ ...mockPersona, llmType: 'gpt' } as Persona, makeContext(), makeEngagement());
 
-		expect(typeof (capturedArgs[0] as { system: unknown }).system).toBe('string');
+		expectCachedSystem(capturedArgs[0] as { system: unknown }, '田中太郎');
 	});
 
 	it('generateImpression は claude でも従来の文字列 system で呼ぶ（キャッシュ対象外）', async () => {

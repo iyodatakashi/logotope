@@ -10,14 +10,10 @@ vi.mock('@ai-sdk/anthropic', () => ({
 vi.mock('@ai-sdk/google', () => ({
 	createGoogleGenerativeAI: vi.fn(() => mockGoogleModelFn)
 }));
-vi.mock('@ai-sdk/openai', () => ({
-	openai: vi.fn((modelId: string) => ({ _provider: 'openai', _modelId: modelId }))
-}));
 import { anthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { openai } from '@ai-sdk/openai';
-import { getPersonaModel, getPipelineModel } from '../../llm/models.js';
-import { PERSONA_MODELS, PIPELINE_MODELS } from '../../constants/ai.constants.js';
+import { getPipelineModel, sonnet } from '../../llm/models.js';
+import { PIPELINE_MODELS } from '../../constants/ai.constants.js';
 
 const savedEnv: Record<string, string | undefined> = {};
 
@@ -36,44 +32,11 @@ afterEach(() => {
 	}
 });
 
-describe('getPersonaModel', () => {
-	describe('claude', () => {
-		it('Claude LanguageModel を返す', () => {
-			getPersonaModel('claude');
-			expect(anthropic).toHaveBeenCalledWith(PERSONA_MODELS.claude);
-		});
-	});
-
-	describe('gemini', () => {
-		// gemini ペルソナは Sonnet に寄せる方針（PERSONA_MODELS.gemini が Claude モデル）。
-		// プロバイダはモデル ID で選ぶため、GEMINI_API_KEY の有無に関わらず anthropic に投げる（Google に Claude ID を渡さない）。
-		it('モデル ID が Claude(Sonnet) なら GEMINI_API_KEY 設定時でも anthropic に投げる（Google を使わない）', () => {
-			process.env.GEMINI_API_KEY = 'test-gemini-key';
-			getPersonaModel('gemini');
-			expect(anthropic).toHaveBeenCalledWith(PERSONA_MODELS.gemini);
-			expect(createGoogleGenerativeAI).not.toHaveBeenCalled();
-		});
-
-		it('GEMINI_API_KEY 未設定でも anthropic（Claude モデル）に投げる', () => {
-			getPersonaModel('gemini');
-			expect(anthropic).toHaveBeenCalledWith(PERSONA_MODELS.gemini);
-			expect(createGoogleGenerativeAI).not.toHaveBeenCalled();
-		});
-	});
-
-	describe('gpt', () => {
-		it('OPENAI_API_KEY が設定されている場合 OpenAI LanguageModel を返す', () => {
-			process.env.OPENAI_API_KEY = 'test-openai-key';
-			getPersonaModel('gpt');
-			expect(openai).toHaveBeenCalledWith(PERSONA_MODELS.gpt);
-			expect(anthropic).not.toHaveBeenCalled();
-		});
-
-		it('OPENAI_API_KEY が未設定の場合 Claude にフォールバック', () => {
-			getPersonaModel('gpt');
-			expect(anthropic).toHaveBeenCalledWith(PERSONA_MODELS.claude);
-			expect(openai).not.toHaveBeenCalled();
-		});
+describe('getPipelineModel - personaGenerator', () => {
+	it('OPENAI_API_KEY の有無によらず共有 sonnet を返す（Claude 化）', () => {
+		process.env.OPENAI_API_KEY = 'test-openai-key';
+		expect(getPipelineModel('personaGenerator')).toBe(sonnet);
+		expect(createGoogleGenerativeAI).not.toHaveBeenCalled();
 	});
 });
 
@@ -103,10 +66,9 @@ describe('getPipelineModel - ファクトチェック', () => {
 		expect(anthropic).not.toHaveBeenCalled();
 	});
 
-	it('factCheckAssertionGate は GEMINI_API_KEY 未設定なら Claude にフォールバック', () => {
+	it('factCheckAssertionGate は GEMINI_API_KEY 未設定なら共有 sonnet にフォールバック', () => {
 		delete process.env.GEMINI_API_KEY;
-		getPipelineModel('factCheckAssertionGate');
-		expect(anthropic).toHaveBeenCalledWith(PERSONA_MODELS.claude);
+		expect(getPipelineModel('factCheckAssertionGate')).toBe(sonnet);
 		expect(createGoogleGenerativeAI).not.toHaveBeenCalled();
 	});
 
@@ -117,10 +79,9 @@ describe('getPipelineModel - ファクトチェック', () => {
 		expect(anthropic).not.toHaveBeenCalled();
 	});
 
-	it('factCheckJudge は GEMINI_API_KEY 未設定なら Claude にフォールバック', () => {
+	it('factCheckJudge は GEMINI_API_KEY 未設定なら共有 sonnet にフォールバック', () => {
 		delete process.env.GEMINI_API_KEY;
-		getPipelineModel('factCheckJudge');
-		expect(anthropic).toHaveBeenCalledWith(PERSONA_MODELS.claude);
+		expect(getPipelineModel('factCheckJudge')).toBe(sonnet);
 		expect(createGoogleGenerativeAI).not.toHaveBeenCalled();
 	});
 });

@@ -1,4 +1,3 @@
-export type LLMType = 'gemini' | 'claude' | 'gpt';
 export type PhaseStatus = 'not_started' | 'running' | 'generated' | 'stopped';
 
 export type PipelineError =

@@ -28,8 +28,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 vi.mock('ai', () => ({ generateObject: vi.fn(), generateText: vi.fn() }));
-vi.mock('@ai-sdk/anthropic', () => ({ anthropic: vi.fn(() => 'mock-model') }));
-vi.mock('../../../constants/ai.constants.js', () => ({ AI_MODELS: { SONNET: 'sonnet' } }));
+vi.mock('../../../llm/models.js', () => ({ sonnet: 'mock-model' }));
 
 // LLM リーフ（所感・導入/締めの原本生成→整え）はビルダー単体テストに委ね、ここではチェーン結線・
 // 統合保存・完了確定を本物で通す。章編集は generateObject をモックした本物の editChapter＋構造検証を通す。
@@ -71,7 +70,6 @@ const seedTopic = () => {
 		approved: true,
 		sortOrder: 0,
 		stakeholderRole: '一般',
-		llmType: 'claude'
 	});
 	mock.store.set('topics/t1/chapters/c1', {
 		chapterIndex: 0,

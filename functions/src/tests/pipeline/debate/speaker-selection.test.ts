@@ -47,7 +47,6 @@ const makePersonas = (ids: string[]): Persona[] =>
 		interests: '',
 		nationality: '日本',
 		engagementLevel: 'moderate' as const,
-		llmType: 'claude' as const,
 		approved: true,
 		sortOrder: 0
 	}));

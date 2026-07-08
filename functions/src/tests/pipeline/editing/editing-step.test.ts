@@ -18,7 +18,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }));
 
 vi.mock('ai', () => ({ generateObject: vi.fn() }));
-vi.mock('@ai-sdk/anthropic', () => ({ anthropic: vi.fn(() => 'mock-model') }));
+vi.mock('../../../llm/models.js', () => ({ sonnet: 'mock-model' }));
 vi.mock('../../../pipeline/editing/element-builders.js', () => ({ buildImpressionPart: vi.fn() }));
 
 import { generateObject } from 'ai';

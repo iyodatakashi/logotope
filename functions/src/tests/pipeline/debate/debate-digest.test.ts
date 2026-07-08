@@ -48,7 +48,6 @@ const makePersona = (id: string, name: string, approved: boolean): Persona => ({
 	interests: '',
 	nationality: '日本',
 	engagementLevel: 'moderate',
-	llmType: 'claude',
 	approved,
 	sortOrder: 0,
 	beliefs: [{ id: 'b0', version: 0, content: `${name}の信念`, createdAt: TS }],

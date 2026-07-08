@@ -3,7 +3,7 @@ import { requireAuth } from '../utils/auth.js';
 import { planChapters } from '../pipeline/chapters/chapter-generator.js';
 import { confirmPhaseGenerated } from '../utils/topic-phase.js';
 
-const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
+const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'TAVILY_API_KEY'];
 
 export const generateChapters = onCall(
 	{ timeoutSeconds: 540, secrets: SECRETS },

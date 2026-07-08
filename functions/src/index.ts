@@ -6,7 +6,7 @@ setGlobalOptions({
 	maxInstances: 10,
 	timeoutSeconds: 60,
 	region: 'asia-northeast1',
-	secrets: ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY']
+	secrets: ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'TAVILY_API_KEY']
 });
 
 export { generateFactResearch } from './api/fact-research.js';

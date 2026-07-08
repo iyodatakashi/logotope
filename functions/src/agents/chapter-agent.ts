@@ -1,8 +1,7 @@
 import { generateObject } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { AI_MODELS } from '../constants/ai.constants.js';
+import { sonnet } from '../llm/models.js';
 import { formatPersonas, formatFactBaseSection } from '../utils/prompt-formatters.js';
 import { buildNeutralitySystemPrompt } from './facilitator-agent.js';
 import type { Chapter, Issue, IssueGroup } from '../types/chapter.types.js';
@@ -79,7 +78,7 @@ const scoreIssues = async (
 	topicContext?: TopicContext
 ): Promise<Issue[]> => {
 	const result = await generateObject({
-		model: anthropic(AI_MODELS.SONNET),
+		model: sonnet,
 		system: buildNeutralitySystemPrompt(),
 		schema: scoringResultSchema,
 		messages: [
@@ -130,7 +129,7 @@ const dedupeIssues = async (
 	topicContext?: TopicContext
 ): Promise<Issue[]> => {
 	const result = await generateObject({
-		model: anthropic(AI_MODELS.SONNET),
+		model: sonnet,
 		system: buildNeutralitySystemPrompt(),
 		schema: dedupeResultSchema,
 		messages: [
@@ -210,7 +209,7 @@ const groupIssues = async (
 		.filter(({ issue }) => issue.selected === true);
 
 	const result = await generateObject({
-		model: anthropic(AI_MODELS.SONNET),
+		model: sonnet,
 		system: buildNeutralitySystemPrompt(),
 		schema: groupingResultSchema,
 		messages: [
@@ -289,7 +288,7 @@ const buildChapters = async (
 	topicContext?: TopicContext
 ): Promise<Chapter[]> => {
 	const result = await generateObject({
-		model: anthropic(AI_MODELS.SONNET),
+		model: sonnet,
 		system: buildNeutralitySystemPrompt(),
 		schema: chapterResultSchema,
 		messages: [
@@ -375,7 +374,7 @@ export const generateChapters = async (
 		const contextSection = buildTopicContextSection(topicContext);
 		const [generalIssuesResult, personaIssuesResult] = await Promise.all([
 			generateObject({
-				model: anthropic(AI_MODELS.SONNET),
+				model: sonnet,
 				system: buildNeutralitySystemPrompt(),
 				schema: issuesSchema,
 				messages: [
@@ -386,7 +385,7 @@ export const generateChapters = async (
 				]
 			}),
 			generateObject({
-				model: anthropic(AI_MODELS.SONNET),
+				model: sonnet,
 				system: buildNeutralitySystemPrompt(),
 				schema: issuesSchema,
 				messages: [

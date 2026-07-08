@@ -8,7 +8,7 @@ import type { Stakeholder } from '../types/stakeholder.types.js';
 
 const db = () => getFirestore();
 
-const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
+const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'TAVILY_API_KEY'];
 
 export const generatePersonas = onCall(
 	{ timeoutSeconds: 300, secrets: SECRETS },

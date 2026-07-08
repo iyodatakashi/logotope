@@ -86,7 +86,6 @@ export type PersonaData = {
 	background: string;
 	interests: string;
 	engagementLevel?: EngagementLevel;
-	llmType?: string;
 };
 
 export type PersonaForInterview = {

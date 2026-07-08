@@ -46,7 +46,6 @@ const mockPersona: Persona = {
 	interests: 'テクノロジー',
 	nationality: '日本',
 	engagementLevel: 'moderate',
-	llmType: 'claude',
 	approved: true,
 	sortOrder: 0,
 	interviewRecord: ''

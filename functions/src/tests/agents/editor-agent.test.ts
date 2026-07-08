@@ -7,8 +7,8 @@ vi.mock('ai', () => ({
 	generateText: vi.fn()
 }));
 
-vi.mock('@ai-sdk/anthropic', () => ({
-	anthropic: vi.fn(() => 'mock-model')
+vi.mock('../../llm/models.js', () => ({
+	sonnet: 'mock-model'
 }));
 
 vi.mock('../../constants/ai.constants.js', () => ({
@@ -27,7 +27,6 @@ const mockPersona: Persona = {
 	interests: '',
 	nationality: '日本',
 	engagementLevel: 'moderate',
-	llmType: 'claude',
 	approved: true,
 	sortOrder: 0,
 	interviewRecord: ''

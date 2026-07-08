@@ -48,4 +48,12 @@ describe('generatePersonas', () => {
 		await generatePersonas('テーマ', STAKEHOLDERS, 't1');
 		expect(promptOf()).not.toContain('【確定した客観的事実（共通前提）】');
 	});
+
+	it('生成スキーマに llmType を含めない（Req 2.3）', async () => {
+		await generatePersonas('テーマ', STAKEHOLDERS, 't1');
+		const { schema } = mockGenerateObject.mock.calls[0][0] as {
+			schema: { shape: { personas: { element: { shape: Record<string, unknown> } } } };
+		};
+		expect('llmType' in schema.shape.personas.element.shape).toBe(false);
+	});
 });

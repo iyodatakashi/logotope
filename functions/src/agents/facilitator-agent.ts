@@ -1,7 +1,6 @@
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { anthropic } from '@ai-sdk/anthropic';
-import { AI_MODELS } from '../constants/ai.constants.js';
+import { sonnet } from '../llm/models.js';
 import {
 	formatTurns,
 	formatPersonas,
@@ -57,7 +56,7 @@ export const assessActiveAgendaItem = async (
 ): Promise<Result<AgendaAssessment, PipelineError>> => {
 	try {
 		const result = await generateObject({
-			model: anthropic(AI_MODELS.SONNET),
+			model: sonnet,
 			system: buildNeutralitySystemPrompt(),
 			schema: agendaAssessmentSchema,
 			messages: [
@@ -129,7 +128,7 @@ export const generateInterventionUtterance = async (
 				.map((point, i) => `${i}. ${point}`)
 				.join('\n');
 			const result = await generateObject({
-				model: anthropic(AI_MODELS.SONNET),
+				model: sonnet,
 				system: buildNeutralitySystemPrompt(),
 				schema: introduceUtteranceSchema,
 				messages: [
@@ -148,7 +147,7 @@ export const generateInterventionUtterance = async (
 
 		// pull-back
 		const result = await generateObject({
-			model: anthropic(AI_MODELS.SONNET),
+			model: sonnet,
 			system: buildNeutralitySystemPrompt(),
 			schema: utteranceSchema,
 			messages: [
@@ -185,7 +184,7 @@ export const generateOpening = async (
 		const factNote = facilitatorFactBaseNote(factBase);
 
 		const result = await generateObject({
-			model: anthropic(AI_MODELS.SONNET),
+			model: sonnet,
 			system: buildNeutralitySystemPrompt(),
 			schema: facilitatorReplyWithTargetSchema,
 			messages: [
@@ -224,7 +223,7 @@ export const generateChapterIntroduction = async (
 		const factNote = facilitatorFactBaseNote(factBase);
 
 		const result = await generateObject({
-			model: anthropic(AI_MODELS.SONNET),
+			model: sonnet,
 			system: buildNeutralitySystemPrompt(),
 			schema: facilitatorReplyWithTargetSchema,
 			messages: [

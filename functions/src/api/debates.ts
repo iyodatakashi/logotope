@@ -124,7 +124,7 @@ export const runStep = onTaskDispatched(
 	{
 		timeoutSeconds: 540,
 		region: REGION,
-		secrets: ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'],
+		secrets: ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'TAVILY_API_KEY'],
 		retryConfig: { maxAttempts: MAX_ATTEMPTS, minBackoffSeconds: 30 },
 		rateLimits: { maxConcurrentDispatches: 5 }
 	},

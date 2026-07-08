@@ -1,6 +1,5 @@
 import { generateText } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
-import { AI_MODELS } from '../constants/ai.constants.js';
+import { sonnet } from '../llm/models.js';
 import { formatTurns } from '../utils/prompt-formatters.js';
 import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
@@ -37,7 +36,7 @@ export const summarizeChapter = async (input: {
 				: '';
 
 		const result = await generateText({
-			model: anthropic(AI_MODELS.SONNET),
+			model: sonnet,
 			system: summarizeChapterSystemPrompt,
 			messages: [
 				{

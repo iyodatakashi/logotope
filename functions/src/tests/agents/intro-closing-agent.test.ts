@@ -7,8 +7,8 @@ vi.mock('ai', () => ({
 	generateText: vi.fn()
 }));
 
-vi.mock('@ai-sdk/anthropic', () => ({
-	anthropic: vi.fn(() => 'mock-model')
+vi.mock('../../llm/models.js', () => ({
+	sonnet: 'mock-model'
 }));
 
 vi.mock('../../constants/ai.constants.js', () => ({

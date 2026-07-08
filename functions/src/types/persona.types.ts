@@ -1,5 +1,4 @@
 import type { EngagementLevel } from './stakeholder.types.js';
-import type { LLMType } from './common.types.js';
 
 export type Persona = {
 	id: string;
@@ -13,7 +12,6 @@ export type Persona = {
 	interests: string;
 	nationality: string;
 	engagementLevel: EngagementLevel;
-	llmType: LLMType;
 	approved: boolean;
 	sortOrder: number;
 	beliefs?: Belief[];

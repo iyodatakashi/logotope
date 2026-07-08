@@ -8,7 +8,7 @@ import type { Persona } from '../types/persona.types.js';
 
 const db = () => getFirestore();
 
-const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY'];
+const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY'];
 
 export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, async (request) => {
 	requireAuth(request);

@@ -16,7 +16,7 @@ vi.mock('ai', () => ({
 	Output: { object: vi.fn(() => ({})) }
 }));
 
-vi.mock('../../../llm/models.js', () => ({ getPersonaModel: vi.fn(() => 'mock-model') }));
+vi.mock('../../../llm/models.js', () => ({ sonnet: 'mock-model' }));
 vi.mock('../../../search/search-service.js', () => ({
 	isSearchAvailable: vi.fn(() => false),
 	executeSearch: vi.fn()
@@ -48,7 +48,6 @@ const makePersona = (id: string, name: string, over: Partial<Persona> = {}): Per
 	interests: '関心',
 	nationality: '日本',
 	engagementLevel: 'moderate',
-	llmType: 'claude',
 	approved: true,
 	sortOrder: 0,
 	...over

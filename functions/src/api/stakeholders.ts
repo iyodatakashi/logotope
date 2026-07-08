@@ -5,7 +5,7 @@ import { generateStakeholders as runStakeholderGeneration } from '../agents/stak
 import { getTopicContext } from '../pipeline/topics/topic-context.js';
 import { confirmPhaseGenerated } from '../utils/topic-phase.js';
 
-const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
+const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'TAVILY_API_KEY'];
 
 const db = () => getFirestore();
 

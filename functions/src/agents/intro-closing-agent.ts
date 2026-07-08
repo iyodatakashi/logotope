@@ -1,6 +1,5 @@
 import { generateText } from 'ai';
-import { anthropic } from '@ai-sdk/anthropic';
-import { AI_MODELS } from '../constants/ai.constants.js';
+import { sonnet } from '../llm/models.js';
 import { formatFactBaseSection } from '../utils/prompt-formatters.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 import type { TopicContext } from '../types/topic.types.js';
@@ -118,7 +117,7 @@ const generate = async (
 ): Promise<Result<string, PipelineError>> => {
 	try {
 		const result = await generateText({
-			model: anthropic(AI_MODELS.SONNET),
+			model: sonnet,
 			system: introClosingSystemPrompt,
 			messages: [
 				{

@@ -138,7 +138,6 @@ const makePersona = (id: string, name: string): Persona => ({
 	interests: '関心',
 	nationality: '日本',
 	engagementLevel: 'moderate',
-	llmType: 'claude',
 	approved: true,
 	sortOrder: 0
 });

@@ -18,7 +18,7 @@ vi.mock('ai', () => ({
 }));
 
 vi.mock('../../../llm/models.js', () => ({
-	getPersonaModel: vi.fn((llmType: string) => `model-${llmType}`)
+	sonnet: 'mock-model'
 }));
 
 vi.mock('../../../search/search-service.js', () => ({
@@ -58,23 +58,26 @@ vi.mock('firebase-admin/firestore', () => ({
 import { evaluateEngagements } from '../../../pipeline/debate/engagement.js';
 import { generateObject } from 'ai';
 
-const makePersona = (id: string, name: string, llmType: Persona['llmType']): Persona => ({
-	id,
-	topicId: 'topic1',
-	name,
-	age: 40,
-	occupation: '会社員',
-	stakeholderRole: '市民',
-	specificRole: '市民',
-	background: '背景',
-	interests: '関心',
-	nationality: '日本',
-	engagementLevel: 'moderate',
-	llmType,
-	approved: true,
-	sortOrder: 0,
-	interviewRecord: '取材記録'
-});
+// llmType は型から撤去済み。永続データに残る legacy 値を模して stray フィールドとして付与し、
+// 単一 Claude 化後もエラーにならず無視されること（Req 2.5）を検証するため cast で持たせる。
+const makePersona = (id: string, name: string, llmType: string): Persona =>
+	({
+		id,
+		topicId: 'topic1',
+		name,
+		age: 40,
+		occupation: '会社員',
+		stakeholderRole: '市民',
+		specificRole: '市民',
+		background: '背景',
+		interests: '関心',
+		nationality: '日本',
+		engagementLevel: 'moderate',
+		llmType,
+		approved: true,
+		sortOrder: 0,
+		interviewRecord: '取材記録'
+	}) as Persona;
 
 const makeState = (overrides?: Partial<DebateState>): DebateState => ({
 	turns: [],
@@ -95,7 +98,7 @@ const makeTurn = (id: string): DebateTurn => ({
 	createdAt: ''
 });
 
-// 混在プロバイダ: claude / gemini / gpt
+// legacy llmType 値の混在（claude / gemini / gpt）。単一 Claude 化後は無視される（Req 2.5）。
 const personas = [
 	makePersona('p1', '田中太郎', 'claude'),
 	makePersona('p2', '佐藤花子', 'gemini'),
@@ -117,7 +120,7 @@ describe('結合: 混在プロバイダの非退行と冗長削減（Task 3.1）
 		);
 	});
 
-	it('claude はキャッシュ対象 system、gemini/gpt は文字列 system で評価し、出力スキーマは不変', async () => {
+	it('legacy llmType 値によらず全員キャッシュ対象 system で評価し、出力スキーマは不変', async () => {
 		const captured: Array<{ system: unknown }> = [];
 		vi.mocked(generateObject).mockImplementation(async (args: unknown) => {
 			captured.push({ system: (args as { system: unknown }).system });
@@ -141,19 +144,15 @@ describe('結合: 混在プロバイダの非退行と冗長削減（Task 3.1）
 			expect(['opinion', 'fact', 'none', 'question']).toContain(r.mode);
 		}
 
-		// claude(田中) はキャッシュ対象 system メッセージ（cacheControl 付き）
-		const claudeCall = captured.find((c) => systemTextOf(c.system).includes('田中太郎'))!;
-		expect(typeof claudeCall.system).toBe('object');
-		expect(
-			(claudeCall.system as { providerOptions: { anthropic: { cacheControl: { type: string } } } })
-				.providerOptions.anthropic.cacheControl.type
-		).toBe('ephemeral');
-
-		// gemini(佐藤) / gpt(鈴木) は従来の文字列 system（キャッシュ非適用）
-		const geminiCall = captured.find((c) => systemTextOf(c.system).includes('佐藤花子'))!;
-		const gptCall = captured.find((c) => systemTextOf(c.system).includes('鈴木次郎'))!;
-		expect(typeof geminiCall.system).toBe('string');
-		expect(typeof gptCall.system).toBe('string');
+		// 単一 Claude 化により、legacy llmType の値によらず全員が cacheControl 付き system メッセージ
+		for (const name of ['田中太郎', '佐藤花子', '鈴木次郎']) {
+			const call = captured.find((c) => systemTextOf(c.system).includes(name))!;
+			expect(typeof call.system).toBe('object');
+			expect(
+				(call.system as { providerOptions: { anthropic: { cacheControl: { type: string } } } })
+					.providerOptions.anthropic.cacheControl.type
+			).toBe('ephemeral');
+		}
 	});
 
 	it('同一 turnId の再処理では意欲評価の LLM 呼び出しが増えない（永続値を再利用）', async () => {

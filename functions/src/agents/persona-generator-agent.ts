@@ -21,8 +21,7 @@ const personasSchema = (count: number) =>
 					occupation: z.string(),
 					background: z.string(),
 					interests: z.string(),
-					engagementLevel: z.enum(['high', 'medium', 'low']),
-					llmType: z.enum(['gemini', 'claude', 'gpt'])
+					engagementLevel: z.enum(['high', 'medium', 'low'])
 				})
 			)
 			.length(count)

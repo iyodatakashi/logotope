@@ -1,7 +1,7 @@
 import { generateText, generateObject, jsonSchema, Output, stepCountIs } from 'ai';
 import type { SystemModelMessage } from 'ai';
 import { z } from 'zod';
-import { getPersonaModel } from '../llm/models.js';
+import { sonnet } from '../llm/models.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
 import {
 	formatTurns,
@@ -148,14 +148,14 @@ const PERSONA_CACHE_PROVIDER_OPTIONS: SystemModelMessage['providerOptions'] = {
 	anthropic: { cacheControl: { type: 'ephemeral' } }
 };
 
-// claude(anthropic) 経路のときだけ、ペルソナの安定コンテキスト（不変の system）を cacheControl 付き
-// system メッセージにして、同一ペルソナの複数呼び出しでプロンプトキャッシュを再利用させる。
-// gemini/gpt は providerOptions.anthropic を無視するため従来どおり文字列 system で渡す（no-op）。
+// ペルソナの安定コンテキスト（不変の system）を cacheControl 付き system メッセージにして、
+// 同一ペルソナの複数呼び出しでプロンプトキャッシュを再利用させる。
 // キャッシュは出力を変えないため、発言・engagement の内容・スキーマは不変。
-const buildPersonaSystem = (llmType: string, system: string): string | SystemModelMessage =>
-	llmType === 'claude'
-		? { role: 'system', content: system, providerOptions: PERSONA_CACHE_PROVIDER_OPTIONS }
-		: system;
+const buildPersonaSystem = (system: string): SystemModelMessage => ({
+	role: 'system',
+	content: system,
+	providerOptions: PERSONA_CACHE_PROVIDER_OPTIONS
+});
 
 // 発言意欲スコア（2〜5）に応じた発言の長さ。score 不明時（指名・キュー）は中くらい。
 const speechLengthGuide = (score?: number): string => {
@@ -240,7 +240,6 @@ export const generateTurn = async (
 		const isFact = engagement.mode === 'fact';
 		const isQuestion = engagement.mode === 'question';
 		const system = buildPersonaSystemPrompt(persona, persona.interviewRecord ?? '', belief);
-		const llmType = persona.llmType ?? 'claude';
 
 		const lastTurn = recentTurns[recentTurns.length - 1];
 		const lastSpeakerName = lastTurn
@@ -305,25 +304,13 @@ export const generateTurn = async (
 		// 信念を主軸に立場を反転させない範囲で踏まえる（整形側に非反転の指針を内在）
 		const awarenessNote = formatAwarenessSection(persona.awarenesses);
 		const userContent = `討論の現在の状況:\n\n${formatTurns(recentTurns, personas)}${chapterFocusNote}${factBaseNote}${awarenessNote}${lastSpeakerNote}${queuedNote}${intentNote}${facilitatorTargetNote}\n\n${instruction}${factCheckNote}`;
-		const callFull = (model: ReturnType<typeof getPersonaModel>) =>
-			generateText({
-				model,
-				system: buildPersonaSystem(llmType, system),
-				output: Output.object({ schema: turnOutputSchema }),
-				...(tools && { tools, stopWhen: stepCountIs(4) }),
-				messages: [{ role: 'user', content: userContent }]
-			});
-		let fullResult;
-		try {
-			fullResult = await callFull(getPersonaModel(llmType));
-			if (!fullResult.output?.content && llmType !== 'claude') {
-				console.error(`[llm] no output content: ${llmType}, falling back to claude`);
-				fullResult = await callFull(getPersonaModel('claude'));
-			}
-		} catch (err) {
-			console.error(`[llm] provider error: ${llmType} - ${err}`);
-			fullResult = await callFull(getPersonaModel('claude'));
-		}
+		const fullResult = await generateText({
+			model: sonnet,
+			system: buildPersonaSystem(system),
+			output: Output.object({ schema: turnOutputSchema }),
+			...(tools && { tools, stopWhen: stepCountIs(4) }),
+			messages: [{ role: 'user', content: userContent }]
+		});
 
 		if (!fullResult.output?.content) {
 			return {
@@ -404,15 +391,14 @@ export const evaluateEngagement = async (
 		const awarenessSection = formatAwarenessSection(persona.awarenesses);
 		// score/mode の主判定とは分節した、付随的な気づき検出タスク（低干渉・厳格な閾値・簡潔にしてコスト抑制）
 		const awarenessDetectionNote = `\n\n---\n【気づき検出】score/mode の評価とは別に行い、この検出は score/mode の判定を変えない。気づきの発生源は提示会話の最後の1発言（末尾＝直前の発言）のみ。それ以前の発言は直前発言を理解するための文脈であり、発生源にはしない。\n【awareness の出力】awareness は、直前発言によってあなた自身の考え・見方が実際に変わり（自分の立場の盲点に気づいた・他者の視点を受け入れて理解が更新された等）、かつ その変化が信念にも【討論中に得た気づき】にもまだ無いときだけ、オブジェクトとして出力する。それ以外は null にする（ほとんどのターンは null）。新情報や他者の視点を知った・理解しただけで考えが変わっていないもの、既にある考えの言い換え・別角度・強まっただけのもの、単なる同意・共感は null。\n【出力する場合の形式】content は一文。文体は常体（「〜した。」「〜だ。」調）で書き、敬体（です・ます調）は混ぜない。reception=直前発言（他者）で気づいた／self=直前発言を聞いて自分の中で新たに生じた。reception のとき sourceTurnId に反応した発言の番号（各行頭の [N]。通常は末尾＝直前発言）を記す。self は sourceTurnId を null にしてよい。`;
-		const llmType = persona.llmType ?? 'claude';
 		const system = buildPersonaSystemPrompt(
 			persona,
 			persona.interviewRecord ?? '',
 			getBelief(persona)
 		);
 		const result = await generateObject({
-			model: getPersonaModel(llmType),
-			system: buildPersonaSystem(llmType, system),
+			model: sonnet,
+			system: buildPersonaSystem(system),
 			schema: engagementSchema,
 			messages: [
 				{
@@ -475,7 +461,7 @@ export const generateImpression = async (
 		// 見解は「固定の信念（主軸・system）＋討論で得た気づき（揮発部）」から都度導出する（4.1/4.3）
 		const awarenessNote = formatAwarenessSection(persona.awarenesses);
 		const result = await generateObject({
-			model: getPersonaModel(persona.llmType ?? 'claude'),
+			model: sonnet,
 			system: buildPersonaSystemPrompt(persona, '', getBelief(persona)),
 			schema: impressionSchema,
 			messages: [

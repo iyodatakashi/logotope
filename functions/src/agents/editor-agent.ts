@@ -1,7 +1,6 @@
 import { generateObject, generateText } from 'ai';
 import { z } from 'zod';
-import { anthropic } from '@ai-sdk/anthropic';
-import { AI_MODELS } from '../constants/ai.constants.js';
+import { sonnet } from '../llm/models.js';
 import { formatPersonas } from '../utils/prompt-formatters.js';
 import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
@@ -92,7 +91,7 @@ export const editChapter = async (
 				: '\n\n【保護対象ターンID】なし';
 
 		const result = await generateObject({
-			model: anthropic(AI_MODELS.SONNET),
+			model: sonnet,
 			system: editorSystemPrompt,
 			schema: editChapterSchema,
 			messages: [
@@ -126,7 +125,7 @@ const editNarration = async (
 ): Promise<Result<string, PipelineError>> => {
 	try {
 		const result = await generateText({
-			model: anthropic(AI_MODELS.SONNET),
+			model: sonnet,
 			system: editorSystemPrompt,
 			messages: [
 				{

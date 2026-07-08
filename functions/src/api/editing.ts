@@ -26,7 +26,7 @@ import type { ArticleElement } from '../types/editorial.types.js';
 
 const REGION = 'asia-northeast1';
 const MAX_ATTEMPTS = 3;
-const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'];
+const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'TAVILY_API_KEY'];
 
 /**
  * 編集を開始する。既存の編集成果物を破棄して phase6/running・新 runId にし、原本コメント生成ステージを投入する。
@@ -146,7 +146,7 @@ export const runEditingStep = onTaskDispatched(
 	{
 		timeoutSeconds: 540,
 		region: REGION,
-		secrets: ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENAI_API_KEY', 'TAVILY_API_KEY'],
+		secrets: ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'TAVILY_API_KEY'],
 		retryConfig: { maxAttempts: MAX_ATTEMPTS, minBackoffSeconds: 30 },
 		rateLimits: { maxConcurrentDispatches: 5 }
 	},
