@@ -196,11 +196,7 @@
 	>
 		{#snippet headerControls()}
 			{#if displayChapters.length}
-				<span class="editing-page__diff-legend">
-					<Checkbox bind:value={showDiff}
-						>原本との差分を表示（<del>削除</del> / <ins>追加</ins>）</Checkbox
-					>
-				</span>
+				<Checkbox bind:value={showDiff}>原本との差分を表示</Checkbox>
 			{/if}
 		{/snippet}
 		{#snippet content()}
@@ -275,19 +271,9 @@
 	.editing-page__content {
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
+		gap: 24px;
 	}
-	.editing-page__diff-legend ins {
-		background: #e6ffed;
-		color: #22863a;
-		text-decoration: none;
-		padding: 0 2px;
-	}
-	.editing-page__diff-legend del {
-		background: #ffeef0;
-		color: #b31d28;
-		padding: 0 2px;
-	}
+
 	.editing-page__chapters {
 		display: flex;
 		flex-direction: column;
