@@ -1,18 +1,15 @@
 <script lang="ts">
-	import { Checkbox, Button } from '@14ch/svelte-ui';
+	import { Checkbox } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import DiffText from './DiffText.svelte';
-	import { computeInlineDiff, type InlineDiffSegment } from './inlineDiff';
+	import { computeInlineDiff } from './inlineDiff';
 	import NarrationSection from './NarrationSection.svelte';
 	import ImpressionSection from './ImpressionSection.svelte';
+	import ChapterSection, { type DisplayTurn } from './ChapterSection.svelte';
 	import type { Chapter } from '$lib/models/chapter/chapter.types';
-	import type {
-		EditedChapter,
-		EditedChapterDisplayStatus
-	} from '$lib/models/editedChapter/editedChapter.types';
+	import type { EditedChapter } from '$lib/models/editedChapter/editedChapter.types';
 	import type { ArticleElement } from '$lib/models/editorial/editorial.types';
 
 	const PHASE: PhaseSlug = 'editing';
@@ -45,24 +42,10 @@
 		}
 	};
 
-	// 記事要素（導入・締め・所感）の個別再生成はサーバへ委譲するだけ。処理中のローディングは各 Section が
-	// 自持ちする（クリック→サーバが生成中を書くまでの遅延分。以降は要素の status がスケルトンで引き継ぐ）。
+	// 記事要素（導入・締め・所感・章）の個別再生成はサーバへ委譲するだけ。処理中のローディングは各 Section が
+	// 自持ちする（クリック→サーバが生成中を書くまでの遅延分。以降は要素の状態が引き継いで表示する）。
 	const regenerateArticleElement = (element: ArticleElement): Promise<void> =>
 		currentTopicStore.topic?.regenerateArticleElement(element) ?? Promise.resolve();
-
-	// 章（本体）は状態ルールが別（isEditingFinished ゲート・章ステータス）でまだ Section 化していないため、
-	// ここでキー別ローディングを管理する（ChapterSection 抽出時に上と同じ委譲へ寄せる）。
-	let regeneratingChapters = $state<Record<string, boolean>>({});
-	const regenerateChapter = async (chapterId: string) => {
-		const topic = currentTopicStore.topic;
-		if (!topic) return;
-		regeneratingChapters = { ...regeneratingChapters, [chapterId]: true };
-		try {
-			await topic.regenerateArticleElement({ kind: 'chapter', chapterId });
-		} finally {
-			regeneratingChapters = { ...regeneratingChapters, [chapterId]: false };
-		}
-	};
 
 	const logicalState = $derived.by(() => {
 		if (isStarting) return 'running';
@@ -126,21 +109,7 @@
 		};
 	};
 
-	const statusLabel = (status: EditedChapterDisplayStatus): string =>
-		status === 'completed' ? '編集済み' : status === 'failed' ? '原本表示（失敗）' : '未編集';
-
-	type DisplayTurn = {
-		id: string;
-		name: string;
-		role: string;
-		content: string;
-		speechMode?: string;
-		diff: InlineDiffSegment[] | null;
-		removed: boolean;
-		awarenesses: { personaName: string; content: string }[];
-	};
-
-	// 原本章順に、章別の編集状態と表示ターンを組み立てる（本体＝body）。
+	// 原本章順に、章別の編集状態と表示ターンを組み立てる（本体＝body）。DisplayTurn 型は ChapterSection が公開する。
 	const displayChapters = $derived.by(() => {
 		const store = currentTopicStore.editedChaptersStore;
 		return currentTopicStore.chaptersStore.chapters.map((chapter) => {
@@ -285,75 +254,16 @@
 				{#if displayChapters.length}
 					<div class="editing-page__chapters">
 						{#each displayChapters as chapter (chapter.id)}
-							<section class="editing-page__chapter">
-								<header class="editing-page__chapter-header">
-									<div class="editing-page__chapter-title">{chapter.title}</div>
-									<span class="editing-page__chapter-status" data-status={chapter.status}>
-										{statusLabel(chapter.status)}
-									</span>
-									{#if chapter.failureReason}
-										<span class="editing-page__failure-reason"
-											>検証不合格: {chapter.failureReason}</span
-										>
-									{/if}
-									{#if isEditingFinished && chapter.canRegenerate}
-										<Button
-											variant="outlined"
-											onclick={() => regenerateChapter(chapter.id)}
-											loading={regeneratingChapters[chapter.id]}
-										>
-											再生成
-										</Button>
-									{/if}
-								</header>
-								<div class="editing-page__turns">
-									{#each chapter.turns as turn (turn.id)}
-										{#if turn.removed}
-											{#if showDiff}
-												<div
-													class="editing-page__turn editing-page__turn--removed"
-													class:editing-page__turn--facilitator={turn.name === 'ファシリテーター'}
-												>
-													<div class="editing-page__speaker">
-														<div class="editing-page__speaker-name">{turn.name}</div>
-														{#if turn.role}<span class="editing-page__role">({turn.role})</span
-															>{/if}
-														<span class="editing-page__removed-label">発言ごと削除</span>
-													</div>
-													<p class="editing-page__content"><del>{turn.content}</del></p>
-												</div>
-											{/if}
-										{:else}
-											<div
-												class="editing-page__turn"
-												class:editing-page__turn--facilitator={turn.name === 'ファシリテーター'}
-											>
-												<div class="editing-page__speaker">
-													<div class="editing-page__speaker-name">{turn.name}</div>
-													{#if turn.role}<span class="editing-page__role">({turn.role})</span>{/if}
-													{#if turn.speechMode}
-														<span class="editing-page__speech-mode" data-mode={turn.speechMode}
-															>{turn.speechMode}</span
-														>
-													{/if}
-												</div>
-												{#if showDiff && turn.diff}
-													<p class="editing-page__content"><DiffText segments={turn.diff} /></p>
-												{:else}
-													<p class="editing-page__content">{turn.content}</p>
-												{/if}
-												{#if turn.awarenesses.length > 0}
-													<ul class="editing-page__awarenesses">
-														{#each turn.awarenesses as awareness, i (i)}
-															<li>💡 {awareness.personaName}: {awareness.content}</li>
-														{/each}
-													</ul>
-												{/if}
-											</div>
-										{/if}
-									{/each}
-								</div>
-							</section>
+							<ChapterSection
+								title={chapter.title}
+								status={chapter.status}
+								failureReason={chapter.failureReason}
+								showRegenerate={isEditingFinished && chapter.canRegenerate}
+								turns={chapter.turns}
+								{showDiff}
+								onRegenerate={() =>
+									regenerateArticleElement({ kind: 'chapter', chapterId: chapter.id })}
+							/>
 						{/each}
 					</div>
 				{/if}
@@ -416,95 +326,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
-	}
-	.editing-page__chapter-header {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 8px;
-	}
-	.editing-page__chapter-title {
-		font-size: 1.5rem;
-		font-weight: bold;
-	}
-	.editing-page__chapter-status {
-		font-size: 0.75rem;
-		padding: 1px 6px;
-		border-radius: 3px;
-		background: #eee;
-		color: #757575;
-	}
-	.editing-page__chapter-status[data-status='completed'] {
-		background: #e8f5e9;
-		color: #2e7d32;
-	}
-	.editing-page__chapter-status[data-status='failed'] {
-		background: #ffebee;
-		color: #c62828;
-	}
-	.editing-page__failure-reason {
-		font-size: 0.78rem;
-		color: #c62828;
-	}
-	.editing-page__turns {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-	.editing-page__turn {
-		padding: 12px;
-		border-left: 4px solid #e0e0e0;
-	}
-	.editing-page__turn.editing-page__turn--facilitator {
-		border-left-color: #1565c0;
-		background: #f8f9ff;
-	}
-	.editing-page__turn.editing-page__turn--removed {
-		border-left-color: #e57373;
-		background: #fff5f5;
-	}
-	.editing-page__turn.editing-page__turn--removed .editing-page__content del {
-		color: #b31d28;
-		text-decoration: line-through;
-	}
-	.editing-page__removed-label {
-		font-size: 0.72rem;
-		margin-left: 6px;
-		color: #fff;
-		background: #c62828;
-		padding: 1px 5px;
-		border-radius: 3px;
-	}
-	.editing-page__speaker {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 4px;
-	}
-	.editing-page__speaker-name {
-		font-weight: bold;
-	}
-	.editing-page__role {
-		color: #757575;
-		font-size: 0.875rem;
-	}
-	.editing-page__speech-mode {
-		font-size: 0.75rem;
-		color: #555;
-		background: #eee;
-		padding: 1px 5px;
-		border-radius: 3px;
-	}
-	.editing-page__content {
-		margin: 0;
-		line-height: 1.6;
-	}
-	.editing-page__awarenesses {
-		margin-top: 8px;
-		font-size: 0.85rem;
-		color: var(--svelte-ui-text-subtle-color);
-		list-style: none;
-		padding: 0;
 	}
 	.editing-page__impressions {
 		margin-top: 24px;
