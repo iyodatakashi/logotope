@@ -6,17 +6,22 @@
 
 	interface Props {
 		label: string; // 「導入」/「締め」
-		part: Narration; // editorial の intro/outro（{ draft, final }）
+		part: Narration; // editorial の intro/outro（{ status, draft, final }）
 		showDiff: boolean;
-		isEditingFinished: boolean;
 		regenerating: boolean;
 		onRegenerate: () => void;
 	}
-	let { label, part, showDiff, isEditingFinished, regenerating, onRegenerate }: Props = $props();
+	let { label, part, showDiff, regenerating, onRegenerate }: Props = $props();
 
-	// 生成ステータスとコンテンツ: 編集後(final)優先、無ければ原本(draft)、どちらも無ければ欠落(missing)。
-	const status = $derived(
-		part.final != null ? 'final' : part.draft != null ? 'draft_only' : 'missing'
+	// 表示は要素自身の進捗ステータスと内容だけで決まる（ラン全体の完了フラグに依存しない）。
+	// 進行中（pending/generating/editing）は段階ラベル付きスケルトン、完了は内容から成否を算出する。
+	const inProgress = $derived(part.status !== 'finished');
+	const stageLabel = $derived(
+		part.status === 'generating' ? '生成中' : part.status === 'editing' ? '編集中' : ''
+	);
+	// 完了時の成否: 編集後あり＝編集済み、原本のみ＝編集失敗、どちらも無い＝生成失敗。
+	const outcome = $derived(
+		part.final != null ? 'edited' : part.draft != null ? 'draft_only' : 'gen_failed'
 	);
 	const content = $derived(part.final ?? part.draft ?? '');
 	const diff = $derived(
@@ -27,15 +32,23 @@
 <section class="editing-page__narration">
 	<div class="editing-page__narration-header">
 		<h3 class="editing-page__narration-label">{label}</h3>
-		{#if isEditingFinished && (status === 'draft_only' || status === 'missing')}
-			<span class="editing-page__element-status" data-status={status}>
-				{status === 'draft_only' ? '原本のみ（未編集）' : '生成に失敗'}
-			</span>
+		{#if inProgress}
+			{#if stageLabel}
+				<span class="editing-page__stage-label">{stageLabel}</span>
+			{/if}
+		{:else}
+			{#if outcome === 'draft_only'}
+				<span class="editing-page__element-status" data-status="draft_only">編集失敗</span>
+			{:else if outcome === 'gen_failed'}
+				<span class="editing-page__element-status" data-status="gen_failed">生成失敗</span>
+			{/if}
 			<Button variant="outlined" onclick={onRegenerate} loading={regenerating}>再生成</Button>
 		{/if}
 	</div>
-	{#if status === 'missing'}
+	{#if inProgress}
 		<Skeleton patterns={[{ type: 'text', lines: 3 }]} />
+	{:else if outcome === 'gen_failed'}
+		<!-- 生成失敗は本文を表示しない -->
 	{:else if showDiff && diff}
 		<p class="editing-page__narration-body"><DiffText segments={diff} /></p>
 	{:else}
@@ -62,6 +75,13 @@
 		margin: 0;
 		line-height: 1.7;
 		white-space: pre-wrap;
+	}
+	.editing-page__stage-label {
+		font-size: 0.75rem;
+		padding: 1px 6px;
+		border-radius: 3px;
+		background: #ede7f6;
+		color: #5e35b1;
 	}
 	.editing-page__element-status {
 		font-size: 0.75rem;

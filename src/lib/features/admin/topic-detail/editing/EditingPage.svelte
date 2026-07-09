@@ -84,7 +84,8 @@
 	});
 
 	// 編集の生成が走り終えたか（generated=全章成功 / stopped=途中終了。どちらも「もう動いていない」）。
-	// 未完成の明示と再生成ボタンは、この状態でのみ出す（生成中に全要素を「未完成」と誤表示しないため・Req 3.1, 3.2）。
+	// 章（本体）の未完成明示・再生成ボタンの表示にのみ使う（章ステータスは本 spec の対象外で従来通り）。
+	// 導入・締め・所感の記事要素は各自の進捗ステータスで表示を決めるため、このフラグに依存しない（Req 2.1, 2.2）。
 	const isEditingFinished = $derived(logicalState === 'generated' || logicalState === 'stopped');
 
 	// 編集開始の大前提ゲート（Req 5.4）。討論フェーズが完了するまで開始操作を出さない。
@@ -227,7 +228,8 @@
 		});
 
 	// 所感（impressions）。承認済みペルソナ単位に name/role と所感オブジェクト(part)を組み立てる。
-	// 本文なし（欠落）は編集確定後のみ表示する（Req 3.1, 3.2, 6.6）。status/content の派生は ImpressionSection 内。
+	// エントリの無いペルソナは生成待ち（pending）として扱い、進捗ステータスで表示を決める（Req 6.2）。
+	// 表示分岐（スケルトン／編集済み／編集失敗／生成失敗）は ImpressionSection 内が part.status＋内容から決める。
 	const displayImpressions = $derived.by(() => {
 		const impressions = currentTopicStore.editorialStore.impressions;
 		return currentTopicStore.personasStore.personas
@@ -235,12 +237,12 @@
 			.map((persona) => {
 				const { name, role } = speakerLabel('persona', persona.id);
 				const part = impressions.find((item) => item.personaId === persona.id) ?? {
+					status: 'pending' as const,
 					draft: null,
 					final: null
 				};
 				return { personaId: persona.id, name, role, part };
-			})
-			.filter(({ part }) => part.final != null || part.draft != null || isEditingFinished);
+			});
 	});
 </script>
 
@@ -277,7 +279,6 @@
 					label="導入"
 					part={currentTopicStore.editorialStore.intro}
 					{showDiff}
-					{isEditingFinished}
 					regenerating={regeneratingKeys['intro']}
 					onRegenerate={() => regenerateElement({ kind: 'intro' })}
 				/>
@@ -364,7 +365,6 @@
 					label="締め"
 					part={currentTopicStore.editorialStore.outro}
 					{showDiff}
-					{isEditingFinished}
 					regenerating={regeneratingKeys['outro']}
 					onRegenerate={() => regenerateElement({ kind: 'outro' })}
 				/>
@@ -380,7 +380,6 @@
 									role={impression.role}
 									part={impression.part}
 									{showDiff}
-									{isEditingFinished}
 									regenerating={regeneratingKeys[`impression:${impression.personaId}`]}
 									onRegenerate={() =>
 										regenerateElement({ kind: 'impression', personaId: impression.personaId })}

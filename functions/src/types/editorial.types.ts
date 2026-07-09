@@ -28,15 +28,22 @@ export type EditedChapterForFirestore = {
 	failureReason?: string; // status='failed' のときの構造検証不合格理由（管理画面での把握・診断用）
 };
 
-// 導入・締めの記事要素。原本 draft と編集後 final を持ち、未生成/失敗は null。
+// 記事要素の進捗ステータス。生成待ち／原本生成中／整え中／処理完了を表す。
+// 「生成待ち」と「失敗」は内容がともに空で区別できないため、この軸を永続化する
+// （成否＝編集済み／編集失敗／生成失敗は draft/final の有無から算出し、ステータスには持たない）。
+export type EditorialElementStatus = 'pending' | 'generating' | 'editing' | 'finished';
+
+// 導入・締めの記事要素。進捗ステータスと、原本 draft・編集後 final を持つ（未生成/失敗は null）。
 export type Narration = {
+	status: EditorialElementStatus;
 	draft: string | null;
 	final: string | null;
 };
 
-// 所感の記事要素（承認ペルソナごと）。sortOrder で表示順を保ち、原本 draft と編集後 final を持つ。
+// 所感の記事要素（承認ペルソナごと）。sortOrder で表示順を保ち、進捗ステータスと原本 draft・編集後 final を持つ。
 export type ImpressionForFirestore = {
 	sortOrder: number;
+	status: EditorialElementStatus;
 	draft: string | null;
 	final: string | null;
 };

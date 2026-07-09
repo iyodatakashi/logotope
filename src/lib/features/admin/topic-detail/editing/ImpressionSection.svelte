@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Button } from '@14ch/svelte-ui';
+	import { Button, Skeleton } from '@14ch/svelte-ui';
 	import DiffText from './DiffText.svelte';
 	import { computeInlineDiff } from './inlineDiff';
 	import type { Narration } from '$lib/models/editorial/editorial.types';
@@ -7,18 +7,20 @@
 	interface Props {
 		name: string;
 		role: string;
-		part: Narration; // 参加者1人分の所感（{ draft, final }）
+		part: Narration; // 参加者1人分の所感（{ status, draft, final }）
 		showDiff: boolean;
-		isEditingFinished: boolean;
 		regenerating: boolean;
 		onRegenerate: () => void;
 	}
-	let { name, role, part, showDiff, isEditingFinished, regenerating, onRegenerate }: Props =
-		$props();
+	let { name, role, part, showDiff, regenerating, onRegenerate }: Props = $props();
 
-	// 生成ステータスとコンテンツ: 編集後(final)優先、無ければ原本(draft)、どちらも無ければ欠落(missing)。
-	const status = $derived(
-		part.final != null ? 'final' : part.draft != null ? 'draft_only' : 'missing'
+	// 導入・締めと同一の状態別表示規則（進捗ステータス＋内容だけで決める・Req 6.2）。
+	const inProgress = $derived(part.status !== 'finished');
+	const stageLabel = $derived(
+		part.status === 'generating' ? '生成中' : part.status === 'editing' ? '編集中' : ''
+	);
+	const outcome = $derived(
+		part.final != null ? 'edited' : part.draft != null ? 'draft_only' : 'gen_failed'
 	);
 	const content = $derived(part.final ?? part.draft ?? '');
 	const diff = $derived(
@@ -30,20 +32,24 @@
 	<div class="editing-page__speaker">
 		<div class="editing-page__speaker-name">{name}</div>
 		{#if role}<span class="editing-page__role">({role})</span>{/if}
-		{#if isEditingFinished && (status === 'draft_only' || status === 'missing')}
-			<span class="editing-page__element-status" data-status={status}>
-				{status === 'draft_only' ? '原本のみ（未編集）' : '生成に失敗'}
-			</span>
+		{#if inProgress}
+			{#if stageLabel}<span class="editing-page__stage-label">{stageLabel}</span>{/if}
+		{:else if outcome === 'draft_only'}
+			<span class="editing-page__element-status" data-status="draft_only">編集失敗</span>
+		{:else if outcome === 'gen_failed'}
+			<span class="editing-page__element-status" data-status="gen_failed">生成失敗</span>
 		{/if}
 	</div>
-	{#if status === 'final' || status === 'draft_only'}
+	{#if inProgress}
+		<Skeleton patterns={[{ type: 'text', lines: 2 }]} />
+	{:else if outcome !== 'gen_failed'}
 		{#if showDiff && diff}
 			<p class="editing-page__content"><DiffText segments={diff} /></p>
 		{:else}
 			<p class="editing-page__content">{content}</p>
 		{/if}
 	{/if}
-	{#if isEditingFinished && (status === 'draft_only' || status === 'missing')}
+	{#if !inProgress}
 		<div class="editing-page__impression-regenerate">
 			<Button variant="outlined" onclick={onRegenerate} loading={regenerating}>再生成</Button>
 		</div>
@@ -72,6 +78,13 @@
 	.editing-page__content {
 		margin: 0;
 		line-height: 1.6;
+	}
+	.editing-page__stage-label {
+		font-size: 0.75rem;
+		padding: 1px 6px;
+		border-radius: 3px;
+		background: #ede7f6;
+		color: #5e35b1;
 	}
 	.editing-page__element-status {
 		font-size: 0.75rem;

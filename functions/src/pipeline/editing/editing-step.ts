@@ -4,7 +4,7 @@ import { editChapter } from '../../agents/editor-agent.js';
 import { getPersonasByTopicId } from '../personas/personas.js';
 import { pipelineErrorMessage } from '../debate/utils.js';
 import { writeEditedChapter } from './edited-repository.js';
-import { readEditorial, setImpression } from './editorial-repository.js';
+import { readEditorial, impressionWriter } from './editorial-repository.js';
 import { buildImpressionPart } from './element-builders.js';
 import type { EditedTurnDraft } from '../../agents/editor-agent.js';
 import type {
@@ -64,8 +64,8 @@ export const readRawChapters = async (topicId: string): Promise<RawEditChapter[]
 
 /**
  * 所感ステージ: 承認済みペルソナごとに所感を原本生成→整えし、統合保存 editorial/0 の該当キーへ部分上書きする。
- * 参加者単位で一時失敗を自動リトライし、全滅した参加者だけを欠けとして残す（他参加者を妨げない・Req 2.1, 2.2）。
- * 同一 run 内のタスク再試行では、既に原本のある参加者を二重生成しない（Req 5.2）。失敗は warn ログに残す（Req 2.3）。
+ * 参加者単位で一時失敗を自動リトライし、全滅した参加者も完了（空＝生成失敗）で確定する（他参加者を妨げない・Req 2.1, 2.2）。
+ * 同一 run 内のタスク再試行では、既に原本のある参加者を二重生成しない（生成中で止まった参加者は再実行・Req 5.2）。失敗は warn ログに残す（Req 2.3）。
  * phaseStatus には触れない。次段（章編集）の投入は orchestrator が行う。
  */
 export const runImpressionsStep = async (topicId: string): Promise<void> => {
@@ -75,16 +75,8 @@ export const runImpressionsStep = async (topicId: string): Promise<void> => {
 
 	for (let i = 0; i < personas.length; i++) {
 		const persona = personas[i];
-		if (editorial.impressions[persona.id]?.draft) continue; // run 内二重生成防止
-		const part = await buildImpressionPart(persona, turns, personas, i);
-		if (part === null) {
-			console.warn('[runImpressionsStep] impression missing after retries', {
-				topicId,
-				personaId: persona.id
-			});
-			continue;
-		}
-		await setImpression(topicId, persona.id, part);
+		if (editorial.impressions[persona.id]?.draft) continue; // 原本のある参加者は二重生成しない（未完了は再実行）
+		await buildImpressionPart(persona, turns, personas, impressionWriter(topicId, persona.id, i));
 	}
 };
 

@@ -1,14 +1,21 @@
 // 統合保存 editorial/0（導入・締め・所感）の永続形。functions 側 editorial.types.ts と一致させる。
 // 導入・締めは各1、所感は personaId をキーにしたマップ。原本 draft と編集後 final を各要素が持つ。
 
+// 記事要素の進捗ステータス。functions 側 editorial.types.ts と一致させる。
+// 生成待ち／原本生成中／整え中／処理完了を表し、「生成待ち」と「失敗」（ともに内容が空）を区別する。
+// 成否（編集済み／編集失敗／生成失敗）は draft/final の有無から算出し、ステータスには持たない。
+export type EditorialElementStatus = 'pending' | 'generating' | 'editing' | 'finished';
+
 // intro/outro の記事要素。永続形とオンメモリ形が完全に同一（id も日付差も無い）なため単一の型にする。
 export type Narration = {
+	status: EditorialElementStatus;
 	draft: string | null;
 	final: string | null;
 };
 
 export type ImpressionForFirestore = {
 	sortOrder: number;
+	status: EditorialElementStatus;
 	draft: string | null;
 	final: string | null;
 };

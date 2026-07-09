@@ -101,8 +101,8 @@ describe('clearEditedArtifact', () => {
 		expect(holder.mock!.store.has(chapterPath('c1'))).toBe(false);
 		expect(holder.mock!.store.has(chapterPath('c2'))).toBe(false);
 		expect(holder.mock!.store.get(EDITORIAL_PATH)).toEqual({
-			intro: { draft: null, final: null },
-			outro: { draft: null, final: null },
+			intro: { status: 'pending', draft: null, final: null },
+			outro: { status: 'pending', draft: null, final: null },
 			impressions: {}
 		});
 	});

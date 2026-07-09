@@ -283,46 +283,49 @@ describe('runImpressionsStep', () => {
 			impressions?: Record<string, unknown>;
 		} | undefined;
 
+	// build（本物）は writer 経由で段階書き込みする。ここでは finish で完了確定を代行する。
+	const finishAs = (final: string | null) =>
+		mockBuildImpressionPart.mockImplementation(async (persona, _turns, _personas, writer) => {
+			await writer.finish({ draft: `${persona.id}原本`, final: final === null ? null : `${persona.id}編集後` });
+		});
+
 	it('承認済みペルソナごとに所感を統合保存へ部分上書きし、未承認は対象外にする', async () => {
-		mockBuildImpressionPart.mockImplementation(async (persona, _turns, _personas, sortOrder) => ({
-			sortOrder,
-			draft: `${persona.id}原本`,
-			final: `${persona.id}編集後`
-		}));
+		finishAs('編集後');
 
 		await runImpressionsStep('t1');
 
 		expect(mockBuildImpressionPart).toHaveBeenCalledTimes(2); // p1, p2 のみ（p3 未承認）
 		expect(editorial()!.impressions).toEqual({
-			p1: { sortOrder: 0, draft: 'p1原本', final: 'p1編集後' },
-			p2: { sortOrder: 1, draft: 'p2原本', final: 'p2編集後' }
+			p1: { sortOrder: 0, status: 'finished', draft: 'p1原本', final: 'p1編集後' },
+			p2: { sortOrder: 1, status: 'finished', draft: 'p2原本', final: 'p2編集後' }
 		});
 	});
 
-	it('全滅（null）の参加者は書かず欠けとして残し、他参加者は揃う（Req 2.1, 2.2）', async () => {
-		mockBuildImpressionPart.mockImplementation(async (persona, _turns, _personas, sortOrder) =>
-			persona.id === 'p2' ? null : { sortOrder, draft: `${persona.id}原本`, final: `${persona.id}編集後` }
-		);
+	it('生成失敗の参加者も完了（空＝生成失敗）で確定し、他参加者は揃う（Req 2.1, 2.2）', async () => {
+		mockBuildImpressionPart.mockImplementation(async (persona, _turns, _personas, writer) => {
+			// p2 は生成全滅 → 完了（空）で確定。他は編集済み。
+			await writer.finish(
+				persona.id === 'p2'
+					? { draft: null, final: null }
+					: { draft: `${persona.id}原本`, final: `${persona.id}編集後` }
+			);
+		});
 
 		await runImpressionsStep('t1');
 
 		expect(editorial()!.impressions).toEqual({
-			p1: { sortOrder: 0, draft: 'p1原本', final: 'p1編集後' }
+			p1: { sortOrder: 0, status: 'finished', draft: 'p1原本', final: 'p1編集後' },
+			p2: { sortOrder: 1, status: 'finished', draft: null, final: null }
 		});
-		expect(editorial()!.impressions!.p2).toBeUndefined();
 	});
 
 	it('既に原本のある参加者は二重生成しない（run 内リトライ保護・Req 5.2）', async () => {
 		holder.mock!.store.set('topics/t1/editorial/0', {
-			intro: { draft: null, final: null },
-			outro: { draft: null, final: null },
-			impressions: { p1: { sortOrder: 0, draft: '既存p1原本', final: '既存p1編集後' } }
+			intro: { status: 'pending', draft: null, final: null },
+			outro: { status: 'pending', draft: null, final: null },
+			impressions: { p1: { sortOrder: 0, status: 'finished', draft: '既存p1原本', final: '既存p1編集後' } }
 		});
-		mockBuildImpressionPart.mockImplementation(async (persona, _turns, _personas, sortOrder) => ({
-			sortOrder,
-			draft: `${persona.id}原本`,
-			final: `${persona.id}編集後`
-		}));
+		finishAs('編集後');
 
 		await runImpressionsStep('t1');
 
@@ -330,9 +333,10 @@ describe('runImpressionsStep', () => {
 		expect(mockBuildImpressionPart).toHaveBeenCalledTimes(1);
 		expect(editorial()!.impressions!.p1).toEqual({
 			sortOrder: 0,
+			status: 'finished',
 			draft: '既存p1原本',
 			final: '既存p1編集後'
 		});
-		expect(editorial()!.impressions!.p2).toEqual({ sortOrder: 1, draft: 'p2原本', final: 'p2編集後' });
+		expect(editorial()!.impressions!.p2).toEqual({ sortOrder: 1, status: 'finished', draft: 'p2原本', final: 'p2編集後' });
 	});
 });

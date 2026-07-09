@@ -113,9 +113,12 @@ const drainQueue = async () => {
 
 const editorial = () =>
 	holder.mock!.store.get(EDITORIAL_PATH) as {
-		intro: { draft: string | null; final: string | null };
-		outro: { draft: string | null; final: string | null };
-		impressions: Record<string, { sortOrder: number; draft: string | null; final: string | null }>;
+		intro: { status: string; draft: string | null; final: string | null };
+		outro: { status: string; draft: string | null; final: string | null };
+		impressions: Record<
+			string,
+			{ sortOrder: number; status: string; draft: string | null; final: string | null }
+		>;
 	};
 
 beforeEach(() => {
@@ -126,13 +129,13 @@ beforeEach(() => {
 	mockBuildImpression.mockReset();
 	mockBuildNarration.mockReset();
 	mockBuildInput.mockReset();
-	// 既定: 所感・導入/締めのビルダーは成功して draft/final を返す。
-	mockBuildImpression.mockImplementation(async (_persona, _turns, _personas, sortOrder) => ({
-		sortOrder,
-		draft: '所感原本',
-		final: '所感編集後'
-	}));
-	mockBuildNarration.mockResolvedValue({ draft: '整えテキスト', final: '整えテキスト' });
+	// 既定: 所感・導入/締めのビルダーは本物の writer 経由で完了確定する（段階書き込みを finish で代行）。
+	mockBuildImpression.mockImplementation(async (_persona, _turns, _personas, writer) => {
+		await writer.finish({ draft: '所感原本', final: '所感編集後' });
+	});
+	mockBuildNarration.mockImplementation(async (_kind, _input, writer) => {
+		await writer.finish({ draft: '整えテキスト', final: '整えテキスト' });
+	});
 	mockBuildInput.mockResolvedValue({ ok: true, value: { digest: {}, topicContext: {} } });
 });
 
@@ -148,11 +151,11 @@ describe('編集チェーンの通し実行（impressions → chapter → intro-
 		// チェーン順序（先頭 impressions は手動 push のため log 外）
 		expect(holder.log.map((p) => p.stepKind)).toEqual(['chapter', 'chapter', 'intro-outro']);
 
-		// 所感が統合保存へ draft/final で揃う
-		expect(editorial().impressions.p1).toEqual({ sortOrder: 0, draft: '所感原本', final: '所感編集後' });
-		// 導入・締めが draft/final で揃う
-		expect(editorial().intro).toEqual({ draft: '整えテキスト', final: '整えテキスト' });
-		expect(editorial().outro).toEqual({ draft: '整えテキスト', final: '整えテキスト' });
+		// 所感が統合保存へ status＋draft/final で揃う
+		expect(editorial().impressions.p1).toEqual({ sortOrder: 0, status: 'finished', draft: '所感原本', final: '所感編集後' });
+		// 導入・締めが status＋draft/final で揃う
+		expect(editorial().intro).toEqual({ status: 'finished', draft: '整えテキスト', final: '整えテキスト' });
+		expect(editorial().outro).toEqual({ status: 'finished', draft: '整えテキスト', final: '整えテキスト' });
 		// 本体（章）は editedChapters に completed
 		expect(holder.mock!.store.get(editedChapterPath('c1'))).toMatchObject({ status: 'completed' });
 		expect(holder.mock!.store.get(editedChapterPath('c2'))).toMatchObject({ status: 'completed' });
@@ -176,11 +179,11 @@ describe('編集チェーンの通し実行（impressions → chapter → intro-
 		expect(holder.mock!.store.get(editedChapterPath('c1'))).toMatchObject({ status: 'completed' });
 		expect(holder.mock!.store.get(editedChapterPath('c2'))).toMatchObject({ status: 'failed' });
 		// 所感・導入/締めは揃っていても、章の失敗で全体は stopped
-		expect(editorial().impressions.p1).toMatchObject({ final: '所感編集後' });
+		expect(editorial().impressions.p1).toMatchObject({ status: 'finished', final: '所感編集後' });
 		expect(holder.mock!.store.get('topics/t1')).toMatchObject({ phaseStatus: 'stopped' });
 	});
 
-	it('導入/締めの生成（ダイジェスト）が失敗しても本文・完了確定へ到達し generated（intro/outro は欠け）', async () => {
+	it('導入/締めの生成（ダイジェスト）が失敗しても本文・完了確定へ到達し generated（intro/outro は終端スイープで生成失敗に確定）', async () => {
 		seedTopic();
 		seedGenerateObject();
 		// ダイジェスト構築が失敗する状況を模す（intro-outro は best-effort でスキップ）。
@@ -190,11 +193,11 @@ describe('編集チェーンの通し実行（impressions → chapter → intro-
 		holder.queue.push({ topicId: 't1', runId, stepKind: 'impressions', chapterIndex: -1 });
 		await drainQueue();
 
-		// 導入/締めは best-effort で欠けたまま（例外を投げずチェーンは進む）
-		expect(editorial().intro).toEqual({ draft: null, final: null });
-		expect(editorial().outro).toEqual({ draft: null, final: null });
+		// 導入/締めは生成に到達できず、終端スイープで完了（空＝生成失敗）に確定する（生成待ち固着を防ぐ）
+		expect(editorial().intro).toEqual({ status: 'finished', draft: null, final: null });
+		expect(editorial().outro).toEqual({ status: 'finished', draft: null, final: null });
 		// 所感・本文・完了確定は到達
-		expect(editorial().impressions.p1).toMatchObject({ final: '所感編集後' });
+		expect(editorial().impressions.p1).toMatchObject({ status: 'finished', final: '所感編集後' });
 		expect(holder.mock!.store.get('topics/t1')).toMatchObject({ phaseStatus: 'generated' });
 	});
 });
@@ -214,8 +217,8 @@ describe('やり直し・リセット整合（全記事の作り直し）', () =
 
 		expect(holder.mock!.store.has(editedChapterPath('c1'))).toBe(false);
 		expect(editorial()).toEqual({
-			intro: { draft: null, final: null },
-			outro: { draft: null, final: null },
+			intro: { status: 'pending', draft: null, final: null },
+			outro: { status: 'pending', draft: null, final: null },
 			impressions: {}
 		});
 		expect(holder.mock!.store.get('topics/t1')).toMatchObject({
@@ -239,8 +242,8 @@ describe('やり直し・リセット整合（全記事の作り直し）', () =
 
 		expect(holder.mock!.store.has(editedChapterPath('c1'))).toBe(false);
 		expect(editorial()).toEqual({
-			intro: { draft: null, final: null },
-			outro: { draft: null, final: null },
+			intro: { status: 'pending', draft: null, final: null },
+			outro: { status: 'pending', draft: null, final: null },
 			impressions: {}
 		});
 	});

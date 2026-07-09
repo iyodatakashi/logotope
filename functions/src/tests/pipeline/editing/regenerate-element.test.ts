@@ -3,9 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const h = vi.hoisted(() => ({
 	getPersonas: vi.fn(),
 	getTurns: vi.fn(),
-	setIntro: vi.fn(),
-	setOutro: vi.fn(),
-	setImpression: vi.fn(),
+	narrationWriter: vi.fn(),
+	impressionWriter: vi.fn(),
 	buildImpressionPart: vi.fn(),
 	buildNarrationPart: vi.fn(),
 	buildInput: vi.fn(),
@@ -21,9 +20,8 @@ vi.mock('firebase-admin/firestore', () => ({
 vi.mock('../../../pipeline/personas/personas.js', () => ({ getPersonasByTopicId: h.getPersonas }));
 vi.mock('../../../pipeline/debate/chapter.js', () => ({ getDebateTurnsByTopicId: h.getTurns }));
 vi.mock('../../../pipeline/editing/editorial-repository.js', () => ({
-	setIntro: h.setIntro,
-	setOutro: h.setOutro,
-	setImpression: h.setImpression
+	narrationWriter: h.narrationWriter,
+	impressionWriter: h.impressionWriter
 }));
 vi.mock('../../../pipeline/editing/element-builders.js', () => ({
 	buildImpressionPart: h.buildImpressionPart,
@@ -43,6 +41,11 @@ import {
 	regenerateChapter
 } from '../../../pipeline/editing/regenerate-element.js';
 
+// writer は生成過程の詳細を持たないハンドル。regenerate はどの要素の writer を build に渡すかだけを担う。
+const INTRO_WRITER = { tag: 'intro-writer' };
+const OUTRO_WRITER = { tag: 'outro-writer' };
+const IMPRESSION_WRITER = { tag: 'impression-writer' };
+
 beforeEach(() => {
 	vi.clearAllMocks();
 	h.getPersonas.mockResolvedValue([
@@ -51,6 +54,12 @@ beforeEach(() => {
 	]);
 	h.getTurns.mockResolvedValue([{ id: 't1' }]);
 	h.buildInput.mockResolvedValue({ ok: true, value: { digest: {}, topicContext: {} } });
+	h.narrationWriter.mockImplementation((_t: string, kind: string) =>
+		kind === 'intro' ? INTRO_WRITER : OUTRO_WRITER
+	);
+	h.impressionWriter.mockReturnValue(IMPRESSION_WRITER);
+	h.buildImpressionPart.mockResolvedValue(undefined);
+	h.buildNarrationPart.mockResolvedValue(undefined);
 	h.readRawChapters.mockResolvedValue([{ id: 'c1' }, { id: 'c2' }]);
 	h.runChapterEditStep.mockResolvedValue('completed');
 	h.finalize.mockResolvedValue('generated');
@@ -58,9 +67,9 @@ beforeEach(() => {
 });
 
 describe('regenerateImpression', () => {
-	it('原本生成→整え→setImpression（当該ペルソナのみ）で作り直す', async () => {
-		h.buildImpressionPart.mockResolvedValueOnce({ sortOrder: 1, draft: '原本', final: '編集後' });
+	it('当該ペルソナの sortOrder で writer を作り、build（段階書き込み）に渡す', async () => {
 		await regenerateImpression('t1', 'p2');
+		expect(h.impressionWriter).toHaveBeenCalledWith('t1', 'p2', 1);
 		expect(h.buildImpressionPart).toHaveBeenCalledWith(
 			{ id: 'p2', approved: true },
 			[{ id: 't1' }],
@@ -68,62 +77,39 @@ describe('regenerateImpression', () => {
 				{ id: 'p1', approved: true },
 				{ id: 'p2', approved: true }
 			],
-			1
+			IMPRESSION_WRITER
 		);
-		expect(h.setImpression).toHaveBeenCalledWith('t1', 'p2', {
-			sortOrder: 1,
-			draft: '原本',
-			final: '編集後'
-		});
 	});
 
-	it('承認済みペルソナに無い personaId は例外', async () => {
+	it('承認済みペルソナに無い personaId は例外（build しない）', async () => {
 		await expect(regenerateImpression('t1', 'pX')).rejects.toThrow();
-		expect(h.setImpression).not.toHaveBeenCalled();
+		expect(h.buildImpressionPart).not.toHaveBeenCalled();
 	});
 
-	it('生成全滅（null）は例外を送出し保存しない', async () => {
-		h.buildImpressionPart.mockResolvedValueOnce(null);
-		await expect(regenerateImpression('t1', 'p1')).rejects.toThrow();
-		expect(h.setImpression).not.toHaveBeenCalled();
-	});
-
-	it('原本のみで整え失敗（final=null）も例外を送出し保存しない', async () => {
-		h.buildImpressionPart.mockResolvedValueOnce({ sortOrder: 0, draft: '原本', final: null });
-		await expect(regenerateImpression('t1', 'p1')).rejects.toThrow();
-		expect(h.setImpression).not.toHaveBeenCalled();
+	it('生成失敗（build 内で確定）でも例外を投げない（旧内容は build の begin で破棄済み）', async () => {
+		// build は失敗も finished（生成失敗）で確定するため regenerate は解決する。
+		await expect(regenerateImpression('t1', 'p1')).resolves.toBeUndefined();
+		expect(h.buildImpressionPart).toHaveBeenCalledTimes(1);
 	});
 });
 
 describe('regenerateIntro / regenerateOutro', () => {
-	it('intro: 生成→整え→setIntro', async () => {
-		h.buildNarrationPart.mockResolvedValueOnce({ draft: '導入原本', final: '導入編集後' });
+	it('intro: intro の writer を作り build に渡す', async () => {
 		await regenerateIntro('t1');
-		expect(h.buildNarrationPart).toHaveBeenCalledWith('intro', { digest: {}, topicContext: {} });
-		expect(h.setIntro).toHaveBeenCalledWith('t1', { draft: '導入原本', final: '導入編集後' });
+		expect(h.narrationWriter).toHaveBeenCalledWith('t1', 'intro');
+		expect(h.buildNarrationPart).toHaveBeenCalledWith('intro', { digest: {}, topicContext: {} }, INTRO_WRITER);
 	});
 
-	it('outro: 生成→整え→setOutro', async () => {
-		h.buildNarrationPart.mockResolvedValueOnce({ draft: '締め原本', final: '締め編集後' });
+	it('outro: outro の writer を作り build に渡す', async () => {
 		await regenerateOutro('t1');
-		expect(h.setOutro).toHaveBeenCalledWith('t1', { draft: '締め原本', final: '締め編集後' });
+		expect(h.narrationWriter).toHaveBeenCalledWith('t1', 'outro');
+		expect(h.buildNarrationPart).toHaveBeenCalledWith('outro', { digest: {}, topicContext: {} }, OUTRO_WRITER);
 	});
 
-	it('生成失敗（draft=null）は例外を送出し保存しない', async () => {
-		h.buildNarrationPart.mockResolvedValueOnce({ draft: null, final: null });
-		await expect(regenerateIntro('t1')).rejects.toThrow();
-		expect(h.setIntro).not.toHaveBeenCalled();
-	});
-
-	it('原本のみで整え失敗（final=null）も例外を送出し保存しない', async () => {
-		h.buildNarrationPart.mockResolvedValueOnce({ draft: '導入原本', final: null });
-		await expect(regenerateIntro('t1')).rejects.toThrow();
-		expect(h.setIntro).not.toHaveBeenCalled();
-	});
-
-	it('ダイジェスト構築失敗は例外', async () => {
+	it('ダイジェスト構築失敗は例外（build しない）', async () => {
 		h.buildInput.mockResolvedValueOnce({ ok: false, error: { code: 'NOT_FOUND' } });
 		await expect(regenerateOutro('t1')).rejects.toThrow();
+		expect(h.buildNarrationPart).not.toHaveBeenCalled();
 	});
 });
 

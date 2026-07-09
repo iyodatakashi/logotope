@@ -4,8 +4,17 @@ import { render } from 'vitest-browser-svelte';
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
-type Narration = { draft: string | null; final: string | null };
-type Impression = { sortOrder: number; draft: string | null; final: string | null };
+type ElementStatus = 'pending' | 'generating' | 'editing' | 'finished';
+type Narration = { status: ElementStatus; draft: string | null; final: string | null };
+type Impression = {
+	personaId: string;
+	sortOrder: number;
+	status: ElementStatus;
+	draft: string | null;
+	final: string | null;
+};
+
+const pending = (): Narration => ({ status: 'pending', draft: null, final: null });
 
 const { holder } = vi.hoisted(() => ({
 	holder: {
@@ -20,9 +29,9 @@ const { holder } = vi.hoisted(() => ({
 			{ status: string; turns?: unknown[]; failureReason?: string }
 		>(),
 		personas: [] as unknown[],
-		intro: { draft: null, final: null } as Narration,
-		outro: { draft: null, final: null } as Narration,
-		impressions: {} as Record<string, Impression>
+		intro: { status: 'pending', draft: null, final: null } as Narration,
+		outro: { status: 'pending', draft: null, final: null } as Narration,
+		impressions: [] as Impression[]
 	}
 }));
 
@@ -94,9 +103,9 @@ describe('EditingPage.svelte', () => {
 		holder.chapters = [];
 		holder.editedByChapter = new Map();
 		holder.personas = [persona('p1', '田中太郎')];
-		holder.intro = { draft: null, final: null };
-		holder.outro = { draft: null, final: null };
-		holder.impressions = {};
+		holder.intro = pending();
+		holder.outro = pending();
+		holder.impressions = [];
 		holder.regenerateArticleElement.mockResolvedValue(undefined);
 	});
 
@@ -205,12 +214,18 @@ describe('EditingPage.svelte', () => {
 		expect(holder.startEditing).toHaveBeenCalled();
 	});
 
+	const impression = (
+		personaId: string,
+		status: ElementStatus,
+		draft: string | null,
+		final: string | null,
+		sortOrder = 0
+	): Impression => ({ personaId, sortOrder, status, draft, final });
+
 	it('記事を 導入 → 本体 → 締め → 所感 の順で表示する（編集後を final として表示）', async () => {
-		holder.intro = { draft: '導入原本', final: 'これは導入の編集後本文です' };
-		holder.outro = { draft: '締め原本', final: 'これは締めの編集後本文です' };
-		holder.impressions = {
-			p1: { sortOrder: 0, draft: '所感原本', final: 'これは所感の編集後本文です' }
-		};
+		holder.intro = { status: 'finished', draft: '導入原本', final: 'これは導入の編集後本文です' };
+		holder.outro = { status: 'finished', draft: '締め原本', final: 'これは締めの編集後本文です' };
+		holder.impressions = [impression('p1', 'finished', '所感原本', 'これは所感の編集後本文です')];
 		completedChapterFixture();
 		render(EditingPage);
 
@@ -221,26 +236,28 @@ describe('EditingPage.svelte', () => {
 		await expect.element(page.getByText('これは所感の編集後本文です')).toBeInTheDocument();
 	});
 
-	it('編集確定後、未完成の導入（原本のみ）に状態表示と再生成ボタンを出し、押下で intro を再生成する', async () => {
-		holder.intro = { draft: '導入の原本のみ', final: null };
-		holder.outro = { draft: '締め', final: '締め' };
-		holder.impressions = { p1: { sortOrder: 0, draft: '所感', final: '所感' } };
+	it('完了・原本のみ（編集失敗）の導入に状態表示と再生成ボタンを出し、押下で intro を再生成する', async () => {
+		// 対象を intro に絞るため他要素は進行中（スケルトン・再生成なし）にする。
+		holder.intro = { status: 'finished', draft: '導入の原本のみ', final: null };
+		holder.outro = pending();
+		holder.impressions = [];
 		render(EditingPage);
 
-		await expect.element(page.getByText('原本のみ（未編集）')).toBeInTheDocument();
+		await expect.element(page.getByText('編集失敗')).toBeInTheDocument();
 		const button = page.getByRole('button', { name: '再生成' });
 		await expect.element(button).toBeInTheDocument();
 		await button.click();
 		expect(holder.regenerateArticleElement).toHaveBeenCalledWith({ kind: 'intro' });
 	});
 
-	it('編集確定後、欠落した所感（生成失敗）に再生成ボタンを出し、押下で impression を再生成する', async () => {
-		holder.intro = { draft: 'i', final: 'i' };
-		holder.outro = { draft: 'o', final: 'o' };
-		holder.impressions = {}; // p1 は欠落
+	it('完了・空（生成失敗）の所感に「生成失敗」と再生成ボタンを出し、押下で impression を再生成する', async () => {
+		holder.intro = pending();
+		holder.outro = pending();
+		// 終端スイープが未生成ペルソナに materialize した生成失敗エントリ
+		holder.impressions = [impression('p1', 'finished', null, null)];
 		render(EditingPage);
 
-		await expect.element(page.getByText('生成に失敗')).toBeInTheDocument();
+		await expect.element(page.getByText('生成失敗')).toBeInTheDocument();
 		const button = page.getByRole('button', { name: '再生成' });
 		await button.click();
 		expect(holder.regenerateArticleElement).toHaveBeenCalledWith({
@@ -249,10 +266,23 @@ describe('EditingPage.svelte', () => {
 		});
 	});
 
+	it('未生成ペルソナ（エントリ無し）の所感は生成待ちスケルトンで表示する（再生成なし・Req 6.2）', async () => {
+		// 記事要素は全て進行中にして、エントリ無しの所感が pending 扱い（再生成なし）であることを見る。
+		holder.intro = pending();
+		holder.outro = pending();
+		holder.impressions = []; // p1 はエントリ無し → pending フォールバック
+		render(EditingPage);
+
+		await expect.element(page.getByRole('heading', { name: '所感' })).toBeInTheDocument();
+		expect(page.getByText('生成失敗').elements()).toHaveLength(0);
+		expect(page.getByRole('button', { name: '再生成' }).elements()).toHaveLength(0);
+	});
+
 	it('編集確定後、失敗章に再生成ボタンを出し、押下で chapter を再生成する', async () => {
-		holder.intro = { draft: 'i', final: 'i' };
-		holder.outro = { draft: 'o', final: 'o' };
-		holder.impressions = { p1: { sortOrder: 0, draft: '所感', final: '所感' } };
+		// 対象を章に絞るため記事要素は進行中（スケルトン・再生成なし）にする。
+		holder.intro = pending();
+		holder.outro = pending();
+		holder.impressions = [];
 		holder.chapters = [
 			{
 				id: 'ch1',
@@ -271,27 +301,33 @@ describe('EditingPage.svelte', () => {
 		});
 	});
 
-	it('編集が実行中（running）のあいだは未完成の明示・再生成ボタンを出さない（Req 3.2）', async () => {
+	it('進行中の要素（生成中）はスケルトン＋段階ラベルで、状態表示や再生成を出さない（Req 3.1, 3.2）', async () => {
+		// run 全体の状態ではなく要素自身の status で判定する（実行中は要素が generating/editing）。
 		holder.phaseStatus = 'running';
-		holder.intro = { draft: '導入の原本のみ', final: null };
-		holder.impressions = {};
+		holder.intro = { status: 'generating', draft: null, final: null };
+		holder.outro = { status: 'editing', draft: '締め原本', final: null };
+		holder.impressions = [impression('p1', 'generating', null, null)];
 		render(EditingPage);
 
 		expect(page.getByRole('button', { name: '再生成' }).elements()).toHaveLength(0);
-		expect(page.getByText('原本のみ（未編集）').elements()).toHaveLength(0);
+		expect(page.getByText('編集失敗').elements()).toHaveLength(0);
+		expect(page.getByText('生成失敗').elements()).toHaveLength(0);
+		await expect.element(page.getByText('編集中')).toBeInTheDocument();
 	});
 
 	it('再生成の処理中は当該ボタンを無効化し重複実行を防ぐ（Req 4.8）', async () => {
-		holder.intro = { draft: '導入の原本のみ', final: null };
-		holder.outro = { draft: 'o', final: 'o' };
-		holder.impressions = { p1: { sortOrder: 0, draft: '所感', final: '所感' } };
+		// 再生成ボタンを1つに絞るため、intro のみ完了・他は進行中（スケルトン）にする。
+		holder.intro = { status: 'finished', draft: '導入の原本のみ', final: null };
+		holder.outro = pending();
+		holder.impressions = [impression('p1', 'generating', null, null)];
 		// 解決しない Promise で処理中状態を維持する
 		holder.regenerateArticleElement.mockReturnValue(new Promise(() => {}));
 		render(EditingPage);
 
 		const button = page.getByRole('button', { name: '再生成' });
 		await button.click();
-		await expect.element(page.getByRole('button', { name: '再生成中...' })).toBeDisabled();
+		// 処理中はローディング表示になり無効化される（アクセシブル名は保持される）。
+		await expect.element(button).toBeDisabled();
 	});
 
 	it('討論が未完了のあいだは編集開始ボタンを出さず、ゲート文言を表示する', async () => {

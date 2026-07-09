@@ -1,6 +1,8 @@
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { clearEditedArtifact, readEditedChapters } from './edited-repository.js';
+import { readEditorial, narrationWriter, impressionWriter } from './editorial-repository.js';
+import { getPersonasByTopicId } from '../personas/personas.js';
 import type { PhaseKey } from '../../types/topic.types.js';
 
 // 編集ランのライフサイクル: 開始（破棄＋実行中化＋新世代）と完了確定（全章成功→generated / 失敗残存→stopped）。
@@ -37,16 +39,56 @@ export const resetEditingRun = async (topicId: string): Promise<void> => {
 /**
  * 終端失敗で編集ランを停止（stopped）にする。phase 6・runId 一致・phaseStatus running のときのみ遷移し、
  * 旧世代・前進済みを弾く（新世代の編集を巻き込まない）。再実行ボタンで復帰できる。
+ * 停止が成立したら、生成に到達しなかった記事要素を生成失敗へ確定して生成待ち表示の固着を防ぐ（Req 4.3）。
  */
 export const stopEditingRun = async (topicId: string, runId: string): Promise<void> => {
 	const ref = db().doc(`topics/${topicId}`);
-	await db().runTransaction(async (tx) => {
+	const stopped = await db().runTransaction(async (tx) => {
 		const snap = await tx.get(ref);
-		if (!snap.exists) return;
+		if (!snap.exists) return false;
 		const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string; runId?: string };
-		if (data.phase !== 'editing' || data.runId !== runId || data.phaseStatus !== 'running') return;
+		if (data.phase !== 'editing' || data.runId !== runId || data.phaseStatus !== 'running') {
+			return false;
+		}
 		tx.update(ref, { phaseStatus: 'stopped', updatedAt: Timestamp.now() });
+		return true;
 	});
+	if (!stopped) return;
+	try {
+		await finalizePendingEditorialElements(topicId);
+	} catch (err) {
+		// best-effort: スイープ失敗が停止確定を妨げないよう握りつぶす。
+		console.warn('[stopEditingRun] editorial sweep failed (best-effort)', { topicId, runId }, err);
+	}
+};
+
+/**
+ * 終端スイープ: 完了（finished）に達しなかった記事要素（生成待ち／生成中／整え中）を完了に確定する（Req 4.3）。
+ * 既存内容は保持する（原本があれば編集失敗、無ければ空＝生成失敗）。承認済みペルソナの所感でエントリの無い
+ * ／未完了のものにも失敗エントリを materialize する。既に finished の要素は変更しない（冪等・再入安全）。
+ */
+export const finalizePendingEditorialElements = async (topicId: string): Promise<void> => {
+	const editorial = await readEditorial(topicId);
+
+	for (const kind of ['intro', 'outro'] as const) {
+		const part = editorial[kind];
+		if (part.status !== 'finished') {
+			await narrationWriter(topicId, kind).finish({ draft: part.draft, final: part.final });
+		}
+	}
+
+	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.approved);
+	for (let i = 0; i < personas.length; i++) {
+		const persona = personas[i];
+		const existing = editorial.impressions[persona.id];
+		if (!existing || existing.status !== 'finished') {
+			const sortOrder = existing?.sortOrder ?? i;
+			await impressionWriter(topicId, persona.id, sortOrder).finish({
+				draft: existing?.draft ?? null,
+				final: existing?.final ?? null
+			});
+		}
+	}
 };
 
 /** 編集ランが稼働中（phase 6・phaseStatus running・runId 一致）かを判定する。旧世代タスクを弾く */
