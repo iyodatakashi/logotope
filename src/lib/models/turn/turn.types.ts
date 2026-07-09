@@ -40,3 +40,26 @@ export type TurnForFirestore = {
 };
 
 export type Turn = Omit<TurnForFirestore, 'createdAt'> & { createdAt: Date };
+
+// --- 編集フェーズで整形されるターン型（原本 Turn から派生する成果物・表示形をここに集約する）---
+
+// 編集後ターンの永続形。散文・発話者・由来のみを持ち、
+// 信念変化・ファクトチェック等の注釈は原本を真実として sourceTurnIds で join 表示する。
+export type EditedTurnForFirestore = {
+	id: string;
+	sourceTurnIds: string[]; // 由来する原本ターン id（>=1、連結時は複数）
+	speakerType: SpeakerType;
+	personaId?: string | null;
+	content: string;
+	speechMode?: 'opinion' | 'fact' | 'question';
+};
+
+// 実行時形。編集後ターンは Timestamp を持たないため永続形と一致する。
+export type EditedTurn = EditedTurnForFirestore;
+
+// 編集画面の差分レビュー1行。編集後ターン（連結あり）または削除された原本ターンを表す。
+// Turn と責務範囲をそろえ、話者は id 参照のまま（name/role は描画時解決）、差分・気づきも畳まず
+// 描画時に sourceTurnIds から算出/参照する。EditedTurn を削除フラグだけ拡張する。
+export type TurnForEditing = EditedTurn & {
+	removed: boolean; // 編集後に使われず削除された原本ターンか（差分表示時のみ取り消し線で出す）
+};

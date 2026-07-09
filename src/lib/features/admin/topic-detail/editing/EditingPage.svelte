@@ -4,15 +4,12 @@
 	import { phaseLogicalState } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import { computeInlineDiff } from '$lib/utils/inlineDiff';
 	import NarrationSection from './NarrationSection.svelte';
 	import ImpressionSection from './ImpressionSection.svelte';
 	import ChapterSection from './ChapterSection.svelte';
 	import type { Chapter } from '$lib/models/chapter/chapter.types';
-	import type {
-		EditedChapter,
-		TurnForEditing
-	} from '$lib/models/editedChapter/editedChapter.types';
+	import type { EditedChapter } from '$lib/models/editedChapter/editedChapter.types';
+	import type { TurnForEditing } from '$lib/models/turn/turn.types';
 	import type { ArticleElement } from '$lib/models/editorial/editorial.types';
 
 	const PHASE: PhaseSlug = 'editing';
@@ -112,7 +109,8 @@
 		};
 	};
 
-	// 原本章順に、章別の編集状態と表示ターン（TurnForEditing）を組み立てる（本体＝body）。描画は ChapterSection。
+	// 原本章順に、章別の編集状態と表示ターン（TurnForEditing）を組み立てる（本体＝body）。
+	// name/role・差分・気づきは畳まず、ChapterSection が personaMap・原本ターン・awarenessesByTurn から描画時に解決する。
 	const displayChapters = $derived.by(() => {
 		const store = currentTopicStore.editedChaptersStore;
 		return currentTopicStore.chaptersStore.chapters.map((chapter) => {
@@ -125,37 +123,34 @@
 				status === 'completed'
 					? buildEditedTurns(chapter, store.getEditedChapter(chapter.id))
 					: buildRawTurns(chapter);
-			return { id: chapter.id, title: chapter.title, status, failureReason, canRegenerate, turns };
+			// 差分算出の由来テキスト参照用に、その章の原本ターンを併せて渡す。
+			return {
+				id: chapter.id,
+				title: chapter.title,
+				status,
+				failureReason,
+				canRegenerate,
+				turns,
+				sourceTurns: chapter.turns
+			};
 		});
 	});
 
-	// 編集済み章: 編集後ターン（原本ターンを統合しうる）と、どこにも使われず削除された原本ターンを、
-	// 原本の順序でひとつの列にマージする。差分は結合元テキストと編集後テキストの比較で出す。
+	// 編集済み章: 編集後ターン（原本ターンを統合しうる）と、どこにも使われず削除された原本ターンを、原本順に1列へマージする。
 	const buildEditedTurns = (chapter: Chapter, edited: EditedChapter | null): TurnForEditing[] => {
 		const orderOf = new Map(chapter.turns.map((turn, i) => [turn.id, i]));
-		const contentById = new Map(chapter.turns.map((turn) => [turn.id, turn.content]));
 		const usedSourceIds = new Set(
 			(edited?.turns ?? []).flatMap((editedTurn) => editedTurn.sourceTurnIds)
 		);
 
 		const editedItems = (edited?.turns ?? []).map((editedTurn) => {
-			const sourceIds = [...editedTurn.sourceTurnIds].sort(
+			// sourceTurnIds は差分・気づきの由来として原本順に並べておく（描画側で content を結合するため）。
+			const sourceTurnIds = [...editedTurn.sourceTurnIds].sort(
 				(a, b) => (orderOf.get(a) ?? 0) - (orderOf.get(b) ?? 0)
 			);
-			const { name, role } = speakerLabel(editedTurn.speakerType, editedTurn.personaId);
-			const sourceText = sourceIds.map((sourceId) => contentById.get(sourceId) ?? '').join('');
-			const turn: TurnForEditing = {
-				id: editedTurn.id,
-				name,
-				role,
-				content: editedTurn.content,
-				speechMode: editedTurn.speechMode,
-				diff: computeInlineDiff(sourceText, editedTurn.content),
-				removed: false,
-				awarenesses: sourceIds.flatMap((sourceId) => awarenessesByTurn.get(sourceId) ?? [])
-			};
+			const turn: TurnForEditing = { ...editedTurn, sourceTurnIds, removed: false };
 			return {
-				sortIndex: Math.min(...sourceIds.map((sourceId) => orderOf.get(sourceId) ?? 0)),
+				sortIndex: Math.min(...sourceTurnIds.map((sourceId) => orderOf.get(sourceId) ?? 0)),
 				turn
 			};
 		});
@@ -163,16 +158,14 @@
 		const removedItems = chapter.turns
 			.filter((rawTurn) => !usedSourceIds.has(rawTurn.id))
 			.map((rawTurn) => {
-				const { name, role } = speakerLabel(rawTurn.speakerType, rawTurn.personaId);
 				const turn: TurnForEditing = {
 					id: rawTurn.id,
-					name,
-					role,
+					sourceTurnIds: [rawTurn.id],
+					speakerType: rawTurn.speakerType,
+					personaId: rawTurn.personaId ?? null,
 					content: rawTurn.content,
 					speechMode: rawTurn.speechMode,
-					diff: null,
-					removed: true,
-					awarenesses: []
+					removed: true
 				};
 				return { sortIndex: orderOf.get(rawTurn.id) ?? 0, turn };
 			});
@@ -182,21 +175,17 @@
 			.map((entry) => entry.turn);
 	};
 
-	// 未編集・失敗の章のフォールバック: 原本ターンをそのまま表示する（差分なし）。
+	// 未編集・失敗の章のフォールバック: 原本ターンをそのまま1行として並べる（差分は描画時に自テキスト比較＝変化なし）。
 	const buildRawTurns = (chapter: Chapter): TurnForEditing[] =>
-		chapter.turns.map((turn) => {
-			const { name, role } = speakerLabel(turn.speakerType, turn.personaId);
-			return {
-				id: turn.id,
-				name,
-				role,
-				content: turn.content,
-				speechMode: turn.speechMode,
-				diff: null,
-				removed: false,
-				awarenesses: awarenessesByTurn.get(turn.id) ?? []
-			};
-		});
+		chapter.turns.map((turn) => ({
+			id: turn.id,
+			sourceTurnIds: [turn.id],
+			speakerType: turn.speakerType,
+			personaId: turn.personaId ?? null,
+			content: turn.content,
+			speechMode: turn.speechMode,
+			removed: false
+		}));
 
 	// 所感（impressions）。承認済みペルソナ単位に name/role と所感オブジェクト(part)を組み立てる。
 	// エントリの無いペルソナは生成待ち（pending）として扱い、進捗ステータスで表示を決める（Req 6.2）。
@@ -263,6 +252,9 @@
 								failureReason={chapter.failureReason}
 								showRegenerate={isEditingFinished && chapter.canRegenerate}
 								turns={chapter.turns}
+								sourceTurns={chapter.sourceTurns}
+								{personaMap}
+								{awarenessesByTurn}
 								{showDiff}
 								onRegenerate={() =>
 									regenerateArticleElement({ kind: 'chapter', chapterId: chapter.id })}

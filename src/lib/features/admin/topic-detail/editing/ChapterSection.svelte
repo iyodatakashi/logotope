@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
 	import DiffText from '$lib/sharedComponents/DiffText.svelte';
-	import type {
-		EditedChapterDisplayStatus,
-		TurnForEditing
-	} from '$lib/models/editedChapter/editedChapter.types';
+	import { computeInlineDiff } from '$lib/utils/inlineDiff';
+	import type { EditedChapterDisplayStatus } from '$lib/models/editedChapter/editedChapter.types';
+	import type { Turn, TurnForEditing } from '$lib/models/turn/turn.types';
+	import type { Persona } from '$lib/models/persona/persona.types';
 
 	interface Props {
 		title: string;
@@ -12,14 +12,50 @@
 		failureReason: string | null;
 		showRegenerate: boolean; // isEditingFinished かつ再生成可能なときだけ出す
 		turns: TurnForEditing[];
+		sourceTurns: Turn[]; // この章の原本ターン。差分の由来テキスト参照に使う
+		personaMap: Map<string, Persona>; // 話者名/役割を描画時に解決する（Turn と同じ責務境界）
+		// 原本ターンid → そのターンを聞いて各ペルソナが得た気づき。型に畳まず描画時に id 参照する（横断アノテーション）。
+		awarenessesByTurn: Map<string, { personaName: string; content: string }[]>;
 		showDiff: boolean;
 		onRegenerate: () => void | Promise<void>;
 	}
-	let { title, status, failureReason, showRegenerate, turns, showDiff, onRegenerate }: Props =
-		$props();
+	let {
+		title,
+		status,
+		failureReason,
+		showRegenerate,
+		turns,
+		sourceTurns,
+		personaMap,
+		awarenessesByTurn,
+		showDiff,
+		onRegenerate
+	}: Props = $props();
 
 	const statusLabel = (s: EditedChapterDisplayStatus): string =>
 		s === 'completed' ? '編集済み' : s === 'failed' ? '原本表示（失敗）' : '未編集';
+
+	const contentById = $derived(new Map(sourceTurns.map((turn) => [turn.id, turn.content])));
+
+	// 話者ラベルは Turn と同じく描画時に personaId から解決する（型には畳まない）。
+	const speakerLabel = (turn: TurnForEditing) => {
+		const persona = turn.personaId ? personaMap.get(turn.personaId) : null;
+		return {
+			name: persona?.name ?? 'ファシリテーター',
+			role: persona?.specificRole ?? persona?.stakeholderRole ?? ''
+		};
+	};
+
+	// 由来原本テキスト（sourceTurnIds 順に結合）↔ 編集後の差分を描画時に算出する（型には持たせない）。
+	const diffOf = (turn: TurnForEditing) =>
+		computeInlineDiff(
+			turn.sourceTurnIds.map((id) => contentById.get(id) ?? '').join(''),
+			turn.content
+		);
+
+	// 行の由来原本id群から気づきを引く（編集後は連結元、原本/削除は自id）。
+	const awarenessesOf = (turn: TurnForEditing) =>
+		turn.sourceTurnIds.flatMap((id) => awarenessesByTurn.get(id) ?? []);
 
 	// クリック→サーバ書き込みまでの楽観ローディング（二重実行防止）。導入・締め・所感と同じ自持ち方式。
 	let regenerating = $state(false);
@@ -51,40 +87,44 @@
 		{#each turns as turn (turn.id)}
 			{#if turn.removed}
 				{#if showDiff}
+					{@const speaker = speakerLabel(turn)}
 					<div
 						class="editing-page__turn editing-page__turn--removed"
-						class:editing-page__turn--facilitator={turn.name === 'ファシリテーター'}
+						class:editing-page__turn--facilitator={turn.speakerType === 'facilitator'}
 					>
 						<div class="editing-page__speaker">
-							<div class="editing-page__speaker-name">{turn.name}</div>
-							{#if turn.role}<span class="editing-page__role">({turn.role})</span>{/if}
+							<div class="editing-page__speaker-name">{speaker.name}</div>
+							{#if speaker.role}<span class="editing-page__role">({speaker.role})</span>{/if}
 							<span class="editing-page__removed-label">発言ごと削除</span>
 						</div>
 						<p class="editing-page__content"><del>{turn.content}</del></p>
 					</div>
 				{/if}
 			{:else}
+				{@const speaker = speakerLabel(turn)}
+				{@const awarenesses = awarenessesOf(turn)}
+				{@const diff = showDiff && status === 'completed' ? diffOf(turn) : null}
 				<div
 					class="editing-page__turn"
-					class:editing-page__turn--facilitator={turn.name === 'ファシリテーター'}
+					class:editing-page__turn--facilitator={turn.speakerType === 'facilitator'}
 				>
 					<div class="editing-page__speaker">
-						<div class="editing-page__speaker-name">{turn.name}</div>
-						{#if turn.role}<span class="editing-page__role">({turn.role})</span>{/if}
+						<div class="editing-page__speaker-name">{speaker.name}</div>
+						{#if speaker.role}<span class="editing-page__role">({speaker.role})</span>{/if}
 						{#if turn.speechMode}
 							<span class="editing-page__speech-mode" data-mode={turn.speechMode}
 								>{turn.speechMode}</span
 							>
 						{/if}
 					</div>
-					{#if showDiff && turn.diff}
-						<p class="editing-page__content"><DiffText segments={turn.diff} /></p>
+					{#if diff}
+						<p class="editing-page__content"><DiffText segments={diff} /></p>
 					{:else}
 						<p class="editing-page__content">{turn.content}</p>
 					{/if}
-					{#if turn.awarenesses.length > 0}
+					{#if awarenesses.length > 0}
 						<ul class="editing-page__awarenesses">
-							{#each turn.awarenesses as awareness, i (i)}
+							{#each awarenesses as awareness, i (i)}
 								<li>💡 {awareness.personaName}: {awareness.content}</li>
 							{/each}
 						</ul>

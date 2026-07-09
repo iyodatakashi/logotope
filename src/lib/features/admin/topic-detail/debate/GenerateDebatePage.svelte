@@ -88,34 +88,24 @@
 		new Map(currentTopicStore.personasStore.personas.map((persona) => [persona.id, persona]))
 	);
 
-	const turns = $derived(
-		currentTopicStore.chaptersStore.turns.map((turn) => {
-			const persona = turn.personaId ? personaMap.get(turn.personaId) : null;
-			const addressedPersona = turn.targetPersonaId ? personaMap.get(turn.targetPersonaId) : null;
-			return {
-				id: turn.id,
-				speakerType: turn.speakerType,
-				speakerName: persona?.name ?? 'ファシリテーター',
-				speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
-				content: turn.content,
-				speechMode: turn.speechMode,
-				engagementScore: turn.engagementScore,
-				fromQueue: turn.fromQueue,
-				personaId: turn.personaId,
-				addressedPersonaName: addressedPersona?.name ?? null,
-				engagements: currentTopicStore.engagementsStore.engagementsMap.get(turn.id) ?? [],
-				// このターンを聞いて各ペルソナが得た気づき（triggeredByTurnId で紐づく）
-				awarenessesTriggered: currentTopicStore.personasStore.personas.flatMap((awarenessPersona) =>
-					(awarenessPersona.awarenesses ?? [])
-						.filter((awareness) => awareness.triggeredByTurnId === turn.id)
-						.map((awareness) => ({
-							personaName: awarenessPersona.name,
-							content: awareness.content
-						}))
-				)
-			};
-		})
-	);
+	// ターンはドメインの Turn をそのまま使う。話者名/役割・指名先・engagements・気づきは型に畳まず、
+	// personaMap や id 参照で描画時に解決する（編集画面の TurnForEditing と責務境界をそろえる）。
+	const turns = $derived(currentTopicStore.chaptersStore.turns);
+
+	// 原本ターン id → そのターンを聞いて各ペルソナが得た気づき（triggeredByTurnId で紐づく）。
+	const awarenessesByTurn = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const map = new Map<string, { personaName: string; content: string }[]>();
+		for (const persona of currentTopicStore.personasStore.personas) {
+			for (const awareness of persona.awarenesses ?? []) {
+				map.set(awareness.triggeredByTurnId, [
+					...(map.get(awareness.triggeredByTurnId) ?? []),
+					{ personaName: persona.name, content: awareness.content }
+				]);
+			}
+		}
+		return map;
+	});
 </script>
 
 <PhasePanel
@@ -179,14 +169,23 @@
 		{#if !isResetting && turns.length > 0}
 			<div class="generate-debate-page__turns">
 				{#each turns as turn, i (turn.id)}
+					{@const persona = turn.personaId ? personaMap.get(turn.personaId) : null}
+					{@const role = persona?.specificRole ?? persona?.stakeholderRole ?? ''}
+					{@const addressedPersona = turn.targetPersonaId
+						? personaMap.get(turn.targetPersonaId)
+						: null}
+					{@const engagements = currentTopicStore.engagementsStore.engagementsMap.get(turn.id) ?? []}
+					{@const awarenesses = awarenessesByTurn.get(turn.id) ?? []}
 					<div
 						class="generate-debate-page__turn"
 						class:generate-debate-page__turn--facilitator={turn.speakerType === 'facilitator'}
 					>
 						<div class="generate-debate-page__speaker">
-							<div class="generate-debate-page__speaker-name">{turn.speakerName}</div>
-							{#if turn.speakerRole}
-								<span class="generate-debate-page__role">({turn.speakerRole})</span>
+							<div class="generate-debate-page__speaker-name">
+								{persona?.name ?? 'ファシリテーター'}
+							</div>
+							{#if role}
+								<span class="generate-debate-page__role">({role})</span>
 							{/if}
 							{#if turn.speechMode}
 								<span class="generate-debate-page__speech-mode" data-mode={turn.speechMode}>
@@ -198,17 +197,13 @@
 							{/if}
 						</div>
 						<p class="generate-debate-page__content">{turn.content}</p>
-						{#if turn.addressedPersonaName}
-							<p class="generate-debate-page__nominated">次の指名: {turn.addressedPersonaName}</p>
+						{#if addressedPersona}
+							<p class="generate-debate-page__nominated">次の指名: {addressedPersona.name}</p>
 						{/if}
-						<EngagementList
-							engagements={turn.engagements}
-							{personaMap}
-							selectedPersonaId={turns[i + 1]?.personaId}
-						/>
-						{#if turn.awarenessesTriggered.length > 0}
+						<EngagementList {engagements} {personaMap} selectedPersonaId={turns[i + 1]?.personaId} />
+						{#if awarenesses.length > 0}
 							<ul class="generate-debate-page__awarenesses">
-								{#each turn.awarenessesTriggered as aw, awIdx (awIdx)}
+								{#each awarenesses as aw, awIdx (awIdx)}
 									<li>💡 {aw.personaName}: {aw.content}</li>
 								{/each}
 							</ul>
