@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createFirestoreMock } from '../../helpers/firestore-mock.js';
-import type { EditedChapterForFirestore } from '../../../types/editorial.types.js';
+import type { EditedChapterForFirestore } from '../../../types/chapter.types.js';
 
 const { holder, mockGetPersonas } = vi.hoisted(() => ({
 	holder: {

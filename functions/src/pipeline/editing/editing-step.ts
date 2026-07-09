@@ -7,12 +7,12 @@ import { writeEditedChapter } from './edited-repository.js';
 import { readEditorial, impressionWriter } from './editorial-repository.js';
 import { buildImpressionPart } from './element-builders.js';
 import type { EditedTurnDraft } from '../../agents/editor-agent.js';
+import type { EditedChapterForFirestore } from '../../types/chapter.types.js';
 import type {
-	EditedChapterForFirestore,
+	DebateTurn,
 	EditedTurnForFirestore,
 	NonEmptyArray
-} from '../../types/editorial.types.js';
-import type { DebateTurn } from '../../types/turn.types.js';
+} from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
 

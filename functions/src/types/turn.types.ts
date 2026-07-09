@@ -78,3 +78,21 @@ export type TurnGenerationContext = {
 	// 承認済み事実基盤（共通前提）。件数ノルマは課さず、関与濃淡はプロフィール・関心度に委ねる（R8）。
 	factBase?: FactBase;
 };
+
+// --- 編集後ターン（編集フェーズの成果物・editorial から集約）。FE turn.types の EditedTurn と同粒度で並行 ---
+
+// 由来ターンID群は 1 件以上を必須とし、連結時は複数を許容する不変条件を型で表現する。
+export type NonEmptyArray<T> = [T, ...T[]];
+
+export const isNonEmptyArray = <T>(value: readonly T[]): value is NonEmptyArray<T> =>
+	value.length >= 1;
+
+// 編集後ターン: 散文・発話者・由来。注釈（信念変化/ファクトチェック）は持たず原本を参照する。
+export type EditedTurnForFirestore = {
+	id: string; // nanoid（編集ターンの新規 id）
+	sourceTurnIds: NonEmptyArray<string>; // 由来する原本ターン id（>=1、連結時は複数）
+	speakerType: 'persona' | 'facilitator';
+	personaId?: string | null;
+	content: string; // 編集後の散文
+	speechMode?: 'opinion' | 'fact' | 'question';
+};

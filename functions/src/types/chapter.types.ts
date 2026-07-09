@@ -1,4 +1,4 @@
-import type { DebateTurn } from './turn.types.js';
+import type { DebateTurn, EditedTurnForFirestore } from './turn.types.js';
 
 export type Chapter = {
 	id: string;
@@ -19,11 +19,6 @@ export type Issue = {
 
 export type IssueGroup = {
 	issueIndexes: number[];
-};
-
-export type ChapterAnalysisForFirestore = {
-	issues: Issue[];
-	issueGroups?: IssueGroup[];
 };
 
 export type AgendaItemStatus = 'untouched' | 'introduced' | 'addressed';
@@ -62,4 +57,17 @@ export type ChapterEntry = {
 	agenda: string[];
 	turns: DebateTurn[];
 	status: 'pending' | 'running' | 'completed';
+};
+
+// --- 編集後章（編集フェーズの成果物・editorial から集約）。FE chapter.types の EditedChapter* と同粒度で並行 ---
+
+export type EditingChapterStatus = 'pending' | 'completed' | 'failed';
+
+export type EditedChapterForFirestore = {
+	chapterIndex: number;
+	title: string; // 原本からコピー（編集対象外）
+	agenda: string[]; // 原本からコピー
+	turns: EditedTurnForFirestore[];
+	status: EditingChapterStatus;
+	failureReason?: string; // status='failed' のときの構造検証不合格理由（管理画面での把握・診断用）
 };

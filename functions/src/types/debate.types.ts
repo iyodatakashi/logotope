@@ -16,11 +16,6 @@ export type DebateOptions = {
 	singleChapterMode?: boolean;
 };
 
-export type DebateSession = {
-	id: string;
-	topicId: string;
-};
-
 export type DebateState = {
 	turns: DebateTurn[];
 	silenceMap: Map<string, number>;

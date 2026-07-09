@@ -1,5 +1,3 @@
-export type PhaseStatus = 'not_started' | 'running' | 'generated' | 'stopped';
-
 export type PipelineError =
 	| { code: 'AI_API_ERROR'; message: string; retryable: boolean }
 	| { code: 'VALIDATION_ERROR'; message: string; field?: string }

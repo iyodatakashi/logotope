@@ -1,6 +1,6 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { clearEditorial } from './editorial-repository.js';
-import type { EditedChapterForFirestore } from '../../types/editorial.types.js';
+import type { EditedChapterForFirestore } from '../../types/chapter.types.js';
 
 // 本体(章)の編集後 editedChapters の read/write/clear。導入・締め・所感は editorial-repository（editorial/0）が担う。
 // 生ディベート（chapters）とは別コレクションに保存し、原本は一切変更しない。

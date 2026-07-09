@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type { Timestamp } from 'firebase-admin/firestore';
-import type {
-	DebateTurn,
-	NewTurnFields,
-	TurnGenerationContext,
-	TurnFactCheckTrace,
-	TurnFactCheckFeedback
+import {
+	isNonEmptyArray,
+	type DebateTurn,
+	type NewTurnFields,
+	type TurnGenerationContext,
+	type TurnFactCheckTrace,
+	type TurnFactCheckFeedback,
+	type EditedTurnForFirestore
 } from '../../types/turn.types.js';
 import type { FactCheckFinding } from '../../types/fact-check.types.js';
 
@@ -87,5 +89,44 @@ describe('turn.types ファクトチェック補正トレース', () => {
 			factCheckFeedback: feedback
 		};
 		expect(context.factCheckFeedback?.[0].verdict).toBe('incorrect');
+	});
+});
+
+describe('turn.types isNonEmptyArray（由来ターンID群の不変条件）', () => {
+	it('要素が1件以上あれば true（型を NonEmptyArray に絞る）', () => {
+		const single = ['t1'];
+		const many = ['t1', 't2'];
+		expect(isNonEmptyArray(single)).toBe(true);
+		expect(isNonEmptyArray(many)).toBe(true);
+	});
+
+	it('空配列は false', () => {
+		expect(isNonEmptyArray([])).toBe(false);
+	});
+});
+
+describe('turn.types 編集後ターン（editorial から集約）', () => {
+	it('由来ターンIDが1件の編集後ターンを表現できる', () => {
+		const turn: EditedTurnForFirestore = {
+			id: 'e1',
+			sourceTurnIds: ['t1'],
+			speakerType: 'persona',
+			personaId: 'p1',
+			content: '編集後の散文',
+			speechMode: 'opinion'
+		};
+		expect(turn.sourceTurnIds).toHaveLength(1);
+		expect(isNonEmptyArray(turn.sourceTurnIds)).toBe(true);
+	});
+
+	it('連結時は複数の由来ターンIDを持てる', () => {
+		const turn: EditedTurnForFirestore = {
+			id: 'e2',
+			sourceTurnIds: ['t1', 't2'],
+			speakerType: 'facilitator',
+			personaId: null,
+			content: '連結された散文'
+		};
+		expect(turn.sourceTurnIds).toHaveLength(2);
 	});
 });
