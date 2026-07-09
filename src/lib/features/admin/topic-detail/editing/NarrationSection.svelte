@@ -8,10 +8,22 @@
 		label: string; // 「導入」/「締め」
 		part: Narration; // editorial の intro/outro（{ status, draft, final }）
 		showDiff: boolean;
-		regenerating: boolean;
-		onRegenerate: () => void;
+		onRegenerate: () => void | Promise<void>; // サーバへの再生成委譲。ローディングは当要素が自持ちする
 	}
-	let { label, part, showDiff, regenerating, onRegenerate }: Props = $props();
+	let { label, part, showDiff, onRegenerate }: Props = $props();
+
+	// クリック→サーバが生成中を書くまでの遅延分の楽観ローディング（二重実行防止）。
+	// 書き込み後は status（スケルトン）が引き継ぐため、この要素にローカルで閉じてよい。
+	let regenerating = $state(false);
+	const handleRegenerate = async () => {
+		if (regenerating) return;
+		regenerating = true;
+		try {
+			await onRegenerate();
+		} finally {
+			regenerating = false;
+		}
+	};
 
 	// 表示は要素自身の進捗ステータスと内容だけで決まる（ラン全体の完了フラグに依存しない）。
 	// 進行中（pending/generating/editing）は段階ラベル付きスケルトン、完了は内容から成否を算出する。
@@ -42,7 +54,7 @@
 			{:else if outcome === 'gen_failed'}
 				<span class="editing-page__element-status" data-status="gen_failed">生成失敗</span>
 			{/if}
-			<Button variant="outlined" onclick={onRegenerate} loading={regenerating}>再生成</Button>
+			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating}>再生成</Button>
 		{/if}
 	</div>
 	{#if inProgress}

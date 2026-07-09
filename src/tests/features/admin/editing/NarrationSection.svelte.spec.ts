@@ -12,7 +12,6 @@ const makeProps = (
 	label: '導入',
 	part,
 	showDiff: false,
-	regenerating: false,
 	onRegenerate: vi.fn(),
 	...overrides
 });
@@ -61,6 +60,25 @@ describe('NarrationSection.svelte（状態駆動表示）', () => {
 			render(NarrationSection, makeProps({ status: 'finished', draft: null, final: null }));
 			await expect.element(page.getByText('生成失敗')).toBeInTheDocument();
 			await expect.element(regenerate()).toBeInTheDocument();
+		});
+	});
+
+	describe('再生成のローディングを自持ちする（委譲）', () => {
+		it('押下すると onRegenerate を呼び、処理中はボタンを無効化する（二重実行防止）', async () => {
+			let resolve!: () => void;
+			const onRegenerate = vi.fn(() => new Promise<void>((r) => (resolve = r)));
+			render(
+				NarrationSection,
+				makeProps({ status: 'finished', draft: '原本', final: null }, { onRegenerate })
+			);
+
+			const button = regenerate();
+			await button.click();
+			expect(onRegenerate).toHaveBeenCalledOnce();
+			await expect.element(button).toBeDisabled();
+
+			resolve();
+			await expect.element(button).toBeEnabled();
 		});
 	});
 });

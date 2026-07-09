@@ -13,7 +13,6 @@ const makeProps = (
 	role: '住民',
 	part,
 	showDiff: false,
-	regenerating: false,
 	onRegenerate: vi.fn(),
 	...overrides
 });
@@ -51,5 +50,22 @@ describe('ImpressionSection.svelte（状態駆動表示）', () => {
 		render(ImpressionSection, makeProps({ status: 'finished', draft: null, final: null }));
 		await expect.element(page.getByText('生成失敗')).toBeInTheDocument();
 		await expect.element(regenerate()).toBeInTheDocument();
+	});
+
+	it('押下すると onRegenerate を呼び、処理中はボタンを無効化する（ローディング自持ち）', async () => {
+		let resolve!: () => void;
+		const onRegenerate = vi.fn(() => new Promise<void>((r) => (resolve = r)));
+		render(
+			ImpressionSection,
+			makeProps({ status: 'finished', draft: null, final: null }, { onRegenerate })
+		);
+
+		const button = regenerate();
+		await button.click();
+		expect(onRegenerate).toHaveBeenCalledOnce();
+		await expect.element(button).toBeDisabled();
+
+		resolve();
+		await expect.element(button).toBeEnabled();
 	});
 });

@@ -45,23 +45,22 @@
 		}
 	};
 
-	// 未完成の記事要素を種別ごとに個別再生成する。処理中は当該要素の操作を無効化して重複実行を防ぐ。
-	const elementKey = (element: ArticleElement): string =>
-		element.kind === 'chapter'
-			? `chapter:${element.chapterId}`
-			: element.kind === 'impression'
-				? `impression:${element.personaId}`
-				: element.kind;
-	let regeneratingKeys = $state<Record<string, boolean>>({});
-	const regenerateElement = async (element: ArticleElement) => {
+	// 記事要素（導入・締め・所感）の個別再生成はサーバへ委譲するだけ。処理中のローディングは各 Section が
+	// 自持ちする（クリック→サーバが生成中を書くまでの遅延分。以降は要素の status がスケルトンで引き継ぐ）。
+	const regenerateArticleElement = (element: ArticleElement): Promise<void> =>
+		currentTopicStore.topic?.regenerateArticleElement(element) ?? Promise.resolve();
+
+	// 章（本体）は状態ルールが別（isEditingFinished ゲート・章ステータス）でまだ Section 化していないため、
+	// ここでキー別ローディングを管理する（ChapterSection 抽出時に上と同じ委譲へ寄せる）。
+	let regeneratingChapters = $state<Record<string, boolean>>({});
+	const regenerateChapter = async (chapterId: string) => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
-		const key = elementKey(element);
-		regeneratingKeys = { ...regeneratingKeys, [key]: true };
+		regeneratingChapters = { ...regeneratingChapters, [chapterId]: true };
 		try {
-			await topic.regenerateArticleElement(element);
+			await topic.regenerateArticleElement({ kind: 'chapter', chapterId });
 		} finally {
-			regeneratingKeys = { ...regeneratingKeys, [key]: false };
+			regeneratingChapters = { ...regeneratingChapters, [chapterId]: false };
 		}
 	};
 
@@ -279,8 +278,7 @@
 					label="導入"
 					part={currentTopicStore.editorialStore.intro}
 					{showDiff}
-					regenerating={regeneratingKeys['intro']}
-					onRegenerate={() => regenerateElement({ kind: 'intro' })}
+					onRegenerate={() => regenerateArticleElement({ kind: 'intro' })}
 				/>
 
 				<!-- 本体（body＝章） -->
@@ -301,8 +299,8 @@
 									{#if isEditingFinished && chapter.canRegenerate}
 										<Button
 											variant="outlined"
-											onclick={() => regenerateElement({ kind: 'chapter', chapterId: chapter.id })}
-											loading={regeneratingKeys[`chapter:${chapter.id}`]}
+											onclick={() => regenerateChapter(chapter.id)}
+											loading={regeneratingChapters[chapter.id]}
 										>
 											再生成
 										</Button>
@@ -365,8 +363,7 @@
 					label="締め"
 					part={currentTopicStore.editorialStore.outro}
 					{showDiff}
-					regenerating={regeneratingKeys['outro']}
-					onRegenerate={() => regenerateElement({ kind: 'outro' })}
+					onRegenerate={() => regenerateArticleElement({ kind: 'outro' })}
 				/>
 
 				<!-- 所感（impressions）＝締めの後。参加者ごとの締めの所感。 -->
@@ -380,9 +377,8 @@
 									role={impression.role}
 									part={impression.part}
 									{showDiff}
-									regenerating={regeneratingKeys[`impression:${impression.personaId}`]}
 									onRegenerate={() =>
-										regenerateElement({ kind: 'impression', personaId: impression.personaId })}
+										regenerateArticleElement({ kind: 'impression', personaId: impression.personaId })}
 								/>
 							{/each}
 						</div>

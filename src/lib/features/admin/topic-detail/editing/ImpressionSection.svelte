@@ -9,10 +9,22 @@
 		role: string;
 		part: Narration; // 参加者1人分の所感（{ status, draft, final }）
 		showDiff: boolean;
-		regenerating: boolean;
-		onRegenerate: () => void;
+		onRegenerate: () => void | Promise<void>; // サーバへの再生成委譲。ローディングは当要素が自持ちする
 	}
-	let { name, role, part, showDiff, regenerating, onRegenerate }: Props = $props();
+	let { name, role, part, showDiff, onRegenerate }: Props = $props();
+
+	// クリック→サーバが生成中を書くまでの遅延分の楽観ローディング（二重実行防止）。
+	// 書き込み後は status（スケルトン）が引き継ぐため、この要素にローカルで閉じてよい。
+	let regenerating = $state(false);
+	const handleRegenerate = async () => {
+		if (regenerating) return;
+		regenerating = true;
+		try {
+			await onRegenerate();
+		} finally {
+			regenerating = false;
+		}
+	};
 
 	// 導入・締めと同一の状態別表示規則（進捗ステータス＋内容だけで決める・Req 6.2）。
 	const inProgress = $derived(part.status !== 'finished');
@@ -51,7 +63,7 @@
 	{/if}
 	{#if !inProgress}
 		<div class="editing-page__impression-regenerate">
-			<Button variant="outlined" onclick={onRegenerate} loading={regenerating}>再生成</Button>
+			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating}>再生成</Button>
 		</div>
 	{/if}
 </div>
