@@ -24,8 +24,8 @@ const makeProps = (overrides: Record<string, unknown> = {}) => ({
 	showRegenerate: false,
 	turns: [turn()],
 	sourceTurns: [] as Turn[], // 差分の由来テキスト参照用（showDiff 時のみ使う）
-	personaMap: new Map<string, Persona>(), // 話者名/役割の描画時解決用
-	awarenessesByTurn: new Map<string, { personaName: string; content: string }[]>(),
+	personaMap: new Map<string, Persona>(), // 話者名/役割・気づきの話者名の描画時解決用
+	awarenessesByTurn: new Map<string, { personaId: string; content: string }[]>(),
 	showDiff: false,
 	onRegenerate: vi.fn(),
 	...overrides
@@ -81,13 +81,16 @@ describe('ChapterSection.svelte', () => {
 		await expect.element(page.getByText('削除された発言')).toBeInTheDocument();
 	});
 
-	it('気づきは型に畳まず、由来原本id（sourceTurnIds）で awarenessesByTurn を参照して表示する', async () => {
-		// 編集後（連結）ターン: 行の id は新id、気づきは由来原本id で引く
+	it('気づきは型に畳まず、由来原本id（sourceTurnIds）で awarenessesByTurn を参照し話者名は personaMap で解決する', async () => {
+		// 編集後（連結）ターン: 行の id は新id、気づきは由来原本id で引き、話者名は personaId から描画時解決する
 		const merged = turn({ id: 'edited-1', sourceTurnIds: ['src-a', 'src-b'] });
 		const awarenessesByTurn = new Map([
-			['src-b', [{ personaName: '佐藤', content: '視点が変わった' }]]
+			['src-b', [{ personaId: 'p-sato', content: '視点が変わった' }]]
 		]);
-		render(ChapterSection, makeProps({ turns: [merged], awarenessesByTurn }));
+		const personaMap = new Map<string, Persona>([
+			['p-sato', { id: 'p-sato', name: '佐藤' } as unknown as Persona]
+		]);
+		render(ChapterSection, makeProps({ turns: [merged], awarenessesByTurn, personaMap }));
 		await expect.element(page.getByText('💡 佐藤: 視点が変わった')).toBeInTheDocument();
 	});
 

@@ -3,14 +3,20 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import ImpressionSection from '$lib/features/admin/topic-detail/editing/ImpressionSection.svelte';
 import type { EditorialElementStatus } from '$lib/models/editorial/editorial.types';
+import type { Persona } from '$lib/models/persona/persona.types';
+
+// 話者ラベルは型に畳まず personaId から描画時に解決する（Turn と同じ責務境界・Req 3.1/3.4）。
+const personaMap = new Map<string, Persona>([
+	['p1', { id: 'p1', name: '田中', specificRole: '住民' } as unknown as Persona]
+]);
 
 // 所感は導入・締めと同一の状態別表示規則（進捗ステータス＋内容だけで決める・Req 6.2）。
 const makeProps = (
 	part: { status: EditorialElementStatus; draft: string | null; final: string | null },
 	overrides: Record<string, unknown> = {}
 ) => ({
-	name: '田中',
-	role: '住民',
+	personaId: 'p1',
+	personaMap,
 	part,
 	showDiff: false,
 	onRegenerate: vi.fn(),
@@ -20,6 +26,12 @@ const makeProps = (
 const regenerate = () => page.getByRole('button', { name: '再生成' });
 
 describe('ImpressionSection.svelte（状態駆動表示）', () => {
+	it('話者名・役割は personaId から personaMap で描画時に解決する', async () => {
+		render(ImpressionSection, makeProps({ status: 'generating', draft: null, final: null }));
+		await expect.element(page.getByText('田中')).toBeInTheDocument();
+		await expect.element(page.getByText('(住民)')).toBeInTheDocument();
+	});
+
 	it('pending（未生成ペルソナ）: スケルトンのみ・段階ラベルも再生成も出さない', async () => {
 		render(ImpressionSection, makeProps({ status: 'pending', draft: null, final: null }));
 		await expect.element(page.getByText('田中')).toBeInTheDocument();

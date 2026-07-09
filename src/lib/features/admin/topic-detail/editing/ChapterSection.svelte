@@ -15,7 +15,8 @@
 		sourceTurns: Turn[]; // この章の原本ターン。差分の由来テキスト参照に使う
 		personaMap: Map<string, Persona>; // 話者名/役割を描画時に解決する（Turn と同じ責務境界）
 		// 原本ターンid → そのターンを聞いて各ペルソナが得た気づき。型に畳まず描画時に id 参照する（横断アノテーション）。
-		awarenessesByTurn: Map<string, { personaName: string; content: string }[]>;
+		// 話者名は personaId のまま保持し、描画時に personaMap で解決する。
+		awarenessesByTurn: Map<string, { personaId: string; content: string }[]>;
 		showDiff: boolean;
 		onRegenerate: () => void | Promise<void>;
 	}
@@ -125,7 +126,7 @@
 					{#if awarenesses.length > 0}
 						<ul class="editing-page__awarenesses">
 							{#each awarenesses as awareness, i (i)}
-								<li>💡 {awareness.personaName}: {awareness.content}</li>
+								<li>💡 {personaMap.get(awareness.personaId)?.name ?? ''}: {awareness.content}</li>
 							{/each}
 						</ul>
 					{/if}

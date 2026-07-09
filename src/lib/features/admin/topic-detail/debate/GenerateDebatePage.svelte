@@ -93,14 +93,15 @@
 	const turns = $derived(currentTopicStore.chaptersStore.turns);
 
 	// 原本ターン id → そのターンを聞いて各ペルソナが得た気づき（triggeredByTurnId で紐づく）。
+	// 話者名は畳まず personaId 参照のまま保持し、描画時に personaMap で解決する。
 	const awarenessesByTurn = $derived.by(() => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const map = new Map<string, { personaName: string; content: string }[]>();
+		const map = new Map<string, { personaId: string; content: string }[]>();
 		for (const persona of currentTopicStore.personasStore.personas) {
 			for (const awareness of persona.awarenesses ?? []) {
 				map.set(awareness.triggeredByTurnId, [
 					...(map.get(awareness.triggeredByTurnId) ?? []),
-					{ personaName: persona.name, content: awareness.content }
+					{ personaId: persona.id, content: awareness.content }
 				]);
 			}
 		}
@@ -204,7 +205,7 @@
 						{#if awarenesses.length > 0}
 							<ul class="generate-debate-page__awarenesses">
 								{#each awarenesses as aw, awIdx (awIdx)}
-									<li>💡 {aw.personaName}: {aw.content}</li>
+									<li>💡 {personaMap.get(aw.personaId)?.name ?? ''}: {aw.content}</li>
 								{/each}
 							</ul>
 						{/if}

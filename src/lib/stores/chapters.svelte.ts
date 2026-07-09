@@ -3,8 +3,6 @@ import { db } from '$lib/firebase';
 import type { Turn, TurnForFirestore } from '$lib/models/turn/turn.types';
 import type { ChapterForFirestore, Chapter } from '$lib/models/chapter/chapter.types';
 
-export type { Chapter };
-
 export const createChaptersStore = (topicId: string) => {
 	let chapters = $state<Chapter[]>([]);
 	let currentChapterId = $state<string | null>(null);

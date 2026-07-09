@@ -3,15 +3,21 @@
 	import DiffText from '$lib/sharedComponents/DiffText.svelte';
 	import { computeInlineDiff } from '$lib/utils/inlineDiff';
 	import type { Narration } from '$lib/models/editorial/editorial.types';
+	import type { Persona } from '$lib/models/persona/persona.types';
 
 	interface Props {
-		name: string;
-		role: string;
+		personaId: string;
+		personaMap: Map<string, Persona>; // 話者名/役割を描画時に解決する（型に畳まない・Turn と同じ責務境界）
 		part: Narration; // 参加者1人分の所感（{ status, draft, final }）
 		showDiff: boolean;
 		onRegenerate: () => void | Promise<void>; // サーバへの再生成委譲。ローディングは当要素が自持ちする
 	}
-	let { name, role, part, showDiff, onRegenerate }: Props = $props();
+	let { personaId, personaMap, part, showDiff, onRegenerate }: Props = $props();
+
+	// 話者ラベルは personaId から描画時に解決する（型には畳まない・Req 3.1）。
+	const persona = $derived(personaMap.get(personaId));
+	const name = $derived(persona?.name ?? 'ファシリテーター');
+	const role = $derived(persona?.specificRole ?? persona?.stakeholderRole ?? '');
 
 	// クリック→サーバが生成中を書くまでの遅延分の楽観ローディング（二重実行防止）。
 	// 書き込み後は status（スケルトン）が引き継ぐため、この要素にローカルで閉じてよい。

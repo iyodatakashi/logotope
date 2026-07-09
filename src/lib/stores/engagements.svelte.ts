@@ -1,11 +1,9 @@
 import { onSnapshot, collection, getDocs } from 'firebase/firestore';
 import { db } from '$lib/firebase';
-import type { EngagementHistoryEntry } from '$lib/models/engagement/engagement.types';
-
-export type EngagementHistoryEntryWithPersona = EngagementHistoryEntry & {
-	turnId: string;
-	personaId: string;
-};
+import type {
+	EngagementHistoryEntry,
+	EngagementHistoryEntryWithPersona
+} from '$lib/models/engagement/engagement.types';
 
 export const buildEngagementsMap = (
 	rawDocs: Array<{ personaId: string; history: Record<string, EngagementHistoryEntry> }>

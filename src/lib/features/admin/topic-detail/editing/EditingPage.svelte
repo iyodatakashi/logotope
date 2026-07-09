@@ -85,28 +85,21 @@
 		new Map(currentTopicStore.personasStore.personas.map((persona) => [persona.id, persona]))
 	);
 
-	// 原本ターン id → そのターンを聞いて得た気づき（triggeredByTurnId で紐づく）
+	// 原本ターン id → そのターンを聞いて得た気づき（triggeredByTurnId で紐づく）。
+	// 話者名は畳まず personaId 参照のまま保持し、描画時に personaMap で解決する（横断アノテーション）。
 	const awarenessesByTurn = $derived.by(() => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const map = new Map<string, { personaName: string; content: string }[]>();
+		const map = new Map<string, { personaId: string; content: string }[]>();
 		for (const persona of currentTopicStore.personasStore.personas) {
 			for (const awareness of persona.awarenesses ?? []) {
 				map.set(awareness.triggeredByTurnId, [
 					...(map.get(awareness.triggeredByTurnId) ?? []),
-					{ personaName: persona.name, content: awareness.content }
+					{ personaId: persona.id, content: awareness.content }
 				]);
 			}
 		}
 		return map;
 	});
-
-	const speakerLabel = (speakerType: string, personaId?: string | null) => {
-		const persona = personaId ? personaMap.get(personaId) : null;
-		return {
-			name: persona?.name ?? 'ファシリテーター',
-			role: persona?.specificRole ?? persona?.stakeholderRole ?? ''
-		};
-	};
 
 	// 原本章順に、章別の編集状態と表示ターン（TurnForEditing）を組み立てる（本体＝body）。
 	// name/role・差分・気づきは畳まず、ChapterSection が personaMap・原本ターン・awarenessesByTurn から描画時に解決する。
@@ -186,7 +179,8 @@
 			removed: false
 		}));
 
-	// 所感（impressions）。承認済みペルソナ単位に name/role と所感オブジェクト(part)を組み立てる。
+	// 所感（impressions）。承認済みペルソナ単位に personaId と所感オブジェクト(part)を組み立てる。
+	// 話者名/役割は畳まず、ImpressionSection が personaMap から描画時に解決する（Req 3.1/3.4）。
 	// エントリの無いペルソナは生成待ち（pending）として扱い、進捗ステータスで表示を決める（Req 6.2）。
 	// 表示分岐（スケルトン／編集済み／編集失敗／生成失敗）は ImpressionSection 内が part.status＋内容から決める。
 	const displayImpressions = $derived.by(() => {
@@ -194,13 +188,12 @@
 		return currentTopicStore.personasStore.personas
 			.filter((persona) => persona.approved)
 			.map((persona) => {
-				const { name, role } = speakerLabel('persona', persona.id);
 				const part = impressions.find((item) => item.personaId === persona.id) ?? {
 					status: 'pending' as const,
 					draft: null,
 					final: null
 				};
-				return { personaId: persona.id, name, role, part };
+				return { personaId: persona.id, part };
 			});
 	});
 </script>
@@ -277,8 +270,8 @@
 						<div class="editing-page__impressions-list">
 							{#each displayImpressions as impression (impression.personaId)}
 								<ImpressionSection
-									name={impression.name}
-									role={impression.role}
+									personaId={impression.personaId}
+									{personaMap}
 									part={impression.part}
 									{showDiff}
 									onRegenerate={() =>

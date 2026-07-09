@@ -1,4 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
+import type { EngagementLevel } from '$lib/models/topic/topic.types';
 
 // 不変の信念のみ（interview が version 0 を書き、討論は上書きしない）
 export type BeliefForFirestore = {
@@ -50,8 +51,6 @@ export type InterviewForFirestore = {
 
 export type Interview = Omit<InterviewForFirestore, 'completedAt'> & { completedAt?: Date };
 
-export type EngagementLevel = 'high' | 'medium' | 'low';
-
 export type PersonaForFirestore = {
 	id: string;
 	topicId: string;
@@ -74,18 +73,6 @@ export type Persona = Omit<PersonaForFirestore, 'interview' | 'beliefs' | 'aware
 	interview?: Interview;
 	beliefs: Belief[];
 	awarenesses?: Awareness[];
-};
-
-export type PersonaData = {
-	stakeholderRole: string;
-	specificRole: string;
-	name: string;
-	nationality?: string;
-	age: number;
-	occupation: string;
-	background: string;
-	interests: string;
-	engagementLevel?: EngagementLevel;
 };
 
 export type PersonaForInterview = {

@@ -36,6 +36,3 @@ export type ArticleElement =
 	| { kind: 'intro' }
 	| { kind: 'outro' }
 	| { kind: 'impression'; personaId: string };
-
-// 記事の読み取りモデル（非永続）。編集後があれば final、無く原本があれば draft_only、どちらも無ければ missing。
-export type ElementStatus = 'final' | 'draft_only' | 'missing';

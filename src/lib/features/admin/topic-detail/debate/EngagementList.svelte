@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { EngagementHistoryEntryWithPersona } from '$lib/stores/engagements.svelte';
+	import type { EngagementHistoryEntryWithPersona } from '$lib/models/engagement/engagement.types';
 
 	interface Props {
 		engagements: ReadonlyArray<EngagementHistoryEntryWithPersona>;
@@ -11,10 +11,11 @@
 
 	// 現在のペルソナを起点にループし、各ペルソナのこのターンでの発言意欲を引く。
 	// engagements 文書を起点にしないことで、古いペルソナidの残骸は原理的に表示されない。
+	// 話者名は型に畳まず personaId 参照のまま保持し、描画時に personaMap で解決する（Req 3.1）。
 	const items = $derived(
-		[...personaMap].flatMap(([personaId, persona]) => {
+		[...personaMap].flatMap(([personaId]) => {
 			const entry = engagements.find((engagement) => engagement.personaId === personaId);
-			return entry ? [{ personaId, name: persona.name, mode: entry.mode, score: entry.score }] : [];
+			return entry ? [{ personaId, mode: entry.mode, score: entry.score }] : [];
 		})
 	);
 </script>
@@ -28,7 +29,7 @@
 				data-mode={item.mode}
 				class:engagement-list__engagement--selected={selected}
 			>
-				{item.name}: {item.mode}({item.score}){#if selected}→選択{/if}
+				{personaMap.get(item.personaId)?.name ?? ''}: {item.mode}({item.score}){#if selected}→選択{/if}
 			</span>
 		{/each}
 	</div>
