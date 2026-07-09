@@ -13,9 +13,9 @@
 		<li class:debate-chapter-index__chapter--current={chapter === currentChapter}>
 			<div class="debate-chapter-index__title">{chapter.title}</div>
 			{#if chapter === currentChapter && chapter.agendaItemStatuses?.length}
-				<ul class="debate-chapter-index__points">
+				<ul class="debate-chapter-index__agenda">
 					{#each chapter.agendaItemStatuses as dp (dp.point)}
-						<li class="debate-chapter-index__point" data-status={dp.status}>
+						<li class="debate-chapter-index__agenda-item" data-status={dp.status}>
 							<span class="debate-chapter-index__status-badge"
 								>{dp.status === 'untouched' ? '未' : dp.status === 'introduced' ? '着' : '済'}</span
 							>
@@ -24,11 +24,13 @@
 					{/each}
 				</ul>
 			{:else if chapter.agenda?.length}
-				<ul class="debate-chapter-index__points">
+				<!--
+				<ul class="debate-chapter-index__agenda">
 					{#each chapter.agenda as point (point)}
-						<li class="debate-chapter-index__point">{point}</li>
+						<li class="debate-chapter-index__agenda-item">{point}</li>
 					{/each}
 				</ul>
+				-->
 			{/if}
 		</li>
 	{/each}
@@ -41,29 +43,20 @@
 		flex-direction: column;
 		gap: 4px;
 	}
-	.debate-chapter-index li {
-		color: #888;
-		font-size: 0.9rem;
-	}
 	.debate-chapter-index li.debate-chapter-index__chapter--current {
-		color: #1565c0;
-		font-weight: 600;
+		font-weight: bold;
 	}
-	.debate-chapter-index__points {
-		margin: 4px 0 0 8px;
-		padding: 0;
-		list-style: none;
+	.debate-chapter-index__agenda {
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: 8px;
+		padding: 0;
 	}
-	.debate-chapter-index__point {
+	.debate-chapter-index__agenda-item {
 		display: flex;
 		align-items: baseline;
-		gap: 6px;
-		font-size: 0.78rem;
-		font-weight: normal;
-		color: #666;
+		gap: 4px;
+		font-size: var(--svelte-ui-font-size-sm);
 	}
 	.debate-chapter-index__status-badge {
 		flex-shrink: 0;
@@ -74,11 +67,11 @@
 		background: #e0e0e0;
 		color: #757575;
 	}
-	.debate-chapter-index__point[data-status='introduced'] .debate-chapter-index__status-badge {
+	.debate-chapter-index__agenda-item[data-status='introduced'] .debate-chapter-index__status-badge {
 		background: #fff3e0;
 		color: #e65100;
 	}
-	.debate-chapter-index__point[data-status='addressed'] .debate-chapter-index__status-badge {
+	.debate-chapter-index__agenda-item[data-status='addressed'] .debate-chapter-index__status-badge {
 		background: #e8f5e9;
 		color: #2e7d32;
 	}

@@ -115,26 +115,34 @@
 		<Checkbox bind:value={singleChapterMode}>1章で討論を終了する</Checkbox>
 	{/snippet}
 	{#snippet content()}
-		{#if currentTopicStore.chaptersStore.chapters.length}
-			<DebateChapterIndex
-				chapters={currentTopicStore.chaptersStore.chapters}
-				currentChapter={currentTopicStore.chaptersStore.currentChapter}
-			/>
-		{/if}
+		<div class="generate-debate-page__content">
+			{#if currentTopicStore.chaptersStore.chapters.length}
+				<DebateChapterIndex
+					chapters={currentTopicStore.chaptersStore.chapters}
+					currentChapter={currentTopicStore.chaptersStore.currentChapter}
+				/>
+			{/if}
 
-		{#if !isResetting && hasTurns}
-			<div class="generate-debate-page__chapters-turns">
-				{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.id)}
-					{#if chapter.turns.length > 0}
-						<DebateChapter title={chapter.title} turns={chapter.turns} />
-					{/if}
-				{/each}
-			</div>
-		{/if}
+			{#if !isResetting && hasTurns}
+				<div class="generate-debate-page__chapters-turns">
+					{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.id)}
+						{#if chapter.turns.length > 0}
+							<DebateChapter title={chapter.title} turns={chapter.turns} />
+						{/if}
+					{/each}
+				</div>
+			{/if}
+		</div>
 	{/snippet}
 </PhasePanel>
 
 <style>
+	.generate-debate-page__content {
+		display: flex;
+		flex-direction: column;
+		gap: 24px;
+	}
+
 	.generate-debate-page__chapters-turns {
 		display: flex;
 		flex-direction: column;
