@@ -1,6 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { getPersonasByTopicId } from '../personas/personas.js';
 import { getDebateTurnsByTopicId } from '../debate/chapter.js';
+import { pipelineErrorMessage } from '../debate/utils.js';
 import { narrationWriter, impressionWriter } from './editorial-repository.js';
 import { buildImpressionPart, buildNarrationPart, buildIntroOutroInput } from './element-builders.js';
 import { readRawChapters, runChapterEditStep } from './editing-step.js';
@@ -29,17 +30,29 @@ export const regenerateImpression = async (topicId: string, personaId: string): 
 };
 
 /** 導入を作り直す。生成中（内容破棄）→段階を経て完了で確定する（intro のみ部分上書き） */
-export const regenerateIntro = async (topicId: string): Promise<void> => {
-	const inputResult = await buildIntroOutroInput(topicId);
-	if (!inputResult.ok) throw new Error('討論ダイジェストの構築に失敗しました');
-	await buildNarrationPart('intro', inputResult.value, narrationWriter(topicId, 'intro'));
-};
+export const regenerateIntro = (topicId: string): Promise<void> => regenerateNarration(topicId, 'intro');
 
 /** 締めを作り直す。生成中（内容破棄）→段階を経て完了で確定する（outro のみ部分上書き） */
-export const regenerateOutro = async (topicId: string): Promise<void> => {
+export const regenerateOutro = (topicId: string): Promise<void> => regenerateNarration(topicId, 'outro');
+
+/**
+ * 導入・締め共通の再生成。ダイジェスト構築が失敗しても例外にせず、生成失敗（空）で確定する
+ * （旧内容は破棄し status で可視化する・Req 5.1, 5.3。生成の成否は status＋内容で表れるため throw しない）。
+ * 構築成功時は build が「生成中→整え中→完了」で段階書き込みし、成否を内容で確定する。
+ */
+const regenerateNarration = async (topicId: string, kind: 'intro' | 'outro'): Promise<void> => {
+	const writer = narrationWriter(topicId, kind);
 	const inputResult = await buildIntroOutroInput(topicId);
-	if (!inputResult.ok) throw new Error('討論ダイジェストの構築に失敗しました');
-	await buildNarrationPart('outro', inputResult.value, narrationWriter(topicId, 'outro'));
+	if (!inputResult.ok) {
+		console.warn('[regenerateNarration] digest build failed', {
+			topicId,
+			kind,
+			error: pipelineErrorMessage(inputResult.error)
+		});
+		await writer.finish({ draft: null, final: null }); // 生成失敗で確定（旧内容は破棄）
+		return;
+	}
+	await buildNarrationPart(kind, inputResult.value, writer);
 };
 
 /**

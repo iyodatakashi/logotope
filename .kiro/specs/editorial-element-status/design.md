@@ -165,6 +165,7 @@ finalizePendingEditorialElements(topicId: string): Promise<void>
 - 各 `regenerate*` は build（段階書き込み）を通す。**開始時に既存内容を破棄**して `generating` にし（旧 draft/final をクリア＝再生成の意図を即時反映・Req 5.1）、`editing` を経て `finished` になる（**専用の regenerating 状態は作らない**）。
 - 成功（draft を生成できた：編集済み or 編集失敗） → `finished`（内容あり・Req 5.2）。
 - 生成失敗（内容が空） → `finished`（空＝生成失敗）。旧内容は保持しない（Req 5.3）。**復元ロジックは不要**。
+- 導入・締めの**ダイジェスト構築失敗も throw せず** `finished`（空＝生成失敗）で確定する（旧内容は破棄・status で可視化）。成否は例外でなく status＋内容で表すため、再生成は中断させない（Req 5.1, 5.3）。
 
 ### Frontend
 
@@ -216,7 +217,7 @@ stateDiagram-v2
 
 ## Error Handling
 - **生成失敗**: build は例外を投げず `finished`＋空 に確定（best-effort、他要素・本文を止めない既存方針を維持）。
-- **個別再生成失敗**: `finished`（空＝生成失敗）で確定。開始時に旧内容を破棄済みのため保持しない（Req 5.3）。
+- **個別再生成失敗**: `finished`（空＝生成失敗）で確定。開始時に旧内容を破棄済みのため保持しない（Req 5.3）。導入・締めのダイジェスト構築失敗も throw せず同様に確定する（成否は status で可視化）。
 - **終端スイープ**: 例外は握りつぶし phaseStatus 確定を妨げない。未 finished のみ対象で冪等。
 - **旧データ**: `status` 欠落はフロントで `'finished'` 正規化。成否は内容から算出。
 

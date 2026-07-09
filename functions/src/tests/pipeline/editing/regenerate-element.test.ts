@@ -41,9 +41,9 @@ import {
 	regenerateChapter
 } from '../../../pipeline/editing/regenerate-element.js';
 
-// writer は生成過程の詳細を持たないハンドル。regenerate はどの要素の writer を build に渡すかだけを担う。
-const INTRO_WRITER = { tag: 'intro-writer' };
-const OUTRO_WRITER = { tag: 'outro-writer' };
+// writer は段階書き込みハンドル。regenerate はどの要素の writer を build に渡すか（と失敗時の finish）だけを担う。
+const INTRO_WRITER = { finish: vi.fn() };
+const OUTRO_WRITER = { finish: vi.fn() };
 const IMPRESSION_WRITER = { tag: 'impression-writer' };
 
 beforeEach(() => {
@@ -106,10 +106,18 @@ describe('regenerateIntro / regenerateOutro', () => {
 		expect(h.buildNarrationPart).toHaveBeenCalledWith('outro', { digest: {}, topicContext: {} }, OUTRO_WRITER);
 	});
 
-	it('ダイジェスト構築失敗は例外（build しない）', async () => {
-		h.buildInput.mockResolvedValueOnce({ ok: false, error: { code: 'NOT_FOUND' } });
-		await expect(regenerateOutro('t1')).rejects.toThrow();
+	it('ダイジェスト構築失敗は throw せず生成失敗（空）で確定する（build しない・旧内容は破棄）', async () => {
+		h.buildInput.mockResolvedValueOnce({ ok: false, error: { code: 'NOT_FOUND', message: 'no digest' } });
+		await expect(regenerateOutro('t1')).resolves.toBeUndefined();
 		expect(h.buildNarrationPart).not.toHaveBeenCalled();
+		expect(OUTRO_WRITER.finish).toHaveBeenCalledWith({ draft: null, final: null });
+	});
+
+	it('intro もダイジェスト失敗時は生成失敗（空）で確定する', async () => {
+		h.buildInput.mockResolvedValueOnce({ ok: false, error: { code: 'NOT_FOUND', message: 'no digest' } });
+		await expect(regenerateIntro('t1')).resolves.toBeUndefined();
+		expect(h.buildNarrationPart).not.toHaveBeenCalled();
+		expect(INTRO_WRITER.finish).toHaveBeenCalledWith({ draft: null, final: null });
 	});
 });
 
