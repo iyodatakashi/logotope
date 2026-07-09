@@ -45,76 +45,76 @@
 	);
 </script>
 
-<div class="editing-page__impression">
-	<div class="editing-page__speaker">
-		<div class="editing-page__speaker-name">{name}</div>
-		{#if role}<span class="editing-page__role">({role})</span>{/if}
+<div class="editing-impression">
+	<div class="editing-impression__speaker">
+		<div class="editing-impression__speaker-name">{name}</div>
+		{#if role}<span class="editing-impression__role">({role})</span>{/if}
 		{#if inProgress}
-			{#if stageLabel}<span class="editing-page__stage-label">{stageLabel}</span>{/if}
+			{#if stageLabel}<span class="editing-impression__stage-label">{stageLabel}</span>{/if}
 		{:else if outcome === 'draft_only'}
-			<span class="editing-page__element-status" data-status="draft_only">編集失敗</span>
+			<span class="editing-impression__element-status" data-status="draft_only">編集失敗</span>
 		{:else if outcome === 'gen_failed'}
-			<span class="editing-page__element-status" data-status="gen_failed">生成失敗</span>
+			<span class="editing-impression__element-status" data-status="gen_failed">生成失敗</span>
 		{/if}
 	</div>
 	{#if inProgress}
 		<Skeleton patterns={[{ type: 'text', lines: 2 }]} />
 	{:else if outcome !== 'gen_failed'}
 		{#if showDiff && diff}
-			<p class="editing-page__content"><DiffText segments={diff} /></p>
+			<p class="editing-impression__content"><DiffText segments={diff} /></p>
 		{:else}
-			<p class="editing-page__content">{content}</p>
+			<p class="editing-impression__content">{content}</p>
 		{/if}
 	{/if}
 	{#if !inProgress}
-		<div class="editing-page__impression-regenerate">
+		<div class="editing-impression__regenerate">
 			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating}>再生成</Button>
 		</div>
 	{/if}
 </div>
 
 <style>
-	.editing-page__impression {
+	.editing-impression {
 		padding: 12px;
 		border-left: 4px solid #e0e0e0;
 		background: #fff;
 	}
-	.editing-page__speaker {
+	.editing-impression__speaker {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		margin-bottom: 4px;
 	}
-	.editing-page__speaker-name {
+	.editing-impression__speaker-name {
 		font-weight: bold;
 	}
-	.editing-page__role {
+	.editing-impression__role {
 		color: #757575;
 		font-size: 0.875rem;
 	}
-	.editing-page__content {
+	.editing-impression__content {
 		margin: 0;
 		line-height: 1.6;
 	}
-	.editing-page__stage-label {
+	.editing-impression__stage-label {
 		font-size: 0.75rem;
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #ede7f6;
 		color: #5e35b1;
 	}
-	.editing-page__element-status {
+	.editing-impression__element-status {
 		font-size: 0.75rem;
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #ffebee;
 		color: #c62828;
 	}
-	.editing-page__element-status[data-status='draft_only'] {
+	.editing-impression__element-status[data-status='draft_only'] {
 		background: #fff8e1;
 		color: #f57f17;
 	}
-	.editing-page__impression-regenerate {
+	.editing-impression__regenerate {
 		margin-top: 8px;
 	}
 </style>

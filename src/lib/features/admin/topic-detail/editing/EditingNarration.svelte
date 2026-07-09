@@ -41,18 +41,18 @@
 	);
 </script>
 
-<section class="editing-page__narration">
-	<div class="editing-page__narration-header">
-		<h3 class="editing-page__narration-label">{label}</h3>
+<section class="editing-narration">
+	<div class="editing-narration__header">
+		<h3 class="editing-narration__label">{label}</h3>
 		{#if inProgress}
 			{#if stageLabel}
-				<span class="editing-page__stage-label">{stageLabel}</span>
+				<span class="editing-narration__stage-label">{stageLabel}</span>
 			{/if}
 		{:else}
 			{#if outcome === 'draft_only'}
-				<span class="editing-page__element-status" data-status="draft_only">編集失敗</span>
+				<span class="editing-narration__element-status" data-status="draft_only">編集失敗</span>
 			{:else if outcome === 'gen_failed'}
-				<span class="editing-page__element-status" data-status="gen_failed">生成失敗</span>
+				<span class="editing-narration__element-status" data-status="gen_failed">生成失敗</span>
 			{/if}
 			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating}>再生成</Button>
 		{/if}
@@ -62,47 +62,47 @@
 	{:else if outcome === 'gen_failed'}
 		<!-- 生成失敗は本文を表示しない -->
 	{:else if showDiff && diff}
-		<p class="editing-page__narration-body"><DiffText segments={diff} /></p>
+		<p class="editing-narration__body"><DiffText segments={diff} /></p>
 	{:else}
-		<p class="editing-page__narration-body">{content}</p>
+		<p class="editing-narration__body">{content}</p>
 	{/if}
 </section>
 
 <style>
-	.editing-page__narration {
+	.editing-narration {
 		border-radius: 4px;
 	}
-	.editing-page__narration-header {
+	.editing-narration__header {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 	}
-	.editing-page__narration-label {
+	.editing-narration__label {
 		margin: 0;
 		font-size: 0.8rem;
 		font-weight: 700;
 		color: #7b1fa2;
 	}
-	.editing-page__narration-body {
+	.editing-narration__body {
 		margin: 0;
 		line-height: 1.7;
 		white-space: pre-wrap;
 	}
-	.editing-page__stage-label {
+	.editing-narration__stage-label {
 		font-size: 0.75rem;
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #ede7f6;
 		color: #5e35b1;
 	}
-	.editing-page__element-status {
+	.editing-narration__element-status {
 		font-size: 0.75rem;
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #ffebee;
 		color: #c62828;
 	}
-	.editing-page__element-status[data-status='draft_only'] {
+	.editing-narration__element-status[data-status='draft_only'] {
 		background: #fff8e1;
 		color: #f57f17;
 	}

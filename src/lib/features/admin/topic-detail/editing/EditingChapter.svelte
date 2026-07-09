@@ -68,34 +68,34 @@
 	};
 </script>
 
-<section class="editing-page__chapter">
-	<header class="editing-page__chapter-header">
-		<div class="editing-page__chapter-title">{title}</div>
-		<span class="editing-page__chapter-status" data-status={status}>
+<section class="editing-chapter">
+	<header class="editing-chapter__header">
+		<div class="editing-chapter__title">{title}</div>
+		<span class="editing-chapter__status" data-status={status}>
 			{statusLabel(status)}
 		</span>
 		{#if failureReason}
-			<span class="editing-page__failure-reason">検証不合格: {failureReason}</span>
+			<span class="editing-chapter__failure-reason">検証不合格: {failureReason}</span>
 		{/if}
 		{#if showRegenerate}
 			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating}>再生成</Button>
 		{/if}
 	</header>
-	<div class="editing-page__turns">
+	<div class="editing-chapter__turns">
 		{#each turns as turn (turn.id)}
 			{#if turn.removed}
 				{#if showDiff}
 					{@const speaker = speakerLabel(turn)}
 					<div
-						class="editing-page__turn editing-page__turn--removed"
-						class:editing-page__turn--facilitator={turn.speakerType === 'facilitator'}
+						class="editing-chapter__turn editing-chapter__turn--removed"
+						class:editing-chapter__turn--facilitator={turn.speakerType === 'facilitator'}
 					>
-						<div class="editing-page__speaker">
-							<div class="editing-page__speaker-name">{speaker.name}</div>
-							{#if speaker.role}<span class="editing-page__role">({speaker.role})</span>{/if}
-							<span class="editing-page__removed-label">発言ごと削除</span>
+						<div class="editing-chapter__speaker">
+							<div class="editing-chapter__speaker-name">{speaker.name}</div>
+							{#if speaker.role}<span class="editing-chapter__role">({speaker.role})</span>{/if}
+							<span class="editing-chapter__removed-label">発言ごと削除</span>
 						</div>
-						<p class="editing-page__content"><del>{turn.content}</del></p>
+						<p class="editing-chapter__content"><del>{turn.content}</del></p>
 					</div>
 				{/if}
 			{:else}
@@ -103,25 +103,25 @@
 				{@const awarenesses = awarenessesOf(turn)}
 				{@const diff = showDiff && status === 'completed' ? diffOf(turn) : null}
 				<div
-					class="editing-page__turn"
-					class:editing-page__turn--facilitator={turn.speakerType === 'facilitator'}
+					class="editing-chapter__turn"
+					class:editing-chapter__turn--facilitator={turn.speakerType === 'facilitator'}
 				>
-					<div class="editing-page__speaker">
-						<div class="editing-page__speaker-name">{speaker.name}</div>
-						{#if speaker.role}<span class="editing-page__role">({speaker.role})</span>{/if}
+					<div class="editing-chapter__speaker">
+						<div class="editing-chapter__speaker-name">{speaker.name}</div>
+						{#if speaker.role}<span class="editing-chapter__role">({speaker.role})</span>{/if}
 						{#if turn.speechMode}
-							<span class="editing-page__speech-mode" data-mode={turn.speechMode}
+							<span class="editing-chapter__speech-mode" data-mode={turn.speechMode}
 								>{turn.speechMode}</span
 							>
 						{/if}
 					</div>
 					{#if diff}
-						<p class="editing-page__content"><DiffText segments={diff} /></p>
+						<p class="editing-chapter__content"><DiffText segments={diff} /></p>
 					{:else}
-						<p class="editing-page__content">{turn.content}</p>
+						<p class="editing-chapter__content">{turn.content}</p>
 					{/if}
 					{#if awarenesses.length > 0}
-						<ul class="editing-page__awarenesses">
+						<ul class="editing-chapter__awarenesses">
 							{#each awarenesses as awareness, i (i)}
 								<li>💡 {personaMap.get(awareness.personaId)?.name ?? ''}: {awareness.content}</li>
 							{/each}
@@ -134,57 +134,57 @@
 </section>
 
 <style>
-	.editing-page__chapter-header {
+	.editing-chapter__header {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		margin-bottom: 8px;
 	}
-	.editing-page__chapter-title {
+	.editing-chapter__title {
 		font-size: 1.5rem;
 		font-weight: bold;
 	}
-	.editing-page__chapter-status {
+	.editing-chapter__status {
 		font-size: 0.75rem;
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #eee;
 		color: #757575;
 	}
-	.editing-page__chapter-status[data-status='completed'] {
+	.editing-chapter__status[data-status='completed'] {
 		background: #e8f5e9;
 		color: #2e7d32;
 	}
-	.editing-page__chapter-status[data-status='failed'] {
+	.editing-chapter__status[data-status='failed'] {
 		background: #ffebee;
 		color: #c62828;
 	}
-	.editing-page__failure-reason {
+	.editing-chapter__failure-reason {
 		font-size: 0.78rem;
 		color: #c62828;
 	}
-	.editing-page__turns {
+	.editing-chapter__turns {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 	}
-	.editing-page__turn {
+	.editing-chapter__turn {
 		padding: 12px;
 		border-left: 4px solid #e0e0e0;
 	}
-	.editing-page__turn.editing-page__turn--facilitator {
+	.editing-chapter__turn.editing-chapter__turn--facilitator {
 		border-left-color: #1565c0;
 		background: #f8f9ff;
 	}
-	.editing-page__turn.editing-page__turn--removed {
+	.editing-chapter__turn.editing-chapter__turn--removed {
 		border-left-color: #e57373;
 		background: #fff5f5;
 	}
-	.editing-page__turn.editing-page__turn--removed .editing-page__content del {
+	.editing-chapter__turn.editing-chapter__turn--removed .editing-chapter__content del {
 		color: #b31d28;
 		text-decoration: line-through;
 	}
-	.editing-page__removed-label {
+	.editing-chapter__removed-label {
 		font-size: 0.72rem;
 		margin-left: 6px;
 		color: #fff;
@@ -192,31 +192,31 @@
 		padding: 1px 5px;
 		border-radius: 3px;
 	}
-	.editing-page__speaker {
+	.editing-chapter__speaker {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		margin-bottom: 4px;
 	}
-	.editing-page__speaker-name {
+	.editing-chapter__speaker-name {
 		font-weight: bold;
 	}
-	.editing-page__role {
+	.editing-chapter__role {
 		color: #757575;
 		font-size: 0.875rem;
 	}
-	.editing-page__speech-mode {
+	.editing-chapter__speech-mode {
 		font-size: 0.75rem;
 		color: #555;
 		background: #eee;
 		padding: 1px 5px;
 		border-radius: 3px;
 	}
-	.editing-page__content {
+	.editing-chapter__content {
 		margin: 0;
 		line-height: 1.6;
 	}
-	.editing-page__awarenesses {
+	.editing-chapter__awarenesses {
 		margin-top: 8px;
 		font-size: 0.85rem;
 		color: var(--svelte-ui-text-subtle-color);
