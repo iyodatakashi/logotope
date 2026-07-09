@@ -81,9 +81,7 @@
 	});
 
 
-	const personaMap = $derived(
-		new Map(currentTopicStore.personasStore.personas.map((persona) => [persona.id, persona]))
-	);
+	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
 
 	// 原本ターン id → そのターンを聞いて得た気づき（triggeredByTurnId で紐づく）。
 	// 話者名は畳まず personaId 参照のまま保持し、描画時に personaMap で解決する（横断アノテーション）。

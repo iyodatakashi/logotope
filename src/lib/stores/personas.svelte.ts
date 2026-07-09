@@ -38,6 +38,9 @@ export const createPersonasStore = (topicId: string) => {
 	let isLoaded = $state(false);
 	let unsubscribe: (() => void) | null = null;
 
+	// 話者名/役割・指名先などを描画時に id から解決するための Map。各画面での重複導出を避ける。
+	const personaMap = $derived(new Map(personas.map((persona) => [persona.id, persona])));
+
 	const start = () => {
 		const q = query(collection(db, 'topics', topicId, 'personas'), orderBy('sortOrder', 'asc'));
 		unsubscribe = onSnapshot(q, (snap) => {
@@ -159,6 +162,9 @@ export const createPersonasStore = (topicId: string) => {
 	return {
 		get personas() {
 			return personas;
+		},
+		get personaMap() {
+			return personaMap;
 		},
 		get isLoaded() {
 			return isLoaded;

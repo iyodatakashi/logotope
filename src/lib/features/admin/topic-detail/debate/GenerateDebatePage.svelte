@@ -85,9 +85,7 @@
 		}
 	});
 
-	const personaMap = $derived(
-		new Map(currentTopicStore.personasStore.personas.map((persona) => [persona.id, persona]))
-	);
+	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
 
 	// 章ごとにターンを DebateChapter へ渡す。話者名/役割・指名先・engagements・気づきは型に畳まず、
 	// personaMap や id 参照で描画時に解決する（編集画面の ChapterSection と責務境界・粒度をそろえる）。
