@@ -78,7 +78,13 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 			return {
 				get personas() {
 					return holder.personas;
-				}
+				},
+				get personaMap() {
+					return new Map(
+						holder.personas.map((persona) => [(persona as { id: string }).id, persona])
+					);
+				},
+				getAwarenessesByTurn: () => []
 			};
 		}
 	}

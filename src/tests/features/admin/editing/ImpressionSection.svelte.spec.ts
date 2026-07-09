@@ -1,14 +1,27 @@
 import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import ImpressionSection from '$lib/features/admin/topic-detail/editing/ImpressionSection.svelte';
 import type { EditorialElementStatus } from '$lib/models/editorial/editorial.types';
-import type { Persona } from '$lib/models/persona/persona.types';
 
 // 話者ラベルは型に畳まず personaId から描画時に解決する（Turn と同じ責務境界・Req 3.1/3.4）。
-const personaMap = new Map<string, Persona>([
-	['p1', { id: 'p1', name: '田中', specificRole: '住民' } as unknown as Persona]
-]);
+// personaMap は store から直接引くため、テストでも store をモックして注入する。
+const { personaMap } = vi.hoisted(() => ({
+	personaMap: new Map<string, unknown>([['p1', { id: 'p1', name: '田中', specificRole: '住民' }]])
+}));
+
+vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
+	currentTopicStore: {
+		get personasStore() {
+			return {
+				get personaMap() {
+					return personaMap;
+				}
+			};
+		}
+	}
+}));
+
+import ImpressionSection from '$lib/features/admin/topic-detail/editing/ImpressionSection.svelte';
 
 // 所感は導入・締めと同一の状態別表示規則（進捗ステータス＋内容だけで決める・Req 6.2）。
 const makeProps = (
@@ -16,7 +29,6 @@ const makeProps = (
 	overrides: Record<string, unknown> = {}
 ) => ({
 	personaId: 'p1',
-	personaMap,
 	part,
 	showDiff: false,
 	onRegenerate: vi.fn(),

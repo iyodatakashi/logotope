@@ -2,20 +2,19 @@
 	import { Button, Skeleton } from '@14ch/svelte-ui';
 	import DiffText from '$lib/sharedComponents/DiffText.svelte';
 	import { computeInlineDiff } from '$lib/utils/inlineDiff';
+	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import type { Narration } from '$lib/models/editorial/editorial.types';
-	import type { Persona } from '$lib/models/persona/persona.types';
 
 	interface Props {
 		personaId: string;
-		personaMap: Map<string, Persona>; // 話者名/役割を描画時に解決する（型に畳まない・Turn と同じ責務境界）
 		part: Narration; // 参加者1人分の所感（{ status, draft, final }）
 		showDiff: boolean;
 		onRegenerate: () => void | Promise<void>; // サーバへの再生成委譲。ローディングは当要素が自持ちする
 	}
-	let { personaId, personaMap, part, showDiff, onRegenerate }: Props = $props();
+	let { personaId, part, showDiff, onRegenerate }: Props = $props();
 
-	// 話者ラベルは personaId から描画時に解決する（型には畳まない・Req 3.1）。
-	const persona = $derived(personaMap.get(personaId));
+	// 話者ラベルは personaId から描画時に解決する（型には畳まない・Req 3.1）。引き当て表は storeから直接読む。
+	const persona = $derived(currentTopicStore.personasStore.personaMap.get(personaId));
 	const name = $derived(persona?.name ?? 'ファシリテーター');
 	const role = $derived(persona?.specificRole ?? persona?.stakeholderRole ?? '');
 

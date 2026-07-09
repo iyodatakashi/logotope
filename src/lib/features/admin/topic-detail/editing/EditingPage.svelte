@@ -81,26 +81,8 @@
 	});
 
 
-	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
-
-	// 原本ターン id → そのターンを聞いて得た気づき（triggeredByTurnId で紐づく）。
-	// 話者名は畳まず personaId 参照のまま保持し、描画時に personaMap で解決する（横断アノテーション）。
-	const awarenessesByTurn = $derived.by(() => {
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const map = new Map<string, { personaId: string; content: string }[]>();
-		for (const persona of currentTopicStore.personasStore.personas) {
-			for (const awareness of persona.awarenesses ?? []) {
-				map.set(awareness.triggeredByTurnId, [
-					...(map.get(awareness.triggeredByTurnId) ?? []),
-					{ personaId: persona.id, content: awareness.content }
-				]);
-			}
-		}
-		return map;
-	});
-
 	// 原本章順に、章別の編集状態と表示ターン（TurnForEditing）を組み立てる（本体＝body）。
-	// name/role・差分・気づきは畳まず、ChapterSection が personaMap・原本ターン・awarenessesByTurn から描画時に解決する。
+	// name/role・差分・気づきは畳まず、ChapterSection が store（personaMap・getAwarenessesByTurn）・原本ターンから描画時に解決する。
 	const displayChapters = $derived.by(() => {
 		const store = currentTopicStore.editedChaptersStore;
 		return currentTopicStore.chaptersStore.chapters.map((chapter) => {
@@ -243,8 +225,6 @@
 								showRegenerate={isEditingFinished && chapter.canRegenerate}
 								turns={chapter.turns}
 								sourceTurns={chapter.sourceTurns}
-								{personaMap}
-								{awarenessesByTurn}
 								{showDiff}
 								onRegenerate={() =>
 									regenerateArticleElement({ kind: 'chapter', chapterId: chapter.id })}
@@ -269,7 +249,6 @@
 							{#each displayImpressions as impression (impression.personaId)}
 								<ImpressionSection
 									personaId={impression.personaId}
-									{personaMap}
 									part={impression.part}
 									{showDiff}
 									onRegenerate={() =>

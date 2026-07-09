@@ -2,9 +2,9 @@
 	import { Button } from '@14ch/svelte-ui';
 	import DiffText from '$lib/sharedComponents/DiffText.svelte';
 	import { computeInlineDiff } from '$lib/utils/inlineDiff';
+	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import type { EditedChapterDisplayStatus } from '$lib/models/chapter/chapter.types';
 	import type { Turn, TurnForEditing } from '$lib/models/turn/turn.types';
-	import type { Persona } from '$lib/models/persona/persona.types';
 
 	interface Props {
 		title: string;
@@ -13,10 +13,6 @@
 		showRegenerate: boolean; // isEditingFinished かつ再生成可能なときだけ出す
 		turns: TurnForEditing[];
 		sourceTurns: Turn[]; // この章の原本ターン。差分の由来テキスト参照に使う
-		personaMap: Map<string, Persona>; // 話者名/役割を描画時に解決する（Turn と同じ責務境界）
-		// 原本ターンid → そのターンを聞いて各ペルソナが得た気づき。型に畳まず描画時に id 参照する（横断アノテーション）。
-		// 話者名は personaId のまま保持し、描画時に personaMap で解決する。
-		awarenessesByTurn: Map<string, { personaId: string; content: string }[]>;
 		showDiff: boolean;
 		onRegenerate: () => void | Promise<void>;
 	}
@@ -27,11 +23,12 @@
 		showRegenerate,
 		turns,
 		sourceTurns,
-		personaMap,
-		awarenessesByTurn,
 		showDiff,
 		onRegenerate
 	}: Props = $props();
+
+	// 話者名/役割を描画時に id から解決するための引き当て表は storeから直接読む（Turn と同じ責務境界）。
+	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
 
 	const statusLabel = (s: EditedChapterDisplayStatus): string =>
 		s === 'completed' ? '編集済み' : s === 'failed' ? '原本表示（失敗）' : '未編集';
@@ -54,9 +51,9 @@
 			turn.content
 		);
 
-	// 行の由来原本id群から気づきを引く（編集後は連結元、原本/削除は自id）。
+	// 行の由来原本id群から気づきを引く（編集後は連結元、原本/削除は自id）。store から直接引く。
 	const awarenessesOf = (turn: TurnForEditing) =>
-		turn.sourceTurnIds.flatMap((id) => awarenessesByTurn.get(id) ?? []);
+		turn.sourceTurnIds.flatMap((id) => currentTopicStore.personasStore.getAwarenessesByTurn(id));
 
 	// クリック→サーバ書き込みまでの楽観ローディング（二重実行防止）。導入・締め・所感と同じ自持ち方式。
 	let regenerating = $state(false);
