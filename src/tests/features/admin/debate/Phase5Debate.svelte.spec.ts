@@ -99,6 +99,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 						['p2', { id: 'p2', name: '鈴木花子', stakeholderRole: '患者' }]
 					]);
 				},
+				getAwarenessesByTurn: () => [],
 				get isLoaded() {
 					return true;
 				},

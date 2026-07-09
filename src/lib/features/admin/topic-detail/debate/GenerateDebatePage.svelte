@@ -86,26 +86,10 @@
 	});
 
 	// 章ごとにターンを DebateChapter へ渡す。話者名/役割・指名先・engagements・気づきは型に畳まず、
-	// personaMap や engagementsMap（各コンポーネントが storeから直接引く）や id 参照で描画時に解決する。
+	// 各コンポーネントが store（personaMap・engagementsMap・getAwarenessesByTurn）や id 参照から描画時に解決する。
 	const hasTurns = $derived(
 		currentTopicStore.chaptersStore.chapters.some((chapter) => chapter.turns.length > 0)
 	);
-
-	// 原本ターン id → そのターンを聞いて各ペルソナが得た気づき（triggeredByTurnId で紐づく）。
-	// 話者名は畳まず personaId 参照のまま保持し、描画時に personaMap で解決する。
-	const awarenessesByTurn = $derived.by(() => {
-		// eslint-disable-next-line svelte/prefer-svelte-reactivity
-		const map = new Map<string, { personaId: string; content: string }[]>();
-		for (const persona of currentTopicStore.personasStore.personas) {
-			for (const awareness of persona.awarenesses ?? []) {
-				map.set(awareness.triggeredByTurnId, [
-					...(map.get(awareness.triggeredByTurnId) ?? []),
-					{ personaId: persona.id, content: awareness.content }
-				]);
-			}
-		}
-		return map;
-	});
 </script>
 
 <PhasePanel
@@ -142,7 +126,7 @@
 			<div class="generate-debate-page__chapters-turns">
 				{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.id)}
 					{#if chapter.turns.length > 0}
-						<DebateChapter title={chapter.title} turns={chapter.turns} {awarenessesByTurn} />
+						<DebateChapter title={chapter.title} turns={chapter.turns} />
 					{/if}
 				{/each}
 			</div>

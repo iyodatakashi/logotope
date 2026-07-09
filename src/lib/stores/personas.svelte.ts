@@ -41,6 +41,25 @@ export const createPersonasStore = (topicId: string) => {
 	// 話者名/役割・指名先などを描画時に id から解決するための Map。各画面での重複導出を避ける。
 	const personaMap = $derived(new Map(personas.map((persona) => [persona.id, persona])));
 
+	// 気づきはペルソナ側に持たれているため、原本ターン id 起点に転置して逆引きできるようにする（triggeredByTurnId で紐づく）。
+	// 話者名は畳まず personaId 参照のまま保持し、描画時に personaMap で解決する。
+	const awarenessesByTurn = $derived.by(() => {
+		// eslint-disable-next-line svelte/prefer-svelte-reactivity
+		const map = new Map<string, { personaId: string; content: string }[]>();
+		for (const persona of personas) {
+			for (const awareness of persona.awarenesses ?? []) {
+				map.set(awareness.triggeredByTurnId, [
+					...(map.get(awareness.triggeredByTurnId) ?? []),
+					{ personaId: persona.id, content: awareness.content }
+				]);
+			}
+		}
+		return map;
+	});
+
+	// 指定ターンを聞いて各ペルソナが得た気づき一覧を返す（転置Mapの表現は store 内に隠す）。
+	const getAwarenessesByTurn = (turnId: string) => awarenessesByTurn.get(turnId) ?? [];
+
 	const start = () => {
 		const q = query(collection(db, 'topics', topicId, 'personas'), orderBy('sortOrder', 'asc'));
 		unsubscribe = onSnapshot(q, (snap) => {
@@ -166,6 +185,7 @@ export const createPersonasStore = (topicId: string) => {
 		get personaMap() {
 			return personaMap;
 		},
+		getAwarenessesByTurn,
 		get isLoaded() {
 			return isLoaded;
 		},

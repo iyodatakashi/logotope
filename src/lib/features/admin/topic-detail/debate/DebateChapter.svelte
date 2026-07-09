@@ -6,10 +6,8 @@
 	interface Props {
 		title: string;
 		turns: Turn[]; // この章のターン（原本順）
-		// 原本ターンid → そのターンを聞いて各ペルソナが得た気づき。型に畳まず描画時に personaMap で解決する。
-		awarenessesByTurn: Map<string, { personaId: string; content: string }[]>;
 	}
-	let { title, turns, awarenessesByTurn }: Props = $props();
+	let { title, turns }: Props = $props();
 
 	// 話者名/役割・指名先・気づき話者名を描画時に解決するための引き当て表は storeから直接読む。
 	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
@@ -32,7 +30,7 @@
 			{@const addressedPersona = turn.targetPersonaId
 				? personaMap.get(turn.targetPersonaId)
 				: null}
-			{@const awarenesses = awarenessesByTurn.get(turn.id) ?? []}
+			{@const awarenesses = currentTopicStore.personasStore.getAwarenessesByTurn(turn.id)}
 			<div
 				class="debate-chapter__turn"
 				class:debate-chapter__turn--facilitator={turn.speakerType === 'facilitator'}

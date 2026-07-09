@@ -1,12 +1,41 @@
 import { page } from 'vitest/browser';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import DebateChapter from '$lib/features/admin/topic-detail/debate/DebateChapter.svelte';
 import type { Turn } from '$lib/models/turn/turn.types';
 import type { Persona } from '$lib/models/persona/persona.types';
 import type { EngagementHistoryEntryWithPersona } from '$lib/models/engagement/engagement.types';
 
-// 話者ラベル・気づき話者名は型に畳まず personaMap から描画時に解決する（Turn と同じ責務境界）。
+// 話者ラベル・気づき話者名・エンゲージメントは型に畳まず、各コンポーネントが store から描画時に解決する。
+const { holder } = vi.hoisted(() => ({
+	holder: {
+		personaMap: new Map<string, unknown>(),
+		engagementsMap: new Map<string, unknown[]>(),
+		awarenessesByTurn: new Map<string, { personaId: string; content: string }[]>()
+	}
+}));
+
+vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
+	currentTopicStore: {
+		get personasStore() {
+			return {
+				get personaMap() {
+					return holder.personaMap;
+				},
+				getAwarenessesByTurn: (turnId: string) => holder.awarenessesByTurn.get(turnId) ?? []
+			};
+		},
+		get engagementsStore() {
+			return {
+				get engagementsMap() {
+					return holder.engagementsMap;
+				}
+			};
+		}
+	}
+}));
+
+import DebateChapter from '$lib/features/admin/topic-detail/debate/DebateChapter.svelte';
+
 const turn = (overrides: Partial<Turn> = {}): Turn =>
 	({
 		id: 't1',
@@ -17,57 +46,59 @@ const turn = (overrides: Partial<Turn> = {}): Turn =>
 		...overrides
 	}) as Turn;
 
-const makeProps = (overrides: Record<string, unknown> = {}) => ({
-	title: 'テスト章',
-	turns: [turn()],
-	personaMap: new Map<string, Persona>([
-		['p1', { id: 'p1', name: '田中', specificRole: '医師' } as unknown as Persona]
-	]),
-	engagementsMap: new Map<string, EngagementHistoryEntryWithPersona[]>(),
-	awarenessesByTurn: new Map<string, { personaId: string; content: string }[]>(),
-	...overrides
-});
+const persona = (partial: Partial<Persona>): Persona => partial as unknown as Persona;
+
+const setStore = (overrides: Partial<typeof holder> = {}) => {
+	holder.personaMap = overrides.personaMap ?? new Map([['p1', persona({ id: 'p1', name: '田中', specificRole: '医師' })]]);
+	holder.engagementsMap = overrides.engagementsMap ?? new Map();
+	holder.awarenessesByTurn = overrides.awarenessesByTurn ?? new Map();
+};
 
 describe('DebateChapter.svelte', () => {
 	it('章タイトルとターン本文を出す', async () => {
-		render(DebateChapter, makeProps());
+		setStore();
+		render(DebateChapter, { title: 'テスト章', turns: [turn()] });
 		await expect.element(page.getByText('テスト章')).toBeInTheDocument();
 		await expect.element(page.getByText('発言本文')).toBeInTheDocument();
 	});
 
 	it('話者名・役割は型に畳まず personaMap から描画時に解決する', async () => {
-		render(DebateChapter, makeProps());
+		setStore();
+		render(DebateChapter, { title: 'テスト章', turns: [turn()] });
 		await expect.element(page.getByText('田中')).toBeInTheDocument();
 		await expect.element(page.getByText('(医師)')).toBeInTheDocument();
 	});
 
 	it('指名先（targetPersonaId）を「次の指名」として personaMap から解決して出す', async () => {
-		const personaMap = new Map<string, Persona>([
-			['p1', { id: 'p1', name: '田中' } as unknown as Persona],
-			['p2', { id: 'p2', name: '鈴木' } as unknown as Persona]
-		]);
-		render(
-			DebateChapter,
-			makeProps({ turns: [turn({ targetPersonaId: 'p2' })], personaMap })
-		);
+		setStore({
+			personaMap: new Map([
+				['p1', persona({ id: 'p1', name: '田中' })],
+				['p2', persona({ id: 'p2', name: '鈴木' })]
+			])
+		});
+		render(DebateChapter, { title: 'テスト章', turns: [turn({ targetPersonaId: 'p2' })] });
 		await expect.element(page.getByText(/次の指名: 鈴木/)).toBeInTheDocument();
 	});
 
 	it('気づきは由来ターンidで引き、話者名は personaMap で解決する', async () => {
-		const awarenessesByTurn = new Map([['t1', [{ personaId: 'p1', content: '視点が変わった' }]]]);
-		render(DebateChapter, makeProps({ awarenessesByTurn }));
+		setStore({
+			awarenessesByTurn: new Map([['t1', [{ personaId: 'p1', content: '視点が変わった' }]]])
+		});
+		render(DebateChapter, { title: 'テスト章', turns: [turn()] });
 		await expect.element(page.getByText('💡 田中: 視点が変わった')).toBeInTheDocument();
 	});
 
 	it('エンゲージメントを EngagementList 経由で表示する', async () => {
-		const personaMap = new Map<string, Persona>([
-			['p1', { id: 'p1', name: '田中' } as unknown as Persona],
-			['p2', { id: 'p2', name: '鈴木' } as unknown as Persona]
-		]);
-		const engagementsMap = new Map<string, EngagementHistoryEntryWithPersona[]>([
-			['t1', [{ turnId: 't1', personaId: 'p2', score: 4, mode: 'opinion' }]]
-		]);
-		render(DebateChapter, makeProps({ personaMap, engagementsMap }));
+		setStore({
+			personaMap: new Map([
+				['p1', persona({ id: 'p1', name: '田中' })],
+				['p2', persona({ id: 'p2', name: '鈴木' })]
+			]),
+			engagementsMap: new Map<string, EngagementHistoryEntryWithPersona[]>([
+				['t1', [{ turnId: 't1', personaId: 'p2', score: 4, mode: 'opinion' }]]
+			])
+		});
+		render(DebateChapter, { title: 'テスト章', turns: [turn()] });
 		await expect.element(page.getByText('鈴木: opinion(4)')).toBeInTheDocument();
 	});
 });
