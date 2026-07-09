@@ -1,13 +1,16 @@
 <script lang="ts">
 	import type { EngagementHistoryEntryWithPersona } from '$lib/models/engagement/engagement.types';
+	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 
 	interface Props {
 		engagements: ReadonlyArray<EngagementHistoryEntryWithPersona>;
-		personaMap: Map<string, { name: string }>;
 		selectedPersonaId?: string | null;
 	}
 
-	let { engagements, personaMap, selectedPersonaId = null }: Props = $props();
+	let { engagements, selectedPersonaId = null }: Props = $props();
+
+	// 話者名を描画時に解決するための引き当て表は storeから直接読む。
+	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
 
 	// 現在のペルソナを起点にループし、各ペルソナのこのターンでの発言意欲を引く。
 	// engagements 文書を起点にしないことで、古いペルソナidの残骸は原理的に表示されない。

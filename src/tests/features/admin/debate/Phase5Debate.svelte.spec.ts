@@ -93,6 +93,12 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 						}
 					];
 				},
+				get personaMap() {
+					return new Map([
+						['p1', { id: 'p1', name: '田中太郎', stakeholderRole: '医師' }],
+						['p2', { id: 'p2', name: '鈴木花子', stakeholderRole: '患者' }]
+					]);
+				},
 				get isLoaded() {
 					return true;
 				},
