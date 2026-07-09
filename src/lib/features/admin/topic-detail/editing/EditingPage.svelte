@@ -17,6 +17,24 @@
 	// 押下直後の楽観的な「実行中」表示用フラグ。実状態(running)が反映されたら解除する。
 	let isStarting = $state(false);
 
+	// =========================================================================
+	// Effects
+	// =========================================================================
+
+	$effect(() => {
+		const topic = currentTopicStore.topic;
+		if (
+			topic &&
+			phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE) === 'running'
+		) {
+			isStarting = false;
+		}
+	});
+
+	// =========================================================================
+	// Methods
+	// =========================================================================
+
 	const start = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
@@ -43,69 +61,9 @@
 
 	// 記事要素（導入・締め・所感・章）の個別再生成はサーバへ委譲するだけ。処理中のローディングは各 Section が
 	// 自持ちする（クリック→サーバが生成中を書くまでの遅延分。以降は要素の状態が引き継いで表示する）。
-	const regenerateArticleElement = (element: ArticleElement): Promise<void> =>
-		currentTopicStore.topic?.regenerateArticleElement(element) ?? Promise.resolve();
-
-	const logicalState = $derived.by(() => {
-		if (isStarting) return 'running';
-		const topic = currentTopicStore.topic;
-		return topic
-			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
-			: 'not_started';
-	});
-
-	$effect(() => {
-		const topic = currentTopicStore.topic;
-		if (
-			topic &&
-			phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE) === 'running'
-		) {
-			isStarting = false;
-		}
-	});
-
-	// 編集の生成が走り終えたか（generated=全章成功 / stopped=途中終了。どちらも「もう動いていない」）。
-	// 章（本体）の未完成明示・再生成ボタンの表示にのみ使う（章ステータスは本 spec の対象外で従来通り）。
-	// 導入・締め・所感の記事要素は各自の進捗ステータスで表示を決めるため、このフラグに依存しない（Req 2.1, 2.2）。
-	const isEditingFinished = $derived(logicalState === 'generated' || logicalState === 'stopped');
-
-	// 編集開始の大前提ゲート（Req 5.4）。討論フェーズが完了するまで開始操作を出さない。
-	const debateCompleted = $derived.by(() => {
-		const topic = currentTopicStore.topic;
-		if (!topic) return false;
-		const debateState = phaseLogicalState(
-			{ phase: topic.phase, phaseStatus: topic.phaseStatus },
-			'debate'
-		);
-		return debateState === 'generated' || debateState === 'approved';
-	});
-
-	// 原本章順に、章別の編集状態と表示ターン（TurnForEditing）を組み立てる（本体＝body）。
-	// name/role・差分・気づきは畳まず、EditingChapter が store（personaMap・getAwarenessesByTurn）・原本ターンから描画時に解決する。
-	const displayChapters = $derived.by(() => {
-		const store = currentTopicStore.editedChaptersStore;
-		return currentTopicStore.chaptersStore.chapters.map((chapter) => {
-			const status = store.getDisplayStatus(chapter.id);
-			const failureReason =
-				status === 'failed' ? (store.getEditedChapter(chapter.id)?.failureReason ?? null) : null;
-			// 未完成（編集後の無い）章のうち、原本ターンがある章だけ個別再生成できる。
-			const canRegenerate = status !== 'completed' && chapter.turns.length > 0;
-			const turns =
-				status === 'completed'
-					? buildEditedTurns(chapter, store.getEditedChapter(chapter.id))
-					: buildRawTurns(chapter);
-			// 差分算出の由来テキスト参照用に、その章の原本ターンを併せて渡す。
-			return {
-				id: chapter.id,
-				title: chapter.title,
-				status,
-				failureReason,
-				canRegenerate,
-				turns,
-				sourceTurns: chapter.turns
-			};
-		});
-	});
+	const regenerateArticleElement = (element: ArticleElement): Promise<void> => {
+		return currentTopicStore.topic?.regenerateArticleElement(element) ?? Promise.resolve();
+	};
 
 	// 編集済み章: 編集後ターン（原本ターンを統合しうる）と、どこにも使われず削除された原本ターンを、原本順に1列へマージする。
 	const buildEditedTurns = (chapter: Chapter, edited: EditedChapter | null): TurnForEditing[] => {
@@ -157,6 +115,61 @@
 			speechMode: turn.speechMode,
 			removed: false
 		}));
+
+	// =========================================================================
+	// Derived States
+	// =========================================================================
+
+	// 編集開始の大前提ゲート（Req 5.4）。討論フェーズが完了するまで開始操作を出さない。
+	const debateCompleted = $derived.by(() => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return false;
+		const debateState = phaseLogicalState(
+			{ phase: topic.phase, phaseStatus: topic.phaseStatus },
+			'debate'
+		);
+		return debateState === 'generated' || debateState === 'approved';
+	});
+
+	const logicalState = $derived.by(() => {
+		if (isStarting) return 'running';
+		const topic = currentTopicStore.topic;
+		return topic
+			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
+			: 'not_started';
+	});
+
+	// 編集の生成が走り終えたか（generated=全章成功 / stopped=途中終了。どちらも「もう動いていない」）。
+	// 章（本体）の未完成明示・再生成ボタンの表示にのみ使う（章ステータスは本 spec の対象外で従来通り）。
+	// 導入・締め・所感の記事要素は各自の進捗ステータスで表示を決めるため、このフラグに依存しない（Req 2.1, 2.2）。
+	const isEditingFinished = $derived(logicalState === 'generated' || logicalState === 'stopped');
+
+	// 原本章順に、章別の編集状態と表示ターン（TurnForEditing）を組み立てる（本体＝body）。
+	// name/role・差分・気づきは畳まず、EditingChapter が store（personaMap・getAwarenessesByTurn）・原本ターンから描画時に解決する。
+	const displayChapters = $derived.by(() => {
+		const store = currentTopicStore.editedChaptersStore;
+		return currentTopicStore.chaptersStore.chapters.map((chapter) => {
+			const status = store.getDisplayStatus(chapter.id);
+			const failureReason =
+				status === 'failed' ? (store.getEditedChapter(chapter.id)?.failureReason ?? null) : null;
+			// 未完成（編集後の無い）章のうち、原本ターンがある章だけ個別再生成できる。
+			const canRegenerate = status !== 'completed' && chapter.turns.length > 0;
+			const turns =
+				status === 'completed'
+					? buildEditedTurns(chapter, store.getEditedChapter(chapter.id))
+					: buildRawTurns(chapter);
+			// 差分算出の由来テキスト参照用に、その章の原本ターンを併せて渡す。
+			return {
+				id: chapter.id,
+				title: chapter.title,
+				status,
+				failureReason,
+				canRegenerate,
+				turns,
+				sourceTurns: chapter.turns
+			};
+		});
+	});
 
 	// 所感（impressions）。承認済みペルソナ単位に personaId と所感オブジェクト(part)を組み立てる。
 	// 話者名/役割は畳まず、EditingImpression が personaMap から描画時に解決する（Req 3.1/3.4）。
