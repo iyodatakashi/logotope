@@ -21,7 +21,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	}
 }));
 
-import ImpressionSection from '$lib/features/admin/topic-detail/editing/ImpressionSection.svelte';
+import EditingImpression from '$lib/features/admin/topic-detail/editing/EditingImpression.svelte';
 
 // 所感は導入・締めと同一の状態別表示規則（進捗ステータス＋内容だけで決める・Req 6.2）。
 const makeProps = (
@@ -37,41 +37,41 @@ const makeProps = (
 
 const regenerate = () => page.getByRole('button', { name: '再生成' });
 
-describe('ImpressionSection.svelte（状態駆動表示）', () => {
+describe('EditingImpression.svelte（状態駆動表示）', () => {
 	it('話者名・役割は personaId から personaMap で描画時に解決する', async () => {
-		render(ImpressionSection, makeProps({ status: 'generating', draft: null, final: null }));
+		render(EditingImpression, makeProps({ status: 'generating', draft: null, final: null }));
 		await expect.element(page.getByText('田中')).toBeInTheDocument();
 		await expect.element(page.getByText('(住民)')).toBeInTheDocument();
 	});
 
 	it('pending（未生成ペルソナ）: スケルトンのみ・段階ラベルも再生成も出さない', async () => {
-		render(ImpressionSection, makeProps({ status: 'pending', draft: null, final: null }));
+		render(EditingImpression, makeProps({ status: 'pending', draft: null, final: null }));
 		await expect.element(page.getByText('田中')).toBeInTheDocument();
 		expect(regenerate().elements()).toHaveLength(0);
 		expect(page.getByText('生成中').elements()).toHaveLength(0);
 	});
 
 	it('generating: 「生成中」ラベル・再生成なし', async () => {
-		render(ImpressionSection, makeProps({ status: 'generating', draft: null, final: null }));
+		render(EditingImpression, makeProps({ status: 'generating', draft: null, final: null }));
 		await expect.element(page.getByText('生成中')).toBeInTheDocument();
 		expect(regenerate().elements()).toHaveLength(0);
 	});
 
 	it('編集済み（final あり）: 編集後本文を表示し再生成あり', async () => {
-		render(ImpressionSection, makeProps({ status: 'finished', draft: '原本', final: '所感編集後' }));
+		render(EditingImpression, makeProps({ status: 'finished', draft: '原本', final: '所感編集後' }));
 		await expect.element(page.getByText('所感編集後')).toBeInTheDocument();
 		await expect.element(regenerate()).toBeInTheDocument();
 	});
 
 	it('編集失敗（原本のみ）: 原本本文＋「編集失敗」＋再生成', async () => {
-		render(ImpressionSection, makeProps({ status: 'finished', draft: '所感原本', final: null }));
+		render(EditingImpression, makeProps({ status: 'finished', draft: '所感原本', final: null }));
 		await expect.element(page.getByText('所感原本')).toBeInTheDocument();
 		await expect.element(page.getByText('編集失敗')).toBeInTheDocument();
 		await expect.element(regenerate()).toBeInTheDocument();
 	});
 
 	it('生成失敗（空）: 本文を出さず「生成失敗」＋再生成', async () => {
-		render(ImpressionSection, makeProps({ status: 'finished', draft: null, final: null }));
+		render(EditingImpression, makeProps({ status: 'finished', draft: null, final: null }));
 		await expect.element(page.getByText('生成失敗')).toBeInTheDocument();
 		await expect.element(regenerate()).toBeInTheDocument();
 	});
@@ -80,7 +80,7 @@ describe('ImpressionSection.svelte（状態駆動表示）', () => {
 		let resolve!: () => void;
 		const onRegenerate = vi.fn(() => new Promise<void>((r) => (resolve = r)));
 		render(
-			ImpressionSection,
+			EditingImpression,
 			makeProps({ status: 'finished', draft: null, final: null }, { onRegenerate })
 		);
 

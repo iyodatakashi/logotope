@@ -4,9 +4,9 @@
 	import { phaseLogicalState } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import NarrationSection from './NarrationSection.svelte';
-	import ImpressionSection from './ImpressionSection.svelte';
-	import ChapterSection from './ChapterSection.svelte';
+	import EditingNarration from './EditingNarration.svelte';
+	import EditingImpression from './EditingImpression.svelte';
+	import EditingChapter from './EditingChapter.svelte';
 	import type { Chapter, EditedChapter } from '$lib/models/chapter/chapter.types';
 	import type { TurnForEditing } from '$lib/models/turn/turn.types';
 	import type { ArticleElement } from '$lib/models/editorial/editorial.types';
@@ -80,9 +80,8 @@
 		return debateState === 'generated' || debateState === 'approved';
 	});
 
-
 	// 原本章順に、章別の編集状態と表示ターン（TurnForEditing）を組み立てる（本体＝body）。
-	// name/role・差分・気づきは畳まず、ChapterSection が store（personaMap・getAwarenessesByTurn）・原本ターンから描画時に解決する。
+	// name/role・差分・気づきは畳まず、EditingChapter が store（personaMap・getAwarenessesByTurn）・原本ターンから描画時に解決する。
 	const displayChapters = $derived.by(() => {
 		const store = currentTopicStore.editedChaptersStore;
 		return currentTopicStore.chaptersStore.chapters.map((chapter) => {
@@ -160,7 +159,7 @@
 		}));
 
 	// 所感（impressions）。承認済みペルソナ単位に personaId と所感オブジェクト(part)を組み立てる。
-	// 話者名/役割は畳まず、ImpressionSection が personaMap から描画時に解決する（Req 3.1/3.4）。
+	// 話者名/役割は畳まず、EditingImpression が personaMap から描画時に解決する（Req 3.1/3.4）。
 	// エントリの無いペルソナは生成待ち（pending）として扱い、進捗ステータスで表示を決める（Req 6.2）。
 	// 表示分岐（スケルトン／編集済み／編集失敗／生成失敗）は ImpressionSection 内が part.status＋内容から決める。
 	const displayImpressions = $derived.by(() => {
@@ -207,7 +206,7 @@
 		{#snippet content()}
 			<div class="editing-page__content">
 				<!-- 導入（intro）＝記事の先頭。生成前でも枠は常に出す。 -->
-				<NarrationSection
+				<EditingNarration
 					label="導入"
 					part={currentTopicStore.editorialStore.intro}
 					{showDiff}
@@ -218,7 +217,7 @@
 				{#if displayChapters.length}
 					<div class="editing-page__chapters">
 						{#each displayChapters as chapter (chapter.id)}
-							<ChapterSection
+							<EditingChapter
 								title={chapter.title}
 								status={chapter.status}
 								failureReason={chapter.failureReason}
@@ -234,7 +233,7 @@
 				{/if}
 
 				<!-- 締め（outro）＝本体の後。生成前でも枠は常に出す。 -->
-				<NarrationSection
+				<EditingNarration
 					label="締め"
 					part={currentTopicStore.editorialStore.outro}
 					{showDiff}
@@ -247,12 +246,15 @@
 						<h3 class="editing-page__impressions-label">所感</h3>
 						<div class="editing-page__impressions-list">
 							{#each displayImpressions as impression (impression.personaId)}
-								<ImpressionSection
+								<EditingImpression
 									personaId={impression.personaId}
 									part={impression.part}
 									{showDiff}
 									onRegenerate={() =>
-										regenerateArticleElement({ kind: 'impression', personaId: impression.personaId })}
+										regenerateArticleElement({
+											kind: 'impression',
+											personaId: impression.personaId
+										})}
 								/>
 							{/each}
 						</div>
