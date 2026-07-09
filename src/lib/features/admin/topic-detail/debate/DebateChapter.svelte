@@ -1,17 +1,15 @@
 <script lang="ts">
 	import EngagementList from './EngagementList.svelte';
 	import type { Turn } from '$lib/models/turn/turn.types';
-	import type { EngagementHistoryEntryWithPersona } from '$lib/models/engagement/engagement.types';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 
 	interface Props {
 		title: string;
 		turns: Turn[]; // この章のターン（原本順）
-		engagementsMap: Map<string, EngagementHistoryEntryWithPersona[]>; // ターンid → 各ペルソナの発言意欲
 		// 原本ターンid → そのターンを聞いて各ペルソナが得た気づき。型に畳まず描画時に personaMap で解決する。
 		awarenessesByTurn: Map<string, { personaId: string; content: string }[]>;
 	}
-	let { title, turns, engagementsMap, awarenessesByTurn }: Props = $props();
+	let { title, turns, awarenessesByTurn }: Props = $props();
 
 	// 話者名/役割・指名先・気づき話者名を描画時に解決するための引き当て表は storeから直接読む。
 	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
@@ -34,7 +32,6 @@
 			{@const addressedPersona = turn.targetPersonaId
 				? personaMap.get(turn.targetPersonaId)
 				: null}
-			{@const engagements = engagementsMap.get(turn.id) ?? []}
 			{@const awarenesses = awarenessesByTurn.get(turn.id) ?? []}
 			<div
 				class="debate-chapter__turn"
@@ -58,7 +55,7 @@
 				{#if addressedPersona}
 					<p class="debate-chapter__nominated">次の指名: {addressedPersona.name}</p>
 				{/if}
-				<EngagementList {engagements} selectedPersonaId={turns[i + 1]?.personaId} />
+				<EngagementList turnId={turn.id} selectedPersonaId={turns[i + 1]?.personaId} />
 				{#if awarenesses.length > 0}
 					<ul class="debate-chapter__awarenesses">
 						{#each awarenesses as aw, awIdx (awIdx)}

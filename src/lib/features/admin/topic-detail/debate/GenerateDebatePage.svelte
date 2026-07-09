@@ -86,8 +86,7 @@
 	});
 
 	// 章ごとにターンを DebateChapter へ渡す。話者名/役割・指名先・engagements・気づきは型に畳まず、
-	// personaMap（各コンポーネントが storeから直接引く）や id 参照で描画時に解決する。
-	const engagementsMap = $derived(currentTopicStore.engagementsStore.engagementsMap);
+	// personaMap や engagementsMap（各コンポーネントが storeから直接引く）や id 参照で描画時に解決する。
 	const hasTurns = $derived(
 		currentTopicStore.chaptersStore.chapters.some((chapter) => chapter.turns.length > 0)
 	);
@@ -143,12 +142,7 @@
 			<div class="generate-debate-page__chapters-turns">
 				{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.id)}
 					{#if chapter.turns.length > 0}
-						<DebateChapter
-							title={chapter.title}
-							turns={chapter.turns}
-							{engagementsMap}
-							{awarenessesByTurn}
-						/>
+						<DebateChapter title={chapter.title} turns={chapter.turns} {awarenessesByTurn} />
 					{/if}
 				{/each}
 			</div>
