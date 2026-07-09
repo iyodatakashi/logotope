@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeInlineDiff } from '$lib/features/admin/topic-detail/editing/inlineDiff';
+import { computeInlineDiff } from '$lib/utils/inlineDiff';
 
 describe('computeInlineDiff', () => {
 	it('変更が無ければ全体を equal セグメントとして返す', () => {

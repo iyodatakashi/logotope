@@ -1,12 +1,13 @@
 import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import ChapterSection, {
-	type DisplayTurn
-} from '$lib/features/admin/topic-detail/editing/ChapterSection.svelte';
-import type { EditedChapterDisplayStatus } from '$lib/models/editedChapter/editedChapter.types';
+import ChapterSection from '$lib/features/admin/topic-detail/editing/ChapterSection.svelte';
+import type {
+	EditedChapterDisplayStatus,
+	TurnForEditing
+} from '$lib/models/editedChapter/editedChapter.types';
 
-const turn = (overrides: Partial<DisplayTurn> = {}): DisplayTurn => ({
+const turn = (overrides: Partial<TurnForEditing> = {}): TurnForEditing => ({
 	id: 't1',
 	name: '田中',
 	role: '住民',

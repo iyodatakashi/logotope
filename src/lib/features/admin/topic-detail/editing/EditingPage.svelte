@@ -4,12 +4,15 @@
 	import { phaseLogicalState } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import { computeInlineDiff } from './inlineDiff';
+	import { computeInlineDiff } from '$lib/utils/inlineDiff';
 	import NarrationSection from './NarrationSection.svelte';
 	import ImpressionSection from './ImpressionSection.svelte';
-	import ChapterSection, { type DisplayTurn } from './ChapterSection.svelte';
+	import ChapterSection from './ChapterSection.svelte';
 	import type { Chapter } from '$lib/models/chapter/chapter.types';
-	import type { EditedChapter } from '$lib/models/editedChapter/editedChapter.types';
+	import type {
+		EditedChapter,
+		TurnForEditing
+	} from '$lib/models/editedChapter/editedChapter.types';
 	import type { ArticleElement } from '$lib/models/editorial/editorial.types';
 
 	const PHASE: PhaseSlug = 'editing';
@@ -109,7 +112,7 @@
 		};
 	};
 
-	// 原本章順に、章別の編集状態と表示ターンを組み立てる（本体＝body）。DisplayTurn 型は ChapterSection が公開する。
+	// 原本章順に、章別の編集状態と表示ターン（TurnForEditing）を組み立てる（本体＝body）。描画は ChapterSection。
 	const displayChapters = $derived.by(() => {
 		const store = currentTopicStore.editedChaptersStore;
 		return currentTopicStore.chaptersStore.chapters.map((chapter) => {
@@ -128,7 +131,7 @@
 
 	// 編集済み章: 編集後ターン（原本ターンを統合しうる）と、どこにも使われず削除された原本ターンを、
 	// 原本の順序でひとつの列にマージする。差分は結合元テキストと編集後テキストの比較で出す。
-	const buildEditedTurns = (chapter: Chapter, edited: EditedChapter | null): DisplayTurn[] => {
+	const buildEditedTurns = (chapter: Chapter, edited: EditedChapter | null): TurnForEditing[] => {
 		const orderOf = new Map(chapter.turns.map((turn, i) => [turn.id, i]));
 		const contentById = new Map(chapter.turns.map((turn) => [turn.id, turn.content]));
 		const usedSourceIds = new Set(
@@ -141,7 +144,7 @@
 			);
 			const { name, role } = speakerLabel(editedTurn.speakerType, editedTurn.personaId);
 			const sourceText = sourceIds.map((sourceId) => contentById.get(sourceId) ?? '').join('');
-			const turn: DisplayTurn = {
+			const turn: TurnForEditing = {
 				id: editedTurn.id,
 				name,
 				role,
@@ -161,7 +164,7 @@
 			.filter((rawTurn) => !usedSourceIds.has(rawTurn.id))
 			.map((rawTurn) => {
 				const { name, role } = speakerLabel(rawTurn.speakerType, rawTurn.personaId);
-				const turn: DisplayTurn = {
+				const turn: TurnForEditing = {
 					id: rawTurn.id,
 					name,
 					role,
@@ -180,7 +183,7 @@
 	};
 
 	// 未編集・失敗の章のフォールバック: 原本ターンをそのまま表示する（差分なし）。
-	const buildRawTurns = (chapter: Chapter): DisplayTurn[] =>
+	const buildRawTurns = (chapter: Chapter): TurnForEditing[] =>
 		chapter.turns.map((turn) => {
 			const { name, role } = speakerLabel(turn.speakerType, turn.personaId);
 			return {

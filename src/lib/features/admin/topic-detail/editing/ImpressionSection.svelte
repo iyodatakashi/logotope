@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button, Skeleton } from '@14ch/svelte-ui';
-	import DiffText from './DiffText.svelte';
-	import { computeInlineDiff } from './inlineDiff';
+	import DiffText from '$lib/sharedComponents/DiffText.svelte';
+	import { computeInlineDiff } from '$lib/utils/inlineDiff';
 	import type { Narration } from '$lib/models/editorial/editorial.types';
 
 	interface Props {

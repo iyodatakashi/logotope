@@ -1,30 +1,17 @@
-<script module lang="ts">
-	import type { InlineDiffSegment } from './inlineDiff';
-
-	// 章の表示ターン（原本／編集後をマージした描画用）。EditingPage がストアから組み立て、ChapterSection が描画する。
-	export type DisplayTurn = {
-		id: string;
-		name: string;
-		role: string;
-		content: string;
-		speechMode?: string;
-		diff: InlineDiffSegment[] | null;
-		removed: boolean;
-		awarenesses: { personaName: string; content: string }[];
-	};
-</script>
-
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
-	import DiffText from './DiffText.svelte';
-	import type { EditedChapterDisplayStatus } from '$lib/models/editedChapter/editedChapter.types';
+	import DiffText from '$lib/sharedComponents/DiffText.svelte';
+	import type {
+		EditedChapterDisplayStatus,
+		TurnForEditing
+	} from '$lib/models/editedChapter/editedChapter.types';
 
 	interface Props {
 		title: string;
 		status: EditedChapterDisplayStatus; // completed / failed / missing（章ステータスは本 spec 対象外の別ルール）
 		failureReason: string | null;
 		showRegenerate: boolean; // isEditingFinished かつ再生成可能なときだけ出す
-		turns: DisplayTurn[];
+		turns: TurnForEditing[];
 		showDiff: boolean;
 		onRegenerate: () => void | Promise<void>;
 	}
