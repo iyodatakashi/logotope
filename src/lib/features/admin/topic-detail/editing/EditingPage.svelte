@@ -7,8 +7,7 @@
 	import NarrationSection from './NarrationSection.svelte';
 	import ImpressionSection from './ImpressionSection.svelte';
 	import ChapterSection from './ChapterSection.svelte';
-	import type { Chapter } from '$lib/models/chapter/chapter.types';
-	import type { EditedChapter } from '$lib/models/editedChapter/editedChapter.types';
+	import type { Chapter, EditedChapter } from '$lib/models/chapter/chapter.types';
 	import type { TurnForEditing } from '$lib/models/turn/turn.types';
 	import type { ArticleElement } from '$lib/models/editorial/editorial.types';
 

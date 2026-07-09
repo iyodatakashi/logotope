@@ -2,7 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import ChapterSection from '$lib/features/admin/topic-detail/editing/ChapterSection.svelte';
-import type { EditedChapterDisplayStatus } from '$lib/models/editedChapter/editedChapter.types';
+import type { EditedChapterDisplayStatus } from '$lib/models/chapter/chapter.types';
 import type { Turn, TurnForEditing } from '$lib/models/turn/turn.types';
 import type { Persona } from '$lib/models/persona/persona.types';
 

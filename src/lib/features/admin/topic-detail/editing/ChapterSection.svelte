@@ -2,7 +2,7 @@
 	import { Button } from '@14ch/svelte-ui';
 	import DiffText from '$lib/sharedComponents/DiffText.svelte';
 	import { computeInlineDiff } from '$lib/utils/inlineDiff';
-	import type { EditedChapterDisplayStatus } from '$lib/models/editedChapter/editedChapter.types';
+	import type { EditedChapterDisplayStatus } from '$lib/models/chapter/chapter.types';
 	import type { Turn, TurnForEditing } from '$lib/models/turn/turn.types';
 	import type { Persona } from '$lib/models/persona/persona.types';
 

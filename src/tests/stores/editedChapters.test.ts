@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { EditedChapterForFirestore } from '$lib/models/editedChapter/editedChapter.types';
+import type { EditedChapterForFirestore } from '$lib/models/chapter/chapter.types';
 
 let snapshotCb: ((snap: unknown) => void) | null = null;
 
