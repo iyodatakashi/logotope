@@ -1,4 +1,4 @@
-import type { EditedTurn, EditedTurnForFirestore } from '$lib/models/turn/turn.types';
+import type { EditedTurn } from '$lib/models/turn/turn.types';
 
 export type EditingChapterStatus = 'pending' | 'completed' | 'failed';
 
@@ -6,7 +6,7 @@ export type EditedChapterForFirestore = {
 	chapterIndex: number;
 	title: string;
 	agenda: string[];
-	turns: EditedTurnForFirestore[];
+	turns: EditedTurn[];
 	status: EditingChapterStatus;
 	failureReason?: string; // status='failed' のときの構造検証不合格理由（管理画面での把握・診断用）
 };
