@@ -5,7 +5,8 @@
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import type { FactItem } from '$lib/models/factBase/factBase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import { Button, Textarea, Skeleton } from '@14ch/svelte-ui';
+	import { Skeleton } from '@14ch/svelte-ui';
+	import FactResearchItem from './FactResearchItem.svelte';
 
 	const PHASE: PhaseSlug = 'fact-research';
 
@@ -84,6 +85,7 @@
 	// 出典は grounding が自動収集した URL。表示のみで手編集はしない（是正は事実単位の削除で行う）。
 	const removeFact = (factIndex: number) => {
 		draftFacts.splice(factIndex, 1);
+		save();
 	};
 
 	// 承認: 事実基盤を確定し次フェーズ（ステークホルダー）へ前進する。
@@ -126,35 +128,14 @@
 			/>
 		{:else if draftFacts.length > 0}
 			<ul class="fact-research-page">
-				{#each draftFacts as fact, factIndex (factIndex)}
-					<li class="fact-research-page__item">
-						<Textarea
-							value={fact.statement}
-							oninput={(value) => (draftFacts[factIndex].statement = value)}
-							rows={2}
-							fullWidth
-						/>
-						<div class="fact-research-page__sources">
-							{#each fact.sources as source, sourceIndex (sourceIndex)}
-								<div class="fact-research-page__source">
-									<a
-										class="fact-research-page__source-link"
-										href={source.url}
-										target="_blank"
-										rel="noopener noreferrer">{source.url}</a
-									>
-								</div>
-							{/each}
-						</div>
-						<Button type="button" variant="ghost" onclick={() => removeFact(factIndex)}
-							>この事実を削除</Button
-						>
-					</li>
+				{#each draftFacts as _fact, index (index)}
+					<FactResearchItem
+						bind:fact={draftFacts[index]}
+						onchange={save}
+						onRemove={() => removeFact(index)}
+					/>
 				{/each}
 			</ul>
-			<div class="fact-research-page__actions">
-				<Button variant="filled" onclick={save}>編集内容を保存する</Button>
-			</div>
 		{:else if currentTopicStore.factBaseStore.isLoaded && logicalState !== 'not_started'}
 			<p class="fact-research-page__empty">
 				確たる客観的事実は見つかりませんでした（事実基盤は空です）。
@@ -167,43 +148,7 @@
 	.fact-research-page {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
-	}
-
-	.fact-research-page__item {
-		display: flex;
-		flex-direction: column;
 		gap: 8px;
-		padding: 16px;
-		background-color: var(--white);
-		border: 1px solid var(--svelte-ui-border-weak-color);
-		border-radius: 4px;
-	}
-
-	.fact-research-page__sources {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-	}
-
-	.fact-research-page__source {
-		display: flex;
-		gap: 8px;
-		align-items: center;
-	}
-
-	.fact-research-page__source-link {
-		flex: 1;
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: var(--svelte-ui-font-size-sm);
-		color: var(--svelte-ui-text-subtle-color);
-	}
-
-	.fact-research-page__actions {
-		margin-top: 16px;
 	}
 
 	.fact-research-page__empty {
