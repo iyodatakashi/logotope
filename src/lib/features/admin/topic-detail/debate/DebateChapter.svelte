@@ -27,9 +27,7 @@
 	<div class="debate-chapter__turns">
 		{#each turns as turn, i (turn.id)}
 			{@const speaker = speakerLabel(turn)}
-			{@const addressedPersona = turn.targetPersonaId
-				? personaMap.get(turn.targetPersonaId)
-				: null}
+			{@const targetPersona = turn.targetPersonaId ? personaMap.get(turn.targetPersonaId) : null}
 			{@const awarenesses = currentTopicStore.personasStore.getAwarenessesByTurn(turn.id)}
 			<div
 				class="debate-chapter__turn"
@@ -50,8 +48,8 @@
 					{/if}
 				</div>
 				<p class="debate-chapter__content">{turn.content}</p>
-				{#if addressedPersona}
-					<p class="debate-chapter__nominated">次の指名: {addressedPersona.name}</p>
+				{#if targetPersona}
+					<p class="debate-chapter__nominated">次の指名: {targetPersona.name}</p>
 				{/if}
 				<EngagementList turnId={turn.id} selectedPersonaId={turns[i + 1]?.personaId} />
 				{#if awarenesses.length > 0}
