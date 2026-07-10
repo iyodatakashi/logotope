@@ -62,14 +62,6 @@
 	const canGeneratePersonas = $derived(hasStakeholders && selectedStakeholderIds.length > 0);
 	const hasAnyInterview = $derived(personas.some((persona) => persona.interview != null));
 
-	const completedCount = $derived(
-		personas.filter((persona) => persona.interview?.status === 'completed').length
-	);
-	const errorCount = $derived(
-		personas.filter((persona) => persona.interview?.status === 'error').length
-	);
-	const pendingCount = $derived(personas.filter((persona) => persona.interview == null).length);
-
 	const toggle = (stakeholderId: string, checked: boolean) =>
 		currentTopicStore.stakeholdersStore.setSelected(stakeholderId, checked);
 
@@ -146,9 +138,9 @@
 	};
 </script>
 
-<div class="persona-workspace-page">
-	<div class="persona-workspace-page__actions-pane">
-		<div class="persona-workspace-page__actions">
+<div class="generate-persona-page">
+	<div class="generate-persona-page__actions-pane">
+		<div class="generate-persona-page__actions">
 			<!-- ステークホルダー調査 -->
 			{#if stakeholdersState === 'running'}
 				<Button variant="filled" loading onclick={() => {}}>調査中…</Button>
@@ -206,29 +198,13 @@
 		</div>
 
 		{#if !canGeneratePersonas && hasStakeholders && !hasPersonas}
-			<p class="persona-workspace-page__hint">
+			<p class="generate-persona-page__hint">
 				ペルソナを生成するには、少なくとも1件のステークホルダーを採用してください。
 			</p>
 		{/if}
-		{#if hasPersonas && interviewsState !== 'not_started'}
-			<div class="persona-workspace-page__progress">
-				<span class="persona-workspace-page__count persona-workspace-page__count--completed"
-					>{completedCount} 完了</span
-				>
-				{#if pendingCount > 0}<span class="persona-workspace-page__count">{pendingCount} 待機中</span
-					>{/if}
-				{#if errorCount > 0}<span
-						class="persona-workspace-page__count persona-workspace-page__count--error"
-						>{errorCount} エラー</span
-					>{/if}
-				<span class="persona-workspace-page__count persona-workspace-page__count--total"
-					>/ {personas.length} 件</span
-				>
-			</div>
-		{/if}
 	</div>
 
-	<div class="persona-workspace-page__contents-pane">
+	<div class="generate-persona-page__contents-pane">
 		{#if stakeholdersState === 'running'}
 			<Skeleton
 				patterns={[{ type: 'box', width: '100%', height: '96px' }]}
@@ -236,7 +212,7 @@
 				repeatGap="12px"
 			/>
 		{:else if hasStakeholders}
-			<div class="persona-workspace-page__rows">
+			<div class="generate-persona-page__rows">
 				{#each rows as row (row.stakeholder.id)}
 					<StakeholderPersonaRow
 						stakeholder={row.stakeholder}
@@ -279,12 +255,12 @@
 />
 
 <style>
-	.persona-workspace-page {
+	.generate-persona-page {
 		height: 100%;
 		overflow: auto;
 	}
 
-	.persona-workspace-page__actions-pane {
+	.generate-persona-page__actions-pane {
 		position: sticky;
 		top: 0;
 		padding: 24px;
@@ -293,44 +269,23 @@
 		z-index: 100;
 	}
 
-	.persona-workspace-page__actions {
+	.generate-persona-page__actions {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;
 	}
 
-	.persona-workspace-page__hint {
+	.generate-persona-page__hint {
 		margin-top: 8px;
 		color: var(--svelte-ui-text-subtle-color);
 		font-size: var(--svelte-ui-font-size-sm);
 	}
 
-	.persona-workspace-page__progress {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		margin-top: 8px;
-	}
-	.persona-workspace-page__count {
-		font-weight: 600;
-		font-size: var(--svelte-ui-font-size-sm);
-	}
-	.persona-workspace-page__count--completed {
-		color: #2e7d32;
-	}
-	.persona-workspace-page__count--error {
-		color: #c62828;
-	}
-	.persona-workspace-page__count--total {
-		color: #555;
-		font-weight: 400;
-	}
-
-	.persona-workspace-page__contents-pane {
+	.generate-persona-page__contents-pane {
 		padding: 0 24px 24px;
 	}
 
-	.persona-workspace-page__rows {
+	.generate-persona-page__rows {
 		display: flex;
 		flex-direction: column;
 		gap: 16px;

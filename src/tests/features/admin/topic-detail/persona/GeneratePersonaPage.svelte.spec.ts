@@ -75,7 +75,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	}
 }));
 
-import PersonaWorkspacePage from '$lib/features/admin/topic-detail/persona-workspace/PersonaWorkspacePage.svelte';
+import PersonaWorkspacePage from '$lib/features/admin/topic-detail/persona/GeneratePersonaPage.svelte';
 
 const makeStakeholder = (id: string, role: string) => ({
 	id,
@@ -133,9 +133,7 @@ describe('PersonaWorkspacePage', () => {
 
 		mount();
 		// 初期エフェクト（採用シード）が反映されるまで待つ
-		await expect
-			.element(page.getByRole('button', { name: 'ペルソナを生成する' }))
-			.toBeEnabled();
+		await expect.element(page.getByRole('button', { name: 'ペルソナを生成する' })).toBeEnabled();
 
 		// 既定は全 ON。先頭（sid-a）のチェックを外す
 		await page.getByRole('checkbox').nth(0).click({ force: true });
@@ -149,16 +147,14 @@ describe('PersonaWorkspacePage', () => {
 		state.personas = [];
 
 		mount();
-		await expect
-			.element(page.getByRole('button', { name: 'ペルソナを生成する' }))
-			.toBeEnabled();
+		await expect.element(page.getByRole('button', { name: 'ペルソナを生成する' })).toBeEnabled();
 
 		await page.getByRole('checkbox').nth(0).click({ force: true }); // 唯一の採用を外す
+		await expect.element(page.getByRole('button', { name: 'ペルソナを生成する' })).toBeDisabled();
 		await expect
-			.element(page.getByRole('button', { name: 'ペルソナを生成する' }))
-			.toBeDisabled();
-		await expect
-			.element(page.getByText('少なくとも1件のステークホルダーを採用してください', { exact: false }))
+			.element(
+				page.getByText('少なくとも1件のステークホルダーを採用してください', { exact: false })
+			)
 			.toBeInTheDocument();
 	});
 
