@@ -5,7 +5,8 @@ import {
 	nextPhase,
 	isLastPhase,
 	phaseLogicalState,
-	phaseDisplayLabel
+	phaseDisplayLabel,
+	stepNavItems
 } from '$lib/models/phase/phase';
 import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
 import type { PhaseSlug, PhaseStatus, PhaseLogicalState } from '$lib/models/phase/phase.types';
@@ -282,6 +283,42 @@ describe('phaseLogicalState', () => {
 		expect(phaseLogicalState({ phase: 'debate', phaseStatus: 'generated' }, 'editing')).toBe(
 			'not_started'
 		);
+	});
+});
+
+describe('stepNavItems（ナビ集約）', () => {
+	it('stakeholders/personas/interviews を「ペルソナ準備」1グループに束ねる', () => {
+		const items = stepNavItems('t1', 'personas');
+		expect(items.map((item) => item.label)).toEqual([
+			'事実リサーチ',
+			'ペルソナ準備',
+			'章立て',
+			'討論',
+			'編集'
+		]);
+		const personaPrep = items.find((item) => item.label === 'ペルソナ準備');
+		expect(personaPrep?.phases).toEqual(['stakeholders', 'personas', 'interviews']);
+	});
+
+	it('現在フェーズがグループ内なら href は現在フェーズを指す', () => {
+		const items = stepNavItems('t1', 'interviews');
+		const personaPrep = items.find((item) => item.label === 'ペルソナ準備');
+		expect(personaPrep?.href).toBe('/admin/topics/t1/interviews');
+		expect(personaPrep?.disabled).toBe(false);
+	});
+
+	it('現在フェーズがグループより前ならグループは不活性で href は先頭フェーズ', () => {
+		const items = stepNavItems('t1', 'stakeholders');
+		const chapters = items.find((item) => item.label === '章立て');
+		expect(chapters?.disabled).toBe(true);
+		expect(chapters?.href).toBe('/admin/topics/t1/chapters');
+	});
+
+	it('現在フェーズがグループより後ならグループは活性で href は先頭フェーズ', () => {
+		const items = stepNavItems('t1', 'chapters');
+		const personaPrep = items.find((item) => item.label === 'ペルソナ準備');
+		expect(personaPrep?.disabled).toBe(false);
+		expect(personaPrep?.href).toBe('/admin/topics/t1/stakeholders');
 	});
 });
 

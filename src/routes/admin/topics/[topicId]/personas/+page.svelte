@@ -1,5 +1,5 @@
 <script lang="ts">
-	import GeneratePersonasPage from '$lib/features/admin/topic-detail/personas/GeneratePersonasPage.svelte';
+	import PersonaWorkspacePage from '$lib/features/admin/topic-detail/persona-workspace/PersonaWorkspacePage.svelte';
 </script>
 
-<GeneratePersonasPage />
+<PersonaWorkspacePage />

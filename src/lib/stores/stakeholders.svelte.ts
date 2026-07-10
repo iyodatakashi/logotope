@@ -15,10 +15,8 @@ export const createStakeholdersStore = (topicId: string) => {
 			const data = snap.exists()
 				? (snap.data() as { stakeholders: StakeholderForFirestore[] })
 				: null;
-			stakeholders = (data?.stakeholders ?? []).map((stakeholder, i) => ({
-				...stakeholder,
-				id: String(i)
-			}));
+			// 永続された安定 id をそのまま採用する（境界でドメイン型へ変換して保持）。
+			stakeholders = (data?.stakeholders ?? []).map((stakeholder) => ({ ...stakeholder }));
 			isLoaded = true;
 		});
 	};

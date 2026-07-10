@@ -55,6 +55,8 @@ export type PersonaForFirestore = {
 	id: string;
 	topicId: string;
 	stakeholderRole: string;
+	// 由来ステークホルダーの安定 id。永続時に必ず付与される。
+	stakeholderId: string;
 	specificRole?: string;
 	name: string;
 	age: number;

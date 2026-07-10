@@ -177,10 +177,14 @@ describe('createTopicStates', () => {
 			expect(deleteDoc).not.toHaveBeenCalled();
 		});
 
-		it('generatePersonas は (2, running) のみ書き、generated もペルソナ文書もサーバ権威', async () => {
-			vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: {} }) as never);
+		it('generatePersonas は (2, running) のみ書き、採用 id を callable へ渡す。generated もペルソナ文書もサーバ権威', async () => {
+			const callable = vi.fn().mockResolvedValue({ data: {} });
+			vi.mocked(httpsCallable).mockReturnValue(callable as never);
 			const store = makeTopic({ title: 'T' });
-			await store.generatePersonas();
+			await store.generatePersonas(['sid-a', 'sid-b']);
+			expect(callable).toHaveBeenCalledWith(
+				expect.objectContaining({ selectedStakeholderIds: ['sid-a', 'sid-b'] })
+			);
 			const calls = updateCallsFor('topics/t1');
 			expect(calls[0][1]).toEqual(
 				expect.objectContaining({ phase: 'personas', phaseStatus: 'running' })
@@ -258,7 +262,7 @@ describe('createTopicStates', () => {
 			);
 			const store = makeTopic({ title: 'T', id: 't1' });
 
-			await expect(store.generatePersonas()).rejects.toThrow('生成失敗');
+			await expect(store.generatePersonas(['sid-a'])).rejects.toThrow('生成失敗');
 			const calls = updateCallsFor('topics/t1');
 			expect(calls.at(-1)?.[1]).toEqual(
 				expect.objectContaining({ phase: 'personas', phaseStatus: 'stopped' })
@@ -275,7 +279,7 @@ describe('createTopicStates', () => {
 			} as never);
 			const store = makeTopic({ title: 'T', id: 't1' });
 
-			await expect(store.generatePersonas()).rejects.toThrow('timeout');
+			await expect(store.generatePersonas(['sid-a'])).rejects.toThrow('timeout');
 			const calls = updateCallsFor('topics/t1');
 			expect(
 				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'stopped')

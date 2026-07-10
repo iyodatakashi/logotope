@@ -1,0 +1,349 @@
+<script lang="ts">
+	import { untrack } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { Button, ConfirmDialog, Skeleton } from '@14ch/svelte-ui';
+	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
+	import type { PhaseLogicalState } from '$lib/models/phase/phase.types';
+	import StakeholderPersonaRow from './StakeholderPersonaRow.svelte';
+	import { matchPersona, reconcileSelection } from './selection';
+
+	// 採用選択（採用ステークホルダーの安定 id 集合）はクライアント状態で保持し永続しない。
+	let selectedIds = $state<Set<string>>(new Set());
+	// 既定シードの二重適用を防ぐため、一度でも観測した id を記録する（非リアクティブ）。
+	let seededIds = new Set<string>();
+	// 押下直後の楽観的な「実行中」表示。実状態(running)が反映されたら解除する。
+	let starting = $state<null | 'stakeholders' | 'personas' | 'interviews'>(null);
+
+	let regenerateStakeholdersDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
+	let regeneratePersonasDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
+	let regenerateInterviewsDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
+
+	const topic = $derived(currentTopicStore.topic);
+	const stakeholders = $derived(currentTopicStore.stakeholdersStore.stakeholders);
+	const personas = $derived(currentTopicStore.personasStore.personas);
+
+	// 採用選択の整合: 新規に現れた id のみ既定 ON でシードし、既存の選択は保持する。
+	$effect(() => {
+		const list = stakeholders;
+		untrack(() => {
+			const result = reconcileSelection({ stakeholders: list, selectedIds, seededIds });
+			seededIds = result.seededIds;
+			if (result.changed) selectedIds = result.selectedIds;
+		});
+	});
+
+	const logicalState = (phase: 'stakeholders' | 'personas' | 'interviews'): PhaseLogicalState => {
+		if (starting === phase) return 'running';
+		if (!topic) return 'not_started';
+		return phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, phase);
+	};
+	const stakeholdersState = $derived(logicalState('stakeholders'));
+	const personasState = $derived(logicalState('personas'));
+	const interviewsState = $derived(logicalState('interviews'));
+
+	// 実状態が running に達したら楽観表示を解除する。
+	$effect(() => {
+		if (!topic) return;
+		const actual = phaseLogicalState(
+			{ phase: topic.phase, phaseStatus: topic.phaseStatus },
+			starting ?? 'stakeholders'
+		);
+		if (starting && actual === 'running') untrack(() => (starting = null));
+	});
+
+	const rows = $derived(
+		stakeholders.map((stakeholder) => ({
+			stakeholder,
+			persona: matchPersona(stakeholder, personas),
+			checked: selectedIds.has(stakeholder.id)
+		}))
+	);
+	// 採用集合は実在するステークホルダーに限る（生成要求で未知 id を送らない）。
+	const selectedStakeholderIds = $derived(
+		stakeholders.filter((stakeholder) => selectedIds.has(stakeholder.id)).map((s) => s.id)
+	);
+
+	const hasStakeholders = $derived(stakeholders.length > 0);
+	const hasPersonas = $derived(personas.length > 0);
+	const canGeneratePersonas = $derived(hasStakeholders && selectedStakeholderIds.length > 0);
+	const hasAnyInterview = $derived(personas.some((persona) => persona.interview != null));
+
+	const completedCount = $derived(
+		personas.filter((persona) => persona.interview?.status === 'completed').length
+	);
+	const errorCount = $derived(
+		personas.filter((persona) => persona.interview?.status === 'error').length
+	);
+	const pendingCount = $derived(personas.filter((persona) => persona.interview == null).length);
+
+	const toggle = (stakeholderId: string, checked: boolean) => {
+		const next = new Set(selectedIds);
+		if (checked) next.add(stakeholderId);
+		else next.delete(stakeholderId);
+		selectedIds = next;
+	};
+
+	// --- 操作ハンドラ（オーケストレーション。ドメイン操作は既存 model/store に委譲する） ---
+
+	const runWith = async (phase: NonNullable<typeof starting>, work: () => Promise<void>) => {
+		starting = phase;
+		try {
+			await work();
+		} finally {
+			starting = null;
+		}
+	};
+
+	const onGenerateStakeholders = () =>
+		runWith('stakeholders', async () => {
+			if (!topic) return;
+			await topic.generateStakeholders();
+		});
+
+	// 再調査: ステークホルダーと下流（ペルソナ・章立て・討論・編集）を破棄してから作り直す。
+	const onRegenerateStakeholders = () =>
+		runWith('stakeholders', async () => {
+			if (!topic) return;
+			await topic.resetStakeholders();
+			await topic.resetPersonas();
+			await topic.resetChapters();
+			await topic.resetDebate();
+			await topic.resetEditing();
+			await topic.generateStakeholders();
+		});
+
+	// ペルソナ生成: 採用集合のみを生成対象とする。ステークホルダー承認は phase 前進で暗黙成立する。
+	const onGeneratePersonas = () =>
+		runWith('personas', async () => {
+			if (!topic) return;
+			await topic.generatePersonas(selectedStakeholderIds);
+		});
+
+	// 再生成: 採用選択に一致させるため下流を破棄してから作り直す（取材以降を破棄）。
+	const onRegeneratePersonas = () =>
+		runWith('personas', async () => {
+			if (!topic) return;
+			await topic.resetPersonas();
+			await topic.resetChapters();
+			await topic.resetDebate();
+			await topic.resetEditing();
+			await topic.generatePersonas(selectedStakeholderIds);
+		});
+
+	// 取材: ペルソナ承認（approved:true 付与＋phase 前進）を畳み込んでから取材を実行する。
+	const onRunInterviews = () =>
+		runWith('interviews', async () => {
+			if (!topic) return;
+			await currentTopicStore.personasStore.approvePersonas();
+			await currentTopicStore.personasStore.runInterviews(topic.title);
+		});
+
+	// 再取材: 取材記録と下流（章立て・討論・編集）を破棄してから全ペルソナを再取材する。
+	const onRegenerateInterviews = () =>
+		runWith('interviews', async () => {
+			if (!topic) return;
+			await topic.resetChapters();
+			await topic.resetDebate();
+			await topic.resetEditing();
+			await currentTopicStore.personasStore.runInterviews(topic.title, true);
+		});
+
+	// 章立てへ進む: 取材承認（phase 前進）してから章立てフェーズへ遷移する。
+	const onAdvanceToChapters = async () => {
+		if (!topic) return;
+		await topic.approveInterviews();
+		goto(phasePath(topic.id, 'chapters'));
+	};
+</script>
+
+<div class="persona-workspace-page">
+	<div class="persona-workspace-page__actions-pane">
+		<div class="persona-workspace-page__actions">
+			<!-- ステークホルダー調査 -->
+			{#if stakeholdersState === 'running'}
+				<Button variant="filled" loading onclick={() => {}}>調査中…</Button>
+			{:else if !hasStakeholders}
+				<Button variant="filled" onclick={onGenerateStakeholders}>調査を開始する</Button>
+			{:else}
+				<Button variant="outlined" onclick={() => regenerateStakeholdersDialog?.open()}>
+					再調査する
+				</Button>
+			{/if}
+
+			<!-- ペルソナ生成 -->
+			{#if personasState === 'running'}
+				<Button variant="filled" loading onclick={() => {}}>ペルソナ生成中…</Button>
+			{:else if !hasPersonas}
+				<Button variant="filled" disabled={!canGeneratePersonas} onclick={onGeneratePersonas}>
+					ペルソナを生成する
+				</Button>
+			{:else}
+				<Button
+					variant="outlined"
+					disabled={!canGeneratePersonas}
+					onclick={() => regeneratePersonasDialog?.open()}
+				>
+					ペルソナを再生成する
+				</Button>
+			{/if}
+
+			<!-- ペルソナ取材 -->
+			{#if interviewsState === 'running'}
+				<Button variant="filled" loading onclick={() => {}}>取材中…</Button>
+			{:else if !hasAnyInterview}
+				<Button variant="filled" disabled={!hasPersonas} onclick={onRunInterviews}>
+					取材を開始する
+				</Button>
+			{:else}
+				{#if interviewsState === 'stopped'}
+					<Button variant="filled" disabled={!hasPersonas} onclick={onRunInterviews}>
+						取材を再開する
+					</Button>
+				{/if}
+				<Button
+					variant="outlined"
+					disabled={!hasPersonas}
+					onclick={() => regenerateInterviewsDialog?.open()}
+				>
+					再取材する
+				</Button>
+			{/if}
+
+			<!-- 章立てへ進む -->
+			{#if interviewsState === 'generated'}
+				<Button variant="filled" onclick={onAdvanceToChapters}>章立てへ進む</Button>
+			{/if}
+		</div>
+
+		{#if !canGeneratePersonas && hasStakeholders && !hasPersonas}
+			<p class="persona-workspace-page__hint">
+				ペルソナを生成するには、少なくとも1件のステークホルダーを採用してください。
+			</p>
+		{/if}
+		{#if hasPersonas && interviewsState !== 'not_started'}
+			<div class="persona-workspace-page__progress">
+				<span class="persona-workspace-page__count persona-workspace-page__count--completed"
+					>{completedCount} 完了</span
+				>
+				{#if pendingCount > 0}<span class="persona-workspace-page__count">{pendingCount} 待機中</span
+					>{/if}
+				{#if errorCount > 0}<span
+						class="persona-workspace-page__count persona-workspace-page__count--error"
+						>{errorCount} エラー</span
+					>{/if}
+				<span class="persona-workspace-page__count persona-workspace-page__count--total"
+					>/ {personas.length} 件</span
+				>
+			</div>
+		{/if}
+	</div>
+
+	<div class="persona-workspace-page__contents-pane">
+		{#if stakeholdersState === 'running'}
+			<Skeleton
+				patterns={[{ type: 'box', width: '100%', height: '96px' }]}
+				repeat={5}
+				repeatGap="12px"
+			/>
+		{:else if hasStakeholders}
+			<div class="persona-workspace-page__rows">
+				{#each rows as row (row.stakeholder.id)}
+					<StakeholderPersonaRow
+						stakeholder={row.stakeholder}
+						persona={row.persona}
+						checked={row.checked}
+						onToggle={(checked) => toggle(row.stakeholder.id, checked)}
+					/>
+				{/each}
+			</div>
+		{/if}
+	</div>
+</div>
+
+<ConfirmDialog
+	bind:this={regenerateStakeholdersDialog}
+	title="ステークホルダーを再調査しますか？"
+	description="現在のステークホルダーと、以降のフェーズで生成済みのデータ（ペルソナ・取材・章立て・討論・編集）が削除されます。"
+	danger
+	submitLabel="再調査する"
+	cancelLabel="キャンセル"
+	onSubmit={onRegenerateStakeholders}
+/>
+<ConfirmDialog
+	bind:this={regeneratePersonasDialog}
+	title="ペルソナを再生成しますか？"
+	description="現在のペルソナと、以降のフェーズで生成済みのデータ（取材・章立て・討論・編集）が削除され、現在の採用選択で作り直します。"
+	danger
+	submitLabel="再生成する"
+	cancelLabel="キャンセル"
+	onSubmit={onRegeneratePersonas}
+/>
+<ConfirmDialog
+	bind:this={regenerateInterviewsDialog}
+	title="取材をやり直しますか？"
+	description="現在の取材記録と、以降のフェーズで生成済みのデータ（章立て・討論・編集）が削除されます。"
+	danger
+	submitLabel="再取材する"
+	cancelLabel="キャンセル"
+	onSubmit={onRegenerateInterviews}
+/>
+
+<style>
+	.persona-workspace-page {
+		height: 100%;
+		overflow: auto;
+	}
+
+	.persona-workspace-page__actions-pane {
+		position: sticky;
+		top: 0;
+		padding: 24px;
+		background-color: color-mix(in srgb, var(--base-50) 50%, transparent);
+		backdrop-filter: blur(20px);
+		z-index: 100;
+	}
+
+	.persona-workspace-page__actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
+	.persona-workspace-page__hint {
+		margin-top: 8px;
+		color: var(--svelte-ui-text-subtle-color);
+		font-size: var(--svelte-ui-font-size-sm);
+	}
+
+	.persona-workspace-page__progress {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		margin-top: 8px;
+	}
+	.persona-workspace-page__count {
+		font-weight: 600;
+		font-size: var(--svelte-ui-font-size-sm);
+	}
+	.persona-workspace-page__count--completed {
+		color: #2e7d32;
+	}
+	.persona-workspace-page__count--error {
+		color: #c62828;
+	}
+	.persona-workspace-page__count--total {
+		color: #555;
+		font-weight: 400;
+	}
+
+	.persona-workspace-page__contents-pane {
+		padding: 0 24px 24px;
+	}
+
+	.persona-workspace-page__rows {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
+</style>

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import GenerateStakeholdersPage from '$lib/features/admin/topic-detail/stakeholders/GenerateStakeholdersPage.svelte';
+	import PersonaWorkspacePage from '$lib/features/admin/topic-detail/persona-workspace/PersonaWorkspacePage.svelte';
 </script>
 
-<GenerateStakeholdersPage />
+<PersonaWorkspacePage />

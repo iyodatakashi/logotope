@@ -48,7 +48,7 @@
 			{/if}
 		</div>
 		<div class="topic-detail-layout__step-navi">
-			<StepNav {topicId} {currentPhase} />
+			<StepNav {topicId} {currentPhase} currentPath={page.url.pathname} />
 		</div>
 	</div>
 

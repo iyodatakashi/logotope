@@ -21,3 +21,18 @@ export type PhaseDef = {
 	label: string; // ステップ名（StepNav 用）
 	statusLabels: Record<PhaseStatus, string>; // バッジ表示
 };
+
+// StepNav のナビ・グループ。複数フェーズを1ステップに束ねる（例: ペルソナ準備＝3フェーズ）。
+// 画面別分岐を作らず、グローバルなナビ定義として一元管理する。
+export type StepNavGroup = {
+	label: string;
+	phases: PhaseSlug[]; // このステップに束ねるフェーズ（進行順）
+};
+
+// 現在フェーズから導出した StepNav 表示項目。
+export type StepNavItem = {
+	label: string;
+	href: string;
+	disabled: boolean;
+	phases: PhaseSlug[];
+};

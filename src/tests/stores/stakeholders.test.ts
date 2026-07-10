@@ -29,12 +29,16 @@ describe('createStakeholdersStore', () => {
 		expect(store.stakeholders).toEqual([]);
 	});
 
-	it('ドキュメントが存在する場合 stakeholders に値がセットされる', () => {
+	it('永続された安定 id をそのまま採用する', () => {
 		const store = createStakeholdersStore('topic1');
 		store.start();
-		fire([{ role: '医師', reason: '専門家', mainInterests: [], minorityLevel: 'low' }]);
+		fire([
+			{ id: 'sid-a', role: '医師', reason: '専門家', mainInterests: [], minorityLevel: 'low' },
+			{ id: 'sid-b', role: '患者', reason: '当事者', mainInterests: [], minorityLevel: 'high' }
+		]);
 		expect(store.stakeholders).toEqual([
-			{ id: '0', role: '医師', reason: '専門家', mainInterests: [], minorityLevel: 'low' }
+			{ id: 'sid-a', role: '医師', reason: '専門家', mainInterests: [], minorityLevel: 'low' },
+			{ id: 'sid-b', role: '患者', reason: '当事者', mainInterests: [], minorityLevel: 'high' }
 		]);
 	});
 

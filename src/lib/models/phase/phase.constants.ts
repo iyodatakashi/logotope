@@ -1,4 +1,4 @@
-import type { PhaseDef } from './phase.types';
+import type { PhaseDef, StepNavGroup } from './phase.types';
 
 // 正準 slug リスト（順序込み）: ['fact-research', 'stakeholders', 'personas', 'interviews', 'chapters', 'debate', 'editing']
 // 配列順 = フェーズ進行順の唯一の真実。BE 側 PhaseKey と値集合・順序を一致させる。
@@ -73,4 +73,15 @@ export const PHASE_DEFS: readonly PhaseDef[] = [
 			stopped: '編集停止'
 		}
 	}
+];
+
+// StepNav 用のナビ・グループ定義。stakeholders/personas/interviews の3フェーズを
+// 「ペルソナ準備」1ステップに束ね、統合ワークスペースを1タブとして表示する。
+// それ以外のフェーズは従来どおり1フェーズ=1ステップ。画面別分岐は作らずここで一元管理する。
+export const STEP_NAV_GROUPS: readonly StepNavGroup[] = [
+	{ label: '事実リサーチ', phases: ['fact-research'] },
+	{ label: 'ペルソナ準備', phases: ['stakeholders', 'personas', 'interviews'] },
+	{ label: '章立て', phases: ['chapters'] },
+	{ label: '討論', phases: ['debate'] },
+	{ label: '編集', phases: ['editing'] }
 ];

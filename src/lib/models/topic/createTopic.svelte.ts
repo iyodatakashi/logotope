@@ -184,14 +184,16 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 		}
 	};
 
-	const generatePersonas = async (): Promise<void> => {
+	// selectedStakeholderIds は採用（チェックON）ステークホルダーの安定 id 集合。
+	// サーバはこの部分集合のみを対象にペルソナを生成し、各ペルソナへ由来 stakeholderId を付与する。
+	const generatePersonas = async (selectedStakeholderIds: string[]): Promise<void> => {
 		await setPhaseStatus('personas', 'running');
 		try {
 			const generatePersonasCallable = httpsCallable<
-				{ topicId: string; title: string },
+				{ topicId: string; title: string; selectedStakeholderIds: string[] },
 				Record<string, never>
 			>(functions, 'generatePersonas', { timeout: 310000 });
-			await generatePersonasCallable({ topicId: id, title });
+			await generatePersonasCallable({ topicId: id, title, selectedStakeholderIds });
 			// ペルソナ文書の永続化と完了状態(phaseStatus='generated')はサーバが権威的に書くため、
 			// ここでは書かない。FE は onSnapshot で一覧と完了状態を反映する。
 		} catch (e) {
