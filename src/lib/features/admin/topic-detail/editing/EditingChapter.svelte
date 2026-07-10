@@ -145,7 +145,7 @@
 		font-weight: bold;
 	}
 	.editing-chapter__status {
-		font-size: 0.75rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #eee;
@@ -160,7 +160,7 @@
 		color: #c62828;
 	}
 	.editing-chapter__failure-reason {
-		font-size: 0.78rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		color: #c62828;
 	}
 	.editing-chapter__turns {
@@ -185,7 +185,7 @@
 		text-decoration: line-through;
 	}
 	.editing-chapter__removed-label {
-		font-size: 0.72rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		margin-left: 6px;
 		color: #fff;
 		background: #c62828;
@@ -202,12 +202,12 @@
 		font-weight: bold;
 	}
 	.editing-chapter__role {
-		color: #757575;
-		font-size: 0.875rem;
+		font-size: var(--svelte-ui-font-size-sm);
+		color: var(--svelte-ui-text-subtle-color);
 	}
 	.editing-chapter__speech-mode {
-		font-size: 0.75rem;
-		color: #555;
+		font-size: var(--svelte-ui-font-size-sm);
+		color: var(--svelte-ui-text-subtle-color);
 		background: #eee;
 		padding: 1px 5px;
 		border-radius: 3px;
@@ -218,7 +218,7 @@
 	}
 	.editing-chapter__awarenesses {
 		margin-top: 8px;
-		font-size: 0.85rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		color: var(--svelte-ui-text-subtle-color);
 		list-style: none;
 		padding: 0;

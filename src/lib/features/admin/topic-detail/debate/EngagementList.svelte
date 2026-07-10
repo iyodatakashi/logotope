@@ -46,7 +46,7 @@
 		margin-top: 6px;
 	}
 	.engagement-list__engagement {
-		font-size: 0.72rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #eee;

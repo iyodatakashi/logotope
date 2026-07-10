@@ -54,35 +54,35 @@
 		<div class="phase-panel__actions-row">
 			<div class="phase-panel__actions">
 				{#if logicalState === 'not_started'}
-				<Button variant="filled" onclick={onGenerate}>{generateLabel}</Button>
-				{#if emptyApproveLabel && onEmptyApprove}
-					<Button variant="outlined" onclick={onEmptyApprove}>{emptyApproveLabel}</Button>
+					<Button variant="filled" onclick={onGenerate}>{generateLabel}</Button>
+					{#if emptyApproveLabel && onEmptyApprove}
+						<Button variant="outlined" onclick={onEmptyApprove}>{emptyApproveLabel}</Button>
+					{/if}
+				{:else if logicalState === 'running'}
+					{#if onStop}
+						<Button variant="outlined" onclick={onStop}>{stopLabel ?? '停止する'}</Button>
+					{:else}
+						<Button variant="filled" loading onclick={onGenerate}>{generateLabel}</Button>
+					{/if}
+				{:else if logicalState === 'stopped'}
+					{#if onRestart}
+						<Button variant="filled" onclick={onRestart}>{restartLabel ?? '再開する'}</Button>
+					{/if}
+					<Button variant="filled" onclick={() => regenerateDialog?.open()}>
+						{regenerateLabel}
+					</Button>
+				{:else if logicalState === 'generated'}
+					<Button variant="filled" onclick={() => regenerateDialog?.open()}>
+						{regenerateLabel}
+					</Button>
+					{#if approveLabel && onApprove}
+						<Button variant="filled" onclick={onApprove}>{approveLabel}</Button>
+					{/if}
+				{:else if logicalState === 'approved'}
+					<Button variant="filled" onclick={() => regenerateDialog?.open()}>
+						{regenerateLabel}
+					</Button>
 				{/if}
-			{:else if logicalState === 'running'}
-				{#if onStop}
-					<Button variant="outlined" onclick={onStop}>{stopLabel ?? '停止する'}</Button>
-				{:else}
-					<Button variant="filled" loading onclick={onGenerate}>{generateLabel}</Button>
-				{/if}
-			{:else if logicalState === 'stopped'}
-				{#if onRestart}
-					<Button variant="filled" onclick={onRestart}>{restartLabel ?? '再開する'}</Button>
-				{/if}
-				<Button variant="filled" onclick={() => regenerateDialog?.open()}>
-					{regenerateLabel}
-				</Button>
-			{:else if logicalState === 'generated'}
-				<Button variant="filled" onclick={() => regenerateDialog?.open()}>
-					{regenerateLabel}
-				</Button>
-				{#if approveLabel && onApprove}
-					<Button variant="filled" onclick={onApprove}>{approveLabel}</Button>
-				{/if}
-			{:else if logicalState === 'approved'}
-				<Button variant="filled" onclick={() => regenerateDialog?.open()}>
-					{regenerateLabel}
-				</Button>
-			{/if}
 			</div>
 			{#if headerControls}
 				<div class="phase-panel__header-controls">
@@ -150,7 +150,6 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		font-size: 0.9rem;
 	}
 
 	.phase-panel__progress {

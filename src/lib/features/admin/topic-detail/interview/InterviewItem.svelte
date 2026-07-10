@@ -183,7 +183,7 @@
 		flex: 1;
 	}
 	.interview-item__role {
-		font-size: 0.75rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		color: #757575;
 	}
 	.interview-item__status-badge {
@@ -191,7 +191,7 @@
 		background: #e3f2fd;
 		color: #1565c0;
 		border-radius: 12px;
-		font-size: 0.75rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		flex-shrink: 0;
 	}
 	.interview-item__status-badge.interview-item__status-badge--done {
@@ -222,15 +222,15 @@
 		border-bottom: none;
 	}
 	.interview-item__section-label {
-		font-size: 0.75rem;
-		font-weight: 600;
+		font-size: var(--svelte-ui-font-size-sm);
+		font-weight: bold;
 		color: #757575;
 		margin: 0 0 6px;
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 	}
 	.interview-item__md-body {
-		font-size: 0.875rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		line-height: 1.7;
 		word-break: break-word;
 		color: #333;
@@ -242,8 +242,7 @@
 	.interview-item__md-body :global(h2),
 	.interview-item__md-body :global(h3),
 	.interview-item__md-body :global(h4) {
-		font-size: 0.95rem;
-		font-weight: 600;
+		font-weight: bold;
 		margin: 12px 0 4px;
 	}
 	.interview-item__md-body :global(p) {
@@ -266,7 +265,7 @@
 		border-radius: 3px;
 	}
 	.interview-item__draft-belief {
-		font-size: 0.875rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		margin: 0;
 	}
 	.interview-item__draft-belief dt {
@@ -291,7 +290,7 @@
 		padding-bottom: 0;
 	}
 	.interview-item__source-summary {
-		font-size: 0.875rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		color: #333;
 		margin: 0 0 6px;
 		line-height: 1.6;
@@ -301,7 +300,7 @@
 		padding-left: 16px;
 	}
 	.interview-item__source-entry li {
-		font-size: 0.8rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		margin-bottom: 6px;
 	}
 	.interview-item__source-entry a {
@@ -313,7 +312,7 @@
 	}
 	.interview-item__source-url {
 		display: block;
-		font-size: 0.7rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		color: #999;
 		word-break: break-all;
 	}

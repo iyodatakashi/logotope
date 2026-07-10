@@ -94,11 +94,11 @@
 	}
 	.debate-chapter__role {
 		color: #757575;
-		font-size: 0.875rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		margin-left: 4px;
 	}
 	.debate-chapter__speech-mode {
-		font-size: 0.75rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		margin-left: 6px;
 		color: #555;
 		background: #eee;
@@ -114,7 +114,7 @@
 		color: #1565c0;
 	}
 	.debate-chapter__from-queue {
-		font-size: 0.75rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		margin-left: 4px;
 		color: #fff;
 		background: #e65100;
@@ -127,7 +127,7 @@
 	}
 	.debate-chapter__nominated {
 		margin: 4px 0 0;
-		font-size: 0.75rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		color: #b45309;
 		background: #fef3c7;
 		padding: 2px 8px;
@@ -136,7 +136,7 @@
 	}
 	.debate-chapter__awarenesses {
 		margin-top: 8px;
-		font-size: 0.85rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		color: var(--svelte-ui-text-subtle-color);
 		list-style: none;
 		padding: 0;

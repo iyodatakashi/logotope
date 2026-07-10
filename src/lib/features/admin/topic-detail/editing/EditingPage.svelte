@@ -278,7 +278,6 @@
 	.editing-page__editing-gate {
 		padding: 24px;
 		color: #757575;
-		font-size: 0.95rem;
 	}
 
 	.editing-page__content {

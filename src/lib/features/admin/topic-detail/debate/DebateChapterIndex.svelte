@@ -60,7 +60,7 @@
 	}
 	.debate-chapter-index__status-badge {
 		flex-shrink: 0;
-		font-size: 0.7rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		font-weight: 700;
 		padding: 1px 4px;
 		border-radius: 3px;

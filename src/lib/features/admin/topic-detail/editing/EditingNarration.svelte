@@ -79,7 +79,7 @@
 	}
 	.editing-narration__label {
 		margin: 0;
-		font-size: 0.8rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		font-weight: 700;
 		color: #7b1fa2;
 	}
@@ -89,14 +89,14 @@
 		white-space: pre-wrap;
 	}
 	.editing-narration__stage-label {
-		font-size: 0.75rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #ede7f6;
 		color: #5e35b1;
 	}
 	.editing-narration__element-status {
-		font-size: 0.75rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #ffebee;

@@ -129,7 +129,6 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		font-size: 0.95rem;
 	}
 	.generate-interviews-page__count {
 		font-weight: 600;

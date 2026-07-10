@@ -80,8 +80,8 @@
 	.topic-list-page__badge {
 		padding: 4px 8px;
 		border-radius: 4px;
-		font-size: 0.75rem;
-		font-weight: 600;
+		font-size: var(--svelte-ui-font-size-sm);
+		font-weight: bold;
 	}
 	.topic-list-page__badge--pending {
 		background: #e0e0e0;

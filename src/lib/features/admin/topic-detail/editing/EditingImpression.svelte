@@ -89,22 +89,22 @@
 		font-weight: bold;
 	}
 	.editing-impression__role {
+		font-size: var(--svelte-ui-font-size-sm);
 		color: #757575;
-		font-size: 0.875rem;
 	}
 	.editing-impression__content {
 		margin: 0;
 		line-height: 1.6;
 	}
 	.editing-impression__stage-label {
-		font-size: 0.75rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #ede7f6;
 		color: #5e35b1;
 	}
 	.editing-impression__element-status {
-		font-size: 0.75rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #ffebee;

@@ -36,13 +36,13 @@
 	}
 	.topic-list-item__title {
 		font-size: 1rem;
-		font-weight: 600;
+		font-weight: bold;
 		margin: 0 0 8px;
 	}
 	.topic-list-item__meta {
 		display: flex;
 		gap: 12px;
-		font-size: 0.875rem;
+		font-size: var(--svelte-ui-font-size-sm);
 		color: #757575;
 	}
 </style>
