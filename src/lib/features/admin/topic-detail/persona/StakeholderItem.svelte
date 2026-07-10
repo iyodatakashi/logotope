@@ -35,6 +35,7 @@
 	}
 
 	.stakeholder-item__role {
+		font-size: var(--svelte-ui-font-size-lg);
 		font-weight: bold;
 	}
 
