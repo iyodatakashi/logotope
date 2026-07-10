@@ -88,7 +88,7 @@
 	}
 
 	.topic-detail-layout__body {
-		background: var(--base-50);
+		background: var(--base-100);
 		overflow: hidden;
 	}
 </style>
