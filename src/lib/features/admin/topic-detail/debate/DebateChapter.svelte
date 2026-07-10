@@ -76,8 +76,9 @@
 		gap: 8px;
 	}
 	.debate-chapter__turn {
-		padding: 12px;
-		border-left: 4px solid #e0e0e0;
+		padding: 16px;
+		background: var(--white);
+		border-radius: 4px;
 	}
 	.debate-chapter__turn.debate-chapter__turn--facilitator {
 		border-left-color: #1565c0;

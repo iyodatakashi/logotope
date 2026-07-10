@@ -32,7 +32,7 @@
 				data-mode={item.mode}
 				class:engagement-list__engagement--selected={selected}
 			>
-				{personaMap.get(item.personaId)?.name ?? ''}: {item.mode}({item.score}){#if selected}→選択{/if}
+				{personaMap.get(item.personaId)?.name ?? ''}: {item.mode}({item.score})
 			</span>
 		{/each}
 	</div>

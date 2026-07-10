@@ -43,7 +43,7 @@
 		flex-direction: column;
 		gap: 4px;
 	}
-	.debate-chapter-index li.debate-chapter-index__chapter--current {
+	.debate-chapter-index li.debate-chapter-index__chapter--current .debate-chapter-index__title {
 		font-weight: bold;
 	}
 	.debate-chapter-index__agenda {
