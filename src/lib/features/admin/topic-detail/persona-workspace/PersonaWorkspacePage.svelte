@@ -5,13 +5,16 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseLogicalState } from '$lib/models/phase/phase.types';
+	import type { Stakeholder } from '$lib/models/stakeholder/stakeholder.types';
+	import type { Persona } from '$lib/models/persona/persona.types';
 	import StakeholderPersonaRow from './StakeholderPersonaRow.svelte';
-	import { matchPersona, reconcileSelection } from './selection';
 
-	// 採用選択（採用ステークホルダーの安定 id 集合）はクライアント状態で保持し永続しない。
-	let selectedIds = $state<Set<string>>(new Set());
-	// 既定シードの二重適用を防ぐため、一度でも観測した id を記録する（非リアクティブ）。
-	let seededIds = new Set<string>();
+	// ステークホルダーに対応するペルソナを安定 id で解決する。
+	const matchPersona = (stakeholder: Stakeholder): Persona | undefined =>
+		personas.find((persona) => persona.stakeholderId === stakeholder.id);
+	// 採用（チェックON）判定。selected は永続され、未設定（サーバ生成直後）は既定 ON（R3-2）。
+	const isSelected = (stakeholder: Stakeholder): boolean => stakeholder.selected ?? true;
+
 	// 押下直後の楽観的な「実行中」表示。実状態(running)が反映されたら解除する。
 	let starting = $state<null | 'stakeholders' | 'personas' | 'interviews'>(null);
 
@@ -22,16 +25,6 @@
 	const topic = $derived(currentTopicStore.topic);
 	const stakeholders = $derived(currentTopicStore.stakeholdersStore.stakeholders);
 	const personas = $derived(currentTopicStore.personasStore.personas);
-
-	// 採用選択の整合: 新規に現れた id のみ既定 ON でシードし、既存の選択は保持する。
-	$effect(() => {
-		const list = stakeholders;
-		untrack(() => {
-			const result = reconcileSelection({ stakeholders: list, selectedIds, seededIds });
-			seededIds = result.seededIds;
-			if (result.changed) selectedIds = result.selectedIds;
-		});
-	});
 
 	const logicalState = (phase: 'stakeholders' | 'personas' | 'interviews'): PhaseLogicalState => {
 		if (starting === phase) return 'running';
@@ -55,13 +48,13 @@
 	const rows = $derived(
 		stakeholders.map((stakeholder) => ({
 			stakeholder,
-			persona: matchPersona(stakeholder, personas),
-			checked: selectedIds.has(stakeholder.id)
+			persona: matchPersona(stakeholder),
+			checked: isSelected(stakeholder)
 		}))
 	);
-	// 採用集合は実在するステークホルダーに限る（生成要求で未知 id を送らない）。
+	// 採用集合は採用（チェックON）ステークホルダーの安定 id。
 	const selectedStakeholderIds = $derived(
-		stakeholders.filter((stakeholder) => selectedIds.has(stakeholder.id)).map((s) => s.id)
+		stakeholders.filter(isSelected).map((stakeholder) => stakeholder.id)
 	);
 
 	const hasStakeholders = $derived(stakeholders.length > 0);
@@ -77,12 +70,8 @@
 	);
 	const pendingCount = $derived(personas.filter((persona) => persona.interview == null).length);
 
-	const toggle = (stakeholderId: string, checked: boolean) => {
-		const next = new Set(selectedIds);
-		if (checked) next.add(stakeholderId);
-		else next.delete(stakeholderId);
-		selectedIds = next;
-	};
+	const toggle = (stakeholderId: string, checked: boolean) =>
+		currentTopicStore.stakeholdersStore.setSelected(stakeholderId, checked);
 
 	// --- 操作ハンドラ（オーケストレーション。ドメイン操作は既存 model/store に委譲する） ---
 

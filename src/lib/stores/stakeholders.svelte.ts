@@ -1,4 +1,4 @@
-import { onSnapshot, doc } from 'firebase/firestore';
+import { onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '$lib/firebase';
 import type {
 	Stakeholder,
@@ -26,6 +26,14 @@ export const createStakeholdersStore = (topicId: string) => {
 		unsubscribe = null;
 	};
 
+	// 採用チェックの ON/OFF を当該ステークホルダーに永続する（リロード後も保持する）。
+	const setSelected = async (id: string, selected: boolean): Promise<void> => {
+		const next = stakeholders.map((stakeholder) =>
+			stakeholder.id === id ? { ...stakeholder, selected } : stakeholder
+		);
+		await updateDoc(doc(db, 'topics', topicId, 'stakeholders', '0'), { stakeholders: next });
+	};
+
 	return {
 		get stakeholders() {
 			return stakeholders;
@@ -34,6 +42,7 @@ export const createStakeholdersStore = (topicId: string) => {
 			return isLoaded;
 		},
 		start,
-		stop
+		stop,
+		setSelected
 	};
 };
