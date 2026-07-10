@@ -10,7 +10,14 @@ import type { Stakeholder } from '../../types/stakeholder.types.js';
 import type { TopicContext } from '../../types/topic.types.js';
 
 const STAKEHOLDERS: Stakeholder[] = [
-	{ role: '医師', reason: 'r', mainInterests: [], minorityLevel: 'low', engagementLevel: 'high' }
+	{
+		id: 'sid-a',
+		role: '医師',
+		reason: 'r',
+		mainInterests: [],
+		minorityLevel: 'low',
+		engagementLevel: 'high'
+	}
 ];
 
 const promptOf = () =>
@@ -55,5 +62,23 @@ describe('generatePersonas', () => {
 			schema: { shape: { personas: { element: { shape: Record<string, unknown> } } } };
 		};
 		expect('llmType' in schema.shape.personas.element.shape).toBe(false);
+	});
+
+	it('立場リストへエコー用タグを付し、スキーマに sourceTag を含める', async () => {
+		await generatePersonas('テーマ', STAKEHOLDERS, 't1');
+		expect(promptOf()).toContain('S1: 医師');
+		const { schema } = mockGenerateObject.mock.calls[0][0] as {
+			schema: { shape: { personas: { element: { shape: Record<string, unknown> } } } };
+		};
+		expect('sourceTag' in schema.shape.personas.element.shape).toBe(true);
+	});
+
+	it('生成結果に sourceTag を透過的に載せて返す', async () => {
+		mockGenerateObject.mockResolvedValueOnce({
+			object: { personas: [{ sourceTag: 'S1', stakeholderRole: '医師', name: '太郎' }] }
+		});
+		const result = await generatePersonas('テーマ', STAKEHOLDERS, 't1');
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value.personas[0].sourceTag).toBe('S1');
 	});
 });

@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createFirestoreMock } from '../helpers/firestore-mock.js';
 
 const mockRunStakeholderGeneration = vi.hoisted(() => vi.fn());
+const { nanoidMock } = vi.hoisted(() => ({ nanoidMock: vi.fn() }));
 
 const { holder } = vi.hoisted(() => ({
 	holder: {
@@ -36,6 +37,8 @@ vi.mock('../../agents/stakeholder-agent.js', () => ({
 	generateStakeholders: mockRunStakeholderGeneration
 }));
 
+vi.mock('nanoid', () => ({ nanoid: nanoidMock }));
+
 vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: () => holder.mock!.firestore,
 	Timestamp: { now: () => 'TS' }
@@ -53,6 +56,8 @@ const stakeholders = () => holder.mock!.store.get(`topics/${TOPIC_ID}/stakeholde
 beforeEach(() => {
 	vi.clearAllMocks();
 	holder.mock = createFirestoreMock();
+	let seq = 0;
+	nanoidMock.mockImplementation(() => `sid${++seq}`);
 });
 
 describe('generateStakeholders handler', () => {
@@ -68,17 +73,22 @@ describe('generateStakeholders handler', () => {
 		});
 	});
 
-	it('生成成功時に stakeholders を永続化し、confirmPhaseGenerated で generated を確定する', async () => {
+	it('生成成功時に各ステークホルダーへ安定 id を付番して永続化し、confirmPhaseGenerated で generated を確定する', async () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'stakeholders', phaseStatus: 'running' });
 		mockRunStakeholderGeneration.mockResolvedValueOnce({
 			ok: true,
-			value: { stakeholders: ['s1', 's2'] }
+			value: { stakeholders: [{ role: '医師' }, { role: '患者' }] }
 		});
 
 		const result = await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
 
 		expect(result).toEqual({});
-		expect(stakeholders()).toEqual({ stakeholders: ['s1', 's2'] });
+		expect(stakeholders()).toEqual({
+			stakeholders: [
+				{ role: '医師', id: 'sid1' },
+				{ role: '患者', id: 'sid2' }
+			]
+		});
 		expect(topic()?.phase).toBe('stakeholders');
 		expect(topic()?.phaseStatus).toBe('generated');
 	});
@@ -121,12 +131,12 @@ describe('generateStakeholders handler', () => {
 		});
 		mockRunStakeholderGeneration.mockResolvedValueOnce({
 			ok: true,
-			value: { stakeholders: ['s1'] }
+			value: { stakeholders: [{ role: '医師' }] }
 		});
 
 		await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
 
-		expect(stakeholders()).toEqual({ stakeholders: ['s1'] });
+		expect(stakeholders()).toEqual({ stakeholders: [{ role: '医師', id: 'sid1' }] });
 		expect(topic()?.phaseStatus).toBe('not_started');
 	});
 

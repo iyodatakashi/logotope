@@ -20,10 +20,11 @@ const stakeholdersSchema = z.object({
 		.min(5)
 });
 
+// 生成物は id を持たない（id はサーバが永続時に付番する）。
 export const generateStakeholders = async (
 	title: string,
 	topicContext?: TopicContext
-): Promise<Result<{ stakeholders: Stakeholder[] }, PipelineError>> => {
+): Promise<Result<{ stakeholders: Omit<Stakeholder, 'id'>[] }, PipelineError>> => {
 	const factSection = formatFactBaseSection(topicContext?.factBase);
 	try {
 		const result = await generateObject({

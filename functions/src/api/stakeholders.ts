@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore } from 'firebase-admin/firestore';
+import { nanoid } from 'nanoid';
 import { requireAuth } from '../utils/auth.js';
 import { generateStakeholders as runStakeholderGeneration } from '../agents/stakeholder-agent.js';
 import { getTopicContext } from '../pipeline/topics/topic-context.js';
@@ -25,9 +26,15 @@ export const generateStakeholders = onCall(
 			throw new HttpsError('internal', message);
 		}
 
+		// 各ステークホルダーへ配列位置に依存しない安定 id を付番して永続する。
+		// これがペルソナ由来対応づけ（persona.stakeholderId）と採用選択の唯一の突合キーになる。
+		const stakeholdersWithId = result.value.stakeholders.map((stakeholder) => ({
+			...stakeholder,
+			id: nanoid()
+		}));
 		await db()
 			.doc(`topics/${topicId}/stakeholders/0`)
-			.set({ stakeholders: result.value.stakeholders });
+			.set({ stakeholders: stakeholdersWithId });
 		// 完了状態はサーバ権威で確定する。クライアントの生存（リロード・タブ閉じ）や
 		// callable のタイムアウトに依存せず、running のときだけ generated へ冪等遷移させる。
 		await confirmPhaseGenerated(topicId, 'stakeholders');

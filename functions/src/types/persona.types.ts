@@ -7,6 +7,8 @@ export type Persona = {
 	age: number;
 	occupation: string;
 	stakeholderRole: string;
+	// 由来ステークホルダーの安定 id。永続時に必ず付与される。
+	stakeholderId: string;
 	specificRole: string;
 	background: string;
 	interests: string;

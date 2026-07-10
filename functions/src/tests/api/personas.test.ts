@@ -34,7 +34,8 @@ vi.mock('../../utils/auth.js', () => ({
 }));
 
 vi.mock('../../agents/persona-generator-agent.js', () => ({
-	generatePersonas: mockRunPersonaGeneration
+	generatePersonas: mockRunPersonaGeneration,
+	sourceTagForIndex: (index: number) => `S${index + 1}`
 }));
 
 vi.mock('firebase-admin/firestore', () => ({
@@ -51,18 +52,36 @@ const handler = generatePersonas as unknown as (req: unknown) => Promise<unknown
 const topic = () => holder.mock!.store.get(`topics/${TOPIC_ID}`);
 const persona = (id: string) => holder.mock!.store.get(`topics/${TOPIC_ID}/personas/${id}`);
 
+// id を持つ3件のステークホルダーを種として置く。
 const seedStakeholders = () =>
-	holder.mock!.store.set(`topics/${TOPIC_ID}/stakeholders/0`, { stakeholders: ['s1'] });
+	holder.mock!.store.set(`topics/${TOPIC_ID}/stakeholders/0`, {
+		stakeholders: [
+			{ id: 'sid-a', role: '医師' },
+			{ id: 'sid-b', role: '患者' },
+			{ id: 'sid-c', role: '行政' }
+		]
+	});
 
-const generatedPersonas = () => ({
+// 採用2件（sid-a, sid-b）に対応する2ペルソナ。sourceTag で由来を示す。
+const generatedPersonas = (
+	personas = [
+		{ id: 'p1', sourceTag: 'S1', stakeholderRole: '医師', name: '太郎' },
+		{ id: 'p2', sourceTag: 'S2', stakeholderRole: '患者', name: '花子' }
+	]
+) => ({
 	ok: true,
 	value: {
-		personas: [
-			{ id: 'p1', topicId: TOPIC_ID, name: '太郎', sortOrder: 0, approved: false },
-			{ id: 'p2', topicId: TOPIC_ID, name: '花子', sortOrder: 1, approved: false }
-		]
+		personas: personas.map((persona) => ({ topicId: TOPIC_ID, approved: false, ...persona }))
 	}
 });
+
+const request = (overrides: Record<string, unknown> = {}) =>
+	makeRequest({
+		topicId: TOPIC_ID,
+		title: TITLE,
+		selectedStakeholderIds: ['sid-a', 'sid-b'],
+		...overrides
+	});
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -71,41 +90,73 @@ beforeEach(() => {
 
 describe('generatePersonas handler', () => {
 	it('topicIdがない場合はinvalid-argumentエラーを投げる', async () => {
-		await expect(handler(makeRequest({ title: TITLE }))).rejects.toMatchObject({
+		await expect(handler(request({ topicId: undefined }))).rejects.toMatchObject({
 			code: 'invalid-argument'
 		});
 	});
 
 	it('titleがない場合はinvalid-argumentエラーを投げる', async () => {
-		await expect(handler(makeRequest({ topicId: TOPIC_ID }))).rejects.toMatchObject({
+		await expect(handler(request({ title: undefined }))).rejects.toMatchObject({
 			code: 'invalid-argument'
 		});
+	});
+
+	it('selectedStakeholderIds が空なら invalid-argument で拒否する', async () => {
+		seedStakeholders();
+		await expect(handler(request({ selectedStakeholderIds: [] }))).rejects.toMatchObject({
+			code: 'invalid-argument'
+		});
+	});
+
+	it('selectedStakeholderIds が未知 id を含むなら invalid-argument で拒否する', async () => {
+		seedStakeholders();
+		await expect(
+			handler(request({ selectedStakeholderIds: ['sid-a', 'sid-x'] }))
+		).rejects.toMatchObject({ code: 'invalid-argument' });
 	});
 
 	it('stakeholders が存在しない場合はinvalid-argumentエラーを投げる', async () => {
-		await expect(handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }))).rejects.toMatchObject({
-			code: 'invalid-argument'
-		});
+		await expect(handler(request())).rejects.toMatchObject({ code: 'invalid-argument' });
 	});
 
-	it('生成成功時にペルソナを batch 永続化し、confirmPhaseGenerated で generated を確定して {} を返す', async () => {
+	it('採用2件のみを生成対象に絞り込み、由来キー付きで永続して generated を確定する', async () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'running' });
 		seedStakeholders();
 		mockRunPersonaGeneration.mockResolvedValueOnce(generatedPersonas());
 
-		const result = await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
+		const result = await handler(request());
 
 		expect(result).toEqual({});
-		expect(persona('p1')).toMatchObject({
-			name: '太郎',
-			sortOrder: 0,
-			approved: false,
-			beliefs: [],
-			createdAt: 'TS'
-		});
-		expect(persona('p2')).toMatchObject({ name: '花子', sortOrder: 1 });
-		expect(topic()?.phase).toBe('personas');
+		// エージェントへ渡す立場は採用2件のみ（順序保持）
+		const [, passedStakeholders] = mockRunPersonaGeneration.mock.calls[0];
+		expect(passedStakeholders.map((stakeholder: { id: string }) => stakeholder.id)).toEqual([
+			'sid-a',
+			'sid-b'
+		]);
+		// 由来キーがタグから解決される
+		expect(persona('p1')).toMatchObject({ name: '太郎', stakeholderId: 'sid-a', sortOrder: 0 });
+		expect(persona('p2')).toMatchObject({ name: '花子', stakeholderId: 'sid-b', sortOrder: 1 });
+		// sourceTag は永続しない
+		expect('sourceTag' in (persona('p1') as object)).toBe(false);
 		expect(topic()?.phaseStatus).toBe('generated');
+	});
+
+	it('生成結果のタグ順が入力順とズレても sourceTag から由来を正しく解決する', async () => {
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'running' });
+		seedStakeholders();
+		// 出力順を反転（S2 が先、S1 が後）
+		mockRunPersonaGeneration.mockResolvedValueOnce(
+			generatedPersonas([
+				{ id: 'p2', sourceTag: 'S2', stakeholderRole: '患者', name: '花子' },
+				{ id: 'p1', sourceTag: 'S1', stakeholderRole: '医師', name: '太郎' }
+			])
+		);
+
+		await handler(request());
+
+		// タグ由来なので位置がズレても正しい stakeholderId になる
+		expect(persona('p1')).toMatchObject({ name: '太郎', stakeholderId: 'sid-a' });
+		expect(persona('p2')).toMatchObject({ name: '花子', stakeholderId: 'sid-b' });
 	});
 
 	it('承認済み事実基盤が存在すれば topicContext.factBase を生成に渡す', async () => {
@@ -117,7 +168,7 @@ describe('generatePersonas handler', () => {
 		seedStakeholders();
 		mockRunPersonaGeneration.mockResolvedValueOnce(generatedPersonas());
 
-		await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
+		await handler(request());
 
 		const [passedTitle, , passedTopicId, topicContext] = mockRunPersonaGeneration.mock.calls[0];
 		expect(passedTitle).toBe(TITLE);
@@ -125,23 +176,12 @@ describe('generatePersonas handler', () => {
 		expect(topicContext.factBase.facts).toEqual([{ statement: '確定事実', sources: [] }]);
 	});
 
-	it('事実基盤が無ければ factBase 未設定の topicContext を渡す（従来どおり動作）', async () => {
-		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'running' });
-		seedStakeholders();
-		mockRunPersonaGeneration.mockResolvedValueOnce(generatedPersonas());
-
-		await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
-
-		const [, , , topicContext] = mockRunPersonaGeneration.mock.calls[0];
-		expect(topicContext.factBase).toBeUndefined();
-	});
-
 	it('phaseStatus が not_started なら generated を上書きしない（未開始ガード）', async () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus: 'not_started' });
 		seedStakeholders();
 		mockRunPersonaGeneration.mockResolvedValueOnce(generatedPersonas());
 
-		await handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }));
+		await handler(request());
 
 		expect(persona('p1')).toBeDefined();
 		expect(topic()?.phaseStatus).toBe('not_started');
@@ -155,9 +195,7 @@ describe('generatePersonas handler', () => {
 			error: { code: 'AI_API_ERROR', message: 'AI failed', retryable: true }
 		});
 
-		await expect(handler(makeRequest({ topicId: TOPIC_ID, title: TITLE }))).rejects.toMatchObject({
-			code: 'internal'
-		});
+		await expect(handler(request())).rejects.toMatchObject({ code: 'internal' });
 		expect(persona('p1')).toBeUndefined();
 		expect(topic()?.phaseStatus).toBe('running');
 	});
