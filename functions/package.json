@@ -18,7 +18,7 @@
 	},
 	"main": "lib/index.js",
 	"dependencies": {
-		"@ai-sdk/anthropic": "^3.0.0",
+		"@ai-sdk/anthropic": "^3.0.96",
 		"@ai-sdk/google": "^3.0.0",
 		"@ai-sdk/xai": "^3.0.0",
 		"@anthropic-ai/sdk": "^0.101.0",
