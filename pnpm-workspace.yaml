@@ -3,6 +3,8 @@ allowBuilds:
   '@parcel/watcher': set this to true or false
   esbuild: set this to true or false
   protobufjs: set this to true or false
+minimumReleaseAgeExclude:
+  - '@14ch/svelte-ui@0.0.49'
 onlyBuiltDependencies:
   - esbuild
 overrides:
