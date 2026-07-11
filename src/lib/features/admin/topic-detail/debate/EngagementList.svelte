@@ -3,7 +3,7 @@
 
 	interface Props {
 		turnId: string;
-		selectedPersonaId?: string | null;
+		selectedPersonaId?: string | null; // 次に選ばれた話者（生成開始時に pendingTurn として確定）
 	}
 
 	let { turnId, selectedPersonaId = null }: Props = $props();

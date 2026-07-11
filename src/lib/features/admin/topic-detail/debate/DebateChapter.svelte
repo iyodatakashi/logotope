@@ -57,7 +57,10 @@
 				{#if targetPersona}
 					<p class="debate-chapter__nominated">次の指名: {targetPersona.name}</p>
 				{/if}
-				<EngagementList turnId={turn.id} selectedPersonaId={chapter.turns[i + 1]?.personaId} />
+				<EngagementList
+					turnId={turn.id}
+					selectedPersonaId={chapter.turns[i + 1]?.personaId ?? chapter.pendingTurn?.personaId}
+				/>
 				{#if awarenesses.length > 0}
 					<ul class="debate-chapter__awarenesses">
 						{#each awarenesses as aw, awIdx (awIdx)}
