@@ -4,7 +4,7 @@
 	import type { Turn } from '$lib/models/turn/turn.types';
 	import type { Chapter, PendingTurn } from '$lib/models/chapter/chapter.types';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import EngagementSkeleton from './EngagementSkeleton.svelte';
+	import EngagementListSkeleton from './EngagementListSkeleton.svelte';
 
 	interface Props {
 		chapter: Chapter; // この章（タイトル・確定ターン列・生成中ターンを含む）
@@ -68,7 +68,7 @@
 						{/each}
 					</ul>
 				{:else if turn.status === 'evaluating'}
-					<EngagementSkeleton speakerPersonaId={turn.personaId} />
+					<EngagementListSkeleton speakerPersonaId={turn.personaId} />
 				{/if}
 			</div>
 		{/each}
