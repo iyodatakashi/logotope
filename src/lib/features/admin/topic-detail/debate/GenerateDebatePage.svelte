@@ -88,7 +88,9 @@
 	// 章ごとにターンを DebateChapter へ渡す。話者名/役割・指名先・engagements・気づきは型に畳まず、
 	// 各コンポーネントが store（personaMap・engagementsMap・getAwarenessesByTurn）や id 参照から描画時に解決する。
 	const hasTurns = $derived(
-		currentTopicStore.chaptersStore.chapters.some((chapter) => chapter.turns.length > 0)
+		currentTopicStore.chaptersStore.chapters.some(
+			(chapter) => chapter.turns.length > 0 || chapter.pendingTurn
+		)
 	);
 </script>
 
@@ -126,8 +128,8 @@
 			{#if !isResetting && hasTurns}
 				<div class="generate-debate-page__chapters-turns">
 					{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.id)}
-						{#if chapter.turns.length > 0}
-							<DebateChapter title={chapter.title} turns={chapter.turns} />
+						{#if chapter.turns.length > 0 || chapter.pendingTurn}
+							<DebateChapter {chapter} />
 						{/if}
 					{/each}
 				</div>
