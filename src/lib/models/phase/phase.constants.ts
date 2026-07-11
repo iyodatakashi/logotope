@@ -80,8 +80,8 @@ export const PHASE_DEFS: readonly PhaseDef[] = [
 // それ以外のフェーズは従来どおり1フェーズ=1ステップ。画面別分岐は作らずここで一元管理する。
 export const STEP_NAV_GROUPS: readonly StepNavGroup[] = [
 	{ label: '事実リサーチ', phases: ['fact-research'] },
-	{ label: 'ペルソナ準備', phases: ['stakeholders', 'personas', 'interviews'] },
-	{ label: '章立て', phases: ['chapters'] },
+	{ label: 'ペルソナ生成', phases: ['stakeholders', 'personas', 'interviews'] },
+	{ label: 'アジェンダ生成', phases: ['chapters'] },
 	{ label: '討論', phases: ['debate'] },
 	{ label: '編集', phases: ['editing'] }
 ];
