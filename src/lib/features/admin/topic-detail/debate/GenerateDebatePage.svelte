@@ -118,37 +118,45 @@
 	{/snippet}
 	{#snippet content()}
 		<div class="generate-debate-page__content">
-			{#if currentTopicStore.chaptersStore.chapters.length}
-				<DebateChapterIndex
-					chapters={currentTopicStore.chaptersStore.chapters}
-					currentChapter={currentTopicStore.chaptersStore.currentChapter}
-				/>
-			{/if}
+			<div class="generate-debate-page__chapter-index">
+				{#if currentTopicStore.chaptersStore.chapters.length}
+					<DebateChapterIndex
+						chapters={currentTopicStore.chaptersStore.chapters}
+						currentChapter={currentTopicStore.chaptersStore.currentChapter}
+					/>
+				{/if}
+			</div>
 
-			{#if !isResetting && hasTurns}
-				<div class="generate-debate-page__chapters-turns">
+			<div class="generate-debate-page__chapters">
+				{#if !isResetting && hasTurns}
 					{#each currentTopicStore.chaptersStore.chapters as chapter (chapter.id)}
 						{#if chapter.turns.length > 0 || chapter.pendingTurn}
 							<DebateChapter {chapter} />
 						{/if}
 					{/each}
-				</div>
-			{/if}
+				{/if}
+			</div>
 		</div>
 	{/snippet}
 </PhasePanel>
 
 <style>
 	.generate-debate-page__content {
-		display: flex;
-		flex-direction: column;
+		display: grid;
+		grid-template-columns: 1fr 3fr;
 		gap: 24px;
 	}
 
-	.generate-debate-page__chapters-turns {
+	.generate-debate-page__chapter-index {
+		position: sticky;
+		align-self: start;
+		top: 84px;
+		min-width: 240px;
+	}
+
+	.generate-debate-page__chapters {
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
-		margin-top: 8px;
 	}
 </style>

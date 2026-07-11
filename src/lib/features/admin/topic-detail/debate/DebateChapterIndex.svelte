@@ -38,7 +38,6 @@
 
 <style>
 	.debate-chapter-index {
-		padding-left: 24px;
 		display: flex;
 		flex-direction: column;
 		gap: 4px;
