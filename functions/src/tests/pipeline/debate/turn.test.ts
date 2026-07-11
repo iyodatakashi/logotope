@@ -55,6 +55,16 @@ vi.mock('../../../utils/prompt-formatters.js', () => ({
 	currentDateString: vi.fn(() => '2026年6月25日')
 }));
 
+// pendingTurn の反映/更新/削除は pending-turn.ts の責務。ここでは配線（呼び出し）のみ検証する
+const mockSetPendingTurn = vi.fn().mockResolvedValue(undefined);
+const mockUpdatePendingTurnStatus = vi.fn().mockResolvedValue(undefined);
+const mockClearPendingTurn = vi.fn().mockResolvedValue(undefined);
+vi.mock('../../../pipeline/debate/pending-turn.js', () => ({
+	setPendingTurn: (...args: unknown[]) => mockSetPendingTurn(...args),
+	updatePendingTurnStatus: (...args: unknown[]) => mockUpdatePendingTurnStatus(...args),
+	clearPendingTurn: (...args: unknown[]) => mockClearPendingTurn(...args)
+}));
+
 // 事実基盤の供給はサーバ権威経路。ここでは空コンテキストを返し、ターン生成配線のみ検証する。
 vi.mock('../../../pipeline/topics/topic-context.js', () => ({
 	getTopicContext: vi.fn(async () => ({}))
@@ -65,6 +75,7 @@ import {
 	addTurn,
 	generateFacilitatorTurn
 } from '../../../pipeline/debate/turn.js';
+import { nanoid } from 'nanoid';
 
 // --- トランザクション get の制御変数 ---
 let txChapterTurns: Array<{ id: string }> = [];
@@ -638,6 +649,45 @@ describe('generatePersonaTurn', () => {
 		});
 	});
 
+	it('persona ターン確定時に status=evaluating 付きで追記する（末尾評価対象マーク・2.3/2.4）', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '発言', speechMode: 'opinion', beliefChange: null }
+		});
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		expect(getWrittenTurn().status).toBe('evaluating');
+	});
+
+	it('persona ターン確定で同一更新の pendingTurn を削除する（生成中→確定の原子的移送・2.8）', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '発言', speechMode: 'opinion', beliefChange: null }
+		});
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		const call = mockTxUpdate.mock.calls.find(
+			(c) => (c[1] as { turns?: unknown[] }).turns !== undefined
+		);
+		expect((call![1] as { pendingTurn: unknown }).pendingTurn).toBe('DELETE');
+	});
+
 	it('ドラフト生成後に討論が停止していたら検証・補正せず skipped を返す（1.5 経路前の短絡）', async () => {
 		mockGenerateTurn.mockResolvedValue({
 			ok: true,
@@ -660,6 +710,169 @@ describe('generatePersonaTurn', () => {
 		expect(result).toEqual({ status: 'skipped' });
 		expect(mockVerifyAndReviseDraft).not.toHaveBeenCalled();
 		expect(mockTxUpdate).not.toHaveBeenCalled();
+	});
+
+	it('生成開始で pendingTurn を generating として先行作成する（話者・frontier・発番id・2.1）', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '発言', speechMode: 'opinion', beliefChange: null }
+		});
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		expect(mockSetPendingTurn).toHaveBeenCalledTimes(1);
+		const pending = mockSetPendingTurn.mock.calls[0][0].pendingTurn;
+		expect(pending.personaId).toBe('p1');
+		expect(pending.status).toBe('generating');
+		expect(pending.expectedTurnIndex).toBe(0);
+		expect(pending.id).toBe('mock-turn-id');
+	});
+
+	it('ファクトチェック開始で pendingTurn を fact-checking に更新する（2.2）', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '発言', speechMode: 'opinion', beliefChange: null }
+		});
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		expect(mockUpdatePendingTurnStatus).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'mock-turn-id', status: 'fact-checking' })
+		);
+	});
+
+	it('コミットへ pendingTurn の発番 id を渡し、同 id を turns へ移送する（addTurn は再発番しない・2.1）', async () => {
+		vi.mocked(nanoid).mockReturnValueOnce('pending-issued-id');
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '発言', speechMode: 'opinion', beliefChange: null }
+		});
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		expect(mockSetPendingTurn.mock.calls[0][0].pendingTurn.id).toBe('pending-issued-id');
+		expect(getWrittenTurn().id).toBe('pending-issued-id');
+	});
+
+	it('討論停止（skipped）で自 id の pendingTurn を削除する（3.4）', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: 'ドラフト', speechMode: 'opinion', beliefChange: null }
+		});
+		mockGet.mockResolvedValue({
+			exists: true,
+			data: () => ({ phase: 'debate', phaseStatus: 'stopped' })
+		});
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		expect(mockClearPendingTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'mock-turn-id' })
+		);
+	});
+
+	it('追記棄却（frontier 敗者・index_mismatch）で自 id の pendingTurn を削除する（3.6）', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '発言', speechMode: 'opinion', beliefChange: null }
+		});
+		txChapterTurns = [{ id: 'already' }]; // 期待位置0だが章 doc は1件 → index_mismatch
+
+		const result = await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		expect(result).toEqual({ status: 'rejected', reason: 'index_mismatch' });
+		expect(mockClearPendingTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'mock-turn-id' })
+		);
+	});
+
+	it('pendingTurn ライフサイクル: generating→fact-checking→コミット(evaluating)+削除の順で遷移する（6.2）', async () => {
+		mockGenerateTurn.mockResolvedValue({
+			ok: true,
+			value: { content: '発言', speechMode: 'opinion', beliefChange: null }
+		});
+
+		await generatePersonaTurn({
+			topicId: 'topic1',
+			personas,
+			chapter: mockChapter,
+			state: makeDebateState(),
+			speakerSelection: makeSpeakerSelection(),
+			engagement: makeEngagement({ mode: 'opinion' })
+		});
+
+		// 段階: generating で先行作成 → fact-checking へ更新
+		expect(mockSetPendingTurn.mock.calls[0][0].pendingTurn.status).toBe('generating');
+		expect(mockUpdatePendingTurnStatus.mock.calls[0][0].status).toBe('fact-checking');
+
+		// 順序: set(generating) < update(fact-checking) < addTurn commit
+		const setOrder = mockSetPendingTurn.mock.invocationCallOrder[0];
+		const updateOrder = mockUpdatePendingTurnStatus.mock.invocationCallOrder[0];
+		const commitOrder = mockTxUpdate.mock.invocationCallOrder[0];
+		expect(setOrder).toBeLessThan(updateOrder);
+		expect(updateOrder).toBeLessThan(commitOrder);
+
+		// コミットで evaluating 付与＋pendingTurn 削除（同一更新）
+		const commitUpdate = mockTxUpdate.mock.calls.find(
+			(c) => (c[1] as { turns?: unknown[] }).turns !== undefined
+		)![1];
+		const committedTurns = (commitUpdate as { turns: Record<string, unknown>[] }).turns;
+		expect(committedTurns[committedTurns.length - 1].status).toBe('evaluating');
+		expect((commitUpdate as { pendingTurn: unknown }).pendingTurn).toBe('DELETE');
+	});
+
+	it('生成失敗で自 id の pendingTurn を削除してから throw する（3.5）', async () => {
+		mockGenerateTurn.mockResolvedValue({ ok: false, error: 'AI_API_ERROR' });
+
+		await expect(
+			generatePersonaTurn({
+				topicId: 'topic1',
+				personas,
+				chapter: mockChapter,
+				state: makeDebateState(),
+				speakerSelection: makeSpeakerSelection(),
+				engagement: makeEngagement({ mode: 'opinion' })
+			})
+		).rejects.toThrow();
+
+		expect(mockClearPendingTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'mock-turn-id' })
+		);
 	});
 });
 
@@ -693,6 +906,40 @@ describe('addTurn - 冪等トランザクション追記', () => {
 		expect(mockTxUpdate).toHaveBeenCalledTimes(1);
 		const [, update] = mockTxUpdate.mock.calls[0];
 		expect((update as { turns: unknown[] }).turns).toHaveLength(3);
+	});
+
+	it('入力で id を指定するとその id を採用し発番しない（pendingTurn 発番 id の移送）', async () => {
+		const result = await addTurn(baseInput({ expectedTurnIndex: 0, id: 'pending-issued-id' }));
+
+		expect(result).toEqual({ status: 'committed', id: 'pending-issued-id' });
+		expect(getWrittenTurn().id).toBe('pending-issued-id');
+	});
+
+	it('id 未指定なら従来どおりトランザクション内で nanoid を発番する（facilitator 経路の互換）', async () => {
+		const result = await addTurn(baseInput({ expectedTurnIndex: 0 }));
+		expect(result).toEqual({ status: 'committed', id: 'mock-turn-id' });
+	});
+
+	it('コミット時に turn の status=evaluating を永続し、同一更新で pendingTurn を削除する（2.3/2.4/3.6）', async () => {
+		await addTurn(
+			baseInput({
+				expectedTurnIndex: 0,
+				turn: { speakerType: 'persona', personaId: 'p1', content: '発言', status: 'evaluating' }
+			})
+		);
+		const [, update] = mockTxUpdate.mock.calls[0];
+		const turns = (update as { turns: Record<string, unknown>[] }).turns;
+		expect(turns).toHaveLength(1);
+		expect(turns[0].status).toBe('evaluating');
+		expect((update as { pendingTurn: unknown }).pendingTurn).toBe('DELETE');
+	});
+
+	it('index_mismatch では turns も pendingTurn も一切書き換えない（副作用なし棄却・3.6）', async () => {
+		txChapterTurns = [{ id: 'a' }];
+		const result = await addTurn(baseInput({ expectedTurnIndex: 0 }));
+
+		expect(result).toEqual({ status: 'rejected', reason: 'index_mismatch' });
+		expect(mockTxUpdate).not.toHaveBeenCalled();
 	});
 
 	it('期待位置が一致しなければ index_mismatch を返し追記しない', async () => {
@@ -802,5 +1049,17 @@ describe('generateFacilitatorTurn - 期待位置照合・runId 世代照合', ()
 		expect(result).toEqual({ status: 'committed', id: 'mock-turn-id' });
 		expect(state.turns).toHaveLength(1);
 		expect(mockTxUpdate).toHaveBeenCalledOnce();
+	});
+
+	it('facilitator ターンには status を付与しない（status/pendingTurn は persona ターンのみ）', async () => {
+		txTopicRunId = 'run-A';
+		const state = { ...makeDebateState(), runId: 'run-A' };
+		await generateFacilitatorTurn({
+			topicId: 'topic1',
+			state,
+			content: 'テスト発言',
+			chapterId: 'ch1'
+		});
+		expect(getWrittenTurn().status).toBeUndefined();
 	});
 });

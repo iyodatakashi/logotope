@@ -26,6 +26,9 @@ export type TurnFactCheckTrace = {
 	originalContent?: string;
 };
 
+// 反応（engagement/awareness）評価中のみ付与。評価完了後は undefined（＝完了）。永続形のミラー。
+export type TurnStatus = 'evaluating';
+
 export type TurnForFirestore = {
 	id: string;
 	speakerType: SpeakerType;
@@ -37,6 +40,7 @@ export type TurnForFirestore = {
 	fromQueue?: boolean;
 	targetPersonaId?: string;
 	factCheck?: TurnFactCheckTrace;
+	status?: TurnStatus;
 };
 
 export type Turn = Omit<TurnForFirestore, 'createdAt'> & { createdAt: Date };

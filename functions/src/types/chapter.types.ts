@@ -31,6 +31,17 @@ export type AgendaItemState = {
 
 export type ChapterProgressStatus = 'pending' | 'running' | 'completed';
 
+// 生成中（未コミット）の persona ターンの段階。turns[] には入れず frontier から隔離する。
+export type PendingTurnStatus = 'generating' | 'fact-checking';
+
+// 生成中の persona ターン。コミットで同 id を turns[] へ移送する。
+export type PendingTurn = {
+	id: string; // 生成開始時に発番。コミットで同 id を turns[] へ移す
+	personaId: string; // 次の発言者（nextSpeakerId は設けない）
+	expectedTurnIndex: number; // どの frontier のものかを識別する（compare-and-clear 用）
+	status: PendingTurnStatus;
+};
+
 export type ChapterForFirestore = {
 	chapterIndex: number;
 	title: string;
@@ -39,6 +50,7 @@ export type ChapterForFirestore = {
 	agendaItemStatuses?: AgendaItemState[];
 	quietStreak?: number;
 	status: ChapterProgressStatus;
+	pendingTurn?: PendingTurn; // 生成中のみ存在
 };
 
 export type ChapterProgress = {

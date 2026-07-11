@@ -37,7 +37,8 @@ vi.mock('../../../pipeline/debate/engagement.js', () => ({
 	evaluateEngagements: vi.fn().mockResolvedValue([]),
 	evaluateEngagementWithFallback: vi
 		.fn()
-		.mockResolvedValue({ personaId: 'p1', score: 0, mode: 'none' })
+		.mockResolvedValue({ personaId: 'p1', score: 0, mode: 'none' }),
+	evaluateReactionsForCommittedTurn: vi.fn().mockResolvedValue(undefined)
 }));
 vi.mock('../../../pipeline/debate/speaker-selection.js', () => ({
 	selectSpeaker: vi.fn(() => ({ personaId: 'p1', reason: 'score' }))
@@ -64,7 +65,8 @@ import { updateChapterStatus } from '../../../pipeline/debate/chapter.js';
 import { generateFacilitatorTurn, generatePersonaTurn } from '../../../pipeline/debate/turn.js';
 import {
 	evaluateEngagements,
-	evaluateEngagementWithFallback
+	evaluateEngagementWithFallback,
+	evaluateReactionsForCommittedTurn
 } from '../../../pipeline/debate/engagement.js';
 import { progressAgenda } from '../../../pipeline/debate/intervention.js';
 
@@ -389,6 +391,145 @@ describe('performTurnStep - 最後の論点消化のみ（committed-no-turn・Ta
 		expect(vi.mocked(generatePersonaTurn)).not.toHaveBeenCalled();
 		// 章終了へ渡すシグナルを返す（quietStreak は据え置く）
 		expect(result).toEqual({ status: 'chapter-exhausted', quietStreak: 2 });
+	});
+});
+
+describe('末尾評価の配線（コミット後・自己修復・章クローズ・Task 4）', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		vi.mocked(evaluateEngagements).mockResolvedValue([]);
+		vi.mocked(evaluateEngagementWithFallback).mockResolvedValue({
+			personaId: 'p1',
+			score: 0,
+			mode: 'none'
+		});
+		vi.mocked(evaluateReactionsForCommittedTurn).mockResolvedValue(undefined);
+	});
+
+	const committedTurnIds = (): string[] =>
+		vi
+			.mocked(evaluateReactionsForCommittedTurn)
+			.mock.calls.map((call) => call[0].committedTurnId);
+
+	const openingCtx = (): StepContext => {
+		const opening: DebateTurn = {
+			id: 't0',
+			speakerType: 'facilitator',
+			content: '導入',
+			createdAt: ''
+		};
+		const state = makeState([opening], [{ point: '論点A', status: 'introduced', introducedOrder: 1 }]);
+		const chapterDoc: ChapterEntry = {
+			id: 'ch1',
+			chapterIndex: 0,
+			title: 'テスト章',
+			agenda: ['論点A'],
+			turns: [opening],
+			status: 'running'
+		};
+		return makeCtx({ chapterDoc, state, chapterTurnStartInState: 0 });
+	};
+
+	const options = { turnsPerChapter: 10, maxTurns: 100, interventionCooldown: 2 };
+
+	it('通常ターン確定後に、確定ターン自身への末尾評価を実行する（4.1/1.1）', async () => {
+		vi.mocked(generatePersonaTurn).mockResolvedValue({
+			status: 'committed',
+			personaId: 'p1',
+			turnId: 'tn1',
+			queuedEntries: []
+		} as never);
+
+		await performTurnStep(
+			openingCtx(),
+			makePayload({ stepKind: 'turn', expectedTurnIndex: 1 }),
+			options
+		);
+
+		expect(committedTurnIds()).toContain('tn1');
+	});
+
+	it('通常ターンのステップ先頭で直前確定ターンの末尾評価（自己修復）を呼ぶ（4.3/3.7）', async () => {
+		vi.mocked(generatePersonaTurn).mockResolvedValue({
+			status: 'committed',
+			personaId: 'p1',
+			turnId: 'tn1',
+			queuedEntries: []
+		} as never);
+
+		await performTurnStep(
+			openingCtx(),
+			makePayload({ stepKind: 'turn', expectedTurnIndex: 1 }),
+			options
+		);
+
+		expect(committedTurnIds()).toContain('t0'); // 直前の確定ターン（オープニング）
+	});
+
+	it('オープニング確定後に、そのファシリテーターターンへの末尾評価を実行する（4.2/1.5）', async () => {
+		vi.mocked(generateOpening).mockResolvedValue({
+			ok: true,
+			value: { content: '問いかけ', targetPersonaId: 'p1', selectedAgendaItemIndex: 0 }
+		} as never);
+		vi.mocked(generateFacilitatorTurn).mockResolvedValue({ status: 'committed', id: 'f1' });
+
+		const ctx = makeCtx({ chapter: makeChapter(['論点1']) });
+		await performOpenStep(ctx, makePayload({ stepKind: 'open' }));
+
+		expect(committedTurnIds()).toContain('f1');
+	});
+
+	it('章末最終応答（freeze）確定後に、その最終応答ターンへの末尾評価を実行する（4.2/1.6）', async () => {
+		vi.mocked(generatePersonaTurn).mockResolvedValue({
+			status: 'committed',
+			personaId: 'p2',
+			turnId: 'tn2',
+			queuedEntries: []
+		} as never);
+
+		const targetedTurn: DebateTurn = {
+			id: 't0',
+			speakerType: 'persona',
+			personaId: 'p1',
+			content: '指名する',
+			targetPersonaId: 'p2',
+			targetedBy: 'facilitator',
+			createdAt: ''
+		};
+		const state = makeState([targetedTurn]);
+		const chapterDoc: ChapterEntry = {
+			id: 'ch1',
+			chapterIndex: 0,
+			title: 'テスト章',
+			agenda: [],
+			turns: [targetedTurn],
+			status: 'running'
+		};
+		const ctx = makeCtx({ chapterDoc, state, chapterTurnStartInState: 0 });
+
+		await performTurnStep(
+			ctx,
+			makePayload({ stepKind: 'turn', expectedTurnIndex: 1, finalResponse: true }),
+			options
+		);
+
+		expect(committedTurnIds()).toContain('tn2');
+	});
+
+	it('章完了の確定前に、最終ターンへの末尾評価（自己修復）を呼ぶ（4.3/3.3/3.7）', async () => {
+		const chapterDoc: ChapterEntry = {
+			id: 'ch1',
+			chapterIndex: 0,
+			title: 'テスト章',
+			agenda: ['論点A'],
+			turns: [{ id: 't9', speakerType: 'persona', personaId: 'p1', content: '最終', createdAt: '' }],
+			status: 'running'
+		};
+		const ctx = makeCtx({ chapterDoc });
+
+		await completeChapterStep(ctx, makePayload({ stepKind: 'chapter-end' }));
+
+		expect(committedTurnIds()).toContain('t9');
 	});
 });
 

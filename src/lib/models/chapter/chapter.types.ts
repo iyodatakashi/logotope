@@ -9,6 +9,17 @@ export type AgendaItemState = {
 	status: AgendaItemStatus;
 };
 
+// 生成中（未コミット）の persona ターンの段階。turns[] 外に持ち frontier から隔離する。永続形のミラー。
+export type PendingTurnStatus = 'generating' | 'fact-checking';
+
+// 生成中の persona ターン。コミットで同 id を turns[] へ移送する。
+export type PendingTurn = {
+	id: string;
+	personaId: string;
+	expectedTurnIndex: number;
+	status: PendingTurnStatus;
+};
+
 export type ChapterForFirestore = {
 	chapterIndex: number;
 	title: string;
@@ -16,6 +27,7 @@ export type ChapterForFirestore = {
 	turns: TurnForFirestore[];
 	agendaItemStatuses?: AgendaItemState[];
 	status: ChapterProgressStatus;
+	pendingTurn?: PendingTurn;
 };
 
 export type Chapter = Omit<ChapterForFirestore, 'turns'> & {

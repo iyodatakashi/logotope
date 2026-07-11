@@ -23,7 +23,8 @@ const mockRunTransaction = vi.fn(
 const mockDoc = vi.fn((path: string) => ({ path, get: mockGet }));
 vi.mock('firebase-admin/firestore', () => ({
 	getFirestore: vi.fn(() => ({ doc: mockDoc, runTransaction: mockRunTransaction })),
-	Timestamp: { now: vi.fn(() => 'mock-timestamp') }
+	Timestamp: { now: vi.fn(() => 'mock-timestamp') },
+	FieldValue: { delete: vi.fn(() => 'DELETE') }
 }));
 
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'mock-id') }));
@@ -47,6 +48,13 @@ vi.mock('../../../pipeline/topics/topic-context.js', () => ({
 
 vi.mock('../../../utils/prompt-formatters.js', () => ({
 	currentDateString: vi.fn(() => '2026年6月25日')
+}));
+
+// pendingTurn の反映/更新/削除は本フローの検証対象外（別テストでカバー）
+vi.mock('../../../pipeline/debate/pending-turn.js', () => ({
+	setPendingTurn: vi.fn().mockResolvedValue(undefined),
+	updatePendingTurnStatus: vi.fn().mockResolvedValue(undefined),
+	clearPendingTurn: vi.fn().mockResolvedValue(undefined)
 }));
 
 // --- 検証コア（checkContent）のリーフ: ai / google provider / grounding / judge ---

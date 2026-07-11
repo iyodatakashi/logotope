@@ -3,6 +3,7 @@ import { Timestamp } from 'firebase/firestore';
 import type {
 	TurnForFirestore,
 	Turn,
+	TurnStatus,
 	FactCheckVerdict,
 	FactCheckFinding,
 	TurnFactCheckTrace
@@ -74,5 +75,27 @@ describe('turn.types', () => {
 			createdAt: new Date()
 		};
 		expect(turn.factCheck).toBeUndefined();
+	});
+
+	it('TurnStatus=evaluating を TurnForFirestore に反映できる（永続ミラー）', () => {
+		const status: TurnStatus = 'evaluating';
+		const turn: TurnForFirestore = {
+			id: 't1',
+			speakerType: 'persona',
+			content: '確定発言',
+			createdAt: Timestamp.fromDate(new Date()),
+			status
+		};
+		expect(turn.status).toBe('evaluating');
+	});
+
+	it('status は任意フィールド（評価完了後は未設定）', () => {
+		const turn: Turn = {
+			id: 't1',
+			speakerType: 'persona',
+			content: '確定発言',
+			createdAt: new Date()
+		};
+		expect(turn.status).toBeUndefined();
 	});
 });

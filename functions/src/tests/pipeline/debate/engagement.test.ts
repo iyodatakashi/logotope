@@ -10,6 +10,7 @@ let mockHistoryByPersona: Record<string, Record<string, unknown>> = {};
 const mockDoc = vi.fn((path: string) => {
 	const personaId = path.split('/').pop() ?? '';
 	return {
+		path,
 		update: mockUpdate,
 		set: mockSet,
 		get: vi.fn().mockResolvedValue({
@@ -18,8 +19,16 @@ const mockDoc = vi.fn((path: string) => {
 	};
 });
 
+// status 解除トランザクション（末尾評価）の get/update 制御
+const mockTxGet = vi.fn();
+const mockTxUpdate = vi.fn();
+const mockRunTransaction = vi.fn(
+	async (fn: (tx: { get: typeof mockTxGet; update: typeof mockTxUpdate }) => Promise<unknown>) =>
+		fn({ get: mockTxGet, update: mockTxUpdate })
+);
+
 vi.mock('firebase-admin/firestore', () => ({
-	getFirestore: vi.fn(() => ({ doc: mockDoc })),
+	getFirestore: vi.fn(() => ({ doc: mockDoc, runTransaction: mockRunTransaction })),
 	Timestamp: { now: vi.fn(() => ({ toDate: () => new Date() })) },
 	FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args) }
 }));
@@ -36,8 +45,22 @@ vi.mock('../../../pipeline/debate/awareness.js', () => ({
 
 import {
 	evaluateEngagements,
-	evaluateEngagementWithFallback
+	evaluateEngagementWithFallback,
+	evaluateReactionsForCommittedTurn
 } from '../../../pipeline/debate/engagement.js';
+
+// 末尾評価の status 解除トランザクション get の制御変数
+let txChapterTurns: DebateTurn[] = [];
+let txTopicRunId: string | undefined = undefined;
+
+const setupTxDocs = () => {
+	mockTxGet.mockImplementation(async (ref: { path: string }) => {
+		if (ref.path.includes('/chapters/')) {
+			return { data: () => ({ turns: txChapterTurns }) };
+		}
+		return { data: () => ({ runId: txTopicRunId }) };
+	});
+};
 
 const makePersona = (id: string, name: string): Persona => ({
 	id,
@@ -436,5 +459,139 @@ describe('evaluateEngagementWithFallback', () => {
 		});
 
 		expect(mockAppendAwareness).not.toHaveBeenCalled();
+	});
+});
+
+describe('evaluateReactionsForCommittedTurn（末尾評価・コミット済みターンへの反応と status 終了）', () => {
+	const evaluatingTurn = (id: string): DebateTurn => ({
+		...makeDebateTurn(id),
+		status: 'evaluating'
+	});
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockHistoryByPersona = {};
+		txChapterTurns = [];
+		txTopicRunId = undefined;
+		setupTxDocs();
+		mockEvaluateEngagement.mockResolvedValue({ personaId: 'p1', score: 3, mode: 'opinion' });
+	});
+
+	it('末尾ターンの全非話者を評価し committedTurnId で永続する（話者本人は反応対象外・1.1/1.2）', async () => {
+		const personas = [
+			makePersona('p1', '田中太郎'),
+			makePersona('p2', '佐藤花子'),
+			makePersona('p3', '鈴木次郎')
+		];
+		txChapterTurns = [evaluatingTurn('t1')]; // 話者は p1（makeDebateTurn の personaId）
+
+		await evaluateReactionsForCommittedTurn({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			committedTurnId: 't1',
+			personas,
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		const evaluatedIds = mockEvaluateEngagement.mock.calls.map(
+			(call: unknown[]) => (call[0] as Persona).id
+		);
+		expect(evaluatedIds).not.toContain('p1'); // 話者本人は自分の発言に反応しない
+		expect(evaluatedIds).toEqual(expect.arrayContaining(['p2', 'p3']));
+		// committedTurnId=t1 の history に永続される
+		const savedForT1 = mockSet.mock.calls.some(
+			(call) => (call[0] as { history?: Record<string, unknown> }).history?.t1 !== undefined
+		);
+		expect(savedForT1).toBe(true);
+	});
+
+	it('既に永続済みなら LLM 再評価せず awareness も再検出しない（同一ターン二重評価回避・1.7）', async () => {
+		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
+		mockHistoryByPersona = { p2: { t1: { score: 3, mode: 'opinion' } } };
+		txChapterTurns = [evaluatingTurn('t1')];
+
+		await evaluateReactionsForCommittedTurn({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			committedTurnId: 't1',
+			personas,
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		expect(mockEvaluateEngagement).not.toHaveBeenCalled();
+		expect(mockAppendAwareness).not.toHaveBeenCalled();
+	});
+
+	it('気づきは engagement 評価に相乗りで検出し committedTurnId に紐づけ永続する（1.2/1.3）', async () => {
+		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
+		const awareness = { kind: 'reception', content: 'なるほど', sourcePersonaId: 'p1' };
+		mockEvaluateEngagement.mockImplementation(async (p: Persona) =>
+			p.id === 'p2'
+				? { personaId: 'p2', score: 3, mode: 'opinion', awareness }
+				: { personaId: p.id, score: 2, mode: 'opinion', awareness: null }
+		);
+		txChapterTurns = [evaluatingTurn('t1')];
+
+		await evaluateReactionsForCommittedTurn({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			committedTurnId: 't1',
+			personas,
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		expect(mockAppendAwareness).toHaveBeenCalledTimes(1);
+		expect(mockAppendAwareness.mock.calls[0][0].turnId).toBe('t1');
+		expect(mockAppendAwareness.mock.calls[0][0].persona.id).toBe('p2');
+	});
+
+	it('反応永続とセットで当該ターンの status(evaluating) を解除する（2.5）', async () => {
+		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
+		txChapterTurns = [evaluatingTurn('t1')];
+
+		await evaluateReactionsForCommittedTurn({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			committedTurnId: 't1',
+			personas,
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		expect(mockTxUpdate).toHaveBeenCalledTimes(1);
+		const [, update] = mockTxUpdate.mock.calls[0];
+		const turns = (update as { turns: DebateTurn[] }).turns;
+		expect(turns.find((turn) => turn.id === 't1')?.status).toBeUndefined();
+	});
+
+	it('当該ターンの status が既に未設定なら status 解除の書き込みをしない（冪等・自己修復）', async () => {
+		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
+		txChapterTurns = [makeDebateTurn('t1')]; // status なし
+
+		await evaluateReactionsForCommittedTurn({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			committedTurnId: 't1',
+			personas,
+			chapterTurns: [makeDebateTurn('t1')]
+		});
+
+		expect(mockTxUpdate).not.toHaveBeenCalled();
+	});
+
+	it('runId 不一致（敗者）では確定ターンの status を上書きしない（世代ガード・3.6）', async () => {
+		const personas = [makePersona('p1', '田中太郎'), makePersona('p2', '佐藤花子')];
+		txChapterTurns = [evaluatingTurn('t1')];
+		txTopicRunId = 'run-B';
+
+		await evaluateReactionsForCommittedTurn({
+			topicId: 'topic1',
+			chapterId: 'ch1',
+			committedTurnId: 't1',
+			personas,
+			chapterTurns: [makeDebateTurn('t1')],
+			runId: 'run-A'
+		});
+
+		expect(mockTxUpdate).not.toHaveBeenCalled();
 	});
 });

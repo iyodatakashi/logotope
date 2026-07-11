@@ -145,6 +145,94 @@ export const evaluateEngagements = async ({
 	return engagements;
 };
 
+/**
+ * コミット済みターン（turns 内の対象要素）の `status='evaluating'` を、runId 世代ガード付き
+ * トランザクションで解除する。敗者（世代不一致）は確定ターンを上書きしない（3.6）。既に未設定なら
+ * 書き込みを行わない（冪等・自己修復で二重更新しない）。
+ */
+const clearCommittedTurnStatus = async (params: {
+	topicId: string;
+	chapterId: string;
+	turnId: string;
+	runId?: string;
+}): Promise<void> => {
+	const { topicId, chapterId, turnId, runId } = params;
+	const chapterRef = db().doc(`topics/${topicId}/chapters/${chapterId}`);
+	const topicRef = db().doc(`topics/${topicId}`);
+	await db().runTransaction(async (tx) => {
+		if (runId) {
+			const topicSnap = await tx.get(topicRef);
+			const topicData = topicSnap.data() as { runId?: string } | undefined;
+			if (topicData?.runId && topicData.runId !== runId) return;
+		}
+		const chapterSnap = await tx.get(chapterRef);
+		const data = chapterSnap.data() as { turns?: DebateTurn[] } | undefined;
+		const currentTurns = data?.turns ?? [];
+		const target = currentTurns.find((turn) => turn.id === turnId);
+		if (!target || target.status === undefined) return;
+		const nextTurns = currentTurns.map((turn) => {
+			if (turn.id !== turnId) return turn;
+			const cleared = { ...turn };
+			delete cleared.status;
+			return cleared;
+		});
+		tx.update(chapterRef, { turns: nextTurns });
+	});
+};
+
+/**
+ * 直近コミットしたターン（turns 末尾）への全非話者の反応（engagement/awareness）を末尾評価・永続し、
+ * セットで当該ターンの `status='evaluating'` を解除する（1.1/1.2/1.3/1.7/2.5）。
+ * 対象ターンの話者は自身の発言に反応しないため評価対象から外す（facilitator ターンは話者なし＝全員が対象）。
+ * 既に永続済みなら readReusableEngagement により LLM 再評価・awareness 再検出をしない（二重評価回避）。
+ */
+export const evaluateReactionsForCommittedTurn = async ({
+	topicId,
+	chapterId,
+	committedTurnId,
+	personas,
+	chapterTurns,
+	runId
+}: {
+	topicId: string;
+	chapterId: string;
+	committedTurnId: string;
+	personas: Persona[];
+	chapterTurns: ReadonlyArray<DebateTurn>;
+	runId?: string;
+}): Promise<void> => {
+	const committedTurn = chapterTurns.find((turn) => turn.id === committedTurnId);
+	const speakerId = committedTurn?.personaId ?? undefined;
+	const assessTargets = personas.filter((persona) => persona.id !== speakerId);
+	const engagements = await Promise.all(
+		assessTargets.map(async (persona) => {
+			const reused = committedTurnId
+				? await readReusableEngagement(topicId, chapterId, persona.id, committedTurnId)
+				: null;
+			if (reused) return reused;
+			const otherPersonaNames = personas
+				.filter((otherPersona) => otherPersona.id !== persona.id)
+				.map((otherPersona) => otherPersona.name);
+			return evaluateEngagement(persona, [...chapterTurns], otherPersonaNames, personas);
+		})
+	);
+	await saveEngagements({
+		topicId,
+		chapterId,
+		turnId: committedTurnId,
+		engagements: engagements.map((engagement) => ({
+			personaId: engagement.personaId,
+			score: engagement.score,
+			mode: engagement.mode,
+			intentSummary: engagement.intentSummary
+		}))
+	});
+	// 気づきは engagement 評価に相乗りで検出済み（専用 LLM なし・1.3）。当該ターンidに紐づけ永続する（1.2）
+	await persistDetectedAwareness(topicId, personas, engagements, committedTurnId);
+	// 反応永続とセットで当該ターンの evaluating を解除する（中間状態を残さない・世代ガード付き・2.5/3.6）
+	await clearCommittedTurnStatus({ topicId, chapterId, turnId: committedTurnId, runId });
+};
+
 /** engagements に含まれない話者（直前話者など）を個別評価してフォールバックする */
 export const evaluateEngagementWithFallback = async ({
 	topicId,

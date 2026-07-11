@@ -4,6 +4,7 @@ import {
 	isNonEmptyArray,
 	type DebateTurn,
 	type NewTurnFields,
+	type TurnStatus,
 	type TurnGenerationContext,
 	type TurnFactCheckTrace,
 	type TurnFactCheckFeedback,
@@ -89,6 +90,43 @@ describe('turn.types ファクトチェック補正トレース', () => {
 			factCheckFeedback: feedback
 		};
 		expect(context.factCheckFeedback?.[0].verdict).toBe('incorrect');
+	});
+});
+
+describe('turn.types 反応評価中ステータス（末尾評価の生成段階）', () => {
+	it('TurnStatus は evaluating（反応評価中）', () => {
+		const status: TurnStatus = 'evaluating';
+		expect(status).toBe('evaluating');
+	});
+
+	it('DebateTurn に status=evaluating を付与できる', () => {
+		const turn: DebateTurn = {
+			id: 't1',
+			speakerType: 'persona',
+			content: '確定発言',
+			createdAt: { seconds: 0, nanoseconds: 0 } as Timestamp,
+			status: 'evaluating'
+		};
+		expect(turn.status).toBe('evaluating');
+	});
+
+	it('status は任意フィールド（評価完了後は未設定＝完了）', () => {
+		const turn: DebateTurn = {
+			id: 't1',
+			speakerType: 'persona',
+			content: '確定発言',
+			createdAt: { seconds: 0, nanoseconds: 0 } as Timestamp
+		};
+		expect(turn.status).toBeUndefined();
+	});
+
+	it('NewTurnFields に status を通せる（追記入力からコミット時に書き出す）', () => {
+		const newTurn: NewTurnFields = {
+			speakerType: 'persona',
+			content: '確定発言',
+			status: 'evaluating'
+		};
+		expect(newTurn.status).toBe('evaluating');
 	});
 });
 

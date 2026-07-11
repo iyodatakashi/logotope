@@ -122,6 +122,51 @@ describe('createChaptersStore', () => {
 		expect(store.currentChapter).toBeNull();
 	});
 
+	it('章の pendingTurn が既存購読でそのまま観測できる（追加リスナーなし・2.6/2.7）', () => {
+		const store = createChaptersStore('topic1');
+		populate(store, [
+			makeChapter({
+				id: 'ch1',
+				chapterIndex: 0,
+				status: 'running',
+				pendingTurn: { id: 'p1', personaId: 'per2', expectedTurnIndex: 1, status: 'generating' }
+			})
+		]);
+
+		expect(store.chapters[0].pendingTurn).toEqual({
+			id: 'p1',
+			personaId: 'per2',
+			expectedTurnIndex: 1,
+			status: 'generating'
+		});
+	});
+
+	it('各ターンの status（evaluating）が既存購読で観測できる（2.6）', () => {
+		const store = createChaptersStore('topic1');
+		const fakeTs = {
+			toDate: () => new Date()
+		} as unknown as import('firebase/firestore').Timestamp;
+
+		populate(store, [
+			makeChapter({
+				id: 'ch1',
+				chapterIndex: 0,
+				turns: [
+					{
+						id: 't1',
+						speakerType: 'persona' as const,
+						content: '確定発言',
+						createdAt: fakeTs,
+						status: 'evaluating'
+					}
+				]
+			})
+		]);
+
+		expect(store.chapters[0].turns[0].status).toBe('evaluating');
+		expect(store.turns[0].status).toBe('evaluating');
+	});
+
 	it('stop 後は unsubscribe が呼ばれる', async () => {
 		const unsubscribeMock = vi.fn();
 		const { onSnapshot } = await import('firebase/firestore');

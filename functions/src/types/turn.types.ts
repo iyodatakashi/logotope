@@ -19,6 +19,9 @@ export type TurnFactCheckFeedback = ReadonlyArray<{
 	reason: string;
 }>;
 
+// 反応（engagement/awareness）評価中のみ付与。確定・評価完了後は undefined（＝完了）。
+export type TurnStatus = 'evaluating';
+
 export type DebateTurn = {
 	id: string;
 	speakerType: string;
@@ -33,6 +36,7 @@ export type DebateTurn = {
 	searchUsed?: boolean;
 	searchQueries?: string[];
 	factCheck?: TurnFactCheckTrace;
+	status?: TurnStatus;
 };
 
 export type NewTurnFields = {
@@ -47,6 +51,7 @@ export type NewTurnFields = {
 	searchUsed?: boolean;
 	searchQueries?: string[];
 	factCheck?: TurnFactCheckTrace;
+	status?: TurnStatus;
 };
 
 export type ProgressPatch = {
@@ -61,6 +66,8 @@ export type AppendTurnInput = {
 	turn: NewTurnFields;
 	runId?: string;
 	progressPatch?: ProgressPatch;
+	// 生成開始時に発番した id（pendingTurn 経路）。未指定時はトランザクション内で発番する。
+	id?: string;
 };
 
 export type AppendResult =

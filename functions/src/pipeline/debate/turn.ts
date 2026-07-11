@@ -1,10 +1,11 @@
-import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { nanoid } from 'nanoid';
 import { generateTurn } from '../../agents/persona-agent.js';
 import { verifyAndReviseDraft } from './inline-fact-check.js';
 import { getActiveAgendaItem } from './agenda.js';
 import { getTopicContext } from '../topics/topic-context.js';
 import { isDebateActive } from './debate-lifecycle.js';
+import { setPendingTurn, updatePendingTurnStatus, clearPendingTurn } from './pending-turn.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
 import { currentDateString } from '../../utils/prompt-formatters.js';
 import type {
@@ -45,6 +46,8 @@ const buildTurnRecord = (id: string, turn: NewTurnFields): Record<string, unknow
 	if (turn.searchQueries?.length) record.searchQueries = turn.searchQueries;
 	// 補正トレース（検証状態・補正有無・適用指摘・補正前ドラフト）を発言に co-located で永続化（4.2）
 	if (turn.factCheck !== undefined) record.factCheck = turn.factCheck;
+	// 反応評価中マーク。末尾評価対象の persona ターンにのみ付与し、完了で削除する（2.3/2.4）
+	if (turn.status !== undefined) record.status = turn.status;
 	return record;
 };
 
@@ -57,7 +60,8 @@ export const addTurn = async (input: AppendTurnInput): Promise<AppendResult> => 
 	const { topicId, chapterId, expectedTurnIndex, turn, runId, progressPatch } = input;
 	const chapterRef = db().doc(`topics/${topicId}/chapters/${chapterId}`);
 	const topicRef = db().doc(`topics/${topicId}`);
-	const id = nanoid();
+	// pendingTurn 経路は生成開始時に発番した id を移送する。未指定時のみ従来どおり発番する。
+	const id = input.id ?? nanoid();
 	return db().runTransaction(async (tx) => {
 		// runId がペイロード・topic doc の双方にある場合のみ世代照合する（後方互換）
 		if (runId) {
@@ -74,7 +78,9 @@ export const addTurn = async (input: AppendTurnInput): Promise<AppendResult> => 
 			return { status: 'rejected', reason: 'index_mismatch' };
 		}
 		const update: Record<string, unknown> = {
-			turns: [...currentTurns, buildTurnRecord(id, turn)]
+			turns: [...currentTurns, buildTurnRecord(id, turn)],
+			// 生成中→確定の原子的移送：確定と同一トランザクションで pendingTurn を消す（2.8）
+			pendingTurn: FieldValue.delete()
 		};
 		if (progressPatch?.quietStreak !== undefined) {
 			update.quietStreak = progressPatch.quietStreak;
@@ -233,79 +239,117 @@ export const generatePersonaTurn = async ({
 		intentSummary: speakerSelection.intentSummary ?? engagement.intentSummary
 	};
 
-	// まずドラフトを生成する
-	const turnResult = await generateTurn(persona, generationContext, turnEngagement, personas);
-	if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
-
-	// 生成中に討論が停止された場合は、ドラフトを検証・保存せず状態も更新しない
-	if (!(await isDebateActive(topicId))) return { status: 'skipped' };
-
-	// 討論継続中はインライン検証・補正を経てから正式登録する（誤った発言の伝播を防ぐ）
-	const factCheckContext: FactCheckContext = {
-		topicTitle,
-		chapterTitle: chapter.title,
-		discussionScope: activeAgendaItem ?? chapter.title,
-		currentDate: currentDateString()
-	};
-	const { reply, trace } = await verifyAndReviseDraft({
-		draft: turnResult.value,
-		persona,
-		context: generationContext,
-		factCheckContext,
-		engagement: turnEngagement,
-		personas
-	});
-
-	// 採用された発言（補正後 or 原ドラフト）で指名先の再検証・発言モード確定を行う（3.3）
-	const rawTarget = reply.targetPersonaId;
-	const targetPersonaId =
-		rawTarget !== persona.id ? validPersonaId(rawTarget, personas) : undefined;
-
-	// question モードで targetPersonaId が設定されなかった場合は opinion にフォールバック
-	const effectiveSpeechMode =
-		reply.speechMode === 'question' && !targetPersonaId ? 'opinion' : reply.speechMode;
-
-	const addTurnResult = await addTurn({
+	// 話者確定・本文生成開始で pendingTurn を generating として先行作成する（発番 id をコミットへ移送・2.1）
+	const expectedTurnIndex = state.turns.length - chapterTurnStartIndex;
+	const pendingTurnId = nanoid();
+	await setPendingTurn({
 		topicId,
 		chapterId: chapter.id,
-		expectedTurnIndex: state.turns.length - chapterTurnStartIndex,
-		turn: {
+		pendingTurn: {
+			id: pendingTurnId,
+			personaId: persona.id,
+			expectedTurnIndex,
+			status: 'generating'
+		}
+	});
+
+	try {
+		// まずドラフトを生成する
+		const turnResult = await generateTurn(persona, generationContext, turnEngagement, personas);
+		if (!turnResult.ok) throw new Error(pipelineErrorMessage(turnResult.error));
+
+		// 生成中に討論が停止された場合は、ドラフトを検証・保存せず未確定 pendingTurn を消す（3.4）
+		if (!(await isDebateActive(topicId))) {
+			await clearPendingTurn({ topicId, chapterId: chapter.id, id: pendingTurnId });
+			return { status: 'skipped' };
+		}
+
+		// ファクトチェック開始で pendingTurn を fact-checking に更新する（2.2）
+		await updatePendingTurnStatus({
+			topicId,
+			chapterId: chapter.id,
+			id: pendingTurnId,
+			status: 'fact-checking'
+		});
+
+		// 討論継続中はインライン検証・補正を経てから正式登録する（誤った発言の伝播を防ぐ）
+		const factCheckContext: FactCheckContext = {
+			topicTitle,
+			chapterTitle: chapter.title,
+			discussionScope: activeAgendaItem ?? chapter.title,
+			currentDate: currentDateString()
+		};
+		const { reply, trace } = await verifyAndReviseDraft({
+			draft: turnResult.value,
+			persona,
+			context: generationContext,
+			factCheckContext,
+			engagement: turnEngagement,
+			personas
+		});
+
+		// 採用された発言（補正後 or 原ドラフト）で指名先の再検証・発言モード確定を行う（3.3）
+		const rawTarget = reply.targetPersonaId;
+		const targetPersonaId =
+			rawTarget !== persona.id ? validPersonaId(rawTarget, personas) : undefined;
+
+		// question モードで targetPersonaId が設定されなかった場合は opinion にフォールバック
+		const effectiveSpeechMode =
+			reply.speechMode === 'question' && !targetPersonaId ? 'opinion' : reply.speechMode;
+
+		const addTurnResult = await addTurn({
+			topicId,
+			chapterId: chapter.id,
+			expectedTurnIndex,
+			// pendingTurn で発番した id を確定ターンへ移送する（addTurn は同一tx で pendingTurn を削除）
+			id: pendingTurnId,
+			turn: {
+				speakerType: 'persona',
+				personaId: persona.id,
+				content: reply.content,
+				speechMode: effectiveSpeechMode,
+				engagementScore: engagement.score,
+				fromQueue: fromQueue || undefined,
+				targetPersonaId,
+				targetedBy: targetPersonaId ? 'persona' : undefined,
+				searchUsed: reply.searchUsed,
+				searchQueries: reply.searchQueries,
+				factCheck: trace,
+				// 確定と同時に末尾評価対象としてマークする。end-eval 完了でクリアされる（2.3/2.4）
+				status: 'evaluating'
+			},
+			runId: state.runId,
+			progressPatch
+		});
+		// 追記棄却（frontier 敗者・世代不一致）は自分の pendingTurn を消して理由を伝播する（3.6・R9.2）
+		if (addTurnResult.status !== 'committed') {
+			await clearPendingTurn({ topicId, chapterId: chapter.id, id: pendingTurnId });
+			return addTurnResult;
+		}
+		const { id: turnId } = addTurnResult;
+		state.turns.push({
+			id: turnId,
 			speakerType: 'persona',
 			personaId: persona.id,
 			content: reply.content,
-			speechMode: effectiveSpeechMode,
-			engagementScore: engagement.score,
+			createdAt: Timestamp.now(),
 			fromQueue: fromQueue || undefined,
 			targetPersonaId,
 			targetedBy: targetPersonaId ? 'persona' : undefined,
-			searchUsed: reply.searchUsed,
-			searchQueries: reply.searchQueries,
 			factCheck: trace
-		},
-		runId: state.runId,
-		progressPatch
-	});
-	// 追記棄却の理由（generation_mismatch / index_mismatch）を潰さずそのまま伝播する（R9.2）
-	if (addTurnResult.status !== 'committed') return addTurnResult;
-	const { id: turnId } = addTurnResult;
-	state.turns.push({
-		id: turnId,
-		speakerType: 'persona',
-		personaId: persona.id,
-		content: reply.content,
-		createdAt: Timestamp.now(),
-		fromQueue: fromQueue || undefined,
-		targetPersonaId,
-		targetedBy: targetPersonaId ? 'persona' : undefined,
-		factCheck: trace
-	});
+		});
 
-	return {
-		status: 'committed',
-		turnId,
-		personaId: persona.id,
-		targetPersonaId,
-		queuedEntries,
-		fromQueue
-	};
+		return {
+			status: 'committed',
+			turnId,
+			personaId: persona.id,
+			targetPersonaId,
+			queuedEntries,
+			fromQueue
+		};
+	} catch (err) {
+		// 生成/検証失敗・中断で未確定 pendingTurn を残さない（3.5）
+		await clearPendingTurn({ topicId, chapterId: chapter.id, id: pendingTurnId });
+		throw err;
+	}
 };

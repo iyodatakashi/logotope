@@ -3,6 +3,8 @@ import { Timestamp } from 'firebase/firestore';
 import type {
 	ChapterForFirestore,
 	ChapterAnalysisForFirestore,
+	PendingTurn,
+	PendingTurnStatus,
 	Issue,
 	IssueGroup
 } from '$lib/models/chapter/chapter.types';
@@ -61,6 +63,37 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 	it('IssueGroup は issues 配列へのインデックス参照のみを持つ', () => {
 		const group: IssueGroup = { issueIndexes: [0, 2] };
 		expect(group.issueIndexes).toEqual([0, 2]);
+	});
+
+	it('PendingTurn（生成中ターン）を pendingTurn として反映できる（永続ミラー）', () => {
+		const status: PendingTurnStatus = 'generating';
+		const pending: PendingTurn = {
+			id: 'p-turn-1',
+			personaId: 'persona-1',
+			expectedTurnIndex: 2,
+			status
+		};
+		const chapter: ChapterForFirestore = {
+			chapterIndex: 1,
+			title: '核心',
+			agenda: ['論点A'],
+			turns: [],
+			status: 'running',
+			pendingTurn: pending
+		};
+		expect(chapter.pendingTurn?.status).toBe('generating');
+		expect(chapter.pendingTurn?.expectedTurnIndex).toBe(2);
+	});
+
+	it('pendingTurn は任意フィールド（生成中でなければ未設定）', () => {
+		const chapter: ChapterForFirestore = {
+			chapterIndex: 0,
+			title: '導入',
+			agenda: [],
+			turns: [],
+			status: 'pending'
+		};
+		expect(chapter.pendingTurn).toBeUndefined();
 	});
 
 	it('ChapterAnalysisForFirestore は issues 配列と任意の issueGroups を持つ', () => {

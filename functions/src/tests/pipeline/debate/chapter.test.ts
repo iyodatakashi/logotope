@@ -172,6 +172,56 @@ describe('turns 復元で targetedBy を保持する', () => {
 });
 
 /**
+ * 生成中ターン（pendingTurn）を状態再構築・frontier 計上・LLM 文脈へ混入させない（3.1/3.2）。
+ * 章 doc に pendingTurn が同居していても、読み出し（turns 復元）は確定 turns[] のみを返す。
+ */
+describe('生成中ターン（pendingTurn）を確定ターンと分離する（3.1/3.2）', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	const chapterDocWithPending = {
+		id: 'ch1',
+		data: () => ({
+			chapterIndex: 0,
+			title: 'テスト章',
+			turns: [
+				{
+					id: 't1',
+					speakerType: 'persona',
+					personaId: 'p1',
+					content: '確定発言',
+					createdAt: 0,
+					status: 'evaluating'
+				}
+			],
+			// 生成中の未確定ターン（turns[] 外・frontier に数えない）
+			pendingTurn: {
+				id: 'pending-x',
+				personaId: 'p2',
+				expectedTurnIndex: 1,
+				status: 'fact-checking'
+			}
+		})
+	};
+
+	it('getDebateTurnsByTopicId はコミット済み turns のみ返し、pendingTurn を混入しない', async () => {
+		mockCollectionGet.mockResolvedValue({ docs: [chapterDocWithPending] });
+		const turns = await getDebateTurnsByTopicId('t1');
+		expect(turns).toHaveLength(1);
+		expect(turns.map((turn) => turn.id)).toEqual(['t1']);
+		expect(turns.some((turn) => turn.id === 'pending-x')).toBe(false);
+	});
+
+	it('toChapterEntry（getChaptersByTopicId）の frontier 計上 turns はコミット済みのみ（pendingTurn を数えない）', async () => {
+		mockCollectionGet.mockResolvedValue({ docs: [chapterDocWithPending] });
+		const chapters = await getChaptersByTopicId('t1');
+		expect(chapters[0].turns).toHaveLength(1); // frontier = 1（pendingTurn は含めない）
+		expect(chapters[0].turns[0].id).toBe('t1');
+	});
+});
+
+/**
  * 回帰: focusQuestion を持つ既存ドキュメントを読み出してもエラーにならず、
  * title / agenda のみで ChapterEntry を構成する（後方互換, 1.4）。
  */

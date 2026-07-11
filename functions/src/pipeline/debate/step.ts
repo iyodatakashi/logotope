@@ -15,7 +15,11 @@ import { getTopicContext } from '../topics/topic-context.js';
 import { generateOpening, generateChapterIntroduction } from '../../agents/facilitator-agent.js';
 import { selectSpeaker } from './speaker-selection.js';
 import { CONTINUE_CHAPTER_THRESHOLD } from '../../constants/debate.constants.js';
-import { evaluateEngagements, evaluateEngagementWithFallback } from './engagement.js';
+import {
+	evaluateEngagements,
+	evaluateEngagementWithFallback,
+	evaluateReactionsForCommittedTurn
+} from './engagement.js';
 import { expireQueuedIntents, addQueuedIntents, consumeQueuedIntent } from './queued-intents.js';
 import {
 	initAgendaItems,
@@ -91,6 +95,25 @@ const finalizeCommittedTurn = async ({
 };
 
 /**
+ * コミット済みターンへの末尾評価（反応の永続＋当該ターンの status='evaluating' 終了）を実行する。
+ * best-effort：失敗しても討論は止めず、次ステップ/章末の自己修復で反応永続＋status 終了が回復する（3.5/3.7）。
+ */
+const runEndEvaluation = async (params: {
+	topicId: string;
+	chapterId: string;
+	committedTurnId: string;
+	personas: Persona[];
+	chapterTurns: ReadonlyArray<DebateTurn>;
+	runId?: string;
+}): Promise<void> => {
+	try {
+		await evaluateReactionsForCommittedTurn(params);
+	} catch (err) {
+		console.error(`[end-eval] failed for turn ${params.committedTurnId}: ${err}`);
+	}
+};
+
+/**
  * 盛り上がり判定: 高意欲者がいれば連続カウントを 0 リセット、いなければ +1（早期終了に近づく）。
  * engagements から純粋に次 quietStreak を算出する（算出式は不変）。
  */
@@ -155,6 +178,15 @@ const executeFinalResponseTurn = async ({
 	// 追記棄却（世代不一致・並走敗者）・討論停止は理由を保持して返す（R9.2）
 	if (reply.status !== 'committed') return reply;
 	await finalizeCommittedTurn({ topicId, chapterId, state, personas, reply });
+	// 章末最終応答（freeze）ターンにも末尾評価を実施し、従来のスキップを撤回する（1.6）
+	await runEndEvaluation({
+		topicId,
+		chapterId,
+		committedTurnId: reply.turnId,
+		personas,
+		chapterTurns: state.turns.slice(chapterTurnStartInState),
+		runId: state.runId
+	});
 	return { status: 'committed', quietStreak };
 };
 
@@ -190,6 +222,21 @@ const executeTurn = async ({
 	const getChapterTurns = (): DebateTurn[] => state.turns.slice(chapterTurnStartInState);
 	// 末尾ターンが誰かを指名していれば、その指名先（次に応答すべき人）
 	const targetPersona = getLastTargetPersona(state.turns);
+
+	// 自己修復: 直前確定ターンの反応が未永続なら末尾評価し、残った evaluating を終了させる（3.5/3.7）。
+	// 通常は既に永続済みで reuse による読み取りに退化する（追加 LLM なし）。
+	const priorChapterTurns = getChapterTurns();
+	const priorTurn = priorChapterTurns[priorChapterTurns.length - 1];
+	if (priorTurn) {
+		await runEndEvaluation({
+			topicId,
+			chapterId,
+			committedTurnId: priorTurn.id,
+			personas,
+			chapterTurns: priorChapterTurns,
+			runId: state.runId
+		});
+	}
 
 	// 章末 +1 最終応答は専用パスへ委譲する（話者選択・介入・キュー更新を挟まない簡略フロー）
 	if (freeze && targetPersona) {
@@ -275,6 +322,15 @@ const executeTurn = async ({
 	// 追記棄却（世代不一致・並走敗者）・討論停止は理由を保持して返す（R9.2）
 	if (reply.status !== 'committed') return reply;
 	await finalizeCommittedTurn({ topicId, chapterId, state, personas, reply });
+	// 発言確定後の共通後処理の直後に、確定ターン自身への末尾評価を実行する（次ターンは reuse で読むだけ・1.1/1.4）
+	await runEndEvaluation({
+		topicId,
+		chapterId,
+		committedTurnId: reply.turnId,
+		personas,
+		chapterTurns: getChapterTurns(),
+		runId: state.runId
+	});
 	return { status: 'committed', quietStreak: nextEndCount };
 };
 
@@ -314,6 +370,15 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 		if (fac.status === 'committed') {
 			markIntroduced(state, openingResult.value.selectedAgendaItemIndex);
 			await saveAgendaItemStatuses(topicId, chapterDoc.id, state);
+			// オープニング確定後に末尾評価し、最初のペルソナ発言の話者選択が反応を読める状態にする（1.5）
+			await runEndEvaluation({
+				topicId,
+				chapterId: chapterDoc.id,
+				committedTurnId: fac.id,
+				personas,
+				chapterTurns: state.turns.slice(chapterTurnStartInState),
+				runId: state.runId
+			});
 		}
 	} else {
 		const introResult = await generateChapterIntroduction(chapter, personas, factBase);
@@ -329,6 +394,15 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 			if (fac.status === 'committed') {
 				markIntroduced(state, introResult.value.selectedAgendaItemIndex);
 				await saveAgendaItemStatuses(topicId, chapterDoc.id, state);
+				// 章の導入確定後にも末尾評価し、最初のペルソナ発言の話者選択が反応を読める状態にする（1.5）
+				await runEndEvaluation({
+					topicId,
+					chapterId: chapterDoc.id,
+					committedTurnId: fac.id,
+					personas,
+					chapterTurns: state.turns.slice(chapterTurnStartInState),
+					runId: state.runId
+				});
 			}
 		}
 	}
@@ -441,8 +515,20 @@ export const completeChapterStep = async (
 	ctx: StepContext,
 	payload: StepPayload
 ): Promise<boolean> => {
-	const { chapterDoc } = ctx;
+	const { chapterDoc, personas, state } = ctx;
 	const { topicId } = payload;
+	// completed 確定前に、最終ターンの反応が未永続なら末尾評価する（evaluating を残さない・reuse で退化・3.3/3.7）
+	const finalTurn = chapterDoc.turns[chapterDoc.turns.length - 1];
+	if (finalTurn) {
+		await runEndEvaluation({
+			topicId,
+			chapterId: chapterDoc.id,
+			committedTurnId: finalTurn.id,
+			personas,
+			chapterTurns: chapterDoc.turns,
+			runId: state.runId
+		});
+	}
 	await updateChapterStatus(topicId, chapterDoc.id, 'completed');
 	await deleteAgendaItemStatuses(topicId, chapterDoc.id);
 	return true;
