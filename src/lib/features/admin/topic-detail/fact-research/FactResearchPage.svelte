@@ -5,10 +5,12 @@
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import type { FactItem } from '$lib/models/factBase/factBase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import { Skeleton } from '@14ch/svelte-ui';
+	import { Button, ConfirmDialog, Skeleton } from '@14ch/svelte-ui';
 	import FactResearchItem from './FactResearchItem.svelte';
 
 	const PHASE: PhaseSlug = 'fact-research';
+
+	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 
 	// 押下直後の楽観的な「実行中」表示用フラグ（サーバ権威のステータスには触れない）。
 	let isStarting = $state(false);
@@ -101,24 +103,23 @@
 	const emptyApprove = approve;
 </script>
 
-<PhasePanel
-	{logicalState}
-	title="フェーズ: 事実リサーチ"
-	generateLabel="事実リサーチを実行する"
-	approveLabel="承認して次へ進む"
-	emptyApproveLabel="実行せず承認する"
-	regenerateLabel="再実行する"
-	regenerateConfirm={{
-		title: '事実リサーチを再実行しますか？',
-		description:
-			'現在の事実基盤が作り直され、以降のフェーズで生成済みのデータ（ステークホルダー・ペルソナ・取材・章立て・討論・編集）が削除されます。',
-		submitLabel: '再実行する'
-	}}
-	onGenerate={generate}
-	onApprove={approve}
-	onEmptyApprove={emptyApprove}
-	onRegenerate={regenerate}
->
+<PhasePanel>
+	{#snippet actions()}
+		<div class="fact-research-page__actions">
+			{#if logicalState === 'not_started'}
+				<Button variant="filled" onclick={generate}>事実リサーチを実行する</Button>
+				<Button variant="outlined" onclick={emptyApprove}>実行せず承認する</Button>
+			{:else if logicalState === 'running'}
+				<Button variant="filled" loading onclick={generate}>事実リサーチを実行する</Button>
+			{:else if logicalState === 'generated'}
+				<Button variant="filled" onclick={() => regenerateDialog?.open()}>再実行する</Button>
+				<Button variant="filled" onclick={approve}>承認して次へ進む</Button>
+			{:else if logicalState === 'approved'}
+				<Button variant="filled" onclick={() => regenerateDialog?.open()}>再実行する</Button>
+			{/if}
+		</div>
+	{/snippet}
+
 	{#snippet content()}
 		{#if logicalState === 'running'}
 			<Skeleton
@@ -144,7 +145,23 @@
 	{/snippet}
 </PhasePanel>
 
+<ConfirmDialog
+	bind:this={regenerateDialog}
+	title="事実リサーチを再実行しますか？"
+	description="現在の事実基盤が作り直され、以降のフェーズで生成済みのデータ（ステークホルダー・ペルソナ・取材・章立て・討論・編集）が削除されます。"
+	danger
+	submitLabel="再実行する"
+	cancelLabel="キャンセル"
+	onSubmit={regenerate}
+/>
+
 <style>
+	.fact-research-page__actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
 	.fact-research-page {
 		display: flex;
 		flex-direction: column;

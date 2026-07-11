@@ -7,6 +7,7 @@
 	import type { PhaseLogicalState } from '$lib/models/phase/phase.types';
 	import type { Stakeholder } from '$lib/models/stakeholder/stakeholder.types';
 	import type { Persona } from '$lib/models/persona/persona.types';
+	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import StakeholderPersonaRow from './StakeholderPersonaRow.svelte';
 
 	// ステークホルダーに対応するペルソナを安定 id で解決する。
@@ -138,8 +139,8 @@
 	};
 </script>
 
-<div class="generate-persona-page">
-	<div class="generate-persona-page__actions-pane">
+<PhasePanel>
+	{#snippet actions()}
 		<div class="generate-persona-page__actions">
 			<!-- ステークホルダー調査 -->
 			{#if stakeholdersState === 'running'}
@@ -148,7 +149,7 @@
 				<Button variant="filled" onclick={onGenerateStakeholders}>調査を開始する</Button>
 			{:else}
 				<Button variant="outlined" onclick={() => regenerateStakeholdersDialog?.open()}>
-					再調査する
+					ステークホルダーを再調査する
 				</Button>
 			{/if}
 
@@ -202,9 +203,9 @@
 				ペルソナを生成するには、少なくとも1件のステークホルダーを採用してください。
 			</p>
 		{/if}
-	</div>
+	{/snippet}
 
-	<div class="generate-persona-page__contents-pane">
+	{#snippet content()}
 		{#if stakeholdersState === 'running'}
 			<Skeleton
 				patterns={[{ type: 'box', width: '100%', height: '96px' }]}
@@ -223,8 +224,8 @@
 				{/each}
 			</div>
 		{/if}
-	</div>
-</div>
+	{/snippet}
+</PhasePanel>
 
 <ConfirmDialog
 	bind:this={regenerateStakeholdersDialog}
@@ -255,20 +256,6 @@
 />
 
 <style>
-	.generate-persona-page {
-		height: 100%;
-		overflow: auto;
-	}
-
-	.generate-persona-page__actions-pane {
-		position: sticky;
-		top: 0;
-		padding: 24px;
-		background-color: color-mix(in srgb, var(--base-50) 50%, transparent);
-		backdrop-filter: blur(20px);
-		z-index: 100;
-	}
-
 	.generate-persona-page__actions {
 		display: flex;
 		flex-wrap: wrap;
@@ -279,10 +266,6 @@
 		margin-top: 8px;
 		color: var(--svelte-ui-text-subtle-color);
 		font-size: var(--svelte-ui-font-size-sm);
-	}
-
-	.generate-persona-page__contents-pane {
-		padding: 0 24px 24px;
 	}
 
 	.generate-persona-page__rows {

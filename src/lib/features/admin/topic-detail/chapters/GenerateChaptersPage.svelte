@@ -4,8 +4,11 @@
 	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import { Button, ConfirmDialog } from '@14ch/svelte-ui';
 
 	const PHASE: PhaseSlug = 'chapters';
+
+	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
 	// 触れず、表示の即時フィードバックだけを担う。実状態(running)が反映されたら解除する。
 	let isStarting = $state(false);
@@ -81,21 +84,22 @@
 	};
 </script>
 
-<PhasePanel
-	{logicalState}
-	title="フェーズ 4: 章立て"
-	generateLabel="章立てを生成する"
-	approveLabel="承認して次へ進む"
-	regenerateLabel="再生成する"
-	regenerateConfirm={{
-		title: '章立てを再生成しますか？',
-		description: '現在の章立てと、生成済みのデータ（討論・編集）が削除されます。',
-		submitLabel: '再生成する'
-	}}
-	onGenerate={generate}
-	onApprove={approve}
-	onRegenerate={regenerate}
->
+<PhasePanel>
+	{#snippet actions()}
+		<div class="generate-chapters-page__actions">
+			{#if logicalState === 'not_started'}
+				<Button variant="filled" onclick={generate}>章立てを生成する</Button>
+			{:else if logicalState === 'running'}
+				<Button variant="filled" loading onclick={generate}>章立てを生成する</Button>
+			{:else if logicalState === 'generated'}
+				<Button variant="filled" onclick={() => regenerateDialog?.open()}>再生成する</Button>
+				<Button variant="filled" onclick={approve}>承認して次へ進む</Button>
+			{:else if logicalState === 'approved'}
+				<Button variant="filled" onclick={() => regenerateDialog?.open()}>再生成する</Button>
+			{/if}
+		</div>
+	{/snippet}
+
 	{#snippet content()}
 		{#if !isStarting}
 			{#if chapterIssues?.issues?.length}
@@ -183,7 +187,23 @@
 	{/snippet}
 </PhasePanel>
 
+<ConfirmDialog
+	bind:this={regenerateDialog}
+	title="章立てを再生成しますか？"
+	description="現在の章立てと、生成済みのデータ（討論・編集）が削除されます。"
+	danger
+	submitLabel="再生成する"
+	cancelLabel="キャンセル"
+	onSubmit={regenerate}
+/>
+
 <style>
+	.generate-chapters-page__actions {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+
 	.generate-chapters-page__chapters {
 		margin: 16px 0;
 		padding-left: 24px;
