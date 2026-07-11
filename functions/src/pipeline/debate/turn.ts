@@ -122,7 +122,9 @@ export const generateFacilitatorTurn = async ({
 			speakerType: 'facilitator',
 			content,
 			targetPersonaId,
-			targetedBy: targetPersonaId ? 'facilitator' : undefined
+			targetedBy: targetPersonaId ? 'facilitator' : undefined,
+			// ファシリテーターターンも末尾評価の対象。確定と同時に評価中とし、end-eval 完了でクリアされる（1.5/1.6）
+			status: 'evaluating'
 		},
 		runId: state.runId,
 		progressPatch

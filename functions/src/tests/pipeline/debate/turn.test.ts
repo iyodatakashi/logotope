@@ -1051,7 +1051,7 @@ describe('generateFacilitatorTurn - 期待位置照合・runId 世代照合', ()
 		expect(mockTxUpdate).toHaveBeenCalledOnce();
 	});
 
-	it('facilitator ターンには status を付与しない（status/pendingTurn は persona ターンのみ）', async () => {
+	it('facilitator ターンにも status=evaluating を付与する（末尾評価の対象・1.5/1.6）', async () => {
 		txTopicRunId = 'run-A';
 		const state = { ...makeDebateState(), runId: 'run-A' };
 		await generateFacilitatorTurn({
@@ -1060,6 +1060,6 @@ describe('generateFacilitatorTurn - 期待位置照合・runId 世代照合', ()
 			content: 'テスト発言',
 			chapterId: 'ch1'
 		});
-		expect(getWrittenTurn().status).toBeUndefined();
+		expect(getWrittenTurn().status).toBe('evaluating');
 	});
 });

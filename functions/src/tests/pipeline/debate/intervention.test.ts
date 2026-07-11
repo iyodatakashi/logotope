@@ -143,6 +143,19 @@ describe('persistInterventionTurn', () => {
 		expect(state.turns[0].speakerType).toBe('facilitator');
 	});
 
+	it('追加する介入ターンに status=evaluating を付与する（末尾評価の対象・1.6）', async () => {
+		const state = makeState();
+		await persistInterventionTurn({
+			topicId: 'topic1',
+			state,
+			content: '介入メッセージ',
+			targetPersonaId: 'p1',
+			chapterId: 'ch-0'
+		});
+		const addTurnArg = mockAddTurnFn.mock.calls[0][0] as { turn: { status?: string } };
+		expect(addTurnArg.turn.status).toBe('evaluating');
+	});
+
 	it('呼び出し後に state.lastSpeakerId が undefined になる', async () => {
 		const state = makeState();
 		state.lastSpeakerId = 'p1';
@@ -196,6 +209,10 @@ vi.mock('../../../pipeline/debate/queued-intents.js', () => ({
 const mockAddTurnFn = vi.fn().mockResolvedValue({ status: 'committed', id: 'turn-new' });
 vi.mock('../../../pipeline/debate/turn.js', () => ({
 	addTurn: (...args: unknown[]) => mockAddTurnFn(...args)
+}));
+vi.mock('../../../pipeline/debate/pending-turn.js', () => ({
+	setPendingTurn: vi.fn().mockResolvedValue(undefined),
+	clearPendingTurn: vi.fn().mockResolvedValue(undefined)
 }));
 vi.mock('../../../pipeline/debate/utils.js', () => ({
 	pipelineErrorMessage: vi.fn((e: { message: string }) => e.message),
@@ -272,6 +289,25 @@ describe('progressAgenda - クールダウン→3値判定→行動', () => {
 			expect.anything(),
 			expect.anything(),
 			expect.anything()
+		);
+	});
+
+	it('介入発言の生成中は facilitator pendingTurn（personaId なし・generating）を書きスケルトンを出す', async () => {
+		assess('drifted');
+		utter({ content: '本題に戻しましょう', targetPersonaId: 'p1' });
+
+		const state = cooldownReady([{ point: '論点A', status: 'introduced', introducedOrder: 1 }]);
+		await run(state);
+
+		const { setPendingTurn, clearPendingTurn } = await import(
+			'../../../pipeline/debate/pending-turn.js'
+		);
+		expect(vi.mocked(setPendingTurn)).toHaveBeenCalledTimes(1);
+		const pending = vi.mocked(setPendingTurn).mock.calls[0][0].pendingTurn;
+		expect(pending.personaId).toBeUndefined();
+		expect(pending.status).toBe('generating');
+		expect(vi.mocked(clearPendingTurn)).toHaveBeenCalledWith(
+			expect.objectContaining({ id: pending.id })
 		);
 	});
 

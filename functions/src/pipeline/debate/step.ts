@@ -31,6 +31,8 @@ import { progressAgenda } from './intervention.js';
 import { updateSpeakerStats } from './debate-state.js';
 import { generateFacilitatorTurn, generatePersonaTurn } from './turn.js';
 import type { PersonaTurnCommit } from './turn.js';
+import { setPendingTurn, clearPendingTurn } from './pending-turn.js';
+import { nanoid } from 'nanoid';
 import { pipelineErrorMessage, validPersonaId, isEarlyEndCandidate } from './utils.js';
 import type {
 	SpeakerSelection,
@@ -355,46 +357,35 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 	// 事実基盤（共通前提）はサーバ権威の getTopicContext で供給し、ファシリテーターの導入に背景として渡す（R8.1）。
 	const { factBase } = await getTopicContext(topicId);
 
-	// 第1章は討論全体のオープニング、それ以外は章の導入をファシリテーターに生成させる
-	if (chapterIndex === 0) {
-		const openingResult = await generateOpening(topicTitle, personas, chapter, factBase);
-		if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
-		const fac = await generateFacilitatorTurn({
-			topicId,
-			state,
-			chapterId: chapterDoc.id,
-			content: openingResult.value.content ?? '',
-			targetPersonaId: validPersonaId(openingResult.value.targetPersonaId, personas),
-			chapterTurnStartIndex: chapterTurnStartInState
-		});
-		if (fac.status === 'committed') {
-			markIntroduced(state, openingResult.value.selectedAgendaItemIndex);
-			await saveAgendaItemStatuses(topicId, chapterDoc.id, state);
-			// オープニング確定後に末尾評価し、最初のペルソナ発言の話者選択が反応を読める状態にする（1.5）
-			await runEndEvaluation({
-				topicId,
-				chapterId: chapterDoc.id,
-				committedTurnId: fac.id,
-				personas,
-				chapterTurns: state.turns.slice(chapterTurnStartInState),
-				runId: state.runId
-			});
+	// 生成中スケルトン: ファシリテーター発言の生成開始を pendingTurn（personaId なし＝ファシリテーター）で示す。
+	// コミット時は addTurn が pendingTurn を自動削除し、未コミット（失敗・棄却）でも finally で確実にクリアする。
+	const facilitatorPendingId = nanoid();
+	await setPendingTurn({
+		topicId,
+		chapterId: chapterDoc.id,
+		pendingTurn: {
+			id: facilitatorPendingId,
+			expectedTurnIndex: state.turns.length - chapterTurnStartInState,
+			status: 'generating'
 		}
-	} else {
-		const introResult = await generateChapterIntroduction(chapter, personas, factBase);
-		if (introResult.ok) {
+	});
+	try {
+		// 第1章は討論全体のオープニング、それ以外は章の導入をファシリテーターに生成させる
+		if (chapterIndex === 0) {
+			const openingResult = await generateOpening(topicTitle, personas, chapter, factBase);
+			if (!openingResult.ok) throw new Error(pipelineErrorMessage(openingResult.error));
 			const fac = await generateFacilitatorTurn({
 				topicId,
 				state,
 				chapterId: chapterDoc.id,
-				content: introResult.value.content ?? '',
-				targetPersonaId: validPersonaId(introResult.value.targetPersonaId, personas),
+				content: openingResult.value.content ?? '',
+				targetPersonaId: validPersonaId(openingResult.value.targetPersonaId, personas),
 				chapterTurnStartIndex: chapterTurnStartInState
 			});
 			if (fac.status === 'committed') {
-				markIntroduced(state, introResult.value.selectedAgendaItemIndex);
+				markIntroduced(state, openingResult.value.selectedAgendaItemIndex);
 				await saveAgendaItemStatuses(topicId, chapterDoc.id, state);
-				// 章の導入確定後にも末尾評価し、最初のペルソナ発言の話者選択が反応を読める状態にする（1.5）
+				// オープニング確定後に末尾評価し、最初のペルソナ発言の話者選択が反応を読める状態にする（1.5）
 				await runEndEvaluation({
 					topicId,
 					chapterId: chapterDoc.id,
@@ -404,7 +395,35 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 					runId: state.runId
 				});
 			}
+		} else {
+			const introResult = await generateChapterIntroduction(chapter, personas, factBase);
+			if (introResult.ok) {
+				const fac = await generateFacilitatorTurn({
+					topicId,
+					state,
+					chapterId: chapterDoc.id,
+					content: introResult.value.content ?? '',
+					targetPersonaId: validPersonaId(introResult.value.targetPersonaId, personas),
+					chapterTurnStartIndex: chapterTurnStartInState
+				});
+				if (fac.status === 'committed') {
+					markIntroduced(state, introResult.value.selectedAgendaItemIndex);
+					await saveAgendaItemStatuses(topicId, chapterDoc.id, state);
+					// 章の導入確定後にも末尾評価し、最初のペルソナ発言の話者選択が反応を読める状態にする（1.5）
+					await runEndEvaluation({
+						topicId,
+						chapterId: chapterDoc.id,
+						committedTurnId: fac.id,
+						personas,
+						chapterTurns: state.turns.slice(chapterTurnStartInState),
+						runId: state.runId
+					});
+				}
+			}
 		}
+	} finally {
+		// コミット済みなら addTurn が削除済み（compare-and-clear は id 不一致で no-op）。未コミットはここで消す。
+		await clearPendingTurn({ topicId, chapterId: chapterDoc.id, id: facilitatorPendingId });
 	}
 
 	return true;

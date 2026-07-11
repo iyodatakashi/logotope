@@ -54,6 +54,11 @@ vi.mock('../../../pipeline/debate/debate-state.js', () => ({
 vi.mock('../../../pipeline/debate/intervention.js', () => ({
 	progressAgenda: vi.fn().mockResolvedValue('none')
 }));
+vi.mock('../../../pipeline/debate/pending-turn.js', () => ({
+	setPendingTurn: vi.fn().mockResolvedValue(undefined),
+	clearPendingTurn: vi.fn().mockResolvedValue(undefined),
+	updatePendingTurnStatus: vi.fn().mockResolvedValue(undefined)
+}));
 
 import {
 	performOpenStep,
@@ -69,6 +74,7 @@ import {
 	evaluateReactionsForCommittedTurn
 } from '../../../pipeline/debate/engagement.js';
 import { progressAgenda } from '../../../pipeline/debate/intervention.js';
+import { setPendingTurn, clearPendingTurn } from '../../../pipeline/debate/pending-turn.js';
 
 const personas: Persona[] = [
 	{ id: 'p1', name: 'P1' } as Persona,
@@ -146,6 +152,26 @@ describe('performOpenStep - 論点提示の配線（インデックスのみ・4
 		// 立場カバレッジ由来フィールドは提示処理で設定されない
 		expect(active.relevantPersonaIds).toBeUndefined();
 		expect(active.spokenPersonaIds).toBeUndefined();
+	});
+
+	it('オープニング生成中は facilitator pendingTurn（personaId なし・generating）を書きスケルトンを出す', async () => {
+		vi.mocked(generateOpening).mockResolvedValue({
+			ok: true,
+			value: { content: '問いかけ', targetPersonaId: 'p1', selectedAgendaItemIndex: 0 }
+		});
+		vi.mocked(generateFacilitatorTurn).mockResolvedValue({ status: 'committed', id: 'f1' });
+
+		const ctx = makeCtx({ chapter: makeChapter(['論点1']) });
+		await performOpenStep(ctx, makePayload({ stepKind: 'open' }));
+
+		expect(vi.mocked(setPendingTurn)).toHaveBeenCalledTimes(1);
+		const pending = vi.mocked(setPendingTurn).mock.calls[0][0].pendingTurn;
+		expect(pending.personaId).toBeUndefined();
+		expect(pending.status).toBe('generating');
+		// 生成完了後に必ずクリア（コミット時は addTurn 側で削除・id 不一致 no-op）
+		expect(vi.mocked(clearPendingTurn)).toHaveBeenCalledWith(
+			expect.objectContaining({ id: pending.id })
+		);
 	});
 });
 

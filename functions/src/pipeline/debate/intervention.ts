@@ -12,7 +12,9 @@ import {
 } from './agenda.js';
 import { addQueuedIntents } from './queued-intents.js';
 import { addTurn } from './turn.js';
+import { setPendingTurn, clearPendingTurn } from './pending-turn.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
+import { nanoid } from 'nanoid';
 import type { DebateState, SpeakerSelection, Engagement } from '../../types/debate.types.js';
 import type { DebateTurn, ProgressPatch } from '../../types/turn.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
@@ -63,7 +65,9 @@ export const persistInterventionTurn = async ({
 			speakerType: 'facilitator',
 			content,
 			targetPersonaId,
-			targetedBy: targetPersonaId ? 'facilitator' : undefined
+			targetedBy: targetPersonaId ? 'facilitator' : undefined,
+			// 介入ターンも末尾評価の対象。評価中とし、次ステップ先頭の自己修復（end-eval）でクリアされる（1.6/3.7）
+			status: 'evaluating'
 		},
 		runId: state.runId,
 		progressPatch
@@ -173,45 +177,61 @@ export const progressAgenda = async ({
 		action = { kind: 'introduce', untouchedAgendaItems };
 	}
 
-	// 行動（発言生成）
-	const utterance = await generateInterventionUtterance(
-		action,
-		chapter,
-		currentChapterTurns,
-		personas
-	);
-	if (!utterance.ok) throw new Error(pipelineErrorMessage(utterance.error));
-	const targetId = validPersonaId(utterance.value.targetPersonaId, personas);
-
-	if (action.kind === 'pull-back') {
-		// 引き戻しの指名先が有効な参加者IDでなければ採用せず継続する
-		if (!targetId) return 'none';
-	} else {
-		// introduce: 論点を introduced 化（index は untouched リスト上の位置）
-		markIntroduced(state, utterance.value.selectedAgendaItemIndex);
-	}
-
-	// 介入ターンの直前時点で意欲の高かった他ペルソナの意図をキューに積んでおく
-	// （speakerSelection.personaId='' は「除外する話者なし」を意味する）
-	await addQueuedIntents({
+	// 行動（発言生成）: 生成中スケルトンを facilitator pendingTurn（personaId なし）で示す。
+	// コミット時は persistInterventionTurn の addTurn が自動削除し、未コミットでも finally でクリアする。
+	const interventionPendingId = nanoid();
+	await setPendingTurn({
 		topicId,
 		chapterId,
-		state,
-		engagements,
-		speakerSelection: { personaId: '', reason: 'score' },
-		triggerTurnId: state.turns[state.turns.length - 1]?.id ?? ''
+		pendingTurn: {
+			id: interventionPendingId,
+			expectedTurnIndex: state.turns.length - chapterTurnStartIndex,
+			status: 'generating'
+		}
 	});
-	// 介入発言を1ターンとして永続化する
-	await persistInterventionTurn({
-		topicId,
-		state,
-		content: utterance.value.content,
-		targetPersonaId: targetId,
-		chapterId: chapter.id,
-		chapterTurnStartIndex,
-		progressPatch
-	});
-	// 消化・提示の状態変更を永続する
-	await saveAgendaItemStatuses(topicId, chapterId, state);
-	return 'intervened';
+	try {
+		const utterance = await generateInterventionUtterance(
+			action,
+			chapter,
+			currentChapterTurns,
+			personas
+		);
+		if (!utterance.ok) throw new Error(pipelineErrorMessage(utterance.error));
+		const targetId = validPersonaId(utterance.value.targetPersonaId, personas);
+
+		if (action.kind === 'pull-back') {
+			// 引き戻しの指名先が有効な参加者IDでなければ採用せず継続する
+			if (!targetId) return 'none';
+		} else {
+			// introduce: 論点を introduced 化（index は untouched リスト上の位置）
+			markIntroduced(state, utterance.value.selectedAgendaItemIndex);
+		}
+
+		// 介入ターンの直前時点で意欲の高かった他ペルソナの意図をキューに積んでおく
+		// （speakerSelection.personaId='' は「除外する話者なし」を意味する）
+		await addQueuedIntents({
+			topicId,
+			chapterId,
+			state,
+			engagements,
+			speakerSelection: { personaId: '', reason: 'score' },
+			triggerTurnId: state.turns[state.turns.length - 1]?.id ?? ''
+		});
+		// 介入発言を1ターンとして永続化する
+		await persistInterventionTurn({
+			topicId,
+			state,
+			content: utterance.value.content,
+			targetPersonaId: targetId,
+			chapterId: chapter.id,
+			chapterTurnStartIndex,
+			progressPatch
+		});
+		// 消化・提示の状態変更を永続する
+		await saveAgendaItemStatuses(topicId, chapterId, state);
+		return 'intervened';
+	} finally {
+		// コミット済みなら addTurn が削除済み（id 不一致で no-op）。未コミット（失敗・target 無効）はここで消す。
+		await clearPendingTurn({ topicId, chapterId, id: interventionPendingId });
+	}
 };
