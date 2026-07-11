@@ -77,6 +77,7 @@ ${fact.statement}`}
 	}
 
 	.fact-research-item__statement {
+		font-size: var(--svelte-ui-font-size-lg);
 		font-weight: bold;
 	}
 
