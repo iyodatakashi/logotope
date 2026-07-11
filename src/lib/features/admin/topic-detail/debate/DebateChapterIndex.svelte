@@ -8,9 +8,12 @@
 	let { chapters, currentChapter }: Props = $props();
 </script>
 
-<ol class="debate-chapter-index">
+<ul class="debate-chapter-index">
 	{#each chapters as chapter (chapter.id)}
-		<li class:debate-chapter-index__chapter--current={chapter === currentChapter}>
+		<li
+			class="debate-chapter-index__chapter"
+			class:debate-chapter-index__chapter--current={chapter === currentChapter}
+		>
 			<div class="debate-chapter-index__title">{chapter.title}</div>
 			{#if chapter === currentChapter && chapter.agendaItemStatuses?.length}
 				<ul class="debate-chapter-index__agenda">
@@ -34,17 +37,26 @@
 			{/if}
 		</li>
 	{/each}
-</ol>
+</ul>
 
 <style>
 	.debate-chapter-index {
 		display: flex;
 		flex-direction: column;
-		gap: 4px;
 	}
-	.debate-chapter-index li.debate-chapter-index__chapter--current .debate-chapter-index__title {
+
+	.debate-chapter-index__chapter {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 8px 0;
+		border-bottom: solid 1px var(--svelte-ui-border-color);
+	}
+
+	.debate-chapter-index__chapter--current .debate-chapter-index__title {
 		font-weight: bold;
 	}
+
 	.debate-chapter-index__agenda {
 		display: flex;
 		flex-direction: column;
