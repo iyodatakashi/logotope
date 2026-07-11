@@ -58,10 +58,12 @@ describe('EngagementList.svelte', () => {
 		expect(page.getByText('佐藤', { exact: false }).elements()).toHaveLength(0);
 	});
 
-	it('選択中ペルソナには「→選択」を付す', async () => {
+	it('選択中ペルソナには選択スタイル（--selected クラス）を付す', async () => {
 		holder.personaMap = new Map([['p1', { name: '田中' }]]);
 		holder.engagementsMap = new Map([['t1', [entry('p1', 'opinion', 3)]]]);
 		render(EngagementList, { turnId: 't1', selectedPersonaId: 'p1' });
-		await expect.element(page.getByText('→選択')).toBeInTheDocument();
+		await expect
+			.element(page.getByText('田中: opinion(3)'))
+			.toHaveClass('engagement-list__engagement--selected');
 	});
 });
