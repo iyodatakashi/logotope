@@ -83,7 +83,7 @@
 		}
 
 		.topic-detail-layout__step-navi {
-			padding: 0 12px;
+			padding: 8px 12px;
 		}
 	}
 

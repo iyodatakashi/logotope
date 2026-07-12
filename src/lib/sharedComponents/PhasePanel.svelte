@@ -43,7 +43,7 @@
 		top: 0;
 		padding: 24px;
 		background-color: color-mix(in srgb, var(--base-100) 50%, transparent);
-		backdrop-filter: blur(20px);
+		backdrop-filter: blur(6px);
 		z-index: 100;
 	}
 
