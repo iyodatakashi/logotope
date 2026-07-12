@@ -9,7 +9,7 @@ export const PIPELINE_MODELS = {
 	personaGenerator: 'claude-sonnet-5',
 	personaInterview: 'gemini-2.5-pro',
 	factCheckAssertionGate: 'gemini-2.5-flash',
-	factCheckGrounding: 'gemini-2.5-pro',
+	factCheckGrounding: 'gemini-2.5-flash',
 	factCheckStructuring: 'gemini-2.5-flash',
 	factCheckJudge: 'gemini-2.5-flash'
 } as const;
