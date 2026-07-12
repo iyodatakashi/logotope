@@ -5,8 +5,7 @@ import {
 	nextPhase,
 	isLastPhase,
 	phaseLogicalState,
-	phaseDisplayLabel,
-	stepNavItems
+	phaseDisplayLabel
 } from '$lib/models/phase/phase';
 import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
 import type { PhaseSlug, PhaseStatus, PhaseLogicalState } from '$lib/models/phase/phase.types';
@@ -51,9 +50,11 @@ describe('PHASE_DEFS', () => {
 		expect(new Set(keys).size).toBe(keys.length);
 	});
 
-	it('全フェーズに表示名がある', () => {
+	it('全フェーズに状態別ラベルが揃っている', () => {
 		for (const def of PHASE_DEFS) {
-			expect(def.label.length).toBeGreaterThan(0);
+			for (const status of ['not_started', 'running', 'generated', 'stopped'] as const) {
+				expect(def.statusLabels[status].length).toBeGreaterThan(0);
+			}
 		}
 	});
 });
@@ -71,7 +72,6 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 		expect(PHASE_DEFS).toEqual([
 			{
 				key: 'fact-research',
-				label: '事実リサーチ',
 				statusLabels: {
 					not_started: '未着手',
 					running: 'リサーチ中',
@@ -81,7 +81,6 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 			},
 			{
 				key: 'stakeholders',
-				label: 'ステークホルダー調査',
 				statusLabels: {
 					not_started: '未着手',
 					running: '調査中',
@@ -91,7 +90,6 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 			},
 			{
 				key: 'personas',
-				label: 'ペルソナ生成',
 				statusLabels: {
 					not_started: '調査承認済み',
 					running: 'ペルソナ生成中',
@@ -101,7 +99,6 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 			},
 			{
 				key: 'interviews',
-				label: '取材',
 				statusLabels: {
 					not_started: 'ペルソナ承認済み',
 					running: '取材中',
@@ -111,7 +108,6 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 			},
 			{
 				key: 'chapters',
-				label: '章立て',
 				statusLabels: {
 					not_started: '取材承認済み',
 					running: '章立て生成中',
@@ -121,7 +117,6 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 			},
 			{
 				key: 'debate',
-				label: '討論',
 				statusLabels: {
 					not_started: '章立て完了',
 					running: '討論中',
@@ -131,7 +126,6 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 			},
 			{
 				key: 'editing',
-				label: '編集',
 				statusLabels: {
 					not_started: '討論完了',
 					running: '編集中',
@@ -283,42 +277,6 @@ describe('phaseLogicalState', () => {
 		expect(phaseLogicalState({ phase: 'debate', phaseStatus: 'generated' }, 'editing')).toBe(
 			'not_started'
 		);
-	});
-});
-
-describe('stepNavItems（ナビ集約）', () => {
-	it('stakeholders/personas/interviews を「ペルソナ準備」1グループに束ねる', () => {
-		const items = stepNavItems('t1', 'personas');
-		expect(items.map((item) => item.label)).toEqual([
-			'事実リサーチ',
-			'ペルソナ準備',
-			'章立て',
-			'討論',
-			'編集'
-		]);
-		const personaPrep = items.find((item) => item.label === 'ペルソナ準備');
-		expect(personaPrep?.phases).toEqual(['stakeholders', 'personas', 'interviews']);
-	});
-
-	it('現在フェーズがグループ内なら href は現在フェーズを指す', () => {
-		const items = stepNavItems('t1', 'interviews');
-		const personaPrep = items.find((item) => item.label === 'ペルソナ準備');
-		expect(personaPrep?.href).toBe('/admin/topics/t1/interviews');
-		expect(personaPrep?.disabled).toBe(false);
-	});
-
-	it('現在フェーズがグループより前ならグループは不活性で href は先頭フェーズ', () => {
-		const items = stepNavItems('t1', 'stakeholders');
-		const chapters = items.find((item) => item.label === '章立て');
-		expect(chapters?.disabled).toBe(true);
-		expect(chapters?.href).toBe('/admin/topics/t1/chapters');
-	});
-
-	it('現在フェーズがグループより後ならグループは活性で href は先頭フェーズ', () => {
-		const items = stepNavItems('t1', 'chapters');
-		const personaPrep = items.find((item) => item.label === 'ペルソナ準備');
-		expect(personaPrep?.disabled).toBe(false);
-		expect(personaPrep?.href).toBe('/admin/topics/t1/stakeholders');
 	});
 });
 

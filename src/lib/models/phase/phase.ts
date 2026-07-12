@@ -1,10 +1,5 @@
-import type {
-	PhaseSlug,
-	PhaseStatus,
-	PhaseLogicalState,
-	StepNavItem
-} from '$lib/models/phase/phase.types';
-import { PHASE_DEFS, STEP_NAV_GROUPS } from '$lib/models/phase/phase.constants';
+import type { PhaseSlug, PhaseStatus, PhaseLogicalState } from '$lib/models/phase/phase.types';
+import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
 
 // 配列位置。未知キーは不正入力として 0（先頭）にフォールバックする。
 export const phaseOrder = (key: PhaseSlug): number => {
@@ -25,21 +20,6 @@ export const phasePath = (topicId: string, phase: PhaseSlug): string => {
 	const phaseDefinition = PHASE_DEFS.find((entry) => entry.key === phase) ?? PHASE_DEFS[0];
 	return `/admin/topics/${topicId}/${phaseDefinition.key}`;
 };
-
-// StepNav 用に、現在フェーズからナビ・グループ項目を導出する。
-// - disabled: グループ先頭フェーズが現在フェーズより後（未到達）なら不活性。
-// - href: グループが現在フェーズを含むならそのフェーズ、含まなければ先頭フェーズへのパス。
-export const stepNavItems = (topicId: string, currentPhase: PhaseSlug): StepNavItem[] =>
-	STEP_NAV_GROUPS.map((group) => {
-		const containsCurrent = group.phases.includes(currentPhase);
-		const targetPhase = containsCurrent ? currentPhase : group.phases[0];
-		return {
-			label: group.label,
-			href: phasePath(topicId, targetPhase),
-			disabled: phaseOrder(group.phases[0]) > phaseOrder(currentPhase),
-			phases: group.phases
-		};
-	});
 
 // (phase, phaseStatus) と対象フェーズのみから表示状態を導出する純粋関数。
 // セッション・クライアントのヒントは参照しない（トピック状態のみで完結）。
