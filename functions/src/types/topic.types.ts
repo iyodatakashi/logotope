@@ -2,8 +2,9 @@ import type { Timestamp } from 'firebase-admin/firestore';
 
 // 永続する phase の slug 型（FE PhaseSlug と値集合・順序を一致させる）。
 // 正準 slug リスト（順序込み）:
-// ['fact-research', 'stakeholders', 'personas', 'interviews', 'chapters', 'debate', 'editing']
+// ['theme', 'fact-research', 'stakeholders', 'personas', 'interviews', 'chapters', 'debate', 'editing']
 export type PhaseKey =
+	| 'theme'
 	| 'fact-research'
 	| 'stakeholders'
 	| 'personas'

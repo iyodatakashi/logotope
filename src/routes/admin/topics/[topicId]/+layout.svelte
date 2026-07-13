@@ -17,7 +17,7 @@
 		return currentTopicStore.start(page.params.topicId as string);
 	});
 
-	const currentPhase = $derived<PhaseSlug>(currentTopicStore.topic?.phase ?? 'fact-research');
+	const currentPhase = $derived<PhaseSlug>(currentTopicStore.topic?.phase ?? 'theme');
 
 	// 現在URLのフェーズ（/admin/topics/[id] 直下のリダイレクトページでは null）
 	const pagePhase = $derived.by((): PhaseSlug | null => {

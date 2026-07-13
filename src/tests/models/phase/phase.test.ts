@@ -12,6 +12,7 @@ import type { PhaseSlug, PhaseStatus, PhaseLogicalState } from '$lib/models/phas
 
 // 正準 slug リスト（順序込み）— FE/BE 両側の唯一の基準。
 const CANONICAL_PHASE_KEYS = [
+	'theme',
 	'fact-research',
 	'stakeholders',
 	'personas',
@@ -23,6 +24,7 @@ const CANONICAL_PHASE_KEYS = [
 
 // PhaseSlug の型網羅チェック: 値が増減すると Record リテラルがコンパイルエラーになる
 const PHASE_SLUG_EXHAUSTIVE: Record<PhaseSlug, true> = {
+	theme: true,
 	'fact-research': true,
 	stakeholders: true,
 	personas: true,
@@ -33,8 +35,9 @@ const PHASE_SLUG_EXHAUSTIVE: Record<PhaseSlug, true> = {
 };
 
 describe('PHASE_DEFS', () => {
-	it('7フェーズが正準リスト順で定義されている', () => {
+	it('8フェーズが正準リスト順で定義されている', () => {
 		expect(PHASE_DEFS.map((d) => d.key)).toEqual([
+			'theme',
 			'fact-research',
 			'stakeholders',
 			'personas',
@@ -70,6 +73,15 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 
 	it('定義配列の順序と各状態別ラベル文言を現行値のスナップショットとしてリテラル固定する', () => {
 		expect(PHASE_DEFS).toEqual([
+			{
+				key: 'theme',
+				statusLabels: {
+					not_started: 'テーマ設定中',
+					running: 'テーマ設定中',
+					generated: 'テーマ設定中',
+					stopped: 'テーマ設定中'
+				}
+			},
 			{
 				key: 'fact-research',
 				statusLabels: {
@@ -181,13 +193,15 @@ describe('phaseLogicalState 数値ケースの 1:1 変換同値テーブル', ()
 
 describe('phaseOrder / nextPhase / isLastPhase', () => {
 	it('phaseOrder は配列位置を返す', () => {
-		expect(phaseOrder('fact-research')).toBe(0);
-		expect(phaseOrder('stakeholders')).toBe(1);
-		expect(phaseOrder('interviews')).toBe(3);
-		expect(phaseOrder('editing')).toBe(6);
+		expect(phaseOrder('theme')).toBe(0);
+		expect(phaseOrder('fact-research')).toBe(1);
+		expect(phaseOrder('stakeholders')).toBe(2);
+		expect(phaseOrder('interviews')).toBe(4);
+		expect(phaseOrder('editing')).toBe(7);
 	});
 
 	it('nextPhase は次の slug を返し、最終フェーズでは null', () => {
+		expect(nextPhase('theme')).toBe('fact-research');
 		expect(nextPhase('fact-research')).toBe('stakeholders');
 		expect(nextPhase('stakeholders')).toBe('personas');
 		expect(nextPhase('chapters')).toBe('debate');
@@ -196,6 +210,7 @@ describe('phaseOrder / nextPhase / isLastPhase', () => {
 	});
 
 	it('isLastPhase は最終フェーズのみ true', () => {
+		expect(isLastPhase('theme')).toBe(false);
 		expect(isLastPhase('fact-research')).toBe(false);
 		expect(isLastPhase('stakeholders')).toBe(false);
 		expect(isLastPhase('debate')).toBe(false);
@@ -282,6 +297,7 @@ describe('phaseLogicalState', () => {
 
 describe('phaseDisplayLabel', () => {
 	const cases: [PhaseSlug, PhaseStatus, string, string][] = [
+		['theme', 'not_started', 'テーマ設定中', 'pending'],
 		['fact-research', 'not_started', '未着手', 'pending'],
 		['fact-research', 'running', 'リサーチ中', 'running'],
 		['fact-research', 'generated', 'リサーチ完了', 'ready'],

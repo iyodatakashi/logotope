@@ -11,13 +11,10 @@ describe('TopicForm.svelte', () => {
 		await expect.element(page.getByRole('button', { name: 'テーマを作成' })).toBeInTheDocument();
 	});
 
-	it('renders description textarea', async () => {
+	it('詳細説明・参考URLは作成フォームに置かない（テーマ設定フェーズで入力する）', async () => {
 		render(TopicForm, { onSubmit: vi.fn() });
-		await expect.element(page.getByLabelText('詳細説明')).toBeInTheDocument();
-	});
 
-	it('renders URL add button', async () => {
-		render(TopicForm, { onSubmit: vi.fn() });
-		await expect.element(page.getByRole('button', { name: 'URLを追加' })).toBeInTheDocument();
+		expect(page.getByLabelText('詳細説明').elements()).toHaveLength(0);
+		expect(page.getByRole('button', { name: 'URLを追加' }).elements()).toHaveLength(0);
 	});
 });

@@ -1,8 +1,19 @@
 import type { PhaseDef } from './phase.types';
 
-// 正準 slug リスト（順序込み）: ['fact-research', 'stakeholders', 'personas', 'interviews', 'chapters', 'debate', 'editing']
+// 正準 slug リスト（順序込み）: ['theme', 'fact-research', 'stakeholders', 'personas', 'interviews', 'chapters', 'debate', 'editing']
 // 配列順 = フェーズ進行順の唯一の真実。BE 側 PhaseKey と値集合・順序を一致させる。
 export const PHASE_DEFS: readonly PhaseDef[] = [
+	{
+		// テーマ設定は入力・承認のみで生成を伴わないため、phaseStatus は not_started のままで前進する
+		// （running/generated/stopped にはならない）。
+		key: 'theme',
+		statusLabels: {
+			not_started: 'テーマ設定中',
+			running: 'テーマ設定中',
+			generated: 'テーマ設定中',
+			stopped: 'テーマ設定中'
+		}
+	},
 	{
 		key: 'fact-research',
 		statusLabels: {

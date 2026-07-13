@@ -6,20 +6,12 @@
 	let submitting = $state(false);
 	let error = $state('');
 
-	const handleSubmit = async (title: string, description: string, sourceUrls: string[]) => {
+	// 作成後はテーマ設定フェーズ（トピック直下URLからのリダイレクト先）へ進む。
+	const handleSubmit = async (title: string) => {
 		submitting = true;
 		error = '';
 		try {
-			const topicId = await topicsStore.addTopic(title, description, sourceUrls);
-
-			if (sourceUrls.length > 0) {
-				try {
-					await topicsStore.fetchSourceContents(topicId);
-				} catch {
-					error = 'URLコンテンツの取得に失敗しました。トピックは作成されました。';
-				}
-			}
-
+			const topicId = await topicsStore.addTopic(title);
 			goto(`/admin/topics/${topicId}`);
 		} catch {
 			error = 'テーマの作成に失敗しました。再試行してください。';

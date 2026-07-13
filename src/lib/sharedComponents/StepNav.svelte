@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { StepNav } from '@14ch/svelte-ui';
-	import { phaseOrder, phasePath } from '$lib/models/phase/phase';
+	import { phasePath } from '$lib/models/phase/phase';
 	import { type PhaseSlug } from '$lib/models/phase/phase.types';
 
 	// ナビの見せ方（どのフェーズを1ステップに束ね、どう名付けるか）は UI の都合なので、
@@ -8,6 +8,7 @@
 	// stakeholders/personas/interviews の3フェーズは「ペルソナ生成」1ステップに束ねる。
 	// id は StepNav に渡すステップのユニークキー（value）。progress をこのキーで指定する。
 	const STEP_GROUPS: readonly { id: string; label: string; phases: PhaseSlug[] }[] = [
+		{ id: 'theme', label: 'テーマ設定', phases: ['theme'] },
 		{ id: 'fact-research', label: '事実リサーチ', phases: ['fact-research'] },
 		{ id: 'persona', label: 'ペルソナ生成', phases: ['stakeholders', 'personas', 'interviews'] },
 		{ id: 'agenda', label: 'アジェンダ生成', phases: ['chapters'] },

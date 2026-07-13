@@ -1,9 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('$lib/firebase.js', () => ({ db: {}, functions: {} }));
-vi.mock('firebase/functions', () => ({
-	httpsCallable: vi.fn(() => vi.fn().mockResolvedValue({ data: {} }))
-}));
+vi.mock('$lib/firebase.js', () => ({ db: {} }));
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'new-id') }));
 
 const mockBatchDelete = vi.fn();
@@ -24,74 +21,36 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { setDoc, getDocs } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
 import { topicsStore } from '$lib/stores/topics.svelte';
 
-describe('topicsStore.addTopic (task 3.3)', () => {
+describe('topicsStore.addTopic', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
 
-	it('新規トピックを (fact-research, not_started) で明示初期化する', async () => {
+	it('新規トピックを (theme, not_started) で明示初期化する', async () => {
 		await topicsStore.addTopic('新しい題名');
 		expect(setDoc).toHaveBeenCalledWith(
 			{ path: 'topics/new-id' },
 			expect.objectContaining({
 				id: 'new-id',
 				title: '新しい題名',
-				phase: 'fact-research',
+				phase: 'theme',
 				phaseStatus: 'not_started'
 			})
 		);
 	});
 
-	it('旧 status pending を書き込まない', async () => {
+	it('説明・参考URLは作成時に書かない（テーマ設定フェーズで入力する）', async () => {
 		await topicsStore.addTopic('題名');
 		const call = vi.mocked(setDoc).mock.calls.at(-1)?.[1] as Record<string, unknown>;
-		expect(call).not.toHaveProperty('status');
-	});
-
-	it('descriptionを渡すとFirestoreに保存する', async () => {
-		await topicsStore.addTopic('題名', '詳細説明');
-		const call = vi.mocked(setDoc).mock.calls.at(-1)?.[1] as Record<string, unknown>;
-		expect(call).toHaveProperty('description', '詳細説明');
-	});
-
-	it('descriptionが空文字のときFirestoreに保存しない', async () => {
-		await topicsStore.addTopic('題名', '');
-		const call = vi.mocked(setDoc).mock.calls.at(-1)?.[1] as Record<string, unknown>;
 		expect(call).not.toHaveProperty('description');
-	});
-
-	it('sourceUrlsを渡すとFirestoreに保存する', async () => {
-		await topicsStore.addTopic('題名', '', ['https://example.com']);
-		const call = vi.mocked(setDoc).mock.calls.at(-1)?.[1] as Record<string, unknown>;
-		expect(call).toHaveProperty('sourceUrls', ['https://example.com']);
-	});
-
-	it('sourceUrlsが空配列のときFirestoreに保存しない', async () => {
-		await topicsStore.addTopic('題名', '', []);
-		const call = vi.mocked(setDoc).mock.calls.at(-1)?.[1] as Record<string, unknown>;
 		expect(call).not.toHaveProperty('sourceUrls');
 	});
 
 	it('topicIdを返す', async () => {
 		const id = await topicsStore.addTopic('題名');
 		expect(id).toBe('new-id');
-	});
-});
-
-describe('topicsStore.fetchSourceContents（UI からの callable 直呼びを store へ移設）', () => {
-	beforeEach(() => {
-		vi.clearAllMocks();
-	});
-
-	it('fetchSourceContents callable を topicId 付きで呼ぶ', async () => {
-		const callable = vi.fn().mockResolvedValue({ data: {} });
-		vi.mocked(httpsCallable).mockReturnValue(callable as never);
-		await topicsStore.fetchSourceContents('topic1');
-		expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'fetchSourceContents');
-		expect(callable).toHaveBeenCalledWith({ topicId: 'topic1' });
 	});
 });
 

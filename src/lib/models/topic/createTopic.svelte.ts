@@ -5,7 +5,8 @@ import {
 	getDoc,
 	getDocs,
 	collection,
-	deleteDoc
+	deleteDoc,
+	deleteField
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
@@ -36,6 +37,34 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 			phaseStatus: 'not_started',
 			updatedAt: Timestamp.now()
 		});
+	};
+
+	// テーマ（題名・説明・参考URL）を保存する。空の説明・URLはフィールドごと消して未設定に戻す。
+	const saveTheme = async (theme: {
+		title: string;
+		description: string;
+		sourceUrls: string[];
+	}): Promise<void> => {
+		await updateDoc(doc(db, 'topics', id), {
+			title: theme.title,
+			description: theme.description.trim() ? theme.description : deleteField(),
+			sourceUrls: theme.sourceUrls.length ? theme.sourceUrls : deleteField(),
+			updatedAt: Timestamp.now()
+		});
+	};
+
+	// 参考URLの本文を取得する（fetchedSourceContents はサーバが書く）。
+	const fetchSourceContents = async (): Promise<void> => {
+		const fetchSourceContentsCallable = httpsCallable<{ topicId: string }, unknown>(
+			functions,
+			'fetchSourceContents'
+		);
+		await fetchSourceContentsCallable({ topicId: id });
+	};
+
+	// テーマを確定して事実リサーチフェーズへ前進させる。
+	const approveTheme = async (): Promise<void> => {
+		await advancePhase('theme');
 	};
 
 	// 事実リサーチを確定してステークホルダーフェーズへ前進させる。
@@ -300,6 +329,9 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 		resetPersonas,
 		resetChapters,
 		resetDebate,
+		saveTheme,
+		fetchSourceContents,
+		approveTheme,
 		approveFactResearch,
 		approveStakeholders,
 		approveInterviews,

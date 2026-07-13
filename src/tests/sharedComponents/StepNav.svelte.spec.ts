@@ -7,6 +7,7 @@ describe('StepNav.svelte', () => {
 	it('3フェーズを「ペルソナ生成」1ステップに束ねてグループラベルを表示する', async () => {
 		render(StepNav, { topicId: 't1', currentPhase: 'personas' });
 
+		await expect.element(page.getByText('テーマ設定')).toBeInTheDocument();
 		await expect.element(page.getByText('事実リサーチ')).toBeInTheDocument();
 		await expect.element(page.getByText('ペルソナ生成')).toBeInTheDocument();
 		await expect.element(page.getByText('アジェンダ生成')).toBeInTheDocument();
@@ -17,9 +18,22 @@ describe('StepNav.svelte', () => {
 		expect(page.getByText('取材').elements()).toHaveLength(0);
 	});
 
+	it('テーマ設定が先頭ステップで、未到達の事実リサーチはリンクにならない', async () => {
+		const { unmount } = render(StepNav, { topicId: 't1', currentPhase: 'theme' });
+
+		await expect
+			.element(page.getByRole('link', { name: 'テーマ設定' }))
+			.toHaveAttribute('href', '/admin/topics/t1/theme');
+		expect(page.getByRole('link', { name: '事実リサーチ' }).elements()).toHaveLength(0);
+		unmount();
+	});
+
 	it('到達済みグループはリンクとして遷移可能', async () => {
 		render(StepNav, { topicId: 't1', currentPhase: 'interviews' });
 
+		await expect
+			.element(page.getByRole('link', { name: 'テーマ設定' }))
+			.toHaveAttribute('href', '/admin/topics/t1/theme');
 		await expect
 			.element(page.getByRole('link', { name: '事実リサーチ' }))
 			.toHaveAttribute('href', '/admin/topics/t1/fact-research');

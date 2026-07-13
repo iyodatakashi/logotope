@@ -51,6 +51,57 @@ describe('createTopicStates', () => {
 		vi.mocked(getDocs).mockResolvedValue({ docs: [] } as never);
 	});
 
+	describe('テーマ設定フェーズ', () => {
+		it('saveTheme は題名・説明・参考URLを保存する', async () => {
+			const store = makeTopic();
+			await store.saveTheme({
+				title: '新しい題名',
+				description: '背景',
+				sourceUrls: ['https://example.com']
+			});
+			expect(updateDoc).toHaveBeenCalledWith(
+				TOPIC_PATH,
+				expect.objectContaining({
+					title: '新しい題名',
+					description: '背景',
+					sourceUrls: ['https://example.com']
+				})
+			);
+		});
+
+		it('saveTheme は空の説明・参考URLをフィールドごと削除する', async () => {
+			const store = makeTopic();
+			await store.saveTheme({ title: '題名', description: '', sourceUrls: [] });
+			expect(updateDoc).toHaveBeenCalledWith(
+				TOPIC_PATH,
+				expect.objectContaining({
+					description: 'DELETE_FIELD',
+					sourceUrls: 'DELETE_FIELD'
+				})
+			);
+		});
+
+		it('fetchSourceContents は fetchSourceContents onCall を topicId 付きで呼ぶ', async () => {
+			const callable = vi.fn().mockResolvedValue({ data: {} });
+			vi.mocked(httpsCallable).mockReturnValue(callable as never);
+
+			const store = makeTopic();
+			await store.fetchSourceContents();
+
+			expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'fetchSourceContents');
+			expect(callable).toHaveBeenCalledWith({ topicId: 't1' });
+		});
+
+		it('approveTheme は (fact-research, not_started) へ前進する', async () => {
+			const store = makeTopic();
+			await store.approveTheme();
+			expect(updateDoc).toHaveBeenCalledWith(
+				TOPIC_PATH,
+				expect.objectContaining({ phase: 'fact-research', phaseStatus: 'not_started' })
+			);
+		});
+	});
+
 	describe('承認操作の2軸遷移 (task 3.1)', () => {
 		it('approveFactResearch は (stakeholders, not_started) へ前進し事実リサーチを承認する', async () => {
 			const store = makeTopic();

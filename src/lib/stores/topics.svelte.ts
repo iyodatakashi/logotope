@@ -9,8 +9,7 @@ import {
 	getDocs,
 	Timestamp
 } from 'firebase/firestore';
-import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '$lib/firebase';
+import { db } from '$lib/firebase';
 import { nanoid } from 'nanoid';
 import type { TopicForFirestore, TopicInput } from '$lib/models/topic/topic.types';
 import { createTopicStates, type Topic } from '$lib/models/topic/createTopic.svelte';
@@ -51,30 +50,19 @@ const create = () => {
 		unsubscribe = null;
 	};
 
-	const addTopic = async (
-		title: string,
-		description?: string,
-		sourceUrls?: string[]
-	): Promise<string> => {
+	// 新規トピックは題名だけで作る。説明・参考URLはテーマ設定フェーズの画面で入力する。
+	const addTopic = async (title: string): Promise<string> => {
 		const id = nanoid();
 		const now = Timestamp.now();
 		await setDoc(doc(db, 'topics', id), {
 			id,
 			title,
-			...(description?.trim() && { description }),
-			...(sourceUrls?.length && { sourceUrls }),
-			phase: 'fact-research',
+			phase: 'theme',
 			phaseStatus: 'not_started',
 			createdAt: now,
 			updatedAt: now
 		});
 		return id;
-	};
-
-	// 参考URLの本文取得は topic エンティティに属する操作。UI から callable を直呼びせず store に集約する。
-	const fetchSourceContents = async (topicId: string): Promise<void> => {
-		const callable = httpsCallable(functions, 'fetchSourceContents');
-		await callable({ topicId });
 	};
 
 	const deleteTopic = async (topicId: string): Promise<void> => {
@@ -113,7 +101,6 @@ const create = () => {
 		start,
 		stop,
 		addTopic,
-		fetchSourceContents,
 		deleteTopic
 	};
 };
