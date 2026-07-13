@@ -60,7 +60,7 @@ describe('FactResearchPage.svelte', () => {
 		expect(mockGoto).toHaveBeenCalledWith('/admin/topics/t1/stakeholders');
 	});
 
-	it('生成済み（generated）で事実基盤の statement を編集可能に表示する', async () => {
+	it('生成済み（generated）で事実基盤の statement を編集可能に表示する（編集は自動保存）', async () => {
 		phaseStatus = 'generated';
 		factBaseData = {
 			facts: [
@@ -70,8 +70,8 @@ describe('FactResearchPage.svelte', () => {
 		};
 		render(FactResearchPage);
 		await expect.element(page.getByText('承認して次へ進む')).toBeInTheDocument();
-		await expect
-			.element(page.getByRole('button', { name: '編集内容を保存する' }))
-			.toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: '再実行する' })).toBeInTheDocument();
+		// statement は編集可能な入力欄として出る（保存ボタンは持たず、変更確定時に自動保存する）
+		await expect.element(page.getByRole('textbox')).toHaveValue('日本は1回戦で敗退した');
 	});
 });

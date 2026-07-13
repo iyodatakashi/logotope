@@ -20,7 +20,8 @@ const { goto, spies, state } = vi.hoisted(() => ({
 		resetEditing: vi.fn(),
 		approveInterviews: vi.fn(),
 		approvePersonas: vi.fn(),
-		runInterviews: vi.fn()
+		runInterviews: vi.fn(),
+		setSelected: vi.fn()
 	},
 	state: {
 		phase: 'stakeholders' as string,
@@ -58,7 +59,8 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 			return {
 				get stakeholders() {
 					return state.stakeholders;
-				}
+				},
+				setSelected: spies.setSelected
 			};
 		},
 		get personasStore() {
@@ -77,12 +79,14 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 
 import PersonaWorkspacePage from '$lib/features/admin/topic-detail/persona/GeneratePersonaPage.svelte';
 
-const makeStakeholder = (id: string, role: string) => ({
+// 採用（selected）はステークホルダー文書に永続する。未設定は既定 ON。
+const makeStakeholder = (id: string, role: string, selected?: boolean) => ({
 	id,
 	role,
 	reason: `${role}の理由`,
 	mainInterests: [],
-	minorityLevel: 'low'
+	minorityLevel: 'low',
+	...(selected !== undefined && { selected })
 });
 
 const makePersona = (over: Record<string, unknown>) => ({
@@ -127,29 +131,38 @@ describe('PersonaWorkspacePage', () => {
 		await expect.element(page.getByText('田中医師').first()).toBeInTheDocument();
 	});
 
-	it('採用を一部外してペルソナ生成すると、採用 id のみで generatePersonas を呼ぶ', async () => {
+	it('チェックを外すと採用状態（selected）をストアに永続させる', async () => {
 		state.stakeholders = [makeStakeholder('sid-a', '医師'), makeStakeholder('sid-b', '患者')];
 		state.personas = [];
 
 		mount();
-		// 初期エフェクト（採用シード）が反映されるまで待つ
-		await expect.element(page.getByRole('button', { name: 'ペルソナを生成する' })).toBeEnabled();
 
 		// 既定は全 ON。先頭（sid-a）のチェックを外す
 		await page.getByRole('checkbox').nth(0).click({ force: true });
+
+		expect(spies.setSelected).toHaveBeenCalledWith('sid-a', false);
+	});
+
+	it('採用外（selected:false）を除いた採用 id のみで generatePersonas を呼ぶ', async () => {
+		state.stakeholders = [
+			makeStakeholder('sid-a', '医師', false),
+			makeStakeholder('sid-b', '患者')
+		];
+		state.personas = [];
+
+		mount();
+
 		await page.getByRole('button', { name: 'ペルソナを生成する' }).click();
 
 		expect(spies.generatePersonas).toHaveBeenCalledWith(['sid-b']);
 	});
 
 	it('採用が0件だとペルソナ生成ボタンが不活性で理由を提示する', async () => {
-		state.stakeholders = [makeStakeholder('sid-a', '医師')];
+		state.stakeholders = [makeStakeholder('sid-a', '医師', false)];
 		state.personas = [];
 
 		mount();
-		await expect.element(page.getByRole('button', { name: 'ペルソナを生成する' })).toBeEnabled();
 
-		await page.getByRole('checkbox').nth(0).click({ force: true }); // 唯一の採用を外す
 		await expect.element(page.getByRole('button', { name: 'ペルソナを生成する' })).toBeDisabled();
 		await expect
 			.element(

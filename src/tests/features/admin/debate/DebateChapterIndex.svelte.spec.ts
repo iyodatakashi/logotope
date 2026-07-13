@@ -16,11 +16,11 @@ const chapter = (overrides: Partial<Chapter> = {}): Chapter =>
 	}) as Chapter;
 
 describe('DebateChapterIndex.svelte（章と論点の目次）', () => {
-	it('章タイトルと論点を一覧表示する', async () => {
+	it('進行中でない章は章タイトルのみ表示し、論点は出さない', async () => {
 		render(DebateChapterIndex, { chapters: [chapter()], currentChapter: null });
 		await expect.element(page.getByText('第一章')).toBeInTheDocument();
-		await expect.element(page.getByText('論点A')).toBeInTheDocument();
-		await expect.element(page.getByText('論点B')).toBeInTheDocument();
+		expect(page.getByText('論点A').elements()).toHaveLength(0);
+		expect(page.getByText('論点B').elements()).toHaveLength(0);
 	});
 
 	it('進行中の章は agendaItemStatuses の進捗バッジ（未/着/済）を出す', async () => {
