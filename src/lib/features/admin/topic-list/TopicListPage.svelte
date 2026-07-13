@@ -1,9 +1,12 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
 	import { Button } from '@14ch/svelte-ui';
+	import NewTopicDialog from '$lib/features/admin/new-topic-dialog/NewTopicDialog.svelte';
 	import { topicsStore } from '$lib/stores/topics.svelte';
 	import { phaseDisplayLabel } from '$lib/models/phase/phase';
 	import type { PhaseSlug, PhaseStatus } from '$lib/models/phase/phase.types';
+	import type { SvelteComponent } from 'svelte';
+
+	let newTopicDialogRef: SvelteComponent | undefined = $state();
 
 	const getBadge = (topic: {
 		phase: PhaseSlug;
@@ -16,7 +19,7 @@
 	<header>
 		<h1>管理ダッシュボード</h1>
 		<div class="topic-list-page__actions">
-			<Button variant="filled" onclick={() => goto('/admin/topics/new')}>新しいテーマを作成</Button>
+			<Button variant="filled" onclick={() => newTopicDialogRef?.open()}>新しいテーマを作成</Button>
 		</div>
 	</header>
 
@@ -40,6 +43,8 @@
 		</ul>
 	{/if}
 </div>
+
+<NewTopicDialog bind:this={newTopicDialogRef} />
 
 <style>
 	.topic-list-page {
