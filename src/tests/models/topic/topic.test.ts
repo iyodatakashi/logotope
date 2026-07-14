@@ -52,13 +52,12 @@ describe('createTopicStates', () => {
 	});
 
 	describe('テーマ設定フェーズ', () => {
-		it('saveTheme は題名・説明・参考URLを保存する', async () => {
+		it('save は編集中の題名・説明・参考URLを保存する', async () => {
 			const store = makeTopic();
-			await store.saveTheme({
-				title: '新しい題名',
-				description: '背景',
-				sourceUrls: ['https://example.com']
-			});
+			store.title = '新しい題名';
+			store.description = '背景';
+			store.sourceUrls = ['https://example.com'];
+			await store.save();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
 				expect.objectContaining({
@@ -69,9 +68,9 @@ describe('createTopicStates', () => {
 			);
 		});
 
-		it('saveTheme は空の説明・参考URLをフィールドごと削除する', async () => {
-			const store = makeTopic();
-			await store.saveTheme({ title: '題名', description: '', sourceUrls: [] });
+		it('save は空の説明・参考URLをフィールドごと削除する', async () => {
+			const store = makeTopic({ title: '題名', description: '', sourceUrls: [] });
+			await store.save();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
 				expect.objectContaining({
@@ -79,6 +78,14 @@ describe('createTopicStates', () => {
 					sourceUrls: 'DELETE_FIELD'
 				})
 			);
+		});
+
+		it('save は空題名を保存せず、永続済みの題名へ戻す', async () => {
+			const store = makeTopic({ title: '元の題名' });
+			store.title = '   ';
+			await store.save();
+			expect(store.title).toBe('元の題名');
+			expect(updateCallsFor('topics/t1')).toHaveLength(0);
 		});
 
 		it('fetchSourceContents は fetchSourceContents onCall を topicId 付きで呼ぶ', async () => {

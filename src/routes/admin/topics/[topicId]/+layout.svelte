@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { IconButton } from '@14ch/svelte-ui';
+	import { IconButton, Input } from '@14ch/svelte-ui';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
@@ -8,6 +8,7 @@
 	import { type PhaseSlug } from '$lib/models/phase/phase.types';
 	import StepNav from '$lib/sharedComponents/StepNav.svelte';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import { TITLE_MAX_LENGTH } from '$lib/models/topic/topic.constants';
 
 	let { children }: { children: Snippet } = $props();
 
@@ -18,6 +19,14 @@
 	});
 
 	const currentPhase = $derived<PhaseSlug>(currentTopicStore.topic?.phase ?? 'theme');
+
+	// 題名を保存する。上限を超えた分は切り詰める（空題名は store 側が保存せず永続値へ戻す）。
+	const save = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		topic.title = topic.title.slice(0, TITLE_MAX_LENGTH);
+		await topic.save();
+	};
 
 	// 現在URLのフェーズ（/admin/topics/[id] 直下のリダイレクトページでは null）
 	const pagePhase = $derived.by((): PhaseSlug | null => {
@@ -44,7 +53,16 @@
 				>arrow_back</IconButton
 			>
 			{#if currentTopicStore.topic}
-				<h2>{currentTopicStore.topic.title}</h2>
+				<h2>
+					<Input
+						bind:value={currentTopicStore.topic.title}
+						ariaLabel="タイトル"
+						inline
+						focusStyle="background"
+						placeholder="タイトルを入力してください"
+						onchange={save}
+					/>
+				</h2>
 			{/if}
 		</div>
 		<div class="topic-detail-layout__step-navi">

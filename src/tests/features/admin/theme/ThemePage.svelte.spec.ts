@@ -2,8 +2,8 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
-const { mockSaveTheme, mockApproveTheme, mockFetchSourceContents, mockGoto } = vi.hoisted(() => ({
-	mockSaveTheme: vi.fn(),
+const { mockSave, mockApproveTheme, mockFetchSourceContents, mockGoto } = vi.hoisted(() => ({
+	mockSave: vi.fn(),
 	mockApproveTheme: vi.fn(),
 	mockFetchSourceContents: vi.fn(),
 	mockGoto: vi.fn()
@@ -12,7 +12,7 @@ const { mockSaveTheme, mockApproveTheme, mockFetchSourceContents, mockGoto } = v
 vi.mock('$app/navigation', () => ({ goto: mockGoto }));
 
 let phase = 'theme';
-let sourceUrls: string[] | undefined = undefined;
+let sourceUrls: string[] = [];
 
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
@@ -24,7 +24,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				sourceUrls,
 				phase,
 				phaseStatus: 'not_started',
-				saveTheme: mockSaveTheme,
+				save: mockSave,
 				fetchSourceContents: mockFetchSourceContents,
 				approveTheme: mockApproveTheme
 			};
@@ -38,7 +38,7 @@ describe('ThemePage.svelte', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		phase = 'theme';
-		sourceUrls = undefined;
+		sourceUrls = [];
 	});
 
 	it('テーマ設定中はタイトル・詳細説明・参考URLを編集でき、承認導線を表示する', async () => {
@@ -57,11 +57,7 @@ describe('ThemePage.svelte', () => {
 
 		await page.getByRole('button', { name: '承認して次へ進む' }).click();
 
-		expect(mockSaveTheme).toHaveBeenCalledWith({
-			title: 'テストテーマ',
-			description: '背景',
-			sourceUrls: []
-		});
+		expect(mockSave).toHaveBeenCalledOnce();
 		expect(mockFetchSourceContents).not.toHaveBeenCalled();
 		expect(mockApproveTheme).toHaveBeenCalledOnce();
 		expect(mockGoto).toHaveBeenCalledWith('/admin/topics/t1/fact-research');

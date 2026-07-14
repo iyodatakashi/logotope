@@ -5,9 +5,13 @@
 	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import {
+		TITLE_MAX_LENGTH,
+		DESCRIPTION_MAX_LENGTH,
+		MAX_SOURCE_URLS
+	} from '$lib/models/topic/topic.constants';
 
 	const PHASE: PhaseSlug = 'theme';
-	const MAX_SOURCE_URLS = 5;
 
 	// テーマ設定は生成を伴わないため、状態は not_started（設定中）か approved（承認済み）のみ。
 	const logicalState = $derived.by(() => {
@@ -17,30 +21,22 @@
 			: 'not_started';
 	});
 
-	// テーマの編集用ドラフト。永続データ（topic）が変わるたびに同期する。
-	let draftTitle = $state('');
-	let draftDescription = $state('');
-	let draftSourceUrls = $state<string[]>([]);
-	$effect(() => {
-		const topic = currentTopicStore.topic;
-		draftTitle = topic?.title ?? '';
-		draftDescription = topic?.description ?? '';
-		draftSourceUrls = topic?.sourceUrls ? [...topic.sourceUrls] : [];
-	});
-
 	let approveError = $state('');
 	let isApproving = $state(false);
 
 	const titleError = $derived.by(() => {
-		if (!draftTitle.trim()) return 'タイトルを入力してください';
-		if (draftTitle.length > 500) return '500文字以内で入力してください';
+		const title = currentTopicStore.topic?.title ?? '';
+		if (!title.trim()) return 'タイトルを入力してください';
+		if (title.length > TITLE_MAX_LENGTH) return `${TITLE_MAX_LENGTH}文字以内で入力してください`;
 		return '';
 	});
 	const descriptionError = $derived(
-		draftDescription.length > 2000 ? '2000文字以内で入力してください' : ''
+		(currentTopicStore.topic?.description.length ?? 0) > DESCRIPTION_MAX_LENGTH
+			? `${DESCRIPTION_MAX_LENGTH}文字以内で入力してください`
+			: ''
 	);
 	const urlErrors = $derived(
-		draftSourceUrls.map((url) =>
+		(currentTopicStore.topic?.sourceUrls ?? []).map((url) =>
 			url && !url.startsWith('https://') && !url.startsWith('http://')
 				? 'https:// または http:// で始まるURLを入力してください'
 				: ''
@@ -50,23 +46,20 @@
 		!titleError && !descriptionError && urlErrors.every((urlError) => !urlError)
 	);
 
-	// 入力内容をトピックに保存する（不正な値は保存しない）。空URL行は保存対象から除く。
+	// 編集内容をトピックに保存する（不正な値は保存しない）。
 	const save = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic || !isValid) return;
-		await topic.saveTheme({
-			title: draftTitle.trim(),
-			description: draftDescription,
-			sourceUrls: $state.snapshot(draftSourceUrls).filter((url) => url.trim())
-		});
+		await topic.save();
 	};
 
 	const addUrl = () => {
-		if (draftSourceUrls.length < MAX_SOURCE_URLS) draftSourceUrls.push('');
+		const topic = currentTopicStore.topic;
+		if (topic && topic.sourceUrls.length < MAX_SOURCE_URLS) topic.sourceUrls.push('');
 	};
 
 	const removeUrl = (urlIndex: number) => {
-		draftSourceUrls.splice(urlIndex, 1);
+		currentTopicStore.topic?.sourceUrls.splice(urlIndex, 1);
 		save();
 	};
 
@@ -78,7 +71,7 @@
 		approveError = '';
 		try {
 			await save();
-			if (draftSourceUrls.some((url) => url.trim())) await topic.fetchSourceContents();
+			if (topic.sourceUrls.some((url) => url.trim())) await topic.fetchSourceContents();
 			await topic.approveTheme();
 			const next = nextPhase(PHASE);
 			if (next) goto(phasePath(topic.id, next));
@@ -105,58 +98,61 @@
 	{/snippet}
 
 	{#snippet content()}
-		<div class="theme-page">
-			<div class="theme-page__field">
-				<label for="theme-title">タイトル</label>
-				<Input
-					id="theme-title"
-					bind:value={draftTitle}
-					onchange={save}
-					placeholder="討論テーマのタイトルを入力してください（500文字以内）"
-					fullWidth
-				/>
-				{#if titleError}
-					<p class="theme-page__error" role="alert">{titleError}</p>
-				{/if}
-			</div>
-
-			<div class="theme-page__field">
-				<label for="theme-description">詳細説明</label>
-				<Textarea
-					id="theme-description"
-					bind:value={draftDescription}
-					onchange={save}
-					placeholder="テーマの背景・文脈を入力してください（任意・2000文字以内）"
-					rows={6}
-					fullWidth
-				/>
-				{#if descriptionError}
-					<p class="theme-page__error" role="alert">{descriptionError}</p>
-				{/if}
-			</div>
-
-			<div class="theme-page__field">
-				<p>参考URL（任意・最大{MAX_SOURCE_URLS}件）</p>
-				{#each draftSourceUrls as _url, urlIndex (urlIndex)}
-					<div class="theme-page__url-row">
-						<Input
-							bind:value={draftSourceUrls[urlIndex]}
-							onchange={save}
-							ariaLabel={`参考URL ${urlIndex + 1}`}
-							placeholder="https://"
-							fullWidth
-						/>
-						<Button type="button" variant="ghost" onclick={() => removeUrl(urlIndex)}>削除</Button>
-					</div>
-					{#if urlErrors[urlIndex]}
-						<p class="theme-page__error" role="alert">{urlErrors[urlIndex]}</p>
+		{#if currentTopicStore.topic}
+			<div class="theme-page">
+				<div class="theme-page__field">
+					<label for="theme-title">タイトル</label>
+					<Input
+						id="theme-title"
+						bind:value={currentTopicStore.topic.title}
+						onchange={save}
+						placeholder="討論テーマのタイトルを入力してください（{TITLE_MAX_LENGTH}文字以内）"
+						fullWidth
+					/>
+					{#if titleError}
+						<p class="theme-page__error" role="alert">{titleError}</p>
 					{/if}
-				{/each}
-				{#if draftSourceUrls.length < MAX_SOURCE_URLS}
-					<Button type="button" variant="outlined" onclick={addUrl}>URLを追加</Button>
-				{/if}
+				</div>
+
+				<div class="theme-page__field">
+					<label for="theme-description">詳細説明</label>
+					<Textarea
+						id="theme-description"
+						bind:value={currentTopicStore.topic.description}
+						onchange={save}
+						placeholder="テーマの背景・文脈を入力してください（任意・{DESCRIPTION_MAX_LENGTH}文字以内）"
+						rows={6}
+						fullWidth
+					/>
+					{#if descriptionError}
+						<p class="theme-page__error" role="alert">{descriptionError}</p>
+					{/if}
+				</div>
+
+				<div class="theme-page__field">
+					<p>参考URL（任意・最大{MAX_SOURCE_URLS}件）</p>
+					{#each currentTopicStore.topic.sourceUrls as _url, urlIndex (urlIndex)}
+						<div class="theme-page__url-row">
+							<Input
+								bind:value={currentTopicStore.topic.sourceUrls[urlIndex]}
+								onchange={save}
+								ariaLabel={`参考URL ${urlIndex + 1}`}
+								placeholder="https://"
+								fullWidth
+							/>
+							<Button type="button" variant="ghost" onclick={() => removeUrl(urlIndex)}>削除</Button
+							>
+						</div>
+						{#if urlErrors[urlIndex]}
+							<p class="theme-page__error" role="alert">{urlErrors[urlIndex]}</p>
+						{/if}
+					{/each}
+					{#if currentTopicStore.topic.sourceUrls.length < MAX_SOURCE_URLS}
+						<Button type="button" variant="outlined" onclick={addUrl}>URLを追加</Button>
+					{/if}
+				</div>
 			</div>
-		</div>
+		{/if}
 	{/snippet}
 </PhasePanel>
 
@@ -165,7 +161,8 @@
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
-		max-width: 800px;
+		max-width: 960px;
+		margin: 0 auto;
 	}
 
 	.theme-page__field {

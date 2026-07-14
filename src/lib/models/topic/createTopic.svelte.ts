@@ -17,11 +17,13 @@ import { nextPhase } from '$lib/models/phase/phase';
 
 export const createTopicStates = (topicDoc: Topic) => {
 	const id: string = $state(topicDoc.id);
-	const title: string = $state(topicDoc.title);
+	// 題名・説明・参考URLは画面から直接編集できる（bind 可能）。永続化は save を明示的に呼ぶ。
+	// 未設定は空文字・空配列で表す（Firestore 上のフィールド不在は save が deleteField で表現する）。
+	let title: string = $state(topicDoc.title);
+	let description: string = $state(topicDoc.description ?? '');
+	let sourceUrls: string[] = $state(topicDoc.sourceUrls ?? []);
 	const phase: PhaseSlug = $state(topicDoc.phase);
 	const phaseStatus: PhaseStatus = $state(topicDoc.phaseStatus);
-	const description: string | undefined = $state(topicDoc.description);
-	const sourceUrls: string[] | undefined = $state(topicDoc.sourceUrls);
 	const fetchedSourceContents = $state(topicDoc.fetchedSourceContents);
 	const personaCount: number = $state(topicDoc.personaCount ?? 0);
 	const createdAt: Date = topicDoc.createdAt;
@@ -39,16 +41,20 @@ export const createTopicStates = (topicDoc: Topic) => {
 		});
 	};
 
-	// テーマ（題名・説明・参考URL）を保存する。空の説明・URLはフィールドごと消して未設定に戻す。
-	const saveTheme = async (theme: {
-		title: string;
-		description: string;
-		sourceUrls: string[];
-	}): Promise<void> => {
+	// 編集中の内容（題名・説明・参考URL）を永続化する。
+	// 空の説明・URLはフィールドごと消して未設定に戻す。空題名は保存せず永続済みの題名へ戻す。
+	const save = async (): Promise<void> => {
+		const trimmedTitle = title.trim();
+		if (!trimmedTitle) {
+			title = topicDoc.title;
+			return;
+		}
+		title = trimmedTitle;
+		const urls = $state.snapshot(sourceUrls).filter((url) => url.trim());
 		await updateDoc(doc(db, 'topics', id), {
-			title: theme.title,
-			description: theme.description.trim() ? theme.description : deleteField(),
-			sourceUrls: theme.sourceUrls.length ? theme.sourceUrls : deleteField(),
+			title: trimmedTitle,
+			description: description.trim() ? description : deleteField(),
+			sourceUrls: urls.length ? urls : deleteField(),
 			updatedAt: Timestamp.now()
 		});
 	};
@@ -290,6 +296,9 @@ export const createTopicStates = (topicDoc: Topic) => {
 		get title() {
 			return title;
 		},
+		set title(value: string) {
+			title = value;
+		},
 		get phase() {
 			return phase;
 		},
@@ -311,8 +320,14 @@ export const createTopicStates = (topicDoc: Topic) => {
 		get description() {
 			return description;
 		},
+		set description(value: string) {
+			description = value;
+		},
 		get sourceUrls() {
 			return sourceUrls;
+		},
+		set sourceUrls(value: string[]) {
+			sourceUrls = value;
 		},
 		get fetchedSourceContents() {
 			return fetchedSourceContents;
@@ -329,7 +344,7 @@ export const createTopicStates = (topicDoc: Topic) => {
 		resetPersonas,
 		resetChapters,
 		resetDebate,
-		saveTheme,
+		save,
 		fetchSourceContents,
 		approveTheme,
 		approveFactResearch,

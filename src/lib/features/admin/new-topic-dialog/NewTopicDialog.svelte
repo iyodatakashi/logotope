@@ -3,9 +3,9 @@
 	import type { SvelteComponent } from 'svelte';
 	import { topicsStore } from '$lib/stores/topics.svelte';
 	import { goto } from '$app/navigation';
+	import { TITLE_MAX_LENGTH } from '$lib/models/topic/topic.constants';
 
 	let dialogRef: SvelteComponent | undefined = $state();
-	const TITLE_MAX_LENGTH = 200;
 	let title = $state('');
 	let isLoading = $state(false);
 
