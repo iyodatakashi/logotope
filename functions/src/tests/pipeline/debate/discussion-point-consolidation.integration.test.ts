@@ -11,10 +11,16 @@ import type { Persona } from '../../../types/persona.types.js';
 import type { Chapter } from '../../../types/chapter.types.js';
 
 const mockUpdate = vi.fn().mockResolvedValue(undefined);
+const mockTxGet = vi.fn(async () => ({ data: () => undefined }));
+const mockTxUpdate = vi.fn();
+const mockRunTransaction = vi.fn(
+	async (fn: (tx: { get: typeof mockTxGet; update: typeof mockTxUpdate }) => Promise<unknown>) =>
+		fn({ get: mockTxGet, update: mockTxUpdate })
+);
 const mockDoc = vi.fn().mockReturnValue({ update: mockUpdate });
 
 vi.mock('firebase-admin/firestore', () => ({
-	getFirestore: vi.fn(() => ({ doc: mockDoc })),
+	getFirestore: vi.fn(() => ({ doc: mockDoc, runTransaction: mockRunTransaction })),
 	Timestamp: { now: vi.fn(() => ({ toDate: () => new Date() })) },
 	FieldValue: { arrayUnion: vi.fn((...args: unknown[]) => args), delete: vi.fn(() => 'DELETE') }
 }));
