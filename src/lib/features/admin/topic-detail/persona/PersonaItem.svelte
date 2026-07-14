@@ -44,13 +44,17 @@
 </div>
 
 <style>
+	.persona-item {
+		height: 100%;
+	}
+
 	.persona-item__button {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+		height: 100%;
 		padding: 16px;
 		background-color: var(--white);
-		border: 1px solid var(--svelte-ui-border-weak-color);
 		border-radius: 4px;
 		text-align: left;
 		color: var(--svelte-ui-text-color);

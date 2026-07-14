@@ -34,9 +34,9 @@
 
 <style>
 	.stakeholder-item {
+		height: 100%;
 		padding: 16px;
 		background-color: var(--white);
-		border: 1px solid var(--svelte-ui-border-weak-color);
 		border-radius: 4px;
 	}
 	.stakeholder-item__header {

@@ -31,20 +31,7 @@
 	.stakeholder-persona-row {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
-		gap: 16px;
-		/* 左右セルを行の高さに揃える（stakeholder カードと persona カードを同じ高さに） */
+		gap: 2px;
 		align-items: stretch;
-	}
-
-	.stakeholder-persona-row__left {
-		display: grid;
-		grid-template-columns: auto 1fr;
-		gap: 8px;
-		align-items: stretch;
-	}
-
-	.stakeholder-persona-row__right {
-		display: flex;
-		flex-direction: column;
 	}
 </style>
