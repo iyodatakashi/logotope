@@ -13,8 +13,6 @@
 	// ステークホルダーに対応するペルソナを安定 id で解決する。
 	const matchPersona = (stakeholder: Stakeholder): Persona | undefined =>
 		personas.find((persona) => persona.stakeholderId === stakeholder.id);
-	// 採用（チェックON）判定。selected は永続され、未設定（サーバ生成直後）は既定 ON（R3-2）。
-	const isSelected = (stakeholder: Stakeholder): boolean => stakeholder.selected ?? true;
 
 	// 押下直後の楽観的な「実行中」表示。実状態(running)が反映されたら解除する。
 	let starting = $state<null | 'stakeholders' | 'personas' | 'interviews'>(null);
@@ -49,13 +47,14 @@
 	const rows = $derived(
 		stakeholders.map((stakeholder) => ({
 			stakeholder,
-			persona: matchPersona(stakeholder),
-			checked: isSelected(stakeholder)
+			persona: matchPersona(stakeholder)
 		}))
 	);
 	// 採用集合は採用（チェックON）ステークホルダーの安定 id。
 	const selectedStakeholderIds = $derived(
-		stakeholders.filter(isSelected).map((stakeholder) => stakeholder.id)
+		stakeholders
+			.filter((stakeholder) => stakeholder.selected)
+			.map((stakeholder) => stakeholder.id)
 	);
 
 	const hasStakeholders = $derived(stakeholders.length > 0);

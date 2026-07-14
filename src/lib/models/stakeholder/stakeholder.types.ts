@@ -12,7 +12,7 @@ export type StakeholderForFirestore = {
 	selected?: boolean;
 };
 
-// Firestoreから読み込んだ後のアプリ層型（id 解決済み）
-export type Stakeholder = StakeholderForFirestore & {
-	id: string;
+// Firestoreから読み込んだ後のアプリ層型（selected の既定 ON は境界で解決済み）
+export type Stakeholder = Omit<StakeholderForFirestore, 'selected'> & {
+	selected: boolean;
 };

@@ -6,13 +6,17 @@
 
 	let { stakeholder }: { stakeholder: Stakeholder } = $props();
 
-	const toggle = (checked: boolean) =>
-		currentTopicStore.stakeholdersStore.setSelected(stakeholder.id, checked);
+	const toggle = (selected: boolean) =>
+		currentTopicStore.stakeholdersStore.setSelected(stakeholder.id, selected);
 </script>
 
 <div class="stakeholder-item">
-	<div class="stakeholder-persona-row__check">
-		<Checkbox value={checked} onchange={toggle} ariaLabel="このステークホルダーを採用する" />
+	<div class="stakeholder-item__check">
+		<Checkbox
+			value={stakeholder.selected}
+			onchange={toggle}
+			ariaLabel="このステークホルダーを採用する"
+		/>
 	</div>
 	<div class="stakeholder-item__header">
 		<div class="stakeholder-item__role">{stakeholder.role}</div>

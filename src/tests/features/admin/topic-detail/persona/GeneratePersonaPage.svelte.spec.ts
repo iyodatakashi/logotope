@@ -79,14 +79,14 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 
 import PersonaWorkspacePage from '$lib/features/admin/topic-detail/persona/GeneratePersonaPage.svelte';
 
-// 採用（selected）はステークホルダー文書に永続する。未設定は既定 ON。
-const makeStakeholder = (id: string, role: string, selected?: boolean) => ({
+// 採用（selected）はステークホルダー文書に永続する。既定 ON はストアの境界で解決済み。
+const makeStakeholder = (id: string, role: string, selected = true) => ({
 	id,
 	role,
 	reason: `${role}の理由`,
 	mainInterests: [],
 	minorityLevel: 'low',
-	...(selected !== undefined && { selected })
+	selected
 });
 
 const makePersona = (over: Record<string, unknown>) => ({

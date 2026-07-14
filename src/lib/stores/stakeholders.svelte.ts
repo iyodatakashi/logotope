@@ -16,7 +16,11 @@ export const createStakeholdersStore = (topicId: string) => {
 				? (snap.data() as { stakeholders: StakeholderForFirestore[] })
 				: null;
 			// 永続された安定 id をそのまま採用する（境界でドメイン型へ変換して保持）。
-			stakeholders = (data?.stakeholders ?? []).map((stakeholder) => ({ ...stakeholder }));
+			// selected 未設定（サーバ生成直後）は既定 ON としてここで解決する。
+			stakeholders = (data?.stakeholders ?? []).map((stakeholder) => ({
+				...stakeholder,
+				selected: stakeholder.selected ?? true
+			}));
 			isLoaded = true;
 		});
 	};

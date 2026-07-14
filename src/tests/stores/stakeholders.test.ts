@@ -29,16 +29,37 @@ describe('createStakeholdersStore', () => {
 		expect(store.stakeholders).toEqual([]);
 	});
 
-	it('永続された安定 id をそのまま採用する', () => {
+	it('永続された安定 id をそのまま採用し、未設定の selected を既定 ON で解決する', () => {
 		const store = createStakeholdersStore('topic1');
 		store.start();
 		fire([
 			{ id: 'sid-a', role: '医師', reason: '専門家', mainInterests: [], minorityLevel: 'low' },
-			{ id: 'sid-b', role: '患者', reason: '当事者', mainInterests: [], minorityLevel: 'high' }
+			{
+				id: 'sid-b',
+				role: '患者',
+				reason: '当事者',
+				mainInterests: [],
+				minorityLevel: 'high',
+				selected: false
+			}
 		]);
 		expect(store.stakeholders).toEqual([
-			{ id: 'sid-a', role: '医師', reason: '専門家', mainInterests: [], minorityLevel: 'low' },
-			{ id: 'sid-b', role: '患者', reason: '当事者', mainInterests: [], minorityLevel: 'high' }
+			{
+				id: 'sid-a',
+				role: '医師',
+				reason: '専門家',
+				mainInterests: [],
+				minorityLevel: 'low',
+				selected: true
+			},
+			{
+				id: 'sid-b',
+				role: '患者',
+				reason: '当事者',
+				mainInterests: [],
+				minorityLevel: 'high',
+				selected: false
+			}
 		]);
 	});
 
