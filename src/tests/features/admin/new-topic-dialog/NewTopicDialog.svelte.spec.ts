@@ -42,11 +42,14 @@ describe('NewTopicDialog.svelte', () => {
 		expect(mockGoto).toHaveBeenCalledWith('/admin/topics/t1');
 	});
 
-	it('タイトルが上限を超えるとエラーを表示する', async () => {
+	it('タイトルが上限を超えるとエラーを表示し、作成できない', async () => {
 		open();
 
-		await page.getByRole('textbox').fill('あ'.repeat(31));
+		await page.getByRole('textbox').fill('あ'.repeat(201));
 
-		await expect.element(page.getByRole('alert')).toHaveTextContent('30文字以内で入力してください');
+		await expect
+			.element(page.getByRole('alert'))
+			.toHaveTextContent('200文字以内で入力してください');
+		await expect.element(page.getByRole('button', { name: 'テーマを作成' })).toBeDisabled();
 	});
 });

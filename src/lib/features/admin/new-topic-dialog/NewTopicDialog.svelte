@@ -5,7 +5,7 @@
 	import { goto } from '$app/navigation';
 
 	let dialogRef: SvelteComponent | undefined = $state();
-	const TITLE_MAX_LENGTH = 30;
+	const TITLE_MAX_LENGTH = 200;
 	let title = $state('');
 	let isLoading = $state(false);
 
@@ -30,6 +30,9 @@
 		if (!title.trim()) {
 			return false;
 		}
+		if (title.length > TITLE_MAX_LENGTH) {
+			return false;
+		}
 		return true;
 	});
 
@@ -42,18 +45,19 @@
 </script>
 
 <Dialog bind:this={dialogRef} title="新しいテーマを作成" width="600px">
-	<div>
+	<div class="new-topic-dialog__body">
 		<Input
 			id="topic-title"
 			value={title}
 			oninput={(value) => (title = String(value))}
-			placeholder="討論テーマのタイトルを入力してください（500文字以内）"
+			placeholder="討論テーマのタイトルを入力してください（{TITLE_MAX_LENGTH}文字以内）"
 			fullWidth
 		/>
 		{#if errorMessage}
-			<p role="alert">{errorMessage}</p>
+			<p role="alert" class="new-topic-dialog__error-message">{errorMessage}</p>
 		{/if}
 	</div>
+
 	{#snippet footer()}
 		<Button variant="ghost" loading={isLoading} onclick={() => dialogRef?.close()}>
 			キャンセル
@@ -63,3 +67,15 @@
 		</Button>
 	{/snippet}
 </Dialog>
+
+<style>
+	.new-topic-dialog__body {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
+	.new-topic-dialog__error-message {
+		color: var(--text-error);
+	}
+</style>
