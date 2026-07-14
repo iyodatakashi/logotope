@@ -101,89 +101,91 @@
 	{/snippet}
 
 	{#snippet content()}
-		{#if !isStarting}
-			{#if chapterIssues?.issues?.length}
-				<section class="generate-chapters-page__issues">
-					<h3>Step 1: 生成した切り口</h3>
-					<div class="generate-chapters-page__issues-grid">
-						<div class="generate-chapters-page__issues-col">
-							<h4>一般的な切り口（ペルソナなし）</h4>
-							<ol>
-								{#each generalIssues as issue, i (issue.id ?? i)}
-									<li>{issue.text}</li>
-								{/each}
-							</ol>
-						</div>
-						<div class="generate-chapters-page__issues-col">
-							<h4>ペルソナ固有の切り口</h4>
-							<ol>
-								{#each personaIssues as issue, i (issue.id ?? i)}
-									<li>{issue.text}</li>
-								{/each}
-							</ol>
-						</div>
-					</div>
-				</section>
-			{/if}
-			{#if scoredIssues.length}
-				<section class="generate-chapters-page__issues">
-					<h3>Step 2: 論点スコアリング結果</h3>
-					<ul class="generate-chapters-page__scored-issues">
-						{#each scoredIssues as issue, i (issue.id ?? i)}
-							<li
-								class:generate-chapters-page__scored-issue--selected={issue.selected}
-								class:generate-chapters-page__scored-issue--rejected={!issue.selected}
-							>
-								<span class="generate-chapters-page__score">{issue.score}</span>
-								<span class="generate-chapters-page__issue-source"
-									>{issue.source === 'general' ? '一般' : 'ペルソナ'}</span
-								>
-								<span class="generate-chapters-page__issue-text">{issue.text}</span>
-								<span class="generate-chapters-page__reason">{issue.reason}</span>
-							</li>
-						{/each}
-					</ul>
-				</section>
-			{/if}
-			{#if chapterIssues?.issueGroups?.length}
-				<section class="generate-chapters-page__issues">
-					<h3>Step 3: グループ化結果</h3>
-					<ul class="generate-chapters-page__grouping">
-						{#each chapterIssues.issueGroups as group, i (i)}
-							<li class="generate-chapters-page__group">
-								<span class="generate-chapters-page__group-label">グループ {i + 1}</span>
-								<ul class="generate-chapters-page__group-issues">
-									{#each group.issueIndexes as issueIndex (issueIndex)}
-										<li class="generate-chapters-page__group-issue">
-											{chapterIssues.issues[issueIndex]?.text ?? ''}
-										</li>
+		<div class="generate-chapters-page__content">
+			{#if !isStarting}
+				{#if chapterIssues?.issues?.length}
+					<section class="generate-chapters-page__issues">
+						<h3>Step 1: 生成した切り口</h3>
+						<div class="generate-chapters-page__issues-grid">
+							<div class="generate-chapters-page__issues-col">
+								<h4>一般的な切り口（ペルソナなし）</h4>
+								<ol>
+									{#each generalIssues as issue, i (issue.id ?? i)}
+										<li>{issue.text}</li>
 									{/each}
-								</ul>
-							</li>
-						{/each}
-					</ul>
-				</section>
-			{/if}
-			{#if chapters}
-				<section class="generate-chapters-page__issues">
-					<h3>Step 4: 論点精査結果</h3>
-					<ol class="generate-chapters-page__chapters">
-						{#each chapters as chapter (chapter.id)}
-							<li>
-								<strong>{chapter.title}</strong>
-								{#if chapter.agenda?.length}
-									<ul class="generate-chapters-page__points">
-										{#each chapter.agenda as point, i (i)}
-											<li>{point}</li>
+								</ol>
+							</div>
+							<div class="generate-chapters-page__issues-col">
+								<h4>ペルソナ固有の切り口</h4>
+								<ol>
+									{#each personaIssues as issue, i (issue.id ?? i)}
+										<li>{issue.text}</li>
+									{/each}
+								</ol>
+							</div>
+						</div>
+					</section>
+				{/if}
+				{#if scoredIssues.length}
+					<section class="generate-chapters-page__issues">
+						<h3>Step 2: 論点スコアリング結果</h3>
+						<ul class="generate-chapters-page__scored-issues">
+							{#each scoredIssues as issue, i (issue.id ?? i)}
+								<li
+									class:generate-chapters-page__scored-issue--selected={issue.selected}
+									class:generate-chapters-page__scored-issue--rejected={!issue.selected}
+								>
+									<span class="generate-chapters-page__score">{issue.score}</span>
+									<span class="generate-chapters-page__issue-source"
+										>{issue.source === 'general' ? '一般' : 'ペルソナ'}</span
+									>
+									<span class="generate-chapters-page__issue-text">{issue.text}</span>
+									<span class="generate-chapters-page__reason">{issue.reason}</span>
+								</li>
+							{/each}
+						</ul>
+					</section>
+				{/if}
+				{#if chapterIssues?.issueGroups?.length}
+					<section class="generate-chapters-page__issues">
+						<h3>Step 3: グループ化結果</h3>
+						<ul class="generate-chapters-page__grouping">
+							{#each chapterIssues.issueGroups as group, i (i)}
+								<li class="generate-chapters-page__group">
+									<span class="generate-chapters-page__group-label">グループ {i + 1}</span>
+									<ul class="generate-chapters-page__group-issues">
+										{#each group.issueIndexes as issueIndex (issueIndex)}
+											<li class="generate-chapters-page__group-issue">
+												{chapterIssues.issues[issueIndex]?.text ?? ''}
+											</li>
 										{/each}
 									</ul>
-								{/if}
-							</li>
-						{/each}
-					</ol>
-				</section>
+								</li>
+							{/each}
+						</ul>
+					</section>
+				{/if}
+				{#if chapters}
+					<section class="generate-chapters-page__issues">
+						<h3>Step 4: 論点精査結果</h3>
+						<ol class="generate-chapters-page__chapters">
+							{#each chapters as chapter (chapter.id)}
+								<li>
+									<strong>{chapter.title}</strong>
+									{#if chapter.agenda?.length}
+										<ul class="generate-chapters-page__points">
+											{#each chapter.agenda as point, i (i)}
+												<li>{point}</li>
+											{/each}
+										</ul>
+									{/if}
+								</li>
+							{/each}
+						</ol>
+					</section>
+				{/if}
 			{/if}
-		{/if}
+		</div>
 	{/snippet}
 </PhasePanel>
 
@@ -202,6 +204,11 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;
+	}
+
+	.generate-chapters-page__content {
+		max-width: 960px;
+		margin: 0 auto;
 	}
 
 	.generate-chapters-page__chapters {

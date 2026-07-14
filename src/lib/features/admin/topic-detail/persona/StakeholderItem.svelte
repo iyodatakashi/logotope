@@ -1,11 +1,19 @@
 <script lang="ts">
 	import type { Stakeholder } from '$lib/models/stakeholder/stakeholder.types';
 	import { engagementStyle } from '$lib/models/engagement/engagement.constants';
+	import { Checkbox } from '@14ch/svelte-ui';
+	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 
 	let { stakeholder }: { stakeholder: Stakeholder } = $props();
+
+	const toggle = (checked: boolean) =>
+		currentTopicStore.stakeholdersStore.setSelected(stakeholder.id, checked);
 </script>
 
-<li class="stakeholder-item">
+<div class="stakeholder-item">
+	<div class="stakeholder-persona-row__check">
+		<Checkbox value={checked} onchange={toggle} ariaLabel="このステークホルダーを採用する" />
+	</div>
 	<div class="stakeholder-item__header">
 		<div class="stakeholder-item__role">{stakeholder.role}</div>
 		<span
@@ -18,7 +26,7 @@
 		<span class="stakeholder-item__minor">マイノリティ度: {stakeholder.minorityLevel}</span>
 	</div>
 	<p class="stakeholder-item__rationale">{stakeholder.reason}</p>
-</li>
+</div>
 
 <style>
 	.stakeholder-item {

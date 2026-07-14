@@ -63,9 +63,6 @@
 	const canGeneratePersonas = $derived(hasStakeholders && selectedStakeholderIds.length > 0);
 	const hasAnyInterview = $derived(personas.some((persona) => persona.interview != null));
 
-	const toggle = (stakeholderId: string, checked: boolean) =>
-		currentTopicStore.stakeholdersStore.setSelected(stakeholderId, checked);
-
 	// --- 操作ハンドラ（オーケストレーション。ドメイン操作は既存 model/store に委譲する） ---
 
 	const runWith = async (phase: NonNullable<typeof starting>, work: () => Promise<void>) => {
@@ -206,24 +203,21 @@
 	{/snippet}
 
 	{#snippet content()}
-		{#if stakeholdersState === 'running'}
-			<Skeleton
-				patterns={[{ type: 'box', width: '100%', height: '96px' }]}
-				repeat={5}
-				repeatGap="12px"
-			/>
-		{:else if hasStakeholders}
-			<div class="generate-persona-page__rows">
-				{#each rows as row (row.stakeholder.id)}
-					<StakeholderPersonaRow
-						stakeholder={row.stakeholder}
-						persona={row.persona}
-						checked={row.checked}
-						onToggle={(checked) => toggle(row.stakeholder.id, checked)}
-					/>
-				{/each}
-			</div>
-		{/if}
+		<div class="generate-persona-page__content">
+			{#if stakeholdersState === 'running'}
+				<Skeleton
+					patterns={[{ type: 'box', width: '100%', height: '96px' }]}
+					repeat={5}
+					repeatGap="12px"
+				/>
+			{:else if hasStakeholders}
+				<div class="generate-persona-page__rows">
+					{#each rows as row (row.stakeholder.id)}
+						<StakeholderPersonaRow stakeholder={row.stakeholder} persona={row.persona} />
+					{/each}
+				</div>
+			{/if}
+		</div>
 	{/snippet}
 </PhasePanel>
 
@@ -260,6 +254,11 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 8px;
+	}
+
+	.generate-persona-page__content {
+		max-width: 960px;
+		margin: 0 auto;
 	}
 
 	.generate-persona-page__hint {

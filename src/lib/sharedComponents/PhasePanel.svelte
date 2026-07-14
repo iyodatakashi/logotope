@@ -15,7 +15,9 @@
 <div class="phase-panel">
 	{#if actions}
 		<div class="phase-panel__actions-pane">
-			{@render actions()}
+			<div class="phase-panel__actions-content">
+				{@render actions()}
+			</div>
 		</div>
 	{/if}
 
@@ -45,6 +47,11 @@
 		background-color: color-mix(in srgb, var(--base-100) 50%, transparent);
 		backdrop-filter: blur(6px);
 		z-index: 100;
+	}
+
+	.phase-panel__actions-content {
+		max-width: 960px;
+		margin: 0 auto;
 	}
 
 	.phase-panel__contents-pane {

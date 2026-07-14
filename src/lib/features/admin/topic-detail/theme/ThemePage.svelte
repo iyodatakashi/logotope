@@ -99,7 +99,7 @@
 
 	{#snippet content()}
 		{#if currentTopicStore.topic}
-			<div class="theme-page">
+			<div class="theme-page__content">
 				<div class="theme-page__field">
 					<label for="theme-title">タイトル</label>
 					<Input
@@ -157,7 +157,7 @@
 </PhasePanel>
 
 <style>
-	.theme-page {
+	.theme-page__content {
 		display: flex;
 		flex-direction: column;
 		gap: 24px;

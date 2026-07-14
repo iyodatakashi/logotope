@@ -121,27 +121,29 @@
 	{/snippet}
 
 	{#snippet content()}
-		{#if logicalState === 'running'}
-			<Skeleton
-				patterns={[{ type: 'box', width: '100%', height: '96px' }]}
-				repeat={4}
-				repeatGap="8px"
-			/>
-		{:else if draftFacts.length > 0}
-			<ul class="fact-research-page">
-				{#each draftFacts as _fact, index (index)}
-					<FactResearchItem
-						bind:fact={draftFacts[index]}
-						onchange={save}
-						onRemove={() => removeFact(index)}
-					/>
-				{/each}
-			</ul>
-		{:else if currentTopicStore.factBaseStore.isLoaded && logicalState !== 'not_started'}
-			<p class="fact-research-page__empty">
-				確たる客観的事実は見つかりませんでした（事実基盤は空です）。
-			</p>
-		{/if}
+		<div class="fact-research-page__content">
+			{#if logicalState === 'running'}
+				<Skeleton
+					patterns={[{ type: 'box', width: '100%', height: '96px' }]}
+					repeat={4}
+					repeatGap="8px"
+				/>
+			{:else if draftFacts.length > 0}
+				<ul class="fact-research-page__fact-list">
+					{#each draftFacts as _fact, index (index)}
+						<FactResearchItem
+							bind:fact={draftFacts[index]}
+							onchange={save}
+							onRemove={() => removeFact(index)}
+						/>
+					{/each}
+				</ul>
+			{:else if currentTopicStore.factBaseStore.isLoaded && logicalState !== 'not_started'}
+				<p class="fact-research-page__empty">
+					確たる客観的事実は見つかりませんでした（事実基盤は空です）。
+				</p>
+			{/if}
+		</div>
 	{/snippet}
 </PhasePanel>
 
@@ -162,7 +164,12 @@
 		gap: 8px;
 	}
 
-	.fact-research-page {
+	.fact-research-page__content {
+		max-width: 960px;
+		margin: 0 auto;
+	}
+
+	.fact-research-page__fact-list {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;

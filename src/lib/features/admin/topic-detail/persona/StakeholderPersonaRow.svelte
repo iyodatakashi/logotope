@@ -1,44 +1,28 @@
 <script lang="ts">
-	import { Checkbox } from '@14ch/svelte-ui';
 	import type { Stakeholder } from '$lib/models/stakeholder/stakeholder.types';
 	import type { Persona } from '$lib/models/persona/persona.types';
 	import StakeholderItem from './StakeholderItem.svelte';
 	import PersonaItem from './PersonaItem.svelte';
-	import InterviewItem from './InterviewItem.svelte';
 
 	// 1行=採用チェック＋ステークホルダー（左）と、対応ペルソナ＋取材状態（右）。
 	// 対応ペルソナが無ければ右側は空白（プレースホルダーなし）。状態は持たず採用トグルは親へ委譲する。
 	let {
 		stakeholder,
-		persona,
-		checked,
-		onToggle
+		persona
 	}: {
 		stakeholder: Stakeholder;
 		persona: Persona | undefined;
-		checked: boolean;
-		onToggle: (checked: boolean) => void;
 	} = $props();
 </script>
 
 <div class="stakeholder-persona-row">
 	<div class="stakeholder-persona-row__left">
-		<div class="stakeholder-persona-row__check">
-			<Checkbox value={checked} onchange={onToggle} ariaLabel="このステークホルダーを採用する" />
-		</div>
-		<ul class="stakeholder-persona-row__cell">
-			<StakeholderItem {stakeholder} />
-		</ul>
+		<StakeholderItem {stakeholder} />
 	</div>
 
 	<div class="stakeholder-persona-row__right">
 		{#if persona}
-			<ul class="stakeholder-persona-row__cell">
-				<PersonaItem {persona} />
-				<!--
-				<InterviewItem {persona} />
-				-->
-			</ul>
+			<PersonaItem {persona} />
 		{/if}
 	</div>
 </div>
@@ -62,24 +46,5 @@
 	.stakeholder-persona-row__right {
 		display: flex;
 		flex-direction: column;
-	}
-
-	.stakeholder-persona-row__check {
-		padding-top: 16px;
-	}
-
-	.stakeholder-persona-row__cell {
-		list-style: none;
-		margin: 0;
-		padding: 0;
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-	}
-
-	/* セル内のカード（子コンポーネントの li）を高さいっぱいに伸ばして左右を揃える */
-	.stakeholder-persona-row__cell > :global(li) {
-		flex: 1;
 	}
 </style>

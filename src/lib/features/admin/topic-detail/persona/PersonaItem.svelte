@@ -10,7 +10,7 @@
 	const interview = $derived(persona.interview);
 </script>
 
-<li class="persona-item">
+<div class="persona-item">
 	<button class="persona-item__button" onclick={() => interviewDialogRef?.open()}>
 		<div class="persona-item__header">
 			<span class="persona-item__name">{persona.name}</span>
@@ -41,7 +41,7 @@
 	</button>
 
 	<InterviewDialog bind:this={interviewDialogRef} {persona} />
-</li>
+</div>
 
 <style>
 	.persona-item__button {
