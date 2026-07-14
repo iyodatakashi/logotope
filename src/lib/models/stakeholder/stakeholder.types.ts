@@ -1,4 +1,4 @@
-import type { EngagementLevel } from '$lib/models/topic/topic.types';
+export type EngagementLevel = 'high' | 'medium' | 'low';
 
 export type StakeholderForFirestore = {
 	// サーバが生成時に付番する安定 id。

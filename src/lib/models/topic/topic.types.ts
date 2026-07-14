@@ -1,7 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
 import type { PhaseSlug, PhaseStatus } from '$lib/models/phase/phase.types';
-import type { FactBase } from '$lib/models/factBase/factBase.types';
 
+// 参考URLから取得した本文1件。
 export type FetchedSourceContentForFirestore = {
 	url: string;
 	content: string;
@@ -14,14 +14,8 @@ export type FetchedSourceContent = {
 	fetchedAt: Date;
 };
 
-export type TopicContext = {
-	description?: string;
-	sourceContents?: string[];
-	// 承認済み事実基盤（共通前提）。ユーザー提供資料（sourceContents）とは別データ。
-	factBase?: FactBase;
-};
-
-type TopicBaseForFirestore = {
+// トピックの Firestore 永続型（topics/{id}）。
+export type TopicForFirestore = {
 	id: string;
 	title: string;
 	description?: string;
@@ -31,24 +25,23 @@ type TopicBaseForFirestore = {
 	phase: PhaseSlug;
 	phaseStatus: PhaseStatus;
 	personaCount?: number;
-};
-
-export type TopicForFirestore = TopicBaseForFirestore & {
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
 	publishedAt?: Timestamp;
 };
 
-// Firestoreから読み込んだ後のアプリ層型（Timestamp → Date 変換済み）
-export type TopicInput = Omit<
-	TopicBaseForFirestore,
-	'fetchedSourceContents' | 'sourceContentsFetchedAt'
-> & {
+// トピックのアプリ層型（Timestamp → Date 変換済み）。createTopicStates の入力となる。
+export type Topic = {
+	id: string;
+	title: string;
+	description?: string;
+	sourceUrls?: string[];
 	fetchedSourceContents?: FetchedSourceContent[];
 	sourceContentsFetchedAt?: Date;
+	phase: PhaseSlug;
+	phaseStatus: PhaseStatus;
+	personaCount?: number;
 	createdAt: Date;
 	updatedAt: Date;
 	publishedAt?: Date;
 };
-
-export type EngagementLevel = 'high' | 'medium' | 'low';

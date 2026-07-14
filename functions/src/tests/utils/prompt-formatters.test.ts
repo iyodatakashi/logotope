@@ -8,7 +8,7 @@ import {
 } from '../../utils/prompt-formatters.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona, AwarenessForFirestore } from '../../types/persona.types.js';
-import type { FactBase } from '../../types/topic.types.js';
+import type { FactBase } from '../../types/factBase.types.js';
 
 const makePersona = (
 	id: string,

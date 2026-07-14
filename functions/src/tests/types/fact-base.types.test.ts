@@ -1,11 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Timestamp } from 'firebase-admin/firestore';
-import type {
-	FactItem,
-	FactBase,
-	FactBaseForFirestore,
-	TopicContext
-} from '../../types/topic.types.js';
+import type { FactItem, FactBase, FactBaseForFirestore } from '../../types/factBase.types.js';
+import type { TopicContext } from '../../types/topic.types.js';
 
 describe('fact-base types (BE)', () => {
 	it('FactItem は検証可能な事実文と出典を持つ', () => {

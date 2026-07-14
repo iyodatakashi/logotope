@@ -9,7 +9,7 @@ import {
 	type SearchResult
 } from '../search/grounding.js';
 import { formatJapaneseDate } from '../utils/prompt-formatters.js';
-import type { FactBase, FactItem } from '../types/topic.types.js';
+import type { FactBase, FactItem } from '../types/factBase.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 
 const factSchema = z.object({

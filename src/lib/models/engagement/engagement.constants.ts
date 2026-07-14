@@ -1,4 +1,4 @@
-import type { EngagementLevel } from '$lib/models/topic/topic.types';
+import type { EngagementLevel } from '$lib/models/stakeholder/stakeholder.types';
 
 type EngagementStyle = {
 	label: string;

@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona, AwarenessForFirestore } from '../types/persona.types.js';
-import type { FactBase } from '../types/topic.types.js';
+import type { FactBase } from '../types/factBase.types.js';
 
 /** 日付を「YYYY年M月D日」形式に整形する（時事プロンプト・grounding 基準日の共通整形） */
 export const formatJapaneseDate = (date: Date): string => dayjs(date).format('YYYY年M月D日');

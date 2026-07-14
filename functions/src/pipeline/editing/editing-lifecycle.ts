@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid';
 import { clearEditedArtifact, readEditedChapters } from './edited-repository.js';
 import { readEditorial, narrationWriter, impressionWriter } from './editorial-repository.js';
 import { getPersonasByTopicId } from '../personas/personas.js';
-import type { PhaseKey } from '../../types/topic.types.js';
+import type { PhaseSlug, PhaseStatus } from '../../types/phase.types.js';
 
 // 編集ランのライフサイクル: 開始（破棄＋実行中化＋新世代）と完了確定（全章成功→generated / 失敗残存→stopped）。
 // 生ディベートは読み取りのみ。編集フェーズ（phase 6）の phaseStatus と runId のみを更新する。
@@ -46,7 +46,7 @@ export const stopEditingRun = async (topicId: string, runId: string): Promise<vo
 	const stopped = await db().runTransaction(async (tx) => {
 		const snap = await tx.get(ref);
 		if (!snap.exists) return false;
-		const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string; runId?: string };
+		const data = snap.data() as { phase?: PhaseSlug; phaseStatus?: PhaseStatus; runId?: string };
 		if (data.phase !== 'editing' || data.runId !== runId || data.phaseStatus !== 'running') {
 			return false;
 		}
@@ -95,7 +95,7 @@ export const finalizePendingEditorialElements = async (topicId: string): Promise
 export const isEditingActive = async (topicId: string, runId: string): Promise<boolean> => {
 	const snap = await db().doc(`topics/${topicId}`).get();
 	if (!snap.exists) return false;
-	const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string; runId?: string };
+	const data = snap.data() as { phase?: PhaseSlug; phaseStatus?: PhaseStatus; runId?: string };
 	return data.phase === 'editing' && data.phaseStatus === 'running' && data.runId === runId;
 };
 
@@ -117,7 +117,7 @@ export const finalizeEditingRun = async (
 	return await db().runTransaction(async (tx) => {
 		const snap = await tx.get(ref);
 		if (!snap.exists) return 'noop';
-		const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string; runId?: string };
+		const data = snap.data() as { phase?: PhaseSlug; phaseStatus?: PhaseStatus; runId?: string };
 		if (
 			data.phase !== 'editing' ||
 			data.runId !== runId ||

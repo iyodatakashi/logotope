@@ -1,7 +1,7 @@
 import type { Timestamp } from 'firebase-admin/firestore';
 import type { Chapter, AgendaItemState } from './chapter.types.js';
 import type { FactCheckFinding, FactCheckVerdict } from './fact-check.types.js';
-import type { FactBase } from './topic.types.js';
+import type { FactBase } from './factBase.types.js';
 
 // インライン検証・補正の監査トレース。対象発言（ターン）に co-located で埋め込む。
 export type TurnFactCheckTrace = {

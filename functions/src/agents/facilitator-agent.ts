@@ -11,7 +11,7 @@ import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { FacilitatorReply } from '../types/debate.types.js';
 import type { Chapter } from '../types/chapter.types.js';
-import type { FactBase } from '../types/topic.types.js';
+import type { FactBase } from '../types/factBase.types.js';
 
 // ファシリテーター向けの事実基盤（共通前提）注記。問いかけは平易・オープンに保ち、事実の羅列や
 // 固有名詞の列挙を促さない（背景把握のみ）。事実が無ければ空文字を返す（R8.1）。

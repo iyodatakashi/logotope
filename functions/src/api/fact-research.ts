@@ -3,7 +3,7 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { requireAuth } from '../utils/auth.js';
 import { runFactResearch } from '../agents/fact-research-agent.js';
 import { confirmPhaseGenerated } from '../utils/topic-phase.js';
-import type { FactBaseForFirestore } from '../types/topic.types.js';
+import type { FactBaseForFirestore } from '../types/factBase.types.js';
 
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'TAVILY_API_KEY'];
 

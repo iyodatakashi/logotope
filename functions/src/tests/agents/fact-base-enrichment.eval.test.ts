@@ -21,7 +21,8 @@ import { runFactResearch } from '../../agents/fact-research-agent.js';
 import { runInterview } from '../../agents/interview-agent.js';
 import { generateTurn } from '../../agents/persona-agent.js';
 import type { Persona } from '../../types/persona.types.js';
-import type { TopicContext, FactBase } from '../../types/topic.types.js';
+import type { TopicContext } from '../../types/topic.types.js';
+import type { FactBase } from '../../types/factBase.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 import type { Engagement } from '../../types/debate.types.js';
 

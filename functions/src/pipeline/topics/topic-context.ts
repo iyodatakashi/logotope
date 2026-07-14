@@ -1,6 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { getTopicById } from './topics.js';
-import type { FactBase, FactBaseForFirestore, TopicContext } from '../../types/topic.types.js';
+import type { TopicContext } from '../../types/topic.types.js';
+import type { FactBase, FactBaseForFirestore } from '../../types/factBase.types.js';
 
 const db = () => getFirestore();
 

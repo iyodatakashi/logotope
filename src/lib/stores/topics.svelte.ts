@@ -11,11 +11,11 @@ import {
 } from 'firebase/firestore';
 import { db } from '$lib/firebase';
 import { nanoid } from 'nanoid';
-import type { TopicForFirestore, TopicInput } from '$lib/models/topic/topic.types';
-import { createTopicStates, type Topic } from '$lib/models/topic/createTopic.svelte';
+import type { Topic, TopicForFirestore } from '$lib/models/topic/topic.types';
+import { createTopicStates, type TopicStates } from '$lib/models/topic/createTopic.svelte';
 
 // Firestore 永続形からアプリ層型へ（Timestamp → Date 変換）。利用箇所は当ストアのみ。
-const topicFromFirestore = (topicDoc: TopicForFirestore): TopicInput => ({
+const toTopic = (topicDoc: TopicForFirestore): Topic => ({
 	...topicDoc,
 	fetchedSourceContents: topicDoc.fetchedSourceContents?.map((source) => ({
 		...source,
@@ -28,7 +28,7 @@ const topicFromFirestore = (topicDoc: TopicForFirestore): TopicInput => ({
 });
 
 const create = () => {
-	let topics = $state<Topic[]>([]);
+	let topics = $state<TopicStates[]>([]);
 	let isLoaded = $state(false);
 	let unsubscribe: (() => void) | null = null;
 
@@ -38,7 +38,7 @@ const create = () => {
 		unsubscribe = onSnapshot(q, (snap) => {
 			topics = snap.docs.map((docSnapshot) =>
 				createTopicStates(
-					topicFromFirestore({ ...docSnapshot.data(), id: docSnapshot.id } as TopicForFirestore)
+					toTopic({ ...docSnapshot.data(), id: docSnapshot.id } as TopicForFirestore)
 				)
 			);
 			isLoaded = true;

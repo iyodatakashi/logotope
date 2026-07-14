@@ -1,56 +1,35 @@
 import type { Timestamp } from 'firebase-admin/firestore';
+import type { PhaseSlug, PhaseStatus } from './phase.types.js';
+import type { FactBase } from './factBase.types.js';
 
-// 永続する phase の slug 型（FE PhaseSlug と値集合・順序を一致させる）。
-// 正準 slug リスト（順序込み）:
-// ['theme', 'fact-research', 'stakeholders', 'personas', 'interviews', 'chapters', 'debate', 'editing']
-export type PhaseKey =
-	| 'theme'
-	| 'fact-research'
-	| 'stakeholders'
-	| 'personas'
-	| 'interviews'
-	| 'chapters'
-	| 'debate'
-	| 'editing';
-
-export type FetchedSourceContent = {
+// 参考URLから取得した本文1件。
+export type FetchedSourceContentForFirestore = {
 	url: string;
 	content: string;
 	fetchedAt: Timestamp;
 };
 
-// 検証可能な客観的事実1件（statement）と、その出典。
-export type FactItem = {
-	statement: string;
-	sources: { title: string; url: string }[];
+// トピックの Firestore 永続型（topics/{id}）。FE TopicForFirestore と同一形。
+export type TopicForFirestore = {
+	id: string;
+	title: string;
+	description?: string;
+	sourceUrls?: string[];
+	fetchedSourceContents?: FetchedSourceContentForFirestore[];
+	sourceContentsFetchedAt?: Timestamp;
+	phase: PhaseSlug;
+	phaseStatus: PhaseStatus;
+	personaCount?: number;
+	createdAt: Timestamp;
+	updatedAt: Timestamp;
+	publishedAt?: Timestamp;
 };
 
-// トピック事実基盤（アプリ層型）。facts が空配列＝事実なし（縮退）。
-// generatedAt は生成基準日（現在日付）。
-export type FactBase = {
-	facts: FactItem[];
-	generatedAt: Date;
-};
-
-// 事実基盤の Firestore 永続型（topics/{id}/factBase/0）。
-export type FactBaseForFirestore = {
-	facts: FactItem[];
-	generatedAt: Timestamp;
-};
-
+// 全生成フェーズへ同一値で渡す共有コンテキスト（永続しない合成物）。
+// 生成経路は pipeline/topics/topic-context.ts の getTopicContext 一本に限る。
 export type TopicContext = {
 	description?: string;
 	sourceContents?: string[];
 	// 承認済み事実基盤（共通前提）。ユーザー提供資料（sourceContents）とは別データ。
 	factBase?: FactBase;
-};
-
-export type Topic = {
-	id: string;
-	title: string;
-	description?: string;
-	sourceUrls?: string[];
-	fetchedSourceContents?: FetchedSourceContent[];
-	createdAt: Timestamp;
-	updatedAt: Timestamp;
 };

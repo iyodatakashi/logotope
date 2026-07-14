@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChapterEntry } from '../../../types/chapter.types.js';
 import type { Persona } from '../../../types/persona.types.js';
-import type { Topic } from '../../../types/topic.types.js';
+import type { TopicForFirestore } from '../../../types/topic.types.js';
 import type { Result, PipelineError } from '../../../types/common.types.js';
 
 vi.mock('../../../agents/debate-digest-agent.js', () => ({
@@ -17,7 +17,7 @@ vi.mock('../../../pipeline/topics/topics.js', () => ({
 	getTopicById: vi.fn()
 }));
 
-const TS = 'TS' as unknown as Topic['createdAt'];
+const TS = 'TS' as unknown as TopicForFirestore['createdAt'];
 
 const makeChapter = (id: string, index: number, title: string): ChapterEntry => ({
 	id,

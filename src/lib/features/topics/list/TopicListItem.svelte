@@ -1,9 +1,9 @@
 <script lang="ts">
 	import dayjs from 'dayjs';
-	import type { Topic } from '$lib/models/topic/createTopic.svelte';
+	import type { TopicStates } from '$lib/models/topic/createTopic.svelte';
 
 	interface Props {
-		topic: Topic;
+		topic: TopicStates;
 	}
 
 	let { topic }: Props = $props();

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Timestamp } from 'firebase/firestore';
 import type { FactItem, FactBase, FactBaseForFirestore } from '$lib/models/factBase/factBase.types';
-import type { TopicContext } from '$lib/models/topic/topic.types';
 
 describe('factBase.types', () => {
 	it('FactItem は検証可能な事実文と出典を持つ', () => {
@@ -33,15 +32,5 @@ describe('factBase.types', () => {
 			generatedAt: { seconds: 0, nanoseconds: 0 } as Timestamp
 		};
 		expect(persisted.facts).toEqual([]);
-	});
-
-	it('TopicContext は factBase を sourceContents とは別フィールドとして保持できる', () => {
-		const context: TopicContext = {
-			description: 'テーマ説明',
-			sourceContents: ['ユーザー提供資料'],
-			factBase: { facts: [], generatedAt: new Date() }
-		};
-		expect(context.sourceContents).not.toBe(context.factBase);
-		expect(context.factBase?.facts).toEqual([]);
 	});
 });

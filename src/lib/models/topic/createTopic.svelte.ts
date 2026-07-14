@@ -10,12 +10,12 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
-import type { TopicInput } from './topic.types';
+import type { Topic } from './topic.types';
 import type { ArticleElement } from '$lib/models/editorial/editorial.types';
 import type { PhaseSlug, PhaseStatus } from '$lib/models/phase/phase.types';
 import { nextPhase } from '$lib/models/phase/phase';
 
-export const createTopicStates = (topicDoc: TopicInput) => {
+export const createTopicStates = (topicDoc: Topic) => {
 	const id: string = $state(topicDoc.id);
 	const title: string = $state(topicDoc.title);
 	const phase: PhaseSlug = $state(topicDoc.phase);
@@ -344,4 +344,5 @@ export const createTopicStates = (topicDoc: TopicInput) => {
 	};
 };
 
-export type Topic = ReturnType<typeof createTopicStates>;
+// 画面が扱う「生きたトピック」。アプリ層型 Topic に $state と各種操作を載せたもの。
+export type TopicStates = ReturnType<typeof createTopicStates>;

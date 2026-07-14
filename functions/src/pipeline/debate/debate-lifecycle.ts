@@ -4,7 +4,7 @@ import { discardChaptersFrom, getChaptersByTopicId } from './chapter.js';
 import { rollbackAwarenessesForRemovedTurns } from './awareness.js';
 import { deleteChapterEngagements } from './engagement.js';
 import { clearEditedArtifact } from '../editing/edited-repository.js';
-import type { PhaseKey } from '../../types/topic.types.js';
+import type { PhaseSlug, PhaseStatus } from '../../types/phase.types.js';
 
 const db = () => getFirestore();
 
@@ -27,7 +27,7 @@ export const updateDebatePhaseStatus = async (
 export const isDebateActive = async (topicId: string): Promise<boolean> => {
 	const snap = await db().doc(`topics/${topicId}`).get();
 	if (!snap.exists) return false;
-	const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string };
+	const data = snap.data() as { phase?: PhaseSlug; phaseStatus?: PhaseStatus };
 	return data.phase === 'debate' && data.phaseStatus === 'running';
 };
 
@@ -48,7 +48,7 @@ export const checkDebateActivation = async (
 ): Promise<DebateActivation> => {
 	const snap = await db().doc(`topics/${topicId}`).get();
 	if (!snap.exists) return { status: 'inactive' };
-	const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string; runId?: string };
+	const data = snap.data() as { phase?: PhaseSlug; phaseStatus?: PhaseStatus; runId?: string };
 	if (!(data.phase === 'debate' && data.phaseStatus === 'running')) return { status: 'inactive' };
 	if (data.runId && runId && data.runId !== runId) {
 		return { status: 'stale_generation', currentRunId: data.runId };
@@ -70,7 +70,7 @@ export const confirmDebateGenerated = async (topicId: string): Promise<boolean> 
 	return db().runTransaction(async (tx) => {
 		const snap = await tx.get(ref);
 		if (!snap.exists) return false;
-		const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string };
+		const data = snap.data() as { phase?: PhaseSlug; phaseStatus?: PhaseStatus };
 		if (data.phase !== 'debate' || data.phaseStatus !== 'running') return false;
 		tx.update(ref, { phase: 'debate', phaseStatus: 'generated', updatedAt: Timestamp.now() });
 		return true;
@@ -84,7 +84,7 @@ export const confirmDebateGenerated = async (topicId: string): Promise<boolean> 
 export const isDebateCompleted = async (topicId: string): Promise<boolean> => {
 	const snap = await db().doc(`topics/${topicId}`).get();
 	if (!snap.exists) return false;
-	const data = snap.data() as { phase?: PhaseKey; phaseStatus?: string };
+	const data = snap.data() as { phase?: PhaseSlug; phaseStatus?: PhaseStatus };
 	if (data.phase === 'editing') return true;
 	return data.phase === 'debate' && data.phaseStatus === 'generated';
 };
