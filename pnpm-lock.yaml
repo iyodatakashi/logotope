@@ -12,8 +12,8 @@ importers:
   .:
     dependencies:
       '@14ch/svelte-ui':
-        specifier: ^0.0.54
-        version: 0.0.54(svelte@5.55.1)
+        specifier: ^0.0.55
+        version: 0.0.55(svelte@5.55.1)
       dayjs:
         specifier: ^1.11.21
         version: 1.11.21
@@ -102,8 +102,8 @@ importers:
 
 packages:
 
-  '@14ch/svelte-ui@0.0.54':
-    resolution: {integrity: sha512-sE3ofRbwb47oAvb3551H/eT1G0O9Ez1n7+lf+pJhKGMYzqfI9Urqj4+S9M67L94aekwu1VMyxVmKuSZaOjcA/g==}
+  '@14ch/svelte-ui@0.0.55':
+    resolution: {integrity: sha512-OLNcz0tFEtPF2vZMoATx5S9XL9Q3CMa1g9I4SHrUq+d4rXNALDPYelSzfsSSYk2d8Pmy4pXNvx/YuyLi/gZ/QQ==}
     peerDependencies:
       svelte: ^5.0.0
 
@@ -1976,7 +1976,7 @@ packages:
 
 snapshots:
 
-  '@14ch/svelte-ui@0.0.54(svelte@5.55.1)':
+  '@14ch/svelte-ui@0.0.55(svelte@5.55.1)':
     dependencies:
       dayjs: 1.11.21
       dompurify: 3.4.11
