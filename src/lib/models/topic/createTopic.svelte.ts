@@ -190,21 +190,13 @@ export const createTopicStates = (topicDoc: Topic) => {
 		}
 	};
 
-	const startDebate = async (singleChapterMode?: boolean): Promise<void> => {
-		const startDebateCallable = httpsCallable<
-			{ topicId: string; singleChapterMode?: boolean },
-			unknown
-		>(functions, 'startDebate', { timeout: 600000 });
-		await startDebateCallable({ topicId: id, singleChapterMode: singleChapterMode || undefined });
-	};
-
-	// 停止した討論を currentChapterIndex から再開する。
-	const restartDebate = async (singleChapterMode?: boolean): Promise<void> => {
-		const restartDebateCallable = httpsCallable<
-			{ topicId: string; singleChapterMode?: boolean },
-			unknown
-		>(functions, 'restartDebate', { timeout: 60000 });
-		await restartDebateCallable({ topicId: id, singleChapterMode: singleChapterMode || undefined });
+	const startDebate = async (): Promise<void> => {
+		const startDebateCallable = httpsCallable<{ topicId: string }, unknown>(
+			functions,
+			'startDebate',
+			{ timeout: 600000 }
+		);
+		await startDebateCallable({ topicId: id });
 	};
 
 	// 討論の停止操作: トピックのフェーズ状態を停止にする。実行中のオーケストレータは
@@ -264,7 +256,6 @@ export const createTopicStates = (topicDoc: Topic) => {
 		startPersonaGeneration,
 		generateChapters,
 		startDebate,
-		restartDebate,
 		stopDebate,
 		save,
 		fetchSourceContents,

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
+	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import type { FactItem } from '$lib/models/factBase/factBase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
@@ -14,6 +14,9 @@
 
 	// 押下直後の楽観的な「実行中」表示用フラグ（サーバ権威のステータスには触れない）。
 	let isStarting = $state(false);
+	// 「次に進む」押下中の loading・多重押下抑止と、承認失敗時のエラー表示。
+	let isApproving = $state(false);
+	let approveError = $state('');
 	const logicalState = $derived.by(() => {
 		if (isStarting) return 'running';
 		const topic = currentTopicStore.topic;
@@ -43,20 +46,9 @@
 			: [];
 	});
 
-	const generate = async () => {
-		const topic = currentTopicStore.topic;
-		if (!topic) return;
-		isStarting = true;
-		try {
-			await topic.generateFactResearch();
-		} finally {
-			isStarting = false;
-		}
-	};
-
-	// 再実行: サーバ権威の単一操作を1回呼ぶだけ（対象フェーズ確定→自層＋全下流破棄→生成をサーバが所有する）。
+	// 実行/再調査: サーバ権威の単一操作を1回呼ぶだけ（対象フェーズ確定→自層＋全下流破棄→生成をサーバが所有する）。
 	// isStarting で押下直後に「実行中」表示（スケルトン）へ切り替え、旧データを隠す（実削除の同期反映を待たない）。
-	const regenerate = async () => {
+	const generate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		isStarting = true;
@@ -83,34 +75,28 @@
 		save();
 	};
 
-	// 承認: 事実基盤を確定し次フェーズ（ステークホルダー）へ前進する。
-	const approve = async () => {
-		const topic = currentTopicStore.topic;
-		if (!topic) return;
-		await topic.approveFactResearch();
-		const next = nextPhase(PHASE);
-		if (next) goto(phasePath(topic.id, next));
-	};
-
-	// 実行せず承認: 事実基盤を空のまま確定し、同じ経路で前進する（実行は任意）。
-	const emptyApprove = approve;
-
 	const handleBackClick = () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		goto(phasePath(topic.id, 'theme'));
 	};
 
+	// 承認を「次に進む」に畳み込む。生成完了（空でも可）で活性。未承認なら事実基盤を確定してから
+	// ペルソナ生成画面へ遷移し、失敗時は遷移せずエラーを表示する。
+	const canAdvance = $derived(logicalState === 'generated' || logicalState === 'approved');
 	const handleForwardClick = async () => {
 		const topic = currentTopicStore.topic;
-		if (!topic) return;
+		if (!topic || !canAdvance) return;
+		isApproving = true;
+		approveError = '';
 		try {
-			if (logicalState !== 'approved') {
-				await approve();
-			}
-			const next = nextPhase(PHASE);
-			if (next) goto(phasePath(topic.id, next));
-		} catch {}
+			if (logicalState !== 'approved') await topic.approveFactResearch();
+			goto(phasePath(topic.id, 'personas'));
+		} catch {
+			approveError = '事実基盤の承認に失敗しました。時間をおいて再試行してください。';
+		} finally {
+			isApproving = false;
+		}
 	};
 </script>
 
@@ -120,35 +106,33 @@
 			<Button variant="outlined" icon="arrow_back" rounded onclick={handleBackClick}>
 				前に戻る
 			</Button>
-			{#if logicalState === 'not_started'}
-				<Button variant="filled" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
-					調査を開始する
-				</Button>
-			{:else if logicalState === 'running'}
-				<Button
-					variant="ghost"
-					rounded
-					icon="cached"
-					loading
-					onclick={() => regenerateDialog?.open()}
-				>
-					再調査する
+			{#if logicalState === 'running'}
+				<Button variant="ghost" rounded icon="cached" loading onclick={() => {}}>再調査する</Button>
+			{:else if logicalState === 'not_started'}
+				<Button variant="filled" rounded icon="cached" onclick={generate}>
+					事実リサーチを実行する
 				</Button>
 			{:else}
 				<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
 					再調査する
 				</Button>
 			{/if}
-			<Button
-				variant="filled"
-				icon="arrow_forward"
-				iconPosition="right"
-				rounded
-				disabled={logicalState !== 'generated' && logicalState !== 'approved'}
-				onclick={handleForwardClick}
-			>
-				次に進む
-			</Button>
+			<div class="fact-research-page__forward">
+				<Button
+					variant="filled"
+					icon="arrow_forward"
+					iconPosition="right"
+					rounded
+					loading={isApproving}
+					disabled={!canAdvance}
+					onclick={handleForwardClick}
+				>
+					次に進む
+				</Button>
+				{#if approveError}
+					<p class="fact-research-page__error" role="alert">{approveError}</p>
+				{/if}
+			</div>
 		</div>
 	{/snippet}
 
@@ -188,7 +172,7 @@
 	danger
 	submitLabel="再実行する"
 	cancelLabel="キャンセル"
-	onSubmit={regenerate}
+	onSubmit={generate}
 />
 
 <style>
@@ -196,6 +180,17 @@
 		display: flex;
 		justify-content: space-between;
 		gap: 8px;
+	}
+
+	.fact-research-page__forward {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.fact-research-page__error {
+		color: var(--svelte-ui-error-color);
+		font-size: var(--svelte-ui-font-size-sm);
 	}
 
 	.fact-research-page__content {

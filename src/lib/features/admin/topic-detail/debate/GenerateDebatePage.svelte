@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { Button, Checkbox, ConfirmDialog } from '@14ch/svelte-ui';
+	import { Button, ConfirmDialog } from '@14ch/svelte-ui';
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
+	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import DebateChapterIndex from './DebateChapterIndex.svelte';
@@ -11,11 +11,12 @@
 	const PHASE: PhaseSlug = 'debate';
 	// 押下直後の楽観的な「実行中」表示用フラグ。討論は running をサーバが書くため
 	// callable 往復のあいだ表示が変わらない。その間を埋める表示専用のフラグ。
-	// isResetting はやり直し時に旧ターンを即時非表示にする（再開はターンを引き継ぐので消さない）。
+	// isResetting はやり直し時に旧ターンを即時非表示にする。
 	let isStarting = $state(false);
 	let isResetting = $state(false);
-	// 討論を1章で終了するか最後の章まで続けるかの制御。開始/再開/やり直し時にサーバへ渡す。
-	let singleChapterMode = $state(false);
+	// 「次に進む」押下中の loading・多重押下抑止と、承認失敗時のエラー表示。
+	let isApproving = $state(false);
+	let approveError = $state('');
 
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 
@@ -24,23 +25,15 @@
 		if (!topic) return;
 		isStarting = true;
 		try {
-			await topic.startDebate(singleChapterMode);
+			await topic.startDebate();
 		} finally {
 			isStarting = false;
 		}
 	};
 	const stop = () => currentTopicStore.topic?.stopDebate();
-	const restart = async () => {
-		const topic = currentTopicStore.topic;
-		if (!topic) return;
-		isStarting = true;
-		try {
-			await topic.restartDebate(singleChapterMode);
-		} finally {
-			isStarting = false;
-		}
-	};
 
+	// 最初からやり直す: サーバ権威の単一操作を1回呼ぶだけ（debate 確定→討論付随データ＋下流編集破棄→開始をサーバが所有）。
+	// 停止・生成済み・前進済みのいずれからも最初から生成し直す（部分継続の「再開する」は提供しない）。
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
@@ -48,8 +41,7 @@
 		// 押下直後に旧ターンを即時非表示にする（実削除はサーバが権威的に行う）。解除は実同期に連動（下記 $effect）。
 		isResetting = true;
 		try {
-			// サーバ権威の単一操作を1回呼ぶだけ（debate 確定→討論付随データ＋下流編集破棄→開始をサーバが所有）。
-			await topic.startDebate(singleChapterMode);
+			await topic.startDebate();
 		} catch (err) {
 			// 対象フェーズへ到達しない失敗（手順1前）では固着を防ぐため即時に解除する。
 			isResetting = false;
@@ -59,15 +51,6 @@
 		}
 	};
 
-	// 討論を確定して編集フェーズへ前進する。generated のときのみ PhasePanel が表示する。
-	const approve = async () => {
-		const topic = currentTopicStore.topic;
-		if (!topic) return;
-		await topic.approveDebate();
-		const next = nextPhase(PHASE);
-		if (next) goto(phasePath(topic.id, next));
-	};
-
 	const logicalState = $derived.by(() => {
 		if (isStarting) return 'running';
 		const topic = currentTopicStore.topic;
@@ -75,6 +58,30 @@
 			? phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE)
 			: 'not_started';
 	});
+
+	const handleBackClick = () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		goto(phasePath(topic.id, 'chapters'));
+	};
+
+	// 承認を「次に進む」に畳み込む。討論生成完了で活性。未承認なら討論を確定してから編集画面へ遷移し、
+	// 失敗時は遷移せずエラーを表示する。
+	const canAdvance = $derived(logicalState === 'generated' || logicalState === 'approved');
+	const handleForwardClick = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic || !canAdvance) return;
+		isApproving = true;
+		approveError = '';
+		try {
+			if (logicalState !== 'approved') await topic.approveDebate();
+			goto(phasePath(topic.id, 'editing'));
+		} catch {
+			approveError = '討論の確定に失敗しました。時間をおいて再試行してください。';
+		} finally {
+			isApproving = false;
+		}
+	};
 
 	// 実状態(running)がトピックに反映されたら楽観フラグ（実行中表示）を解除し、以降は実状態に委ねる。
 	$effect(() => {
@@ -111,26 +118,35 @@
 
 <PhasePanel>
 	{#snippet actions()}
-		<div class="generate-debate-page__actions-row">
-			<div class="generate-debate-page__actions">
-				{#if logicalState === 'not_started'}
-					<Button variant="filled" onclick={generate}>討論を開始する</Button>
-				{:else if logicalState === 'running'}
-					<Button variant="outlined" onclick={stop}>討論を停止する</Button>
-				{:else if logicalState === 'stopped'}
-					<Button variant="filled" onclick={restart}>討論を再開する</Button>
-					<Button variant="filled" onclick={() => regenerateDialog?.open()}>最初からやり直す</Button
-					>
-				{:else if logicalState === 'generated'}
-					<Button variant="filled" onclick={() => regenerateDialog?.open()}>最初からやり直す</Button
-					>
-					<Button variant="filled" onclick={approve}>討論を確定して編集へ</Button>
-				{:else if logicalState === 'approved'}
-					<Button variant="filled" onclick={() => regenerateDialog?.open()}>最初からやり直す</Button
-					>
+		<div class="generate-debate-page__actions">
+			<Button variant="outlined" icon="arrow_back" rounded onclick={handleBackClick}>
+				前に戻る
+			</Button>
+			{#if logicalState === 'not_started'}
+				<Button variant="filled" rounded icon="cached" onclick={generate}>討論を開始する</Button>
+			{:else if logicalState === 'running'}
+				<Button variant="outlined" rounded onclick={stop}>討論を停止する</Button>
+			{:else}
+				<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
+					最初からやり直す
+				</Button>
+			{/if}
+			<div class="generate-debate-page__forward">
+				<Button
+					variant="filled"
+					icon="arrow_forward"
+					iconPosition="right"
+					rounded
+					loading={isApproving}
+					disabled={!canAdvance}
+					onclick={handleForwardClick}
+				>
+					次に進む
+				</Button>
+				{#if approveError}
+					<p class="generate-debate-page__error" role="alert">{approveError}</p>
 				{/if}
 			</div>
-			<Checkbox bind:value={singleChapterMode}>1章で討論を終了する</Checkbox>
 		</div>
 	{/snippet}
 	{#snippet content()}
@@ -168,16 +184,21 @@
 />
 
 <style>
-	.generate-debate-page__actions-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 16px;
-	}
-
 	.generate-debate-page__actions {
 		display: flex;
+		justify-content: space-between;
 		gap: 8px;
+	}
+
+	.generate-debate-page__forward {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.generate-debate-page__error {
+		color: var(--svelte-ui-error-color);
+		font-size: var(--svelte-ui-font-size-sm);
 	}
 
 	.generate-debate-page__content {

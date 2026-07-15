@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { Button, Checkbox, ConfirmDialog } from '@14ch/svelte-ui';
+	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState } from '$lib/models/phase/phase';
+	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import EditingNarration from './EditingNarration.svelte';
@@ -59,6 +60,13 @@
 		} finally {
 			isStarting = false;
 		}
+	};
+
+	// 前に戻る: 討論画面へ戻るだけ（討論未完了でも操作ペインから戻れる）。phase/生成データは変更しない。
+	const handleBackClick = () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		goto(phasePath(topic.id, 'debate'));
 	};
 
 	// 記事要素（導入・締め・所感・章）の個別再生成はサーバへ委譲するだけ。処理中のローディングは各 Section が
@@ -192,30 +200,43 @@
 	});
 </script>
 
-{#if !debateCompleted}
-	<!-- 討論完了前は編集開始操作を出さない（画面側の大前提ゲート・Req 5.4） -->
-	<div class="editing-page__editing-gate">討論が完了すると編集を開始できます。</div>
-{:else}
-	<PhasePanel>
-		{#snippet actions()}
-			<div class="editing-page__actions-row">
-				<div class="editing-page__actions">
-					{#if logicalState === 'not_started'}
-						<Button variant="filled" onclick={start}>編集を開始する</Button>
-					{:else if logicalState === 'running'}
-						<Button variant="filled" loading onclick={start}>編集を開始する</Button>
-					{:else if logicalState === 'generated' || logicalState === 'approved'}
-						<Button variant="filled" onclick={() => regenerateDialog?.open()}>編集をやり直す</Button
-						>
+<PhasePanel>
+	{#snippet actions()}
+		<div class="editing-page__actions">
+			<Button variant="outlined" icon="arrow_back" rounded onclick={handleBackClick}>
+				前に戻る
+			</Button>
+			<div class="editing-page__center">
+				{#if debateCompleted}
+					{#if logicalState === 'running'}
+						<Button variant="ghost" rounded icon="cached" loading onclick={() => {}}>
+							編集をやり直す
+						</Button>
+					{:else if logicalState === 'not_started'}
+						<Button variant="filled" rounded icon="cached" onclick={start}>編集を開始する</Button>
+					{:else}
+						<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
+							編集をやり直す
+						</Button>
 					{/if}
-				</div>
-				{#if displayChapters.length}
-					<Checkbox bind:value={showDiff}>原本との差分を表示</Checkbox>
 				{/if}
 			</div>
-		{/snippet}
-		{#snippet content()}
+			<!-- 最終ステップのため「次に進む」は持たない（3領域の右端は空）。 -->
+			<div class="editing-page__spacer"></div>
+		</div>
+	{/snippet}
+	{#snippet content()}
+		{#if !debateCompleted}
+			<!-- 討論完了前は編集開始の前提を満たさない（画面側の大前提ゲート・Req 6.10） -->
+			<div class="editing-page__editing-gate">討論が完了すると編集を開始できます。</div>
+		{:else}
 			<div class="editing-page__content">
+				{#if displayChapters.length}
+					<div class="editing-page__toolbar">
+						<Checkbox bind:value={showDiff}>原本との差分を表示</Checkbox>
+					</div>
+				{/if}
+
 				<!-- 導入（intro）＝記事の先頭。生成前でも枠は常に出す。 -->
 				<EditingNarration
 					label="導入"
@@ -272,31 +293,41 @@
 					</section>
 				{/if}
 			</div>
-		{/snippet}
-	</PhasePanel>
+		{/if}
+	{/snippet}
+</PhasePanel>
 
-	<ConfirmDialog
-		bind:this={regenerateDialog}
-		title="編集をやり直しますか？"
-		description="現在の編集記事がすべて削除され、最初から編集し直します。"
-		danger
-		submitLabel="編集をやり直す"
-		cancelLabel="キャンセル"
-		onSubmit={regenerate}
-	/>
-{/if}
+<ConfirmDialog
+	bind:this={regenerateDialog}
+	title="編集をやり直しますか？"
+	description="現在の編集記事がすべて削除され、最初から編集し直します。"
+	danger
+	submitLabel="編集をやり直す"
+	cancelLabel="キャンセル"
+	onSubmit={regenerate}
+/>
 
 <style>
-	.editing-page__actions-row {
+	.editing-page__actions {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		gap: 16px;
+		gap: 8px;
 	}
 
-	.editing-page__actions {
+	.editing-page__center {
 		display: flex;
 		gap: 8px;
+	}
+
+	.editing-page__spacer {
+		/* 最終ステップは右端（次に進む）を持たないが、中央スロットを中央に保つための空プレースホルダ。 */
+		width: 0;
+	}
+
+	.editing-page__toolbar {
+		display: flex;
+		justify-content: flex-end;
 	}
 
 	.editing-page__editing-gate {

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
+	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import { Button, ConfirmDialog } from '@14ch/svelte-ui';
@@ -9,6 +9,9 @@
 	const PHASE: PhaseSlug = 'chapters';
 
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
+	// 「次に進む」押下中の loading・多重押下抑止と、承認失敗時のエラー表示。
+	let isApproving = $state(false);
+	let approveError = $state('');
 	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
 	// 触れず、表示の即時フィードバックだけを担う。実状態(running)が反映されたら解除する。
 	let isStarting = $state(false);
@@ -93,28 +96,62 @@
 		}
 	};
 
-	const approve = async () => {
+	const handleBackClick = () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
-		await topic.approveChapters();
-		const next = nextPhase(PHASE);
-		if (next) goto(phasePath(topic.id, next));
+		goto(phasePath(topic.id, 'personas'));
+	};
+
+	// 承認を「次に進む」に畳み込む。章立て生成済みで活性。未承認なら承認してから討論画面へ遷移し、
+	// 失敗時は遷移せずエラーを表示する。
+	const canAdvance = $derived(logicalState === 'generated' || logicalState === 'approved');
+	const handleForwardClick = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic || !canAdvance) return;
+		isApproving = true;
+		approveError = '';
+		try {
+			if (logicalState !== 'approved') await topic.approveChapters();
+			goto(phasePath(topic.id, 'debate'));
+		} catch {
+			approveError = '章立ての承認に失敗しました。時間をおいて再試行してください。';
+		} finally {
+			isApproving = false;
+		}
 	};
 </script>
 
 <PhasePanel>
 	{#snippet actions()}
 		<div class="generate-chapters-page__actions">
-			{#if logicalState === 'not_started'}
-				<Button variant="filled" onclick={generate}>章立てを生成する</Button>
-			{:else if logicalState === 'running'}
-				<Button variant="filled" loading onclick={generate}>章立てを生成する</Button>
-			{:else if logicalState === 'generated'}
-				<Button variant="filled" onclick={() => regenerateDialog?.open()}>再生成する</Button>
-				<Button variant="filled" onclick={approve}>承認して次へ進む</Button>
-			{:else if logicalState === 'approved'}
-				<Button variant="filled" onclick={() => regenerateDialog?.open()}>再生成する</Button>
+			<Button variant="outlined" icon="arrow_back" rounded onclick={handleBackClick}>
+				前に戻る
+			</Button>
+			{#if logicalState === 'running'}
+				<Button variant="ghost" rounded icon="cached" loading onclick={() => {}}>再生成する</Button>
+			{:else if logicalState === 'not_started'}
+				<Button variant="filled" rounded icon="cached" onclick={generate}>章立てを生成する</Button>
+			{:else}
+				<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
+					再生成する
+				</Button>
 			{/if}
+			<div class="generate-chapters-page__forward">
+				<Button
+					variant="filled"
+					icon="arrow_forward"
+					iconPosition="right"
+					rounded
+					loading={isApproving}
+					disabled={!canAdvance}
+					onclick={handleForwardClick}
+				>
+					次に進む
+				</Button>
+				{#if approveError}
+					<p class="generate-chapters-page__error" role="alert">{approveError}</p>
+				{/if}
+			</div>
 		</div>
 	{/snippet}
 
@@ -220,8 +257,19 @@
 <style>
 	.generate-chapters-page__actions {
 		display: flex;
-		flex-wrap: wrap;
+		justify-content: space-between;
 		gap: 8px;
+	}
+
+	.generate-chapters-page__forward {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.generate-chapters-page__error {
+		color: var(--svelte-ui-error-color);
+		font-size: var(--svelte-ui-font-size-sm);
 	}
 
 	.generate-chapters-page__content {

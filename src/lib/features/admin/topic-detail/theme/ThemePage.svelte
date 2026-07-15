@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { Button, Input, Textarea } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath, nextPhase } from '$lib/models/phase/phase';
+	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import {
@@ -63,18 +63,20 @@
 		save();
 	};
 
-	// 承認: テーマを保存し、参考URLがあれば本文を取得してから事実リサーチフェーズへ前進する。
-	const approve = async () => {
+	// 承認を「次に進む」に畳み込む。未承認ならテーマを保存し、参考URLがあれば本文を取得してから
+	// テーマを承認し、成功時のみ事実リサーチ画面へ遷移する。失敗時は遷移せずエラーを表示する。
+	const handleForwardClick = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic || !isValid) return;
 		isApproving = true;
 		approveError = '';
 		try {
-			await save();
-			if (topic.sourceUrls.some((url) => url.trim())) await topic.fetchSourceContents();
-			await topic.approveTheme();
-			const next = nextPhase(PHASE);
-			if (next) goto(phasePath(topic.id, next));
+			if (logicalState === 'not_started') {
+				await save();
+				if (topic.sourceUrls.some((url) => url.trim())) await topic.fetchSourceContents();
+				await topic.approveTheme();
+			}
+			goto(phasePath(topic.id, 'fact-research'));
 		} catch {
 			approveError = '参考URLの本文取得に失敗しました。URLを確認して再試行してください。';
 		} finally {
@@ -86,11 +88,17 @@
 <PhasePanel>
 	{#snippet actions()}
 		<div class="theme-page__actions">
-			{#if logicalState === 'not_started'}
-				<Button variant="filled" loading={isApproving} disabled={!isValid} onclick={approve}>
-					承認して次へ進む
-				</Button>
-			{/if}
+			<Button
+				variant="filled"
+				icon="arrow_forward"
+				iconPosition="right"
+				rounded
+				loading={isApproving}
+				disabled={!isValid}
+				onclick={handleForwardClick}
+			>
+				次に進む
+			</Button>
 			{#if approveError}
 				<p class="theme-page__error" role="alert">{approveError}</p>
 			{/if}
@@ -157,6 +165,13 @@
 </PhasePanel>
 
 <style>
+	.theme-page__actions {
+		display: flex;
+		justify-content: flex-end;
+		align-items: center;
+		gap: 8px;
+	}
+
 	.theme-page__content {
 		display: flex;
 		flex-direction: column;
@@ -175,13 +190,6 @@
 		display: flex;
 		gap: 8px;
 		align-items: center;
-	}
-
-	.theme-page__actions {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 8px;
 	}
 
 	.theme-page__error {

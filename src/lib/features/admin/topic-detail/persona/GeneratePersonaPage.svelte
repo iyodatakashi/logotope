@@ -14,6 +14,9 @@
 
 	// 押下直後の楽観的な「実行中」表示。実状態（running）が反映されるまでの体感の穴を埋める。
 	let starting = $state(false);
+	// 「次に進む」押下中の loading・多重押下抑止と、前進失敗時のエラー表示。
+	let isApproving = $state(false);
+	let approveError = $state('');
 	// 再生成の表示専用フラグ。押下直後に旧ペルソナを即時に隠す（実削除はサーバが権威的に行う）。
 	// 解除は呼び出し完了ではなく実同期に連動させる（下記 $effect）。往復後の一瞬の旧データ再表示を防ぐ。
 	let isRegenerating = $state(false);
@@ -99,10 +102,18 @@
 	// （advancePhase を再実行して chapters を not_started へ巻き戻さないため）。
 	const handleForwardClick = async () => {
 		if (!topic || !hasSelectedPersona) return;
-		if (topic.phase === 'personas') {
-			await topic.advancePastPersonas();
+		isApproving = true;
+		approveError = '';
+		try {
+			if (topic.phase === 'personas') {
+				await topic.advancePastPersonas();
+			}
+			goto(phasePath(topic.id, 'chapters'));
+		} catch {
+			approveError = 'ペルソナの確定に失敗しました。時間をおいて再試行してください。';
+		} finally {
+			isApproving = false;
 		}
-		goto(phasePath(topic.id, 'chapters'));
 	};
 </script>
 
@@ -125,16 +136,22 @@
 				>
 			{/if}
 
-			<Button
-				variant="filled"
-				icon="arrow_forward"
-				iconPosition="right"
-				rounded
-				disabled={!canAdvance}
-				onclick={handleForwardClick}
-			>
-				次に進む
-			</Button>
+			<div class="generate-persona-page__forward">
+				<Button
+					variant="filled"
+					icon="arrow_forward"
+					iconPosition="right"
+					rounded
+					loading={isApproving}
+					disabled={!canAdvance}
+					onclick={handleForwardClick}
+				>
+					次に進む
+				</Button>
+				{#if approveError}
+					<p class="generate-persona-page__error" role="alert">{approveError}</p>
+				{/if}
+			</div>
 		</div>
 	{/snippet}
 
@@ -172,6 +189,17 @@
 		display: flex;
 		justify-content: space-between;
 		gap: 8px;
+	}
+
+	.generate-persona-page__forward {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.generate-persona-page__error {
+		color: var(--svelte-ui-error-color);
+		font-size: var(--svelte-ui-font-size-sm);
 	}
 
 	.generate-persona-page__content {
