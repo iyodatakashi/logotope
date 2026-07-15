@@ -33,19 +33,21 @@
 	});
 
 	const hasStakeholders = $derived(stakeholders.length > 0);
-	const hasPersonas = $derived(personas.length > 0);
 	const isRunning = $derived(personasState === 'running');
 	// 採用ゲート: 採用（selected）ペルソナが1件以上あることが次フェーズ前進の前提（本仕様が所有）。
 	const hasSelectedPersona = $derived(personas.some((persona) => persona.selected));
-	// 生成済み（完了・停止のいずれも）は「ペルソナを再生成」を出す。
-	const isGenerated = $derived(personasState === 'generated' || personasState === 'stopped');
-
-	// 実行中の進行段階を、生成物の存在と取材状態から導出する（補助フィールドを増やさない）。
-	const runningStageLabel = $derived.by(() => {
-		if (!hasStakeholders) return 'ステークホルダーを生成中…';
-		if (!hasPersonas) return 'ペルソナを生成中…';
-		return '取材中…';
-	});
+	// 生成を一度でも実行した後の状態（完了・停止・前進済み）は「ペルソナを再生成する」を出す。
+	// 前進済み（approved・見返し中）も生成完了と同様に扱う。未実行（not_started）だけが「生成する」。
+	const isGenerated = $derived(
+		personasState === 'generated' ||
+			personasState === 'stopped' ||
+			personasState === 'approved'
+	);
+	// 次フェーズへ前進できる条件: 生成完了（generated）か前進済み（approved）で、採用が1件以上。
+	// stopped（失敗）や running・not_started では前進不可。
+	const canAdvance = $derived(
+		(personasState === 'generated' || personasState === 'approved') && hasSelectedPersona
+	);
 
 	// --- 操作ハンドラ（オーケストレーション。ドメイン操作は model/store に委譲する） ---
 
@@ -82,10 +84,14 @@
 		goto(phasePath(topic.id, 'fact-research'));
 	};
 
-	// 次フェーズ（chapters）へ前進する。採用ペルソナが1件以上あるときのみ許可する（採用ゲート・R4.10）。
+	// 次フェーズ（chapters）へ進む。採用ペルソナが1件以上あるときのみ許可する（採用ゲート・R4.10）。
+	// personas フェーズにいるときだけ前進を確定し、既に先へ進んでいる（approved・見返し中）なら遷移のみ行う
+	// （advancePhase を再実行して chapters を not_started へ巻き戻さないため）。
 	const handleForwardClick = async () => {
 		if (!topic || !hasSelectedPersona) return;
-		await topic.advancePastPersonas();
+		if (topic.phase === 'personas') {
+			await topic.advancePastPersonas();
+		}
 		goto(phasePath(topic.id, 'chapters'));
 	};
 </script>
@@ -98,7 +104,7 @@
 			</Button>
 
 			{#if isRunning}
-				<Button variant="filled" rounded loading onclick={() => {}}>{runningStageLabel}</Button>
+				<Button variant="filled" rounded loading onclick={() => {}}>ペルソナを生成する</Button>
 			{:else if isGenerated}
 				<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
 					ペルソナを再生成する
@@ -114,7 +120,7 @@
 				icon="arrow_forward"
 				iconPosition="right"
 				rounded
-				disabled={personasState !== 'generated' || !hasSelectedPersona}
+				disabled={!canAdvance}
 				onclick={handleForwardClick}
 			>
 				次に進む

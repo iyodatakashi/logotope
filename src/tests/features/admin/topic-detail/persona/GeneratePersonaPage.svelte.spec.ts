@@ -178,6 +178,27 @@ describe('GeneratePersonaPage', () => {
 		await expect.element(page.getByRole('button', { name: '次に進む' })).toBeDisabled();
 	});
 
+	it('前進後に見返した状態（approved）でも「ペルソナを再生成する」を表示し、次に進むは活性のまま遷移のみ行う', async () => {
+		// 一度 chapters へ前進してから戻ってきた状態（topic.phase は chapters）。
+		state.phase = 'chapters';
+		state.phaseStatus = 'not_started';
+		state.stakeholders = [makeStakeholder('sid-a', '医師')];
+		state.personas = [
+			makePersona({ id: 'p1', stakeholderId: 'sid-a', selected: true, interview: { status: 'completed' } })
+		];
+
+		mount();
+
+		// 生成済みなので実行ボタンではなく再生成を出す
+		await expect
+			.element(page.getByRole('button', { name: 'ペルソナを再生成する' }))
+			.toBeInTheDocument();
+		// 次に進むは活性。押しても既に前進済みなので advancePastPersonas は呼ばず遷移のみ（章立てを巻き戻さない）
+		await page.getByRole('button', { name: '次に進む' }).click();
+		expect(spies.advancePastPersonas).not.toHaveBeenCalled();
+		expect(goto).toHaveBeenCalledWith('/admin/topics/t1/chapters');
+	});
+
 	it('ペルソナの採用チェックを外すと setSelected をストアに永続させる', async () => {
 		state.phaseStatus = 'generated';
 		state.stakeholders = [makeStakeholder('sid-a', '医師')];
