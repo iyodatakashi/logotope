@@ -23,6 +23,9 @@ export const runInterviewCore = async (
 	persona: Persona
 ): Promise<void> => {
 	const personaRef = db().doc(`topics/${topicId}/personas/${personaId}`);
+	// 取材開始をサーバ側で即時に反映する（UI が「取材中」を表示できるよう status を先に立てる）。
+	// 初期チェーンの取材段は FE を介さず直接呼ぶため、ここで in_progress を書かないと待機中に張り付く。
+	await personaRef.update({ interview: { status: 'in_progress' } });
 	const topicContext = await getTopicContext(topicId);
 	const result = await runInterviewAgent(topicTitle, persona, topicContext);
 	if (!result.ok) {
