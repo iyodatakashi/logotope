@@ -12,6 +12,9 @@
 	// 押下直後の楽観的な「実行中」表示用フラグ。サーバ権威のステータス書き込みには
 	// 触れず、表示の即時フィードバックだけを担う。実状態(running)が反映されたら解除する。
 	let isStarting = $state(false);
+	// 再生成の表示専用フラグ。押下直後に旧章立て・付随分析を即時に隠す（実削除はサーバが権威的に行う）。
+	// 解除は呼び出し完了ではなく実同期に連動させる（下記 $effect）。往復後の一瞬の旧データ再表示を防ぐ。
+	let isRegenerating = $state(false);
 	const logicalState = $derived.by(() => {
 		if (isStarting) return 'running';
 		const topic = currentTopicStore.topic;
@@ -47,6 +50,20 @@
 			.toSorted((a, b) => (b.score ?? 0) - (a.score ?? 0)) ?? []
 	);
 
+	// 再生成フラグの解除は実同期に連動: サーバが対象フェーズ（chapters）を running/stopped に確定し（下流の
+	// 完了表示が消え）、かつ旧章立て・付随分析が実削除された（データ無し）ときに解除する。呼び出し完了（finally）
+	// では解除しない。generated 起点の再生成では実状態がまだ generated のままなので旧データ表示が保たれ、
+	// 往復後の一瞬の旧データ再表示を防ぐ。
+	$effect(() => {
+		const topic = currentTopicStore.topic;
+		if (!isRegenerating || !topic) return;
+		const real = phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE);
+		const hasChapterData = chapters !== null || chapterIssues != null;
+		if ((real === 'running' || real === 'stopped') && !hasChapterData) {
+			isRegenerating = false;
+		}
+	});
+
 	const generate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
@@ -58,18 +75,19 @@
 		}
 	};
 
-	// 再生成: 章立てと下流（討論・編集）を破棄してから作り直す。
-	// isStarting で押下直後に「実行中」表示へ切り替え、旧データを隠す（リセット完了を待たない）。
-	// generateChapters を最後に呼ぶことで phase が chapters へ戻る（resetEditing の phase 書込より後勝ち）。
+	// 再生成: サーバ権威の単一操作を1回呼ぶだけ（対象フェーズ確定→章立て・付随分析＋下流破棄→生成をサーバが所有）。
+	// 押下直後に isRegenerating で旧章立て・付随分析を即時に隠す（実削除の同期反映を待たない）。
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		isStarting = true;
+		isRegenerating = true;
 		try {
-			await topic.resetChapters();
-			await topic.resetDebate();
-			await topic.resetEditing();
 			await topic.generateChapters();
+		} catch (err) {
+			// 対象フェーズへ到達しない失敗（手順1前）では固着を防ぐため即時に解除する。
+			isRegenerating = false;
+			throw err;
 		} finally {
 			isStarting = false;
 		}
@@ -102,7 +120,7 @@
 
 	{#snippet content()}
 		<div class="generate-chapters-page__content">
-			{#if !isStarting}
+			{#if !isStarting && !isRegenerating}
 				{#if chapterIssues?.issues?.length}
 					<section class="generate-chapters-page__issues">
 						<h3>Step 1: 生成した切り口</h3>

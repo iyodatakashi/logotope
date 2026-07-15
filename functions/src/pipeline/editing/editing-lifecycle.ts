@@ -26,17 +26,6 @@ export const startEditingRun = async (topicId: string): Promise<string> => {
 };
 
 /**
- * 編集を未実行状態へ戻す（リセット）。編集成果物を破棄し、編集フェーズを not_started にする。
- * 討論には触れず、原本は不変。再度 startEditingRun で編集を開始できる。
- */
-export const resetEditingRun = async (topicId: string): Promise<void> => {
-	await clearEditedArtifact(topicId);
-	await db()
-		.doc(`topics/${topicId}`)
-		.update({ phase: 'editing', phaseStatus: 'not_started', updatedAt: Timestamp.now() });
-};
-
-/**
  * 終端失敗で編集ランを停止（stopped）にする。phase 6・runId 一致・phaseStatus running のときのみ遷移し、
  * 旧世代・前進済みを弾く（新世代の編集を巻き込まない）。再実行ボタンで復帰できる。
  * 停止が成立したら、生成に到達しなかった記事要素を生成失敗へ確定して生成待ち表示の固着を防ぐ（Req 4.3）。

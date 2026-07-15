@@ -113,16 +113,17 @@ afterEach(() => {
 });
 
 describe('GeneratePersonaPage', () => {
-	it('対応ペルソナがある行は右に人物像、無い行は右が空白（対応関係を表示）', async () => {
+	it('生成済みのペルソナを PersonaItem として一覧表示する', async () => {
 		state.phaseStatus = 'generated';
-		state.stakeholders = [makeStakeholder('sid-a', '医師'), makeStakeholder('sid-b', '患者')];
-		state.personas = [makePersona({ id: 'p1', name: '田中医師', stakeholderId: 'sid-a' })];
+		state.personas = [
+			makePersona({ id: 'p1', name: '田中医師', stakeholderId: 'sid-a' }),
+			makePersona({ id: 'p2', name: '佐藤患者', stakeholderId: 'sid-b' })
+		];
 
 		mount();
 
-		await expect.element(page.getByText('医師', { exact: true })).toBeInTheDocument();
-		await expect.element(page.getByText('患者', { exact: true })).toBeInTheDocument();
 		await expect.element(page.getByText('田中医師').first()).toBeInTheDocument();
+		await expect.element(page.getByText('佐藤患者').first()).toBeInTheDocument();
 	});
 
 	it('未生成では単一の「ペルソナを生成する」で一気通貫を起動する', async () => {
@@ -146,6 +147,42 @@ describe('GeneratePersonaPage', () => {
 			.element(page.getByRole('button', { name: 'ペルソナを再生成する' }))
 			.toBeInTheDocument();
 		expect(page.getByRole('button', { name: 'ペルソナを生成する' }).elements()).toHaveLength(0);
+	});
+
+	it('再生成は確認後にサーバ権威の単一操作のみを呼ぶ（下流 reset を呼ばない）', async () => {
+		state.phaseStatus = 'generated';
+		state.stakeholders = [makeStakeholder('sid-a', '医師')];
+		state.personas = [makePersona({ id: 'p1', stakeholderId: 'sid-a' })];
+
+		mount();
+
+		await page.getByRole('button', { name: 'ペルソナを再生成する' }).click();
+		await page.getByRole('button', { name: '再生成する', exact: true }).click();
+
+		expect(spies.startPersonaGeneration).toHaveBeenCalledOnce();
+		expect(spies.resetStakeholders).not.toHaveBeenCalled();
+		expect(spies.resetPersonas).not.toHaveBeenCalled();
+		expect(spies.resetChapters).not.toHaveBeenCalled();
+		expect(spies.resetDebate).not.toHaveBeenCalled();
+		expect(spies.resetEditing).not.toHaveBeenCalled();
+	});
+
+	it('再生成押下直後は旧ペルソナを即時に隠す（実削除の同期反映を待たない）', async () => {
+		state.phaseStatus = 'generated';
+		state.stakeholders = [makeStakeholder('sid-a', '医師')];
+		state.personas = [makePersona({ id: 'p1', name: '田中医師', stakeholderId: 'sid-a' })];
+		// 往復中（サーバがまだ running を書かず、旧ペルソナも実削除前）の状態を模擬。
+		spies.startPersonaGeneration.mockImplementation(() => new Promise<void>(() => {}));
+
+		mount();
+
+		await expect.element(page.getByText('田中医師').first()).toBeInTheDocument();
+
+		await page.getByRole('button', { name: 'ペルソナを再生成する' }).click();
+		await page.getByRole('button', { name: '再生成する', exact: true }).click();
+
+		// 実状態はまだ personas/generated（旧ペルソナ残存）だが、表示専用フラグで即時に隠れる。
+		expect(page.getByText('田中医師').elements()).toHaveLength(0);
 	});
 
 	it('採用ペルソナが1件以上あれば「次に進む」で advancePastPersonas と goto を呼ぶ', async () => {

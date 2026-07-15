@@ -4,26 +4,19 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseLogicalState } from '$lib/models/phase/phase.types';
-	import type { Stakeholder } from '$lib/models/stakeholder/stakeholder.types';
-	import type { Persona } from '$lib/models/persona/persona.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import StakeholderPersonaRow from './StakeholderPersonaRow.svelte';
+	import PersonaItem from './PersonaItem.svelte';
 
 	const topic = $derived(currentTopicStore.topic);
-	const stakeholders = $derived(currentTopicStore.stakeholdersStore.stakeholders);
 	const personas = $derived(currentTopicStore.personasStore.personas);
-
-	// ステークホルダーに対応するペルソナを安定 id で解決する（対応関係の表示用）。
-	const matchPersona = (stakeholder: Stakeholder): Persona | undefined =>
-		personas.find((persona) => persona.stakeholderId === stakeholder.id);
-	const rows = $derived(
-		stakeholders.map((stakeholder) => ({ stakeholder, persona: matchPersona(stakeholder) }))
-	);
 
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 
 	// 押下直後の楽観的な「実行中」表示。実状態（running）が反映されるまでの体感の穴を埋める。
 	let starting = $state(false);
+	// 再生成の表示専用フラグ。押下直後に旧ペルソナを即時に隠す（実削除はサーバが権威的に行う）。
+	// 解除は呼び出し完了ではなく実同期に連動させる（下記 $effect）。往復後の一瞬の旧データ再表示を防ぐ。
+	let isRegenerating = $state(false);
 
 	// この画面の対象フェーズは personas 一本。一気通貫全体の状態をこの1軸で表す。
 	const personasState = $derived.by((): PhaseLogicalState => {
@@ -32,8 +25,25 @@
 		return phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, 'personas');
 	});
 
-	const hasStakeholders = $derived(stakeholders.length > 0);
+	const hasPersonas = $derived(personas.length > 0);
 	const isRunning = $derived(personasState === 'running');
+	// 押下直後は旧ペルソナを隠してスケルトンを出す。実削除後も対象フェーズ running なら空スケルトンを継続。
+	const showSkeleton = $derived(isRegenerating || (isRunning && !hasPersonas));
+
+	// 再生成フラグの解除は実同期に連動: サーバが対象フェーズ（personas）を running/stopped に確定し（下流の
+	// 完了表示が消え）、かつ旧ペルソナが実削除された（!hasPersonas）ときに解除する。呼び出し完了（finally）では
+	// 解除しない。generated 起点の再生成では実状態がまだ generated のまま（running 未反映）なので、この条件は
+	// 旧データ表示のまま保たれ、往復後の一瞬の旧データ再表示を防ぐ。
+	$effect(() => {
+		if (!isRegenerating || !topic) return;
+		const real = phaseLogicalState(
+			{ phase: topic.phase, phaseStatus: topic.phaseStatus },
+			'personas'
+		);
+		if ((real === 'running' || real === 'stopped') && !hasPersonas) {
+			isRegenerating = false;
+		}
+	});
 	// 採用ゲート: 採用（selected）ペルソナが1件以上あることが次フェーズ前進の前提（本仕様が所有）。
 	const hasSelectedPersona = $derived(personas.some((persona) => persona.selected));
 	// 生成を一度でも実行した後の状態（完了・停止・前進済み）は「ペルソナを再生成する」を出す。
@@ -65,17 +75,19 @@
 			await topic.startPersonaGeneration();
 		});
 
-	// ペルソナを再生成: 承諾時のみ、下流（章立て・討論・編集）まで破棄してから一気通貫を最初から実行する。
-	const onRegenerate = () =>
-		runExec(async () => {
+	// ペルソナを再生成: サーバ権威の単一操作を1回呼ぶだけ（対象フェーズ確定→自層＋下流破棄→投入をサーバが所有）。
+	// 押下直後に isRegenerating で旧ペルソナを即時に隠す（実削除の同期反映を待たない）。対象フェーズへ到達しない
+	// 失敗（手順1前）では固着を防ぐため即時に解除する。
+	const onRegenerate = () => {
+		isRegenerating = true;
+		return runExec(async () => {
 			if (!topic) return;
-			await topic.resetStakeholders();
-			await topic.resetPersonas();
-			await topic.resetChapters();
-			await topic.resetDebate();
-			await topic.resetEditing();
 			await topic.startPersonaGeneration();
+		}).catch((err) => {
+			isRegenerating = false;
+			throw err;
 		});
+	};
 
 	const handleBackClick = () => {
 		if (!topic) return;
@@ -128,20 +140,16 @@
 
 	{#snippet content()}
 		<div class="generate-persona-page__content">
-			<div class="generate-persona-page__rows-header">
-				<div class="generate-persona-page__rows-header__column">ステークホルダー</div>
-				<div class="generate-persona-page__rows-header__column">ペルソナ</div>
-			</div>
-			{#if isRunning && !hasStakeholders}
+			{#if showSkeleton}
 				<Skeleton
 					patterns={[{ type: 'box', width: '100%', height: '96px' }]}
 					repeat={5}
 					repeatGap="12px"
 				/>
-			{:else if hasStakeholders}
+			{:else if hasPersonas}
 				<div class="generate-persona-page__rows">
-					{#each rows as row (row.stakeholder.id)}
-						<StakeholderPersonaRow stakeholder={row.stakeholder} persona={row.persona} />
+					{#each personas as persona (persona.id)}
+						<PersonaItem {persona} />
 					{/each}
 				</div>
 			{/if}
@@ -169,19 +177,6 @@
 	.generate-persona-page__content {
 		max-width: 960px;
 		margin: 0 auto;
-	}
-
-	.generate-persona-page__rows-header {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 32px;
-		margin-bottom: 16px;
-
-		.generate-persona-page__rows-header__column {
-			padding: 8px 4px 8px 16px;
-			background: var(--base-50-transparent);
-			font-weight: bold;
-		}
 	}
 
 	.generate-persona-page__rows {

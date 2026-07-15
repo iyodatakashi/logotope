@@ -5,11 +5,7 @@ import { getTopicById } from '../pipeline/topics/topics.js';
 import { getChaptersByTopicId } from '../pipeline/debate/chapter.js';
 import { advanceEditing } from '../pipeline/editing/editing-orchestrator.js';
 import { enqueueEditingStep } from '../pipeline/editing/enqueue-editing-step.js';
-import {
-	startEditingRun,
-	resetEditingRun,
-	stopEditingRun
-} from '../pipeline/editing/editing-lifecycle.js';
+import { startEditingRun, stopEditingRun } from '../pipeline/editing/editing-lifecycle.js';
 import {
 	regenerateChapter,
 	regenerateIntro,
@@ -117,26 +113,6 @@ export const regenerateArticleElement = onCall(
 		}
 	}
 );
-
-/** 編集を未実行状態へ戻す。編集成果物を破棄し、編集フェーズを not_started にする（原本は不変） */
-export const resetEditing = onCall({ timeoutSeconds: 60 }, async (request) => {
-	requireAuth(request);
-	const { topicId } = request.data as { topicId: string };
-	if (!topicId?.trim()) throw new HttpsError('invalid-argument', 'topicId is required');
-
-	try {
-		const topic = await getTopicById(topicId);
-		if (!topic) throw new HttpsError('not-found', 'Topic not found');
-
-		await resetEditingRun(topicId);
-		return { topicId };
-	} catch (err) {
-		console.error('[resetEditing] error', { topicId }, err);
-		throw err instanceof HttpsError
-			? err
-			: new HttpsError('internal', err instanceof Error ? err.message : String(err));
-	}
-});
 
 /**
  * 編集ステップをタスクとして実行する。LLM 用シークレットを付与し、例外は Cloud Tasks のリトライに委ねる。

@@ -5,6 +5,11 @@ import { fetchAndExtractText } from '../pipeline/topics/source-fetcher.js';
 
 const db = () => getFirestore();
 
+/**
+ * 参考URLの本文を取得し、取得結果をトピックへ永続する onCall。名前は fetch だが取得だけでなく Firestore への
+ * 書き込み（fetchedSourceContents）まで行う（現状維持＋根拠・R7.4: 取得結果を永続するのが本来の意図。取得と
+ * 永続を分けず1操作で扱う設計）。取得失敗した URL は結果から除外する（best-effort）。
+ */
 export const fetchSourceContents = onCall(async (request) => {
 	requireAuth(request);
 	const { topicId } = request.data as { topicId?: string };

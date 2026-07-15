@@ -48,13 +48,13 @@
 		}
 	};
 
-	// やり直し: 未実行へ戻してから再度開始する（旧記事の破棄はサーバの startEditing が担う）。
+	// やり直し: 開始操作（startEditing）を1回呼ぶだけ。旧記事の破棄＋実行中化＋新世代発行はサーバの
+	// startEditingRun が担う。editing は最終フェーズのため先行フェーズ確定・下流破棄は不要（明示リセットを外す）。
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		isStarting = true;
 		try {
-			await topic.resetEditing();
 			await topic.startEditing();
 		} finally {
 			isStarting = false;

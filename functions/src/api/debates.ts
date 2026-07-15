@@ -5,7 +5,7 @@ import { getChaptersByTopicId } from '../pipeline/debate/chapter.js';
 import { advanceDebate } from '../pipeline/debate/debate-orchestrator.js';
 import { enqueueStep, taskKey } from '../pipeline/debate/enqueue-step.js';
 import {
-	updateDebatePhaseStatus,
+	beginDebateRun,
 	restartDebateFromChapter,
 	resetDebate as resetDebateLifecycle
 } from '../pipeline/debate/debate-lifecycle.js';
@@ -33,6 +33,13 @@ const enqueueFirstOpenStep = async (
 	await enqueueStep(payload, taskKey({ runId, chapterId, frontierIndex: 0 }));
 };
 
+/**
+ * 討論再生成をサーバ権威で所有する。単一操作で「debate を running に確定＋新世代 runId（手順1）→ 討論付随
+ * データ（turns/engagements/awareness）＋下流 editing 破棄（手順2・resetDebate が担う）→ 討論開始（手順3・
+ * 最初の open ステップ投入）」をこの順序で実行する。手順1を先に置き新 runId を発行することで、approved 起点の
+ * 再生成でも下流（editing）が完了表示にならず、旧世代の残タスクを無効化する（R3.1, 3.3, 3.5）。初回開始は破棄が
+ * no-op で同一経路を通る。手順1後の失敗は debate/stopped に留め、下流 approved へ戻さない（R3.4）。
+ */
 export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 	requireAuth(request);
 	const { topicId, singleChapterMode } = request.data as {
@@ -48,8 +55,19 @@ export const startDebate = onCall({ timeoutSeconds: 60 }, async (request) => {
 		const firstChapter = chapters[0];
 		if (!firstChapter) throw new HttpsError('not-found', 'No chapter to start');
 
-		const runId = await updateDebatePhaseStatus(topicId, 'running');
-		await enqueueFirstOpenStep(topicId, 0, firstChapter.id, runId, singleChapterMode);
+		// 手順1: debate を running に確定＋新世代 runId（旧世代タスクは世代不一致で自己停止）。
+		const runId = await beginDebateRun(topicId, 'running');
+
+		try {
+			// 手順2: 討論付随データ＋下流 editing 破棄（resetDebate が turns/engagements/awareness＋編集成果物を破棄）。
+			await resetDebateLifecycle(topicId);
+			// 手順3: 討論開始（最初の open ステップを新 runId で投入）。
+			await enqueueFirstOpenStep(topicId, 0, firstChapter.id, runId, singleChapterMode);
+		} catch (err) {
+			// 手順1後の失敗は対象フェーズのまま停止（下流 approved へ戻さない・R3.4）。
+			await beginDebateRun(topicId, 'stopped');
+			throw err;
+		}
 
 		return { topicId };
 	} catch (err) {
@@ -145,7 +163,7 @@ export const runStep = onTaskDispatched(
 				err
 			);
 			if ((req.retryCount ?? 0) >= MAX_ATTEMPTS - 1) {
-				await updateDebatePhaseStatus(payload.topicId, 'stopped');
+				await beginDebateRun(payload.topicId, 'stopped');
 			}
 			throw err;
 		}

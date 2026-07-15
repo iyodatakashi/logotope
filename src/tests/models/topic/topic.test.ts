@@ -29,7 +29,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { httpsCallable } from 'firebase/functions';
-import { updateDoc, deleteDoc, setDoc, getDoc, getDocs } from 'firebase/firestore';
+import { updateDoc, setDoc, getDoc, getDocs } from 'firebase/firestore';
 import { createTopicStates } from '$lib/models/topic/createTopic.svelte';
 
 const TOPIC_PATH = { path: 'topics/t1' };
@@ -174,16 +174,6 @@ describe('createTopicStates', () => {
 			expect(callable).toHaveBeenCalledWith({ topicId: 't1' });
 		});
 
-		it('resetEditing は resetEditing onCall を topicId 付きで呼ぶ', async () => {
-			const callable = vi.fn().mockResolvedValue({ data: { topicId: 't1' } });
-			vi.mocked(httpsCallable).mockReturnValue(callable as never);
-
-			const store = makeTopic();
-			await store.resetEditing();
-
-			expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'resetEditing');
-			expect(callable).toHaveBeenCalledWith({ topicId: 't1' });
-		});
 	});
 
 	describe('生成の2軸遷移（生成のみ。旧データ削除は reset が担う）', () => {
@@ -279,53 +269,7 @@ describe('createTopicStates', () => {
 		});
 	});
 
-	describe('旧データのリセット（データ層ごと。名前＝役割範囲）', () => {
-		it('resetStakeholders は stakeholders/0 ドキュメントを削除する', async () => {
-			const store = makeTopic();
-			await store.resetStakeholders();
-			expect(deleteDoc).toHaveBeenCalledWith({ path: 'topics/t1/stakeholders/0' });
-		});
-
-		it('resetPersonas は既存ペルソナ文書を全削除する', async () => {
-			const ref1 = { path: 'topics/t1/personas/p1' };
-			const ref2 = { path: 'topics/t1/personas/p2' };
-			vi.mocked(getDocs).mockResolvedValue({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never);
-
-			const store = makeTopic();
-			await store.resetPersonas();
-
-			expect(deleteDoc).toHaveBeenCalledWith(ref1);
-			expect(deleteDoc).toHaveBeenCalledWith(ref2);
-		});
-
-		it('resetChapters は chapters コレクションを全削除し chapterAnalysis/0 も削除する', async () => {
-			const ref1 = { path: 'topics/t1/chapters/c1' };
-			const ref2 = { path: 'topics/t1/chapters/c2' };
-			vi.mocked(getDocs).mockResolvedValue({ docs: [{ ref: ref1 }, { ref: ref2 }] } as never);
-
-			const store = makeTopic();
-			await store.resetChapters();
-
-			expect(deleteDoc).toHaveBeenCalledWith(ref1);
-			expect(deleteDoc).toHaveBeenCalledWith(ref2);
-			expect(deleteDoc).toHaveBeenCalledWith({ path: 'topics/t1/chapterAnalysis/0' });
-		});
-
-		it('resetDebate は resetDebate onCall を呼ぶだけ（クライアント側で個別削除しない）', async () => {
-			const callable = vi.fn().mockResolvedValue({ data: { topicId: 't1' } });
-			vi.mocked(httpsCallable).mockReturnValue(callable as never);
-
-			const store = makeTopic();
-			await store.resetDebate();
-
-			expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'resetDebate');
-			expect(callable).toHaveBeenCalledWith({ topicId: 't1' });
-			// 章付随データの削除はサーバ責務。FE からは直接削除しない
-			expect(deleteDoc).not.toHaveBeenCalled();
-		});
-	});
-
-	it('旧 reset 名・バンドル操作は撲滅され、データ層ごとの reset へ統一されている', () => {
+	it('旧 reset 名・バンドル操作・クライアント側リセットラッパは撲滅されている（破棄はサーバ権威）', () => {
 		const store = makeTopic();
 		// 旧: フェーズ番号ベース／reset と生成を兼ねたバンドル操作は無い
 		expect('resetToPhase1' in store).toBe(false);
@@ -334,10 +278,11 @@ describe('createTopicStates', () => {
 		expect('resetToPhase4' in store).toBe(false);
 		expect('clearDebateSession' in store).toBe(false);
 		expect('regenerateDebate' in store).toBe(false);
-		// 新: データ層ごとの純粋な reset（名前＝役割範囲）
-		expect('resetStakeholders' in store).toBe(true);
-		expect('resetPersonas' in store).toBe(true);
-		expect('resetChapters' in store).toBe(true);
-		expect('resetDebate' in store).toBe(true);
+		// サーバ権威化に伴い、クライアント側のリセットラッパは撤去された（破棄は起動 onCall がサーバで所有する）
+		expect('resetStakeholders' in store).toBe(false);
+		expect('resetPersonas' in store).toBe(false);
+		expect('resetChapters' in store).toBe(false);
+		expect('resetDebate' in store).toBe(false);
+		expect('resetEditing' in store).toBe(false);
 	});
 });

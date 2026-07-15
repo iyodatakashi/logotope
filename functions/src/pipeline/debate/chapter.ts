@@ -123,7 +123,11 @@ export const updateChapterStatus = async (
 	await db().doc(`topics/${topicId}/chapters/${chapterId}`).update({ status });
 };
 
-/** 指定章以降を破棄対象として turns/進捗/status をリセットし、破棄した章を返す */
+/**
+ * 指定章以降の討論内容を破棄する。名前は discard だが章ドキュメントは削除せず存置し、turns を空に・進捗
+ * （agendaItemStatuses/quietStreak）を消去・status を pending へ戻す（＝章立て構造は残したまま討論を未実施へ戻す）。
+ * 破棄した章を返す（現状維持＋根拠・R7.4: 章立ては chapters コレクションに残す設計のため update で初期化する）。
+ */
 export const discardChaptersFrom = async (
 	topicId: string,
 	chapterId: string

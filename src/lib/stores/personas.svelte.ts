@@ -5,7 +5,6 @@ import {
 	orderBy,
 	doc,
 	updateDoc,
-	writeBatch,
 	Timestamp
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -85,21 +84,9 @@ export const createPersonasStore = (topicId: string) => {
 		await runInterview(personaId, topicTitle);
 	};
 
-	const resetPersonas = async (): Promise<void> => {
-		const batch = writeBatch(db);
-		personas.forEach((persona) => {
-			batch.delete(doc(db, 'topics', topicId, 'personas', persona.id));
-		});
-		batch.update(doc(db, 'topics', topicId), {
-			phase: 'personas',
-			phaseStatus: 'not_started',
-			updatedAt: Timestamp.now()
-		});
-		await batch.commit();
-	};
-
-	// 再取材の前に personas フェーズを実行中へ戻す（取材は personas フェーズ配下に統合済み）。
-	const markInterviewsStarted = async (): Promise<void> => {
+	// トピックの personas フェーズを running に書く（再取材の前に stopped→running へ戻すために使う）。
+	// 名前どおり personas フェーズを書く操作であることを明示する（取材ではなくフェーズを書く・R7.3）。
+	const setPersonasPhaseRunning = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId), {
 			phase: 'personas',
 			phaseStatus: 'running',
@@ -107,8 +94,8 @@ export const createPersonasStore = (topicId: string) => {
 		});
 	};
 
-	// 取材失敗時にトピックを停止状態にする（実行中・完了は既存のまま）
-	const markInterviewsStopped = async (): Promise<void> => {
+	// トピックの personas フェーズを stopped に書く（再取材失敗時。実行中・完了は既存のまま・R7.3）。
+	const setPersonasPhaseStopped = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId), {
 			phase: 'personas',
 			phaseStatus: 'stopped',
@@ -170,8 +157,7 @@ export const createPersonasStore = (topicId: string) => {
 		setSelected,
 		reinterview,
 		runInterview,
-		resetPersonas,
-		markInterviewsStarted,
-		markInterviewsStopped
+		setPersonasPhaseRunning,
+		setPersonasPhaseStopped
 	};
 };

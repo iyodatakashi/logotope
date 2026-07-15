@@ -15,9 +15,4 @@ export { runInterview } from './api/interviews.js';
 export { generateChapters } from './api/chapters.js';
 export { startDebate, restartDebate, resetDebate, runStep } from './api/debates.js';
 export { fetchSourceContents } from './api/source-contents.js';
-export {
-	startEditing,
-	resetEditing,
-	runEditingStep,
-	regenerateArticleElement
-} from './api/editing.js';
+export { startEditing, runEditingStep, regenerateArticleElement } from './api/editing.js';

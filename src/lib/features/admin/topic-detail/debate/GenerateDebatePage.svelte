@@ -45,16 +45,17 @@
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		isStarting = true;
+		// 押下直後に旧ターンを即時非表示にする（実削除はサーバが権威的に行う）。解除は実同期に連動（下記 $effect）。
 		isResetting = true;
 		try {
-			// 討論をやり直すと下流の編集成果物も陳腐化するため破棄する。
-			// startDebate を最後に呼ぶことで phase が debate へ戻る（resetEditing の phase 書込より後勝ち）。
-			await topic.resetDebate();
-			await topic.resetEditing();
+			// サーバ権威の単一操作を1回呼ぶだけ（debate 確定→討論付随データ＋下流編集破棄→開始をサーバが所有）。
 			await topic.startDebate(singleChapterMode);
+		} catch (err) {
+			// 対象フェーズへ到達しない失敗（手順1前）では固着を防ぐため即時に解除する。
+			isResetting = false;
+			throw err;
 		} finally {
 			isStarting = false;
-			isResetting = false;
 		}
 	};
 
@@ -75,7 +76,7 @@
 			: 'not_started';
 	});
 
-	// 実状態(running)がトピックに反映されたら楽観フラグを解除し、以降は実状態に委ねる。
+	// 実状態(running)がトピックに反映されたら楽観フラグ（実行中表示）を解除し、以降は実状態に委ねる。
 	$effect(() => {
 		const topic = currentTopicStore.topic;
 		if (
@@ -83,7 +84,6 @@
 			phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE) === 'running'
 		) {
 			isStarting = false;
-			isResetting = false;
 		}
 	});
 
@@ -94,6 +94,19 @@
 			(chapter) => chapter.turns.length > 0 || chapter.pendingTurn
 		)
 	);
+
+	// isResetting（旧ターン非表示）の解除は実同期に連動: サーバが対象フェーズ（debate）を running/stopped に
+	// 確定し（下流の完了表示が消え）、かつ旧ターンが実削除された（!hasTurns）ときに解除する。呼び出し完了（finally）
+	// では解除しない。generated 起点のやり直しでは実状態がまだ generated のままなので旧ターン表示が保たれ、
+	// 往復後の一瞬の旧ターン再表示を防ぐ。
+	$effect(() => {
+		const topic = currentTopicStore.topic;
+		if (!isResetting || !topic) return;
+		const real = phaseLogicalState({ phase: topic.phase, phaseStatus: topic.phaseStatus }, PHASE);
+		if ((real === 'running' || real === 'stopped') && !hasTurns) {
+			isResetting = false;
+		}
+	});
 </script>
 
 <PhasePanel>

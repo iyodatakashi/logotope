@@ -9,10 +9,12 @@ import type { PhaseSlug, PhaseStatus } from '../../types/phase.types.js';
 const db = () => getFirestore();
 
 /**
- * 討論の phaseStatus を切り替え、新しい世代 runId を発行して返す。
- * running: 開始/再開。stopped: 試行尽きで停止（新 runId により古いタスクの追記は世代不一致で弾かれる）。
+ * 討論フェーズの新しい世代（runId）を発行し、phase=debate＋指定 status で確定して runId を返す。
+ * 単なる状態更新ではなく「新しい世代の開始/停止境界を引く」責務を持つ（名前で明示・R7.1）。
+ * running: 開始/再開の新世代。stopped: 試行尽きで停止する新世代（新 runId により旧世代タスクの追記は
+ * 世代不一致で弾かれる＝フェンス）。呼び出し側はこの runId を後段タスクへ引き継ぐ。
  */
-export const updateDebatePhaseStatus = async (
+export const beginDebateRun = async (
 	topicId: string,
 	status: 'running' | 'stopped'
 ): Promise<string> => {
@@ -117,7 +119,7 @@ export const restartDebateFromChapter = async (
 	chapterId: string
 ): Promise<string> => {
 	await discardChaptersWithSideData(topicId, chapterId);
-	return await updateDebatePhaseStatus(topicId, 'running');
+	return await beginDebateRun(topicId, 'running');
 };
 
 /**

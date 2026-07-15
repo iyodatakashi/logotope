@@ -32,12 +32,12 @@
 		const personasStore = currentTopicStore.personasStore;
 		// 再実行前に stopped→running へ戻す。これがないとサーバの完了確定（running 限定）が
 		// no-op となり、全件完了しても generated に到達しない。完了確定はサーバ権威で行う。
-		await personasStore.markInterviewsStarted();
+		await personasStore.setPersonasPhaseRunning();
 		try {
 			await personasStore.runInterview(persona.id, topic.title);
 		} catch {
 			// サーバが当該ペルソナを error 永続化済み。再取材導線を出すため stopped に戻す。
-			await personasStore.markInterviewsStopped();
+			await personasStore.setPersonasPhaseStopped();
 		}
 	};
 </script>

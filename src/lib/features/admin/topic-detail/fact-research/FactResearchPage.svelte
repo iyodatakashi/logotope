@@ -54,20 +54,13 @@
 		}
 	};
 
-	// 再実行: 事実基盤と下流（ステークホルダー・ペルソナ・取材・章立て・討論・編集）を破棄してから作り直す。
-	// 事実基盤は下流生成時に焼き込まれるため、作り直した事実を波及させるには下流を未生成へ戻す必要がある。
-	// isStarting で押下直後に「実行中」表示へ切り替え、旧データを隠す（リセット完了を待たない）。
-	// generateFactResearch を最後に呼ぶことで phase が fact-research へ戻る（各 reset の phase 書込より後勝ち）。
+	// 再実行: サーバ権威の単一操作を1回呼ぶだけ（対象フェーズ確定→自層＋全下流破棄→生成をサーバが所有する）。
+	// isStarting で押下直後に「実行中」表示（スケルトン）へ切り替え、旧データを隠す（実削除の同期反映を待たない）。
 	const regenerate = async () => {
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		isStarting = true;
 		try {
-			await topic.resetStakeholders();
-			await topic.resetPersonas();
-			await topic.resetChapters();
-			await topic.resetDebate();
-			await topic.resetEditing();
 			await topic.generateFactResearch();
 		} finally {
 			isStarting = false;
@@ -101,28 +94,69 @@
 
 	// 実行せず承認: 事実基盤を空のまま確定し、同じ経路で前進する（実行は任意）。
 	const emptyApprove = approve;
+
+	const handleBackClick = () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		goto(phasePath(topic.id, 'theme'));
+	};
+
+	const handleForwardClick = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic) return;
+		try {
+			if (logicalState !== 'approved') {
+				await approve();
+			}
+			const next = nextPhase(PHASE);
+			if (next) goto(phasePath(topic.id, next));
+		} catch {}
+	};
 </script>
 
 <PhasePanel>
 	{#snippet actions()}
 		<div class="fact-research-page__actions">
+			<Button variant="outlined" icon="arrow_back" rounded onclick={handleBackClick}>
+				前に戻る
+			</Button>
 			{#if logicalState === 'not_started'}
-				<Button variant="filled" onclick={generate}>事実リサーチを実行する</Button>
-				<Button variant="outlined" onclick={emptyApprove}>実行せず承認する</Button>
+				<Button variant="filled" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
+					調査を開始する
+				</Button>
 			{:else if logicalState === 'running'}
-				<Button variant="filled" loading onclick={generate}>事実リサーチを実行する</Button>
-			{:else if logicalState === 'generated'}
-				<Button variant="filled" onclick={() => regenerateDialog?.open()}>再実行する</Button>
-				<Button variant="filled" onclick={approve}>承認して次へ進む</Button>
-			{:else if logicalState === 'approved'}
-				<Button variant="filled" onclick={() => regenerateDialog?.open()}>再実行する</Button>
+				<Button
+					variant="ghost"
+					rounded
+					icon="cached"
+					loading
+					onclick={() => regenerateDialog?.open()}
+				>
+					再調査する
+				</Button>
+			{:else}
+				<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
+					再調査する
+				</Button>
 			{/if}
+			<Button
+				variant="filled"
+				icon="arrow_forward"
+				iconPosition="right"
+				rounded
+				disabled={logicalState !== 'generated' && logicalState !== 'approved'}
+				onclick={handleForwardClick}
+			>
+				次に進む
+			</Button>
 		</div>
 	{/snippet}
 
 	{#snippet content()}
 		<div class="fact-research-page__content">
-			{#if logicalState === 'running'}
+			{#if logicalState === 'not_started'}
+				調査結果はまだありません
+			{:else if logicalState === 'running'}
 				<Skeleton
 					patterns={[{ type: 'box', width: '100%', height: '96px' }]}
 					repeat={4}
@@ -138,7 +172,7 @@
 						/>
 					{/each}
 				</ul>
-			{:else if currentTopicStore.factBaseStore.isLoaded && logicalState !== 'not_started'}
+			{:else if currentTopicStore.factBaseStore.isLoaded}
 				<p class="fact-research-page__empty">
 					確たる客観的事実は見つかりませんでした（事実基盤は空です）。
 				</p>
@@ -150,7 +184,7 @@
 <ConfirmDialog
 	bind:this={regenerateDialog}
 	title="事実リサーチを再実行しますか？"
-	description="現在の事実基盤が作り直され、以降のフェーズで生成済みのデータ（ステークホルダー・ペルソナ・取材・章立て・討論・編集）が削除されます。"
+	description="現在の事実リサーチ結果が作り直され、以降のフェーズで生成済みのデータが削除されます。"
 	danger
 	submitLabel="再実行する"
 	cancelLabel="キャンセル"
@@ -160,7 +194,7 @@
 <style>
 	.fact-research-page__actions {
 		display: flex;
-		flex-wrap: wrap;
+		justify-content: space-between;
 		gap: 8px;
 	}
 

@@ -5,7 +5,6 @@ import {
 	getDoc,
 	getDocs,
 	collection,
-	deleteDoc,
 	deleteField
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -104,15 +103,6 @@ export const createTopicStates = (topicDoc: Topic) => {
 		await startEditingCallable({ topicId: id });
 	};
 
-	// 編集を未実行状態へ戻す（成果物破棄＋編集フェーズを not_started に）。原本は不変。
-	const resetEditing = async (): Promise<void> => {
-		const resetEditingCallable = httpsCallable<{ topicId: string }, { topicId: string }>(
-			functions,
-			'resetEditing'
-		);
-		await resetEditingCallable({ topicId: id });
-	};
-
 	// 未完成の記事要素（章／導入／締め／所感の1人）を種別ごとに個別再生成する共通入口。
 	// 編集確定後（generated/stopped）のみ受け付けられ、実行中はサーバ側で拒否される。
 	const regenerateArticleElement = async (element: ArticleElement): Promise<void> => {
@@ -123,6 +113,8 @@ export const createTopicStates = (topicDoc: Topic) => {
 		await regenerateCallable({ topicId: id, element });
 	};
 
+	// トピックを公開する。名前は publish だが、公開時点のペルソナ数を数え直して personaCount に焼き込む
+	// （現状維持＋根拠・R7.4: personaCount は公開スナップショットの一部。公開確定と同一操作で再集計する設計）。
 	const publishDebate = async (): Promise<void> => {
 		const personasSnap = await getDocs(collection(db, 'topics', id, 'personas'));
 		const personaCount = personasSnap.size;
@@ -134,8 +126,9 @@ export const createTopicStates = (topicDoc: Topic) => {
 		});
 	};
 
-	// フェーズ状態（実行中・生成完了・停止）をトピックに書く小さなヘルパー。
-	const setPhaseStatus = async (phase: PhaseSlug, phaseStatus: string): Promise<void> => {
+	// 進捗フェーズ（phase ポインタ）と状態（phaseStatus）をまとめてトピックへ書くヘルパー。
+	// 名前どおり phase を遷移させる書き込みであることを明示する（状態のみの更新ではない・R7.1）。
+	const setPhase = async (phase: PhaseSlug, phaseStatus: string): Promise<void> => {
 		await updateDoc(doc(db, 'topics', id), {
 			phase,
 			phaseStatus,
@@ -143,42 +136,10 @@ export const createTopicStates = (topicDoc: Topic) => {
 		});
 	};
 
-	// --- 旧データのリセット（データ層ごと。各 reset はその層のデータだけを消す） ---
-	// 再生成では、各フェーズ画面の regenerate ハンドラが「自フェーズ＋下流ぶん」を合成して呼ぶ。
-
-	// ステークホルダー（stakeholders/0 ドキュメント）を削除する。
-	const resetStakeholders = async (): Promise<void> => {
-		await deleteDoc(doc(db, 'topics', id, 'stakeholders', '0'));
-	};
-
-	// ペルソナ（personas サブコレクション。取材記録・信念もペルソナ文書に含まれる）を全削除する。
-	const resetPersonas = async (): Promise<void> => {
-		const personasSnap = await getDocs(collection(db, 'topics', id, 'personas'));
-		await Promise.all(personasSnap.docs.map((personaDoc) => deleteDoc(personaDoc.ref)));
-	};
-
-	// 章立て（chapters コレクションと chapterAnalysis/0）を消す。
-	const resetChapters = async (): Promise<void> => {
-		const chaptersSnap = await getDocs(collection(db, 'topics', id, 'chapters'));
-		await Promise.all(chaptersSnap.docs.map((chapterDoc) => deleteDoc(chapterDoc.ref)));
-		await deleteDoc(doc(db, 'topics', id, 'chapterAnalysis', '0'));
-	};
-
-	// 討論（chapters のターン・engagements。章立ては残す）を消す。編集記事（editorial/editedChapters）は
-	// サーバの resetDebate が原本再生成との不整合を残さないよう破棄する。
-	// 章付随データの削除責務はサーバへ集約済み。FE は onCall を呼ぶだけにする（クライアント側で個別削除しない）。
-	const resetDebate = async (): Promise<void> => {
-		const resetDebateCallable = httpsCallable<{ topicId: string }, { topicId: string }>(
-			functions,
-			'resetDebate'
-		);
-		await resetDebateCallable({ topicId: id });
-	};
-
-	// --- 生成（各 generate は生成と書き込みのみ。旧データの削除は上の reset が担う） ---
+	// --- 生成（各 generate はサーバ権威の単一操作。対象フェーズ確定・自層/下流破棄・生成/投入をサーバが所有する） ---
 
 	const generateFactResearch = async (): Promise<void> => {
-		await setPhaseStatus('fact-research', 'running');
+		await setPhase('fact-research', 'running');
 		try {
 			const generateFactResearchCallable = httpsCallable<
 				{ topicId: string; title: string },
@@ -191,7 +152,7 @@ export const createTopicStates = (topicDoc: Topic) => {
 			// 場合は stopped に上書きしない。承認ボタンが消える不具合の再発を防ぐ。
 			const snap = await getDoc(doc(db, 'topics', id));
 			if (snap.data()?.phaseStatus !== 'generated') {
-				await setPhaseStatus('fact-research', 'stopped');
+				await setPhase('fact-research', 'stopped');
 			}
 			throw e;
 		}
@@ -209,7 +170,7 @@ export const createTopicStates = (topicDoc: Topic) => {
 	};
 
 	const generateChapters = async (): Promise<void> => {
-		await setPhaseStatus('chapters', 'running');
+		await setPhase('chapters', 'running');
 		try {
 			const generateChaptersCallable = httpsCallable<{ topicId: string }, unknown>(
 				functions,
@@ -223,7 +184,7 @@ export const createTopicStates = (topicDoc: Topic) => {
 			// 場合は stopped に上書きしない。承認ボタンが消える不具合の再発を防ぐ。
 			const snap = await getDoc(doc(db, 'topics', id));
 			if (snap.data()?.phaseStatus !== 'generated') {
-				await setPhaseStatus('chapters', 'stopped');
+				await setPhase('chapters', 'stopped');
 			}
 			throw e;
 		}
@@ -305,10 +266,6 @@ export const createTopicStates = (topicDoc: Topic) => {
 		startDebate,
 		restartDebate,
 		stopDebate,
-		resetStakeholders,
-		resetPersonas,
-		resetChapters,
-		resetDebate,
 		save,
 		fetchSourceContents,
 		approveTheme,
@@ -317,7 +274,6 @@ export const createTopicStates = (topicDoc: Topic) => {
 		approveChapters,
 		approveDebate,
 		startEditing,
-		resetEditing,
 		regenerateArticleElement,
 		publishDebate
 	};

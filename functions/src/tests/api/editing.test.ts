@@ -7,9 +7,8 @@ const { mockGetTopicById, mockGetChapters, mockIsDebateCompleted, mockDocGet } =
 	mockDocGet: vi.fn()
 }));
 
-const { mockStartRun, mockResetRun, mockStopRun, mockAdvance, mockEnqueue } = vi.hoisted(() => ({
+const { mockStartRun, mockStopRun, mockAdvance, mockEnqueue } = vi.hoisted(() => ({
 	mockStartRun: vi.fn(),
-	mockResetRun: vi.fn().mockResolvedValue(undefined),
 	mockStopRun: vi.fn().mockResolvedValue(undefined),
 	mockAdvance: vi.fn().mockResolvedValue(undefined),
 	mockEnqueue: vi.fn().mockResolvedValue(undefined)
@@ -49,7 +48,6 @@ vi.mock('../../pipeline/editing/editing-orchestrator.js', () => ({ advanceEditin
 vi.mock('../../pipeline/editing/enqueue-editing-step.js', () => ({ enqueueEditingStep: mockEnqueue }));
 vi.mock('../../pipeline/editing/editing-lifecycle.js', () => ({
 	startEditingRun: mockStartRun,
-	resetEditingRun: mockResetRun,
 	stopEditingRun: mockStopRun
 }));
 vi.mock('../../pipeline/editing/regenerate-element.js', () => ({
@@ -62,16 +60,10 @@ vi.mock('../../pipeline/debate/debate-lifecycle.js', () => ({
 	isDebateCompleted: mockIsDebateCompleted
 }));
 
-import {
-	startEditing,
-	resetEditing,
-	runEditingStep,
-	regenerateArticleElement
-} from '../../api/editing.js';
+import { startEditing, runEditingStep, regenerateArticleElement } from '../../api/editing.js';
 import { requireAuth } from '../../utils/auth.js';
 
 const startHandler = startEditing as unknown as (req: unknown) => Promise<unknown>;
-const resetHandler = resetEditing as unknown as (req: unknown) => Promise<unknown>;
 const taskHandler = runEditingStep as unknown as (req: unknown) => Promise<unknown>;
 const regenHandler = regenerateArticleElement as unknown as (req: unknown) => Promise<unknown>;
 const makeRequest = (data: unknown) => ({ data, auth: { uid: 'user1' } });
@@ -134,26 +126,6 @@ describe('startEditing onCall', () => {
 			chapterIndex: -1
 		});
 		expect(mockAdvance).not.toHaveBeenCalled();
-		expect(result).toEqual({ topicId: 't1' });
-	});
-});
-
-describe('resetEditing onCall', () => {
-	it('topicId がなければ invalid-argument', async () => {
-		await expect(resetHandler(makeRequest({}))).rejects.toMatchObject({ code: 'invalid-argument' });
-	});
-
-	it('トピックが無ければ not-found を投げ、リセットしない', async () => {
-		mockGetTopicById.mockResolvedValueOnce(null);
-		await expect(resetHandler(makeRequest({ topicId: 't1' }))).rejects.toMatchObject({
-			code: 'not-found'
-		});
-		expect(mockResetRun).not.toHaveBeenCalled();
-	});
-
-	it('編集を未実行状態へ戻して {topicId} を返す', async () => {
-		const result = await resetHandler(makeRequest({ topicId: 't1' }));
-		expect(mockResetRun).toHaveBeenCalledWith('t1');
 		expect(result).toEqual({ topicId: 't1' });
 	});
 });

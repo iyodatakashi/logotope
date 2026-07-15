@@ -177,21 +177,9 @@ describe('createPersonasStore', () => {
 		);
 	});
 
-	it('resetPersonas は全ペルソナを削除し (2, not_started) へ戻す', async () => {
+	it('setPersonasPhaseRunning は (personas, running) を書き込む（再取材前の running 復帰）', async () => {
 		const store = createPersonasStore('t1');
-		populate(store, ['p1']);
-		await store.resetPersonas();
-
-		expect(mockBatch.delete).toHaveBeenCalledWith({ path: 'topics/t1/personas/p1' });
-		expect(mockBatch.update).toHaveBeenCalledWith(
-			TOPIC_PATH,
-			expect.objectContaining({ phase: 'personas', phaseStatus: 'not_started' })
-		);
-	});
-
-	it('markInterviewsStarted は (personas, running) を書き込む（再取材前の running 復帰）', async () => {
-		const store = createPersonasStore('t1');
-		await store.markInterviewsStarted();
+		await store.setPersonasPhaseRunning();
 
 		expect(updateDoc).toHaveBeenCalledWith(
 			TOPIC_PATH,
