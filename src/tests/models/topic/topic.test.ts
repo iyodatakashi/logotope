@@ -110,21 +110,9 @@ describe('createTopicStates', () => {
 	});
 
 	describe('承認操作の2軸遷移 (task 3.1)', () => {
-		it('approveFactResearch は (stakeholders, not_started) へ前進し事実リサーチを承認する', async () => {
+		it('approveFactResearch は (personas, not_started) へ前進し事実リサーチを承認する', async () => {
 			const store = makeTopic();
 			await store.approveFactResearch();
-			expect(updateDoc).toHaveBeenCalledWith(
-				TOPIC_PATH,
-				expect.objectContaining({
-					phase: 'stakeholders',
-					phaseStatus: 'not_started'
-				})
-			);
-		});
-
-		it('approveStakeholders は (2, not_started) へ前進しステークホルダーを承認する', async () => {
-			const store = makeTopic();
-			await store.approveStakeholders();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
 				expect.objectContaining({
@@ -134,9 +122,9 @@ describe('createTopicStates', () => {
 			);
 		});
 
-		it('approveInterviews は (4, not_started) へ前進する', async () => {
+		it('advancePastPersonas は (chapters, not_started) へ前進する（採用ゲートは画面が担保）', async () => {
 			const store = makeTopic();
-			await store.approveInterviews();
+			await store.advancePastPersonas();
 			expect(updateDoc).toHaveBeenCalledWith(
 				TOPIC_PATH,
 				expect.objectContaining({ phase: 'chapters', phaseStatus: 'not_started' })
@@ -217,41 +205,18 @@ describe('createTopicStates', () => {
 			).toBe(false);
 		});
 
-		it('generateStakeholders は (1, running) のみ書き、generated はサーバ権威。削除はしない', async () => {
-			vi.mocked(httpsCallable).mockReturnValue(vi.fn().mockResolvedValue({ data: {} }) as never);
-			const store = makeTopic({ title: 'T', id: 't1' });
-			await store.generateStakeholders();
-
-			const calls = updateCallsFor('topics/t1');
-			expect(calls[0][1]).toEqual(
-				expect.objectContaining({ phase: 'stakeholders', phaseStatus: 'running' })
-			);
-			// 完了状態(generated)はサーバ(generateStakeholders 関数)が書くため、クライアントは書かない
-			expect(
-				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'generated')
-			).toBe(false);
-			// 生成関数は削除を行わない
-			expect(mockBatch.delete).not.toHaveBeenCalled();
-			expect(deleteDoc).not.toHaveBeenCalled();
-		});
-
-		it('generatePersonas は (2, running) のみ書き、採用 id を callable へ渡す。generated もペルソナ文書もサーバ権威', async () => {
-			const callable = vi.fn().mockResolvedValue({ data: {} });
+		it('startPersonaGeneration は一気通貫の起動 onCall を topicId 付きで呼ぶ（フェーズ書込はサーバ権威）', async () => {
+			const callable = vi.fn().mockResolvedValue({ data: { topicId: 't1' } });
 			vi.mocked(httpsCallable).mockReturnValue(callable as never);
-			const store = makeTopic({ title: 'T' });
-			await store.generatePersonas(['sid-a', 'sid-b']);
-			expect(callable).toHaveBeenCalledWith(
-				expect.objectContaining({ selectedStakeholderIds: ['sid-a', 'sid-b'] })
-			);
-			const calls = updateCallsFor('topics/t1');
-			expect(calls[0][1]).toEqual(
-				expect.objectContaining({ phase: 'personas', phaseStatus: 'running' })
-			);
-			// 完了状態(generated)はサーバ(generatePersonas 関数)が書くため、クライアントは書かない
-			expect(
-				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'generated')
-			).toBe(false);
-			// ペルソナ文書の永続化もサーバ責務。クライアントは setDoc しない
+			const store = makeTopic({ title: 'T', id: 't1' });
+			await store.startPersonaGeneration();
+
+			expect(httpsCallable).toHaveBeenCalledWith(expect.anything(), 'startPersonaGeneration', {
+				timeout: 60000
+			});
+			expect(callable).toHaveBeenCalledWith({ topicId: 't1' });
+			// running 化・runId 発行・段の投入はサーバ責務。クライアントはフェーズを書かない。
+			expect(updateCallsFor('topics/t1')).toHaveLength(0);
 			expect(setDoc).not.toHaveBeenCalled();
 		});
 
@@ -283,67 +248,6 @@ describe('createTopicStates', () => {
 	});
 
 	describe('生成失敗時の停止書き込み (task 2.1)', () => {
-		it('generateStakeholders が失敗したらトピックを (1, stopped) にして再スローする', async () => {
-			vi.mocked(httpsCallable).mockReturnValue(
-				vi.fn().mockRejectedValue(new Error('生成失敗')) as never
-			);
-			const store = makeTopic({ title: 'T' });
-
-			await expect(store.generateStakeholders()).rejects.toThrow('生成失敗');
-			const calls = updateCallsFor('topics/t1');
-			expect(calls.at(-1)?.[1]).toEqual(
-				expect.objectContaining({ phase: 'stakeholders', phaseStatus: 'stopped' })
-			);
-		});
-
-		it('callable が reject してもサーバが generated 済みなら stopped に上書きしない', async () => {
-			vi.mocked(httpsCallable).mockReturnValue(
-				vi.fn().mockRejectedValue(new Error('timeout')) as never
-			);
-			// サーバ側が既に完了を書き込んでいる状態を再現
-			vi.mocked(getDoc).mockResolvedValue({
-				exists: () => true,
-				data: () => ({ phaseStatus: 'generated' })
-			} as never);
-			const store = makeTopic({ title: 'T', id: 't1' });
-
-			await expect(store.generateStakeholders()).rejects.toThrow('timeout');
-			const calls = updateCallsFor('topics/t1');
-			expect(
-				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'stopped')
-			).toBe(false);
-		});
-
-		it('generatePersonas が失敗したらトピックを (2, stopped) にして再スローする', async () => {
-			vi.mocked(httpsCallable).mockReturnValue(
-				vi.fn().mockRejectedValue(new Error('生成失敗')) as never
-			);
-			const store = makeTopic({ title: 'T', id: 't1' });
-
-			await expect(store.generatePersonas(['sid-a'])).rejects.toThrow('生成失敗');
-			const calls = updateCallsFor('topics/t1');
-			expect(calls.at(-1)?.[1]).toEqual(
-				expect.objectContaining({ phase: 'personas', phaseStatus: 'stopped' })
-			);
-		});
-
-		it('generatePersonas の callable が reject してもサーバが generated 済みなら stopped に上書きしない', async () => {
-			vi.mocked(httpsCallable).mockReturnValue(
-				vi.fn().mockRejectedValue(new Error('timeout')) as never
-			);
-			vi.mocked(getDoc).mockResolvedValue({
-				exists: () => true,
-				data: () => ({ phaseStatus: 'generated' })
-			} as never);
-			const store = makeTopic({ title: 'T', id: 't1' });
-
-			await expect(store.generatePersonas(['sid-a'])).rejects.toThrow('timeout');
-			const calls = updateCallsFor('topics/t1');
-			expect(
-				calls.some((call) => (call[1] as { phaseStatus?: string }).phaseStatus === 'stopped')
-			).toBe(false);
-		});
-
 		it('generateChapters が失敗したらトピックを (4, stopped) にして再スローする', async () => {
 			vi.mocked(httpsCallable).mockReturnValue(
 				vi.fn().mockRejectedValue(new Error('生成失敗')) as never

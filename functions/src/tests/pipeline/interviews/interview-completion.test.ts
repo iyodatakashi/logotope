@@ -1,8 +1,9 @@
 /**
- * 取材の全件完了判定（Task 5.2）のユニットテスト。
+ * 取材の完了判定（採用基準）のユニットテスト。
  * インメモリ Firestore 上で confirmInterviewsGeneratedIfAllComplete を駆動し、
- * 件数>0 かつ全ペルソナ interview.status==='completed' かつ topic running のときだけ
- * フェーズ3を generated に冪等確定し、それ以外は no-op になることを検証する。
+ * 採用（selected）ペルソナが1件以上ありその全員が interview.status==='completed' かつ
+ * topic が running/stopped のときだけ personas フェーズを generated に冪等確定し、
+ * それ以外（未完・採用0件）は no-op になることを検証する。不採用ペルソナの状態は判定に含めない。
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createFirestoreMock } from '../../helpers/firestore-mock.js';
@@ -25,10 +26,11 @@ import { confirmInterviewsGeneratedIfAllComplete } from '../../../pipeline/inter
 const TOPIC_ID = 'topic1';
 const topic = () => holder.mock!.store.get(`topics/${TOPIC_ID}`);
 const setTopic = (phaseStatus: string) =>
-	holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'interviews', phaseStatus });
-const setPersona = (id: string, status?: string, sortOrder = 0) =>
+	holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'personas', phaseStatus });
+const setPersona = (id: string, status?: string, sortOrder = 0, selected = true) =>
 	holder.mock!.store.set(`topics/${TOPIC_ID}/personas/${id}`, {
 		sortOrder,
+		selected,
 		...(status ? { interview: { status } } : {})
 	});
 
@@ -38,7 +40,7 @@ beforeEach(() => {
 });
 
 describe('confirmInterviewsGeneratedIfAllComplete', () => {
-	it('全ペルソナ completed かつ topic running なら generated を確定し true を返す', async () => {
+	it('採用ペルソナ全員 completed かつ topic running なら personas を generated 確定し true を返す', async () => {
 		setTopic('running');
 		setPersona('p1', 'completed', 0);
 		setPersona('p2', 'completed', 1);
@@ -47,10 +49,10 @@ describe('confirmInterviewsGeneratedIfAllComplete', () => {
 
 		expect(changed).toBe(true);
 		expect(topic()?.phaseStatus).toBe('generated');
-		expect(topic()?.phase).toBe('interviews');
+		expect(topic()?.phase).toBe('personas');
 	});
 
-	it('1件でも error が残るときは no-op で false を返す', async () => {
+	it('採用ペルソナに error が残るときは no-op で false を返す', async () => {
 		setTopic('running');
 		setPersona('p1', 'completed', 0);
 		setPersona('p2', 'error', 1);
@@ -61,7 +63,7 @@ describe('confirmInterviewsGeneratedIfAllComplete', () => {
 		expect(topic()?.phaseStatus).toBe('running');
 	});
 
-	it('1件でも in_progress が残るときは no-op で false を返す', async () => {
+	it('採用ペルソナに in_progress が残るときは no-op で false を返す', async () => {
 		setTopic('running');
 		setPersona('p1', 'completed', 0);
 		setPersona('p2', 'in_progress', 1);
@@ -72,10 +74,32 @@ describe('confirmInterviewsGeneratedIfAllComplete', () => {
 		expect(topic()?.phaseStatus).toBe('running');
 	});
 
-	it('interview 未設定のペルソナがあるときは no-op で false を返す', async () => {
+	it('採用ペルソナに interview 未設定があるときは no-op で false を返す', async () => {
 		setTopic('running');
 		setPersona('p1', 'completed', 0);
 		setPersona('p2', undefined, 1);
+
+		const changed = await confirmInterviewsGeneratedIfAllComplete(TOPIC_ID);
+
+		expect(changed).toBe(false);
+		expect(topic()?.phaseStatus).toBe('running');
+	});
+
+	it('不採用ペルソナの取材失敗は判定に含めない（採用側が揃えば generated）', async () => {
+		setTopic('running');
+		setPersona('p1', 'completed', 0, true);
+		setPersona('p2', 'error', 1, false); // 不採用は判定から外れる
+
+		const changed = await confirmInterviewsGeneratedIfAllComplete(TOPIC_ID);
+
+		expect(changed).toBe(true);
+		expect(topic()?.phaseStatus).toBe('generated');
+	});
+
+	it('採用0件（全員不採用）のときは generated にしない（採用0件ガード）', async () => {
+		setTopic('running');
+		setPersona('p1', 'completed', 0, false);
+		setPersona('p2', 'completed', 1, false);
 
 		const changed = await confirmInterviewsGeneratedIfAllComplete(TOPIC_ID);
 
@@ -92,7 +116,7 @@ describe('confirmInterviewsGeneratedIfAllComplete', () => {
 		expect(topic()?.phaseStatus).toBe('running');
 	});
 
-	it('topic が stopped でも全件 completed なら generated に確定する', async () => {
+	it('topic が stopped でも採用全員 completed なら generated に確定する（停止からの回復）', async () => {
 		setTopic('stopped');
 		setPersona('p1', 'completed', 0);
 

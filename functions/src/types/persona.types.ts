@@ -14,7 +14,8 @@ export type Persona = {
 	interests: string;
 	nationality: string;
 	engagementLevel: EngagementLevel;
-	approved: boolean;
+	// 討論参加の採用選択。生成時に true を焼き込み、以降ペルソナ単位で切替可能。
+	selected: boolean;
 	sortOrder: number;
 	beliefs?: Belief[];
 	awarenesses?: AwarenessForFirestore[];

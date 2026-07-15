@@ -6,9 +6,7 @@ import type { GeneratePhase } from '../../utils/topic-phase.js';
 const CANONICAL_PHASE_KEYS = [
 	'theme',
 	'fact-research',
-	'stakeholders',
 	'personas',
-	'interviews',
 	'chapters',
 	'debate',
 	'editing'
@@ -18,9 +16,7 @@ const CANONICAL_PHASE_KEYS = [
 const PHASE_KEY_EXHAUSTIVE: Record<PhaseSlug, true> = {
 	theme: true,
 	'fact-research': true,
-	stakeholders: true,
 	personas: true,
-	interviews: true,
 	chapters: true,
 	debate: true,
 	editing: true
@@ -28,9 +24,7 @@ const PHASE_KEY_EXHAUSTIVE: Record<PhaseSlug, true> = {
 
 const GENERATE_PHASE_EXHAUSTIVE: Record<GeneratePhase, true> = {
 	'fact-research': true,
-	stakeholders: true,
 	personas: true,
-	interviews: true,
 	chapters: true
 };
 
@@ -43,20 +37,21 @@ describe('BE PhaseSlug slug 集合の self-check', () => {
 		expect([...CANONICAL_PHASE_KEYS]).toEqual([
 			'theme',
 			'fact-research',
-			'stakeholders',
 			'personas',
-			'interviews',
 			'chapters',
 			'debate',
 			'editing'
 		]);
 	});
 
+	it('正準リストに stakeholders / interviews を含まない', () => {
+		expect([...CANONICAL_PHASE_KEYS]).not.toContain('stakeholders');
+		expect([...CANONICAL_PHASE_KEYS]).not.toContain('interviews');
+	});
+
 	it('GeneratePhase は生成確定を持つ部分集合（theme/debate/editing を含まない）', () => {
 		const generateKeys = Object.keys(GENERATE_PHASE_EXHAUSTIVE);
-		expect(generateKeys.sort()).toEqual(
-			['fact-research', 'stakeholders', 'personas', 'interviews', 'chapters'].sort()
-		);
+		expect(generateKeys.sort()).toEqual(['fact-research', 'personas', 'chapters'].sort());
 		expect(generateKeys).not.toContain('theme');
 		expect(generateKeys).not.toContain('debate');
 		expect(generateKeys).not.toContain('editing');

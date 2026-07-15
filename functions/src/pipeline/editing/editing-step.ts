@@ -69,7 +69,7 @@ export const readRawChapters = async (topicId: string): Promise<RawEditChapter[]
  * phaseStatus には触れない。次段（章編集）の投入は orchestrator が行う。
  */
 export const runImpressionsStep = async (topicId: string): Promise<void> => {
-	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.approved);
+	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.selected);
 	const turns = (await readRawChapters(topicId)).flatMap((chapter) => chapter.turns);
 	const editorial = await readEditorial(topicId);
 
@@ -211,7 +211,7 @@ export const runChapterEditStep = async (
 		console.info('[runChapterEditStep] skip: no source turns', { topicId, chapterIndex });
 		return 'skipped';
 	}
-	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.approved);
+	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.selected);
 	const protectedTurnIds = computeProtectedTurnIds(chapter.turns, personas);
 
 	const result = await editChapter(

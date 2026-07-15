@@ -28,7 +28,7 @@ export const buildDebateDigest = async (
 		return { ok: false, error: { code: 'NOT_FOUND', resource: `topic:${topicId}` } };
 	}
 
-	const approvedPersonas = personas.filter((persona) => persona.approved);
+	const selectedPersonas = personas.filter((persona) => persona.selected);
 
 	const chapterDigests: ChapterDigest[] = [];
 	for (const chapter of chapters) {
@@ -36,7 +36,7 @@ export const buildDebateDigest = async (
 			title: chapter.title,
 			agenda: chapter.agenda,
 			turns: chapter.turns,
-			personas: approvedPersonas
+			personas: selectedPersonas
 		});
 		if (!summary.ok) return summary;
 		chapterDigests.push({
@@ -46,7 +46,7 @@ export const buildDebateDigest = async (
 		});
 	}
 
-	const personaDigests: PersonaDigest[] = approvedPersonas.map((persona) => ({
+	const personaDigests: PersonaDigest[] = selectedPersonas.map((persona) => ({
 		personaId: persona.id,
 		name: persona.name,
 		stance: getBelief(persona),

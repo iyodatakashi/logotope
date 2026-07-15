@@ -5,12 +5,12 @@
 
 	// ナビの見せ方（どのフェーズを1ステップに束ね、どう名付けるか）は UI の都合なので、
 	// phase モデルではなくこのコンポーネントが持つ。モデルからは素のフェーズ情報だけを受け取る。
-	// stakeholders/personas/interviews の3フェーズは「ペルソナ生成」1ステップに束ねる。
+	// ペルソナ生成は単一フェーズ personas に対応する（ステークホルダー生成〜取材の一気通貫全体）。
 	// id は StepNav に渡すステップのユニークキー（value）。progress をこのキーで指定する。
 	const STEP_GROUPS: readonly { id: string; label: string; phases: PhaseSlug[] }[] = [
 		{ id: 'theme', label: 'テーマ設定', phases: ['theme'] },
 		{ id: 'fact-research', label: '事実リサーチ', phases: ['fact-research'] },
-		{ id: 'persona', label: 'ペルソナ生成', phases: ['stakeholders', 'personas', 'interviews'] },
+		{ id: 'persona', label: 'ペルソナ生成', phases: ['personas'] },
 		{ id: 'agenda', label: 'アジェンダ生成', phases: ['chapters'] },
 		{ id: 'debate', label: '討論', phases: ['debate'] },
 		{ id: 'editing', label: '編集', phases: ['editing'] }

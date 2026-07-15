@@ -97,7 +97,7 @@ const persona = (id: string, name: string) => ({
 	name,
 	stakeholderRole: '役割',
 	specificRole: '',
-	approved: true,
+	selected: true,
 	beliefs: []
 });
 

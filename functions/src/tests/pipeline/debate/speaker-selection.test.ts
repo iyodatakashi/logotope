@@ -47,7 +47,7 @@ const makePersonas = (ids: string[]): Persona[] =>
 		interests: '',
 		nationality: '日本',
 		engagementLevel: 'moderate' as const,
-		approved: true,
+		selected: true,
 		sortOrder: 0
 	}));
 

@@ -4,7 +4,6 @@ import {
 	query,
 	orderBy,
 	doc,
-	getDoc,
 	updateDoc,
 	writeBatch,
 	Timestamp
@@ -75,17 +74,15 @@ export const createPersonasStore = (topicId: string) => {
 		unsubscribe = null;
 	};
 
-	const approvePersonas = async (): Promise<void> => {
-		const batch = writeBatch(db);
-		personas.forEach((persona) => {
-			batch.update(doc(db, 'topics', topicId, 'personas', persona.id), { approved: true });
-		});
-		batch.update(doc(db, 'topics', topicId), {
-			phase: 'interviews',
-			phaseStatus: 'not_started',
-			updatedAt: Timestamp.now()
-		});
-		await batch.commit();
+	// 採用/不採用の選択を当該ペルソナ文書へ永続する（安定 id キー・リロード後も保持）。
+	// 討論・章立て・編集の参加者はこの selected で決まる。取材結果には影響しない（不採用でも保持）。
+	const setSelected = async (personaId: string, selected: boolean): Promise<void> => {
+		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), { selected });
+	};
+
+	// ペルソナ単位の再取材。単一ペルソナのみを取材し、他ペルソナの結果に影響しない（成否問わず常時可能）。
+	const reinterview = async (personaId: string, topicTitle: string): Promise<void> => {
+		await runInterview(personaId, topicTitle);
 	};
 
 	const resetPersonas = async (): Promise<void> => {
@@ -101,9 +98,10 @@ export const createPersonasStore = (topicId: string) => {
 		await batch.commit();
 	};
 
+	// 再取材の前に personas フェーズを実行中へ戻す（取材は personas フェーズ配下に統合済み）。
 	const markInterviewsStarted = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId), {
-			phase: 'interviews',
+			phase: 'personas',
 			phaseStatus: 'running',
 			updatedAt: Timestamp.now()
 		});
@@ -112,32 +110,10 @@ export const createPersonasStore = (topicId: string) => {
 	// 取材失敗時にトピックを停止状態にする（実行中・完了は既存のまま）
 	const markInterviewsStopped = async (): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId), {
-			phase: 'interviews',
+			phase: 'personas',
 			phaseStatus: 'stopped',
 			updatedAt: Timestamp.now()
 		});
-	};
-
-	// 取材フローの実行: 実行中→（未完了ペルソナを並列取材）。
-	// 結果の永続化と完了確定（generated）はサーバ権威で行うため、FE は完了を書かない。
-	// all=true で全ペルソナを再取材する（再生成・やり直し用）。
-	const runInterviews = async (topicTitle: string, all = false): Promise<void> => {
-		await markInterviewsStarted();
-		const targets = all
-			? personas
-			: personas.filter((persona) => persona.interview?.status !== 'completed');
-		const results = await Promise.allSettled(
-			targets.map((persona) => runInterview(persona.id, topicTitle))
-		);
-		// 失敗検知は rejected の有無で行う（onSnapshot の反映遅延に依存しない）。
-		const hasError = results.some((result) => result.status === 'rejected');
-		if (hasError) {
-			// サーバが既に generated を確定済み（reject はタイムアウト等）の場合は stopped に上書きしない。
-			const snap = await getDoc(doc(db, 'topics', topicId));
-			if (snap.data()?.phaseStatus !== 'generated') {
-				await markInterviewsStopped();
-			}
-		}
 	};
 
 	const runInterview = async (personaId: string, topicTitle: string): Promise<void> => {
@@ -191,9 +167,9 @@ export const createPersonasStore = (topicId: string) => {
 		},
 		start,
 		stop,
+		setSelected,
+		reinterview,
 		runInterview,
-		runInterviews,
-		approvePersonas,
 		resetPersonas,
 		markInterviewsStarted,
 		markInterviewsStopped

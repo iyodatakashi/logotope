@@ -39,7 +39,7 @@ const TOPIC_PATH = { path: 'topics/t1' };
 const populate = (store: ReturnType<typeof createPersonasStore>, ids: string[]) => {
 	store.start();
 	snapshotCb?.({
-		docs: ids.map((id) => ({ id, data: () => ({ name: id, beliefs: [], approved: true }) }))
+		docs: ids.map((id) => ({ id, data: () => ({ name: id, beliefs: [], selected: true }) }))
 	});
 };
 
@@ -63,7 +63,7 @@ describe('Timestamp→Date 変換', () => {
 						beliefs: [
 							{ id: 'b1', version: 1, content: '信念', createdAt: { toDate: () => fakeDate } }
 						],
-						approved: true
+						selected: true
 					})
 				}
 			]
@@ -93,7 +93,7 @@ describe('Timestamp→Date 変換', () => {
 								createdAt: { toDate: () => fakeDate }
 							}
 						],
-						approved: true
+						selected: true
 					})
 				}
 			]
@@ -113,7 +113,7 @@ describe('Timestamp→Date 変換', () => {
 					data: () => ({
 						name: 'テスト',
 						beliefs: [],
-						approved: true,
+						selected: true,
 						interview: { status: 'completed', completedAt: { toDate: () => fakeDate } }
 					})
 				}
@@ -133,7 +133,7 @@ describe('Timestamp→Date 変換', () => {
 					data: () => ({
 						name: 'テスト',
 						beliefs: [],
-						approved: true,
+						selected: true,
 						interview: { status: 'completed' }
 					})
 				}
@@ -150,18 +150,30 @@ describe('createPersonasStore', () => {
 		topicDocData = {};
 	});
 
-	it('approvePersonas は全ペルソナを承認し (3, not_started) へ前進する', async () => {
+	it('setSelected は当該ペルソナのみ selected を更新する（安定 id キー）', async () => {
 		const store = createPersonasStore('t1');
 		populate(store, ['p1', 'p2']);
-		await store.approvePersonas();
 
-		expect(mockBatch.update).toHaveBeenCalledWith(
+		await store.setSelected('p2', false);
+
+		expect(updateDoc).toHaveBeenCalledTimes(1);
+		expect(updateDoc).toHaveBeenCalledWith({ path: 'topics/t1/personas/p2' }, { selected: false });
+	});
+
+	it('reinterview は単一ペルソナの取材を実行する（in_progress クリア＋callable 呼び出し）', async () => {
+		const mockFn = vi.fn().mockResolvedValue({ data: {} });
+		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
+
+		const store = createPersonasStore('t1');
+		populate(store, ['p1', 'p2']);
+
+		await store.reinterview('p1', 'テストテーマ');
+
+		expect(mockFn).toHaveBeenCalledTimes(1);
+		expect(mockFn.mock.calls[0][0]).toMatchObject({ topicId: 't1', personaId: 'p1' });
+		expect(updateDoc).toHaveBeenCalledWith(
 			{ path: 'topics/t1/personas/p1' },
-			{ approved: true }
-		);
-		expect(mockBatch.update).toHaveBeenCalledWith(
-			TOPIC_PATH,
-			expect.objectContaining({ phase: 'interviews', phaseStatus: 'not_started' })
+			{ interview: { status: 'in_progress' }, beliefs: [] }
 		);
 	});
 
@@ -177,13 +189,13 @@ describe('createPersonasStore', () => {
 		);
 	});
 
-	it('markInterviewsStarted は (3, running) を書き込む', async () => {
+	it('markInterviewsStarted は (personas, running) を書き込む（再取材前の running 復帰）', async () => {
 		const store = createPersonasStore('t1');
 		await store.markInterviewsStarted();
 
 		expect(updateDoc).toHaveBeenCalledWith(
 			TOPIC_PATH,
-			expect.objectContaining({ phase: 'interviews', phaseStatus: 'running' })
+			expect.objectContaining({ phase: 'personas', phaseStatus: 'running' })
 		);
 	});
 
@@ -192,14 +204,10 @@ describe('createPersonasStore', () => {
 		expect('markInterviewsComplete' in store).toBe(false);
 	});
 
-	it('承認・リセットは旧 status を書き込まない', async () => {
+	it('撤去した承認・バッチ取材メソッドを公開しない', () => {
 		const store = createPersonasStore('t1');
-		populate(store, ['p1']);
-		await store.approvePersonas();
-		const topicUpdate = mockBatch.update.mock.calls.find(
-			(c) => (c[0] as { path: string }).path === 'topics/t1'
-		);
-		expect(topicUpdate?.[1]).not.toHaveProperty('status');
+		expect('approvePersonas' in store).toBe(false);
+		expect('runInterviews' in store).toBe(false);
 	});
 
 	it('runInterview は開始時に前回の最終信念(beliefs)と中間データをクリアする', async () => {
@@ -216,20 +224,6 @@ describe('createPersonasStore', () => {
 			{ path: 'topics/t1/personas/p1' },
 			{ interview: { status: 'in_progress' }, beliefs: [] }
 		);
-	});
-
-	it('runInterviews の all=true で全ペルソナを取材する', async () => {
-		const mockFn = vi
-			.fn()
-			.mockResolvedValue({ data: { researchSummary: '', interviewRecord: '', belief: '' } });
-		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
-
-		const store = createPersonasStore('t1');
-		populate(store, ['p1', 'p2']);
-
-		await store.runInterviews('テストテーマ', true);
-
-		expect(mockFn).toHaveBeenCalledTimes(2);
 	});
 
 	it('runInterview は topicId/personaId をペイロードに含める', async () => {
@@ -268,54 +262,5 @@ describe('createPersonasStore', () => {
 		populate(store, ['p1']);
 
 		await expect(store.runInterview('p1', 'テストテーマ')).rejects.toThrow('callable failed');
-	});
-
-	it('runInterviews は全成功時に generated/stopped を自書込しない（サーバ権威）', async () => {
-		const mockFn = vi.fn().mockResolvedValue({ data: {} });
-		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
-
-		const store = createPersonasStore('t1');
-		populate(store, ['p1', 'p2']);
-		await store.runInterviews('テストテーマ');
-
-		const topicStatuses = vi
-			.mocked(updateDoc)
-			.mock.calls.filter((c) => (c[0] as { path: string }).path === 'topics/t1')
-			.map((c) => (c[1] as { phaseStatus?: string }).phaseStatus);
-		expect(topicStatuses).toEqual(['running']);
-		expect(getDoc).not.toHaveBeenCalled();
-	});
-
-	it('runInterviews は rejected があればガード付きで stopped を書く（generated でないとき）', async () => {
-		const mockFn = vi.fn().mockRejectedValue(new Error('failed'));
-		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
-
-		const store = createPersonasStore('t1');
-		populate(store, ['p1']);
-		topicDocData = { phaseStatus: 'running' };
-
-		await store.runInterviews('テストテーマ');
-
-		expect(getDoc).toHaveBeenCalled();
-		expect(updateDoc).toHaveBeenCalledWith(
-			TOPIC_PATH,
-			expect.objectContaining({ phaseStatus: 'stopped' })
-		);
-	});
-
-	it('runInterviews は rejected があってもサーバが generated 済みなら stopped を書かない', async () => {
-		const mockFn = vi.fn().mockRejectedValue(new Error('failed'));
-		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);
-
-		const store = createPersonasStore('t1');
-		populate(store, ['p1']);
-		topicDocData = { phaseStatus: 'generated' };
-
-		await store.runInterviews('テストテーマ');
-
-		const stoppedWrite = vi
-			.mocked(updateDoc)
-			.mock.calls.find((c) => (c[1] as { phaseStatus?: string }).phaseStatus === 'stopped');
-		expect(stoppedWrite).toBeUndefined();
 	});
 });

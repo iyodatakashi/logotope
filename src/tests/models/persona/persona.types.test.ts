@@ -86,7 +86,7 @@ describe('persona.types - Firestore 型とアプリ型', () => {
 			occupation: '会社員',
 			background: '背景',
 			interests: '関心',
-			approved: true,
+			selected: true,
 			sortOrder: 0,
 			beliefs: [
 				{
@@ -123,7 +123,7 @@ describe('persona.types - Firestore 型とアプリ型', () => {
 			occupation: '会社員',
 			background: '背景',
 			interests: '関心',
-			approved: true,
+			selected: true,
 			sortOrder: 0,
 			beliefs: [
 				{

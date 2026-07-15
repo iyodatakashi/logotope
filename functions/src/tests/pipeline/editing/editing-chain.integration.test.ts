@@ -67,7 +67,7 @@ const seedTopic = () => {
 	mock.store.set('topics/t1/personas/p1', {
 		topicId: 't1',
 		name: 'p1',
-		approved: true,
+		selected: true,
 		sortOrder: 0,
 		stakeholderRole: '一般',
 	});

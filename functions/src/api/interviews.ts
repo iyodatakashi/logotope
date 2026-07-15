@@ -10,22 +10,19 @@ const db = () => getFirestore();
 
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY'];
 
-export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, async (request) => {
-	requireAuth(request);
-	const { topicId, personaId, topicTitle, persona } = request.data as {
-		topicId: string;
-		personaId: string;
-		topicTitle: string;
-		persona: Persona;
-	};
-	if (!topicId?.trim()) throw new HttpsError('invalid-argument', 'topicId is required');
-	if (!personaId?.trim()) throw new HttpsError('invalid-argument', 'personaId is required');
-	if (!topicTitle?.trim()) throw new HttpsError('invalid-argument', 'topicTitle is required');
-	if (!persona?.name) throw new HttpsError('invalid-argument', 'persona is required');
-
+/**
+ * 単一ペルソナの取材本体（HTTP 非依存）。初期チェーンの取材ステップと再取材 onCall が共有する。
+ * 取材実行 → 当該ペルソナへ結果永続（completed / error）→ 全件完了なら generated 確定、までを担う。
+ * 事実基盤を含む共有コンテキストはサーバ権威の getTopicContext で供給する（FE からは渡さない・R9.3）。
+ * 失敗時は当該ペルソナを error で永続してから throw する（呼び出し側の失敗集約・Cloud Tasks リトライに委ねる）。
+ */
+export const runInterviewCore = async (
+	topicId: string,
+	personaId: string,
+	topicTitle: string,
+	persona: Persona
+): Promise<void> => {
 	const personaRef = db().doc(`topics/${topicId}/personas/${personaId}`);
-	// 共有コンテキスト（事実基盤を含む）はサーバ権威の getTopicContext で供給する。
-	// FE からは factBase を渡さない（stale 排除・R9.3）。
 	const topicContext = await getTopicContext(topicId);
 	const result = await runInterviewAgent(topicTitle, persona, topicContext);
 	if (!result.ok) {
@@ -34,7 +31,7 @@ export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, as
 		// 当該ペルソナを error 状態で永続化してから throw する。FE は onSnapshot で error を反映し、
 		// 全件完了判定は error が残る間 generated に到達しない（再取材で running 復帰後に確定）。
 		await personaRef.update({ interview: { status: 'error', errorMessage: message } });
-		throw new HttpsError('internal', message);
+		throw new Error(message);
 	}
 
 	// 取材結果はサーバが当該ペルソナ文書へ永続化する（結果の Single Source of Truth は Firestore）。
@@ -51,5 +48,27 @@ export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, as
 	});
 	// 自ペルソナの completed 永続化後に全件完了をサーバ側で判定し、全件完了なら generated を確定する。
 	await confirmInterviewsGeneratedIfAllComplete(topicId);
+};
+
+export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, async (request) => {
+	requireAuth(request);
+	const { topicId, personaId, topicTitle, persona } = request.data as {
+		topicId: string;
+		personaId: string;
+		topicTitle: string;
+		persona: Persona;
+	};
+	if (!topicId?.trim()) throw new HttpsError('invalid-argument', 'topicId is required');
+	if (!personaId?.trim()) throw new HttpsError('invalid-argument', 'personaId is required');
+	if (!topicTitle?.trim()) throw new HttpsError('invalid-argument', 'topicTitle is required');
+	if (!persona?.name) throw new HttpsError('invalid-argument', 'persona is required');
+
+	try {
+		await runInterviewCore(topicId, personaId, topicTitle, persona);
+	} catch (err) {
+		throw err instanceof HttpsError
+			? err
+			: new HttpsError('internal', err instanceof Error ? err.message : String(err));
+	}
 	return {};
 });

@@ -49,8 +49,8 @@ const IMPRESSION_WRITER = { tag: 'impression-writer' };
 beforeEach(() => {
 	vi.clearAllMocks();
 	h.getPersonas.mockResolvedValue([
-		{ id: 'p1', approved: true },
-		{ id: 'p2', approved: true }
+		{ id: 'p1', selected: true },
+		{ id: 'p2', selected: true }
 	]);
 	h.getTurns.mockResolvedValue([{ id: 't1' }]);
 	h.buildInput.mockResolvedValue({ ok: true, value: { digest: {}, topicContext: {} } });
@@ -71,11 +71,11 @@ describe('regenerateImpression', () => {
 		await regenerateImpression('t1', 'p2');
 		expect(h.impressionWriter).toHaveBeenCalledWith('t1', 'p2', 1);
 		expect(h.buildImpressionPart).toHaveBeenCalledWith(
-			{ id: 'p2', approved: true },
+			{ id: 'p2', selected: true },
 			[{ id: 't1' }],
 			[
-				{ id: 'p1', approved: true },
-				{ id: 'p2', approved: true }
+				{ id: 'p1', selected: true },
+				{ id: 'p2', selected: true }
 			],
 			IMPRESSION_WRITER
 		);

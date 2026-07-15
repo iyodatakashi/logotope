@@ -4,7 +4,7 @@ import { render } from 'vitest-browser-svelte';
 
 let unmount: (() => void) | undefined;
 const mount = () => {
-	const result = render(PersonaWorkspacePage);
+	const result = render(GeneratePersonaPage);
 	unmount = result.unmount;
 	return result;
 };
@@ -12,20 +12,19 @@ const mount = () => {
 const { goto, spies, state } = vi.hoisted(() => ({
 	goto: vi.fn(),
 	spies: {
-		generateStakeholders: vi.fn(),
-		generatePersonas: vi.fn(),
+		startPersonaGeneration: vi.fn(),
+		advancePastPersonas: vi.fn(),
+		resetStakeholders: vi.fn(),
 		resetPersonas: vi.fn(),
 		resetChapters: vi.fn(),
 		resetDebate: vi.fn(),
 		resetEditing: vi.fn(),
-		approveInterviews: vi.fn(),
-		approvePersonas: vi.fn(),
-		runInterviews: vi.fn(),
-		setSelected: vi.fn()
+		setSelected: vi.fn(),
+		reinterview: vi.fn()
 	},
 	state: {
-		phase: 'stakeholders' as string,
-		phaseStatus: 'generated' as string,
+		phase: 'personas' as string,
+		phaseStatus: 'not_started' as string,
 		stakeholders: [] as unknown[],
 		personas: [] as unknown[]
 	}
@@ -45,22 +44,20 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				get phaseStatus() {
 					return state.phaseStatus;
 				},
-				generateStakeholders: spies.generateStakeholders,
-				generatePersonas: spies.generatePersonas,
-				resetStakeholders: vi.fn(),
+				startPersonaGeneration: spies.startPersonaGeneration,
+				advancePastPersonas: spies.advancePastPersonas,
+				resetStakeholders: spies.resetStakeholders,
 				resetPersonas: spies.resetPersonas,
 				resetChapters: spies.resetChapters,
 				resetDebate: spies.resetDebate,
-				resetEditing: spies.resetEditing,
-				approveInterviews: spies.approveInterviews
+				resetEditing: spies.resetEditing
 			};
 		},
 		get stakeholdersStore() {
 			return {
 				get stakeholders() {
 					return state.stakeholders;
-				},
-				setSelected: spies.setSelected
+				}
 			};
 		},
 		get personasStore() {
@@ -68,25 +65,22 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				get personas() {
 					return state.personas;
 				},
-				approvePersonas: spies.approvePersonas,
-				runInterviews: spies.runInterviews,
-				markInterviewsStarted: vi.fn(),
-				markInterviewsStopped: vi.fn()
+				setSelected: spies.setSelected,
+				reinterview: spies.reinterview
 			};
 		}
 	}
 }));
 
-import PersonaWorkspacePage from '$lib/features/admin/topic-detail/persona/GeneratePersonaPage.svelte';
+import GeneratePersonaPage from '$lib/features/admin/topic-detail/persona/GeneratePersonaPage.svelte';
 
-// 採用（selected）はステークホルダー文書に永続する。既定 ON はストアの境界で解決済み。
-const makeStakeholder = (id: string, role: string, selected = true) => ({
+// ステークホルダーは採用選択を持たない中間生成物。
+const makeStakeholder = (id: string, role: string) => ({
 	id,
 	role,
 	reason: `${role}の理由`,
 	mainInterests: [],
-	minorityLevel: 'low',
-	selected
+	minorityLevel: 'low'
 });
 
 const makePersona = (over: Record<string, unknown>) => ({
@@ -99,7 +93,7 @@ const makePersona = (over: Record<string, unknown>) => ({
 	specificRole: '役',
 	background: '背景',
 	interests: '関心',
-	approved: false,
+	selected: true,
 	sortOrder: 0,
 	beliefs: [],
 	...over
@@ -107,8 +101,8 @@ const makePersona = (over: Record<string, unknown>) => ({
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	state.phase = 'stakeholders';
-	state.phaseStatus = 'generated';
+	state.phase = 'personas';
+	state.phaseStatus = 'not_started';
 	state.stakeholders = [];
 	state.personas = [];
 });
@@ -118,8 +112,9 @@ afterEach(() => {
 	unmount = undefined;
 });
 
-describe('PersonaWorkspacePage', () => {
-	it('対応ペルソナがある行は右に人物像、無い行は右が空白', async () => {
+describe('GeneratePersonaPage', () => {
+	it('対応ペルソナがある行は右に人物像、無い行は右が空白（対応関係を表示）', async () => {
+		state.phaseStatus = 'generated';
 		state.stakeholders = [makeStakeholder('sid-a', '医師'), makeStakeholder('sid-b', '患者')];
 		state.personas = [makePersona({ id: 'p1', name: '田中医師', stakeholderId: 'sid-a' })];
 
@@ -127,80 +122,83 @@ describe('PersonaWorkspacePage', () => {
 
 		await expect.element(page.getByText('医師', { exact: true })).toBeInTheDocument();
 		await expect.element(page.getByText('患者', { exact: true })).toBeInTheDocument();
-		// sid-a の対応ペルソナは表示、sid-b は右側なし（名前は人物像＋取材状態に現れる）
 		await expect.element(page.getByText('田中医師').first()).toBeInTheDocument();
 	});
 
-	it('チェックを外すと採用状態（selected）をストアに永続させる', async () => {
-		state.stakeholders = [makeStakeholder('sid-a', '医師'), makeStakeholder('sid-b', '患者')];
-		state.personas = [];
-
-		mount();
-
-		// 既定は全 ON。先頭（sid-a）のチェックを外す
-		await page.getByRole('checkbox').nth(0).click({ force: true });
-
-		expect(spies.setSelected).toHaveBeenCalledWith('sid-a', false);
-	});
-
-	it('採用外（selected:false）を除いた採用 id のみで generatePersonas を呼ぶ', async () => {
-		state.stakeholders = [
-			makeStakeholder('sid-a', '医師', false),
-			makeStakeholder('sid-b', '患者')
-		];
-		state.personas = [];
+	it('未生成では単一の「ペルソナを生成する」で一気通貫を起動する', async () => {
+		state.phaseStatus = 'not_started';
 
 		mount();
 
 		await page.getByRole('button', { name: 'ペルソナを生成する' }).click();
 
-		expect(spies.generatePersonas).toHaveBeenCalledWith(['sid-b']);
+		expect(spies.startPersonaGeneration).toHaveBeenCalledOnce();
 	});
 
-	it('採用が0件だとペルソナ生成ボタンが不活性で理由を提示する', async () => {
-		state.stakeholders = [makeStakeholder('sid-a', '医師', false)];
-		state.personas = [];
-
-		mount();
-
-		await expect.element(page.getByRole('button', { name: 'ペルソナを生成する' })).toBeDisabled();
-		await expect
-			.element(
-				page.getByText('少なくとも1件のステークホルダーを採用してください', { exact: false })
-			)
-			.toBeInTheDocument();
-	});
-
-	it('取材は承認（approvePersonas）を先に呼んでから runInterviews を実行する', async () => {
-		state.phase = 'personas';
+	it('生成済みでは「再生成する」を表示し、独立生成操作は出さない', async () => {
 		state.phaseStatus = 'generated';
 		state.stakeholders = [makeStakeholder('sid-a', '医師')];
 		state.personas = [makePersona({ id: 'p1', stakeholderId: 'sid-a' })];
 
 		mount();
 
-		await page.getByRole('button', { name: '取材を開始する' }).click();
-
-		expect(spies.approvePersonas).toHaveBeenCalled();
-		expect(spies.runInterviews).toHaveBeenCalledWith('テストテーマ');
-		expect(spies.approvePersonas.mock.invocationCallOrder[0]).toBeLessThan(
-			spies.runInterviews.mock.invocationCallOrder[0]
-		);
+		await expect
+			.element(page.getByRole('button', { name: 'ペルソナを再生成する' }))
+			.toBeInTheDocument();
+		expect(page.getByRole('button', { name: 'ペルソナを生成する' }).elements()).toHaveLength(0);
 	});
 
-	it('取材完了後は「章立てへ進む」で approveInterviews と goto を呼ぶ', async () => {
-		state.phase = 'interviews';
+	it('採用ペルソナが1件以上あれば「次に進む」で advancePastPersonas と goto を呼ぶ', async () => {
 		state.phaseStatus = 'generated';
 		state.stakeholders = [makeStakeholder('sid-a', '医師')];
 		state.personas = [
-			makePersona({ id: 'p1', stakeholderId: 'sid-a', interview: { status: 'completed' } })
+			makePersona({
+				id: 'p1',
+				stakeholderId: 'sid-a',
+				selected: true,
+				interview: { status: 'completed' }
+			})
 		];
 
 		mount();
 
-		await page.getByRole('button', { name: '章立てへ進む' }).click();
+		await page.getByRole('button', { name: '次に進む' }).click();
 
-		expect(spies.approveInterviews).toHaveBeenCalled();
+		expect(spies.advancePastPersonas).toHaveBeenCalledOnce();
 		expect(goto).toHaveBeenCalledWith('/admin/topics/t1/chapters');
+	});
+
+	it('採用が0件だと「次に進む」が不活性になる（採用ゲート）', async () => {
+		state.phaseStatus = 'generated';
+		state.stakeholders = [makeStakeholder('sid-a', '医師')];
+		state.personas = [makePersona({ id: 'p1', stakeholderId: 'sid-a', selected: false })];
+
+		mount();
+
+		await expect.element(page.getByRole('button', { name: '次に進む' })).toBeDisabled();
+	});
+
+	it('ペルソナの採用チェックを外すと setSelected をストアに永続させる', async () => {
+		state.phaseStatus = 'generated';
+		state.stakeholders = [makeStakeholder('sid-a', '医師')];
+		state.personas = [makePersona({ id: 'p1', stakeholderId: 'sid-a', selected: true })];
+
+		mount();
+
+		await page.getByRole('checkbox').nth(0).click({ force: true });
+
+		expect(spies.setSelected).toHaveBeenCalledWith('p1', false);
+	});
+
+	it('ペルソナの再取材ボタンで単一ペルソナの reinterview を呼ぶ', async () => {
+		state.phaseStatus = 'generated';
+		state.stakeholders = [makeStakeholder('sid-a', '医師')];
+		state.personas = [makePersona({ id: 'p1', stakeholderId: 'sid-a' })];
+
+		mount();
+
+		await page.getByRole('button', { name: '再取材する' }).click();
+
+		expect(spies.reinterview).toHaveBeenCalledWith('p1', 'テストテーマ');
 	});
 });

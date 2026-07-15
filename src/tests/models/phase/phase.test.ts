@@ -14,9 +14,7 @@ import type { PhaseSlug, PhaseStatus, PhaseLogicalState } from '$lib/models/phas
 const CANONICAL_PHASE_KEYS = [
 	'theme',
 	'fact-research',
-	'stakeholders',
 	'personas',
-	'interviews',
 	'chapters',
 	'debate',
 	'editing'
@@ -26,22 +24,18 @@ const CANONICAL_PHASE_KEYS = [
 const PHASE_SLUG_EXHAUSTIVE: Record<PhaseSlug, true> = {
 	theme: true,
 	'fact-research': true,
-	stakeholders: true,
 	personas: true,
-	interviews: true,
 	chapters: true,
 	debate: true,
 	editing: true
 };
 
 describe('PHASE_DEFS', () => {
-	it('8フェーズが正準リスト順で定義されている', () => {
+	it('6フェーズが正準リスト順で定義されている', () => {
 		expect(PHASE_DEFS.map((d) => d.key)).toEqual([
 			'theme',
 			'fact-research',
-			'stakeholders',
 			'personas',
-			'interviews',
 			'chapters',
 			'debate',
 			'editing'
@@ -71,7 +65,12 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 		expect(Object.keys(PHASE_SLUG_EXHAUSTIVE).sort()).toEqual([...CANONICAL_PHASE_KEYS].sort());
 	});
 
-	it('定義配列の順序と各状態別ラベル文言を現行値のスナップショットとしてリテラル固定する', () => {
+	it('廃止された stakeholders / interviews を含まない', () => {
+		expect(PHASE_DEFS.map((d) => d.key)).not.toContain('stakeholders');
+		expect(PHASE_DEFS.map((d) => d.key)).not.toContain('interviews');
+	});
+
+	it('定義配列の順序と各状態別ラベル文言をスナップショットとしてリテラル固定する', () => {
 		expect(PHASE_DEFS).toEqual([
 			{
 				key: 'theme',
@@ -92,30 +91,12 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 				}
 			},
 			{
-				key: 'stakeholders',
-				statusLabels: {
-					not_started: '未着手',
-					running: '調査中',
-					generated: '調査完了',
-					stopped: '調査停止'
-				}
-			},
-			{
 				key: 'personas',
 				statusLabels: {
-					not_started: '調査承認済み',
+					not_started: '未着手',
 					running: 'ペルソナ生成中',
 					generated: 'ペルソナ生成完了',
 					stopped: 'ペルソナ生成停止'
-				}
-			},
-			{
-				key: 'interviews',
-				statusLabels: {
-					not_started: 'ペルソナ承認済み',
-					running: '取材中',
-					generated: '取材完了',
-					stopped: '取材停止'
 				}
 			},
 			{
@@ -149,19 +130,10 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 	});
 });
 
-describe('phaseLogicalState 数値ケースの 1:1 変換同値テーブル', () => {
-	// 番号→slug は旧 6 フェーズ順に固定（1→stakeholders … 6→editing）。
-	// リファクタ前 phase.test.ts の数値アサーションを 1:1 変換し、論理状態が現行と完全一致することを検証する。
-	// fact-research 挿入で正準リスト先頭がずれるため、この表専用の固定配列を用いる。
-	const NUMBERED_PHASES = [
-		'stakeholders',
-		'personas',
-		'interviews',
-		'chapters',
-		'debate',
-		'editing'
-	] as const;
-	const slugOf = (n: number): PhaseSlug => NUMBERED_PHASES[n - 1];
+describe('phaseLogicalState 順序ケースの同値テーブル', () => {
+	// 番号→slug は正準リスト順に固定（1→theme … 6→editing）。
+	// 論理状態は順序関係（target<current→approved / target>current→not_started / 一致→phaseStatus）のみで決まる。
+	const slugOf = (n: number): PhaseSlug => CANONICAL_PHASE_KEYS[n - 1];
 	const cases: [number, PhaseStatus, number, PhaseLogicalState][] = [
 		[3, 'running', 1, 'approved'],
 		[5, 'generated', 4, 'approved'],
@@ -195,15 +167,15 @@ describe('phaseOrder / nextPhase / isLastPhase', () => {
 	it('phaseOrder は配列位置を返す', () => {
 		expect(phaseOrder('theme')).toBe(0);
 		expect(phaseOrder('fact-research')).toBe(1);
-		expect(phaseOrder('stakeholders')).toBe(2);
-		expect(phaseOrder('interviews')).toBe(4);
-		expect(phaseOrder('editing')).toBe(7);
+		expect(phaseOrder('personas')).toBe(2);
+		expect(phaseOrder('chapters')).toBe(3);
+		expect(phaseOrder('editing')).toBe(5);
 	});
 
 	it('nextPhase は次の slug を返し、最終フェーズでは null', () => {
 		expect(nextPhase('theme')).toBe('fact-research');
-		expect(nextPhase('fact-research')).toBe('stakeholders');
-		expect(nextPhase('stakeholders')).toBe('personas');
+		expect(nextPhase('fact-research')).toBe('personas');
+		expect(nextPhase('personas')).toBe('chapters');
 		expect(nextPhase('chapters')).toBe('debate');
 		expect(nextPhase('debate')).toBe('editing');
 		expect(nextPhase('editing')).toBeNull();
@@ -212,7 +184,7 @@ describe('phaseOrder / nextPhase / isLastPhase', () => {
 	it('isLastPhase は最終フェーズのみ true', () => {
 		expect(isLastPhase('theme')).toBe(false);
 		expect(isLastPhase('fact-research')).toBe(false);
-		expect(isLastPhase('stakeholders')).toBe(false);
+		expect(isLastPhase('personas')).toBe(false);
 		expect(isLastPhase('debate')).toBe(false);
 		expect(isLastPhase('editing')).toBe(true);
 	});
@@ -221,9 +193,7 @@ describe('phaseOrder / nextPhase / isLastPhase', () => {
 describe('phasePath', () => {
 	it('フェーズURLを /admin/topics/{id}/{slug} 形式で生成する', () => {
 		expect(phasePath('t1', 'fact-research')).toBe('/admin/topics/t1/fact-research');
-		expect(phasePath('t1', 'stakeholders')).toBe('/admin/topics/t1/stakeholders');
 		expect(phasePath('t1', 'personas')).toBe('/admin/topics/t1/personas');
-		expect(phasePath('t1', 'interviews')).toBe('/admin/topics/t1/interviews');
 		expect(phasePath('t1', 'chapters')).toBe('/admin/topics/t1/chapters');
 		expect(phasePath('t1', 'debate')).toBe('/admin/topics/t1/debate');
 		expect(phasePath('t1', 'editing')).toBe('/admin/topics/t1/editing');
@@ -232,7 +202,7 @@ describe('phasePath', () => {
 
 describe('phaseLogicalState', () => {
 	it('対象フェーズが現在より前なら approved', () => {
-		expect(phaseLogicalState({ phase: 'interviews', phaseStatus: 'running' }, 'stakeholders')).toBe(
+		expect(phaseLogicalState({ phase: 'chapters', phaseStatus: 'running' }, 'personas')).toBe(
 			'approved'
 		);
 		expect(phaseLogicalState({ phase: 'debate', phaseStatus: 'generated' }, 'chapters')).toBe(
@@ -241,10 +211,10 @@ describe('phaseLogicalState', () => {
 	});
 
 	it('対象フェーズが現在より後なら not_started', () => {
-		expect(phaseLogicalState({ phase: 'personas', phaseStatus: 'generated' }, 'interviews')).toBe(
+		expect(phaseLogicalState({ phase: 'personas', phaseStatus: 'generated' }, 'chapters')).toBe(
 			'not_started'
 		);
-		expect(phaseLogicalState({ phase: 'stakeholders', phaseStatus: 'running' }, 'debate')).toBe(
+		expect(phaseLogicalState({ phase: 'personas', phaseStatus: 'running' }, 'debate')).toBe(
 			'not_started'
 		);
 	});
@@ -265,13 +235,9 @@ describe('phaseLogicalState', () => {
 	});
 
 	it('停止は全フェーズで導出できる（討論の running/stopped も同じ規則）', () => {
-		expect(phaseLogicalState({ phase: 'debate', phaseStatus: 'running' }, 'debate')).toBe(
-			'running'
-		);
-		expect(phaseLogicalState({ phase: 'debate', phaseStatus: 'stopped' }, 'debate')).toBe(
-			'stopped'
-		);
-		expect(phaseLogicalState({ phase: 'interviews', phaseStatus: 'stopped' }, 'interviews')).toBe(
+		expect(phaseLogicalState({ phase: 'debate', phaseStatus: 'running' }, 'debate')).toBe('running');
+		expect(phaseLogicalState({ phase: 'debate', phaseStatus: 'stopped' }, 'debate')).toBe('stopped');
+		expect(phaseLogicalState({ phase: 'personas', phaseStatus: 'stopped' }, 'personas')).toBe(
 			'stopped'
 		);
 	});
@@ -302,12 +268,10 @@ describe('phaseDisplayLabel', () => {
 		['fact-research', 'running', 'リサーチ中', 'running'],
 		['fact-research', 'generated', 'リサーチ完了', 'ready'],
 		['fact-research', 'stopped', 'リサーチ停止', 'stopped'],
-		['stakeholders', 'not_started', '未着手', 'pending'],
-		['stakeholders', 'running', '調査中', 'running'],
-		['stakeholders', 'stopped', '調査停止', 'stopped'],
+		['personas', 'not_started', '未着手', 'pending'],
 		['personas', 'running', 'ペルソナ生成中', 'running'],
-		['interviews', 'running', '取材中', 'running'],
-		['interviews', 'stopped', '取材停止', 'stopped'],
+		['personas', 'generated', 'ペルソナ生成完了', 'ready'],
+		['personas', 'stopped', 'ペルソナ生成停止', 'stopped'],
 		['chapters', 'generated', '章立て準備中', 'ready'],
 		['debate', 'not_started', '章立て完了', 'pending'],
 		['debate', 'running', '討論中', 'running'],

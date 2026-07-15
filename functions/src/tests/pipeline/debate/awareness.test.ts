@@ -41,7 +41,7 @@ const basePersona = (over: Partial<Persona> = {}): Persona => ({
 	interests: '',
 	nationality: '',
 	engagementLevel: 'medium',
-	approved: true,
+	selected: true,
 	sortOrder: 0,
 	...over
 });

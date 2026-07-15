@@ -79,12 +79,10 @@ export const createTopicStates = (topicDoc: Topic) => {
 		await advancePhase('fact-research');
 	};
 
-	const approveStakeholders = async (): Promise<void> => {
-		await advancePhase('stakeholders');
-	};
-
-	const approveInterviews = async (): Promise<void> => {
-		await advancePhase('interviews');
+	// ペルソナ（一気通貫）を確定して章立て（chapters）フェーズへ前進させる。
+	// 前進の前提「採用ペルソナ1件以上」の採用ゲートは呼び出し側（ペルソナ画面）が担保する。
+	const advancePastPersonas = async (): Promise<void> => {
+		await advancePhase('personas');
 	};
 
 	const approveChapters = async (): Promise<void> => {
@@ -199,47 +197,15 @@ export const createTopicStates = (topicDoc: Topic) => {
 		}
 	};
 
-	const generateStakeholders = async (): Promise<void> => {
-		await setPhaseStatus('stakeholders', 'running');
-		try {
-			const generateStakeholdersCallable = httpsCallable<
-				{ topicId: string; title: string },
-				Record<string, never>
-			>(functions, 'generateStakeholders', { timeout: 310000 });
-			await generateStakeholdersCallable({ topicId: id, title });
-			// 完了状態(phaseStatus='generated')はサーバが権威的に書くため、ここでは書かない。
-		} catch (e) {
-			// サーバが既に generated を確定済み（クライアントのタイムアウト等で reject されただけ）の
-			// 場合は stopped に上書きしない。承認ボタンが消える不具合の再発を防ぐ。
-			const snap = await getDoc(doc(db, 'topics', id));
-			if (snap.data()?.phaseStatus !== 'generated') {
-				await setPhaseStatus('stakeholders', 'stopped');
-			}
-			throw e;
-		}
-	};
-
-	// selectedStakeholderIds は採用（チェックON）ステークホルダーの安定 id 集合。
-	// サーバはこの部分集合のみを対象にペルソナを生成し、各ペルソナへ由来 stakeholderId を付与する。
-	const generatePersonas = async (selectedStakeholderIds: string[]): Promise<void> => {
-		await setPhaseStatus('personas', 'running');
-		try {
-			const generatePersonasCallable = httpsCallable<
-				{ topicId: string; title: string; selectedStakeholderIds: string[] },
-				Record<string, never>
-			>(functions, 'generatePersonas', { timeout: 310000 });
-			await generatePersonasCallable({ topicId: id, title, selectedStakeholderIds });
-			// ペルソナ文書の永続化と完了状態(phaseStatus='generated')はサーバが権威的に書くため、
-			// ここでは書かない。FE は onSnapshot で一覧と完了状態を反映する。
-		} catch (e) {
-			// サーバが既に generated を確定済み（クライアントのタイムアウト等で reject されただけ）の
-			// 場合は stopped に上書きしない。承認ボタンが消える不具合の再発を防ぐ。
-			const snap = await getDoc(doc(db, 'topics', id));
-			if (snap.data()?.phaseStatus !== 'generated') {
-				await setPhaseStatus('personas', 'stopped');
-			}
-			throw e;
-		}
+	// ペルソナ生成の一気通貫（ステークホルダー→ペルソナ→全ペルソナ取材）をサーバ側で起動する。
+	// フェーズの running 化・runId 発行・最初の段の投入はサーバ責務（在席非依存）。FE は起動を呼ぶだけ。
+	// 再生成では呼び出し側が先に下流を reset してからこれを呼ぶ（新 runId で旧タスク id 衝突を回避）。
+	const startPersonaGeneration = async (): Promise<void> => {
+		const startPersonaGenerationCallable = httpsCallable<
+			{ topicId: string },
+			{ topicId: string }
+		>(functions, 'startPersonaGeneration', { timeout: 60000 });
+		await startPersonaGenerationCallable({ topicId: id });
 	};
 
 	const generateChapters = async (): Promise<void> => {
@@ -334,8 +300,7 @@ export const createTopicStates = (topicDoc: Topic) => {
 		},
 
 		generateFactResearch,
-		generateStakeholders,
-		generatePersonas,
+		startPersonaGeneration,
 		generateChapters,
 		startDebate,
 		restartDebate,
@@ -348,8 +313,7 @@ export const createTopicStates = (topicDoc: Topic) => {
 		fetchSourceContents,
 		approveTheme,
 		approveFactResearch,
-		approveStakeholders,
-		approveInterviews,
+		advancePastPersonas,
 		approveChapters,
 		approveDebate,
 		startEditing,

@@ -77,7 +77,7 @@ export const finalizePendingEditorialElements = async (topicId: string): Promise
 		}
 	}
 
-	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.approved);
+	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.selected);
 	for (let i = 0; i < personas.length; i++) {
 		const persona = personas[i];
 		const existing = editorial.impressions[persona.id];

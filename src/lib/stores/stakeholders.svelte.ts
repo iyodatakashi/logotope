@@ -1,9 +1,6 @@
-import { onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '$lib/firebase';
-import type {
-	Stakeholder,
-	StakeholderForFirestore
-} from '$lib/models/stakeholder/stakeholder.types';
+import type { Stakeholder } from '$lib/models/stakeholder/stakeholder.types';
 
 export const createStakeholdersStore = (topicId: string) => {
 	let stakeholders = $state<Stakeholder[]>([]);
@@ -12,15 +9,9 @@ export const createStakeholdersStore = (topicId: string) => {
 
 	const start = () => {
 		unsubscribe = onSnapshot(doc(db, 'topics', topicId, 'stakeholders', '0'), (snap) => {
-			const data = snap.exists()
-				? (snap.data() as { stakeholders: StakeholderForFirestore[] })
-				: null;
-			// 永続された安定 id をそのまま採用する（境界でドメイン型へ変換して保持）。
-			// selected 未設定（サーバ生成直後）は既定 ON としてここで解決する。
-			stakeholders = (data?.stakeholders ?? []).map((stakeholder) => ({
-				...stakeholder,
-				selected: stakeholder.selected ?? true
-			}));
+			const data = snap.exists() ? (snap.data() as { stakeholders: Stakeholder[] }) : null;
+			// 中間生成物として表示するだけ（採用選択は持たない）。永続された安定 id をそのまま保持する。
+			stakeholders = data?.stakeholders ?? [];
 			isLoaded = true;
 		});
 	};
@@ -28,14 +19,6 @@ export const createStakeholdersStore = (topicId: string) => {
 	const stop = () => {
 		unsubscribe?.();
 		unsubscribe = null;
-	};
-
-	// 採用チェックの ON/OFF を当該ステークホルダーに永続する（リロード後も保持する）。
-	const setSelected = async (id: string, selected: boolean): Promise<void> => {
-		const next = stakeholders.map((stakeholder) =>
-			stakeholder.id === id ? { ...stakeholder, selected } : stakeholder
-		);
-		await updateDoc(doc(db, 'topics', topicId, 'stakeholders', '0'), { stakeholders: next });
 	};
 
 	return {
@@ -46,7 +29,6 @@ export const createStakeholdersStore = (topicId: string) => {
 			return isLoaded;
 		},
 		start,
-		stop,
-		setSelected
+		stop
 	};
 };

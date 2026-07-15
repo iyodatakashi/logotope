@@ -16,9 +16,9 @@ const db = () => getFirestore();
 
 /** 所感1人分を作り直す。生成中（内容破棄）→段階を経て完了で確定する（当該ペルソナのみ部分上書き） */
 export const regenerateImpression = async (topicId: string, personaId: string): Promise<void> => {
-	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.approved);
+	const personas = (await getPersonasByTopicId(topicId)).filter((persona) => persona.selected);
 	const sortOrder = personas.findIndex((persona) => persona.id === personaId);
-	if (sortOrder < 0) throw new Error(`承認済みペルソナが見つかりません: ${personaId}`);
+	if (sortOrder < 0) throw new Error(`採用ペルソナが見つかりません: ${personaId}`);
 
 	const turns = await getDebateTurnsByTopicId(topicId);
 	await buildImpressionPart(

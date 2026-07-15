@@ -52,7 +52,7 @@ const mockPersona: Persona = {
 	interests: 'テスト関心事',
 	nationality: '日本',
 	engagementLevel: 'moderate',
-	approved: true,
+	selected: true,
 	sortOrder: 0,
 	interviewRecord: 'テスト取材記録'
 };

@@ -29,38 +29,21 @@ describe('createStakeholdersStore', () => {
 		expect(store.stakeholders).toEqual([]);
 	});
 
-	it('永続された安定 id をそのまま採用し、未設定の selected を既定 ON で解決する', () => {
+	it('永続された安定 id をそのまま保持して表示する（採用選択は持たない中間生成物）', () => {
 		const store = createStakeholdersStore('topic1');
 		store.start();
-		fire([
+		const stored = [
 			{ id: 'sid-a', role: '医師', reason: '専門家', mainInterests: [], minorityLevel: 'low' },
-			{
-				id: 'sid-b',
-				role: '患者',
-				reason: '当事者',
-				mainInterests: [],
-				minorityLevel: 'high',
-				selected: false
-			}
-		]);
-		expect(store.stakeholders).toEqual([
-			{
-				id: 'sid-a',
-				role: '医師',
-				reason: '専門家',
-				mainInterests: [],
-				minorityLevel: 'low',
-				selected: true
-			},
-			{
-				id: 'sid-b',
-				role: '患者',
-				reason: '当事者',
-				mainInterests: [],
-				minorityLevel: 'high',
-				selected: false
-			}
-		]);
+			{ id: 'sid-b', role: '患者', reason: '当事者', mainInterests: [], minorityLevel: 'high' }
+		];
+		fire(stored);
+		// 表示専用ストア: 永続データをそのまま保持する（selected 解決や書き換えをしない）。
+		expect(store.stakeholders).toEqual(stored);
+	});
+
+	it('採用トグルの書き込み経路（setSelected）を公開しない', () => {
+		const store = createStakeholdersStore('topic1');
+		expect('setSelected' in store).toBe(false);
 	});
 
 	it('isLoaded がスナップショット受信前は false', () => {

@@ -146,7 +146,7 @@ const makePersona = (id: string, name: string): Persona => ({
 	interests: '関心',
 	nationality: '日本',
 	engagementLevel: 'moderate',
-	approved: true,
+	selected: true,
 	sortOrder: 0
 });
 

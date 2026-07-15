@@ -1,12 +1,10 @@
 // 永続する phase の slug 型（FE PhaseSlug と値集合・順序を一致させる）。
 // 正準 slug リスト（順序込み）:
-// ['theme', 'fact-research', 'stakeholders', 'personas', 'interviews', 'chapters', 'debate', 'editing']
+// ['theme', 'fact-research', 'personas', 'chapters', 'debate', 'editing']
 export type PhaseSlug =
 	| 'theme'
 	| 'fact-research'
-	| 'stakeholders'
 	| 'personas'
-	| 'interviews'
 	| 'chapters'
 	| 'debate'
 	| 'editing';

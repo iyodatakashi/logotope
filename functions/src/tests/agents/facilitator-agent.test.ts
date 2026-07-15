@@ -45,7 +45,7 @@ const mockPersona: Persona = {
 	interests: '',
 	nationality: '日本',
 	engagementLevel: 'moderate',
-	approved: true,
+	selected: true,
 	sortOrder: 0,
 	interviewRecord: ''
 };

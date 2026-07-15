@@ -1,6 +1,6 @@
 import type { PhaseDef } from './phase.types';
 
-// 正準 slug リスト（順序込み）: ['theme', 'fact-research', 'stakeholders', 'personas', 'interviews', 'chapters', 'debate', 'editing']
+// 正準 slug リスト（順序込み）: ['theme', 'fact-research', 'personas', 'chapters', 'debate', 'editing']
 // 配列順 = フェーズ進行順の唯一の真実。BE 側 PhaseKey と値集合・順序を一致させる。
 export const PHASE_DEFS: readonly PhaseDef[] = [
 	{
@@ -24,30 +24,14 @@ export const PHASE_DEFS: readonly PhaseDef[] = [
 		}
 	},
 	{
-		key: 'stakeholders',
-		statusLabels: {
-			not_started: '未着手',
-			running: '調査中',
-			generated: '調査完了',
-			stopped: '調査停止'
-		}
-	},
-	{
+		// personas は「ステークホルダー生成→ペルソナ生成→取材」の一気通貫全体を1フェーズで表す。
+		// phaseStatus は段階別ではなく全体1軸（未着手・実行中・完了・停止）で扱う。
 		key: 'personas',
 		statusLabels: {
-			not_started: '調査承認済み',
+			not_started: '未着手',
 			running: 'ペルソナ生成中',
 			generated: 'ペルソナ生成完了',
 			stopped: 'ペルソナ生成停止'
-		}
-	},
-	{
-		key: 'interviews',
-		statusLabels: {
-			not_started: 'ペルソナ承認済み',
-			running: '取材中',
-			generated: '取材完了',
-			stopped: '取材停止'
 		}
 	},
 	{

@@ -18,7 +18,7 @@ vi.mock('$lib/stores/topics.svelte.js', () => ({
 				{
 					id: 't1',
 					title: '実行中のテーマ',
-					phase: 'interviews',
+					phase: 'personas',
 					phaseStatus: 'running'
 				},
 				{
@@ -38,7 +38,7 @@ describe('TopicListPage.svelte', () => {
 	it('トピックの (phase, phaseStatus) からバッジを表示する', async () => {
 		render(TopicListPage);
 		await expect.element(page.getByText('実行中のテーマ')).toBeInTheDocument();
-		await expect.element(page.getByText('取材中')).toBeInTheDocument();
+		await expect.element(page.getByText('ペルソナ生成中')).toBeInTheDocument();
 	});
 
 	it('停止状態は「討論停止」バッジを表示する', async () => {

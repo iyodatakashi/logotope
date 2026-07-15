@@ -1,9 +1,7 @@
 export type PhaseSlug =
 	| 'theme'
 	| 'fact-research'
-	| 'stakeholders'
 	| 'personas'
-	| 'interviews'
 	| 'chapters'
 	| 'debate'
 	| 'editing';

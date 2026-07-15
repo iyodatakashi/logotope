@@ -101,7 +101,7 @@ export const decideNextStep = ({
 };
 
 /**
- * トピック名と承認済みペルソナを取得する（討論に参加するのは approved なペルソナのみ）。
+ * トピック名と採用ペルソナを取得する（討論に参加するのは selected なペルソナのみ）。
  * 事実基盤を含む同名の pipeline/topics/topic-context.ts の getTopicContext とは別物のため名前で区別する。
  */
 const loadTopicParticipants = async (topicId: string) => {
@@ -110,7 +110,7 @@ const loadTopicParticipants = async (topicId: string) => {
 		getPersonasByTopicId(topicId)
 	]);
 	if (!topic) throw new Error(`Topic not found: ${topicId}`);
-	return { topicTitle: topic.title, personas: allPersonas.filter((persona) => persona.approved) };
+	return { topicTitle: topic.title, personas: allPersonas.filter((persona) => persona.selected) };
 };
 
 /** 既定オプションにペイロード由来の単章モードを重ねた実行オプションを作る */

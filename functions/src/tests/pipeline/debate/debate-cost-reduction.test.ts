@@ -74,7 +74,7 @@ const makePersona = (id: string, name: string, llmType: string): Persona =>
 		nationality: '日本',
 		engagementLevel: 'moderate',
 		llmType,
-		approved: true,
+		selected: true,
 		sortOrder: 0,
 		interviewRecord: '取材記録'
 	}) as Persona;

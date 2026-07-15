@@ -180,7 +180,7 @@
 	const displayImpressions = $derived.by(() => {
 		const impressions = currentTopicStore.editorialStore.impressions;
 		return currentTopicStore.personasStore.personas
-			.filter((persona) => persona.approved)
+			.filter((persona) => persona.selected)
 			.map((persona) => {
 				const part = impressions.find((item) => item.personaId === persona.id) ?? {
 					status: 'pending' as const,

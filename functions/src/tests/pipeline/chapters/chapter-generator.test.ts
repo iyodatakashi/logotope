@@ -89,7 +89,7 @@ describe('planChapters', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mockDoc.mockReturnValue({ set: mockSet, update: mockUpdate, delete: mockDelete });
-		mockGetPersonasByTopicId.mockResolvedValue([{ id: 'p1', approved: true }]);
+		mockGetPersonasByTopicId.mockResolvedValue([{ id: 'p1', selected: true }]);
 		mockGetTopicContext.mockResolvedValue({});
 		mockGenerateChapters.mockImplementation(makeGenerateChaptersMock());
 	});

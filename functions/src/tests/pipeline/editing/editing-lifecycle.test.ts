@@ -162,9 +162,9 @@ describe('finalizePendingEditorialElements（終端スイープ）', () => {
 
 	it('承認済みペルソナのうちエントリ無し／未完了の所感に失敗エントリを materialize する', async () => {
 		mockGetPersonas.mockResolvedValue([
-			{ id: 'p1', approved: true },
-			{ id: 'p2', approved: true },
-			{ id: 'p3', approved: false }
+			{ id: 'p1', selected: true },
+			{ id: 'p2', selected: true },
+			{ id: 'p3', selected: false }
 		]);
 		holder.mock!.store.set(EDITORIAL_PATH, {
 			intro: { status: 'finished', draft: 'i', final: 'i' },
@@ -184,7 +184,7 @@ describe('finalizePendingEditorialElements（終端スイープ）', () => {
 	});
 
 	it('既に finished の要素は変更しない（冪等）', async () => {
-		mockGetPersonas.mockResolvedValue([{ id: 'p1', approved: true }]);
+		mockGetPersonas.mockResolvedValue([{ id: 'p1', selected: true }]);
 		const finished = {
 			intro: { status: 'finished', draft: 'i原本', final: 'i編集後' },
 			outro: { status: 'finished', draft: null, final: null },
@@ -201,7 +201,7 @@ describe('finalizePendingEditorialElements（終端スイープ）', () => {
 describe('stopEditingRun（停止＋終端スイープ）', () => {
 	it('停止が成立したら未完了要素を生成失敗へ確定する', async () => {
 		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'running', runId: 'r1' });
-		mockGetPersonas.mockResolvedValue([{ id: 'p1', approved: true }]);
+		mockGetPersonas.mockResolvedValue([{ id: 'p1', selected: true }]);
 		holder.mock!.store.set(EDITORIAL_PATH, {
 			intro: { status: 'generating', draft: null, final: null },
 			outro: { status: 'pending', draft: null, final: null },

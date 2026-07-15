@@ -66,7 +66,7 @@ export const generatePersonas = async (
 
 		type LLMPersona = Omit<
 			Persona,
-			'id' | 'topicId' | 'approved' | 'sortOrder' | 'stakeholderId'
+			'id' | 'topicId' | 'selected' | 'sortOrder' | 'stakeholderId'
 		> & {
 			sourceTag: string;
 		};
@@ -74,7 +74,7 @@ export const generatePersonas = async (
 			...(persona as LLMPersona),
 			id: nanoid(),
 			topicId,
-			approved: false,
+			selected: true,
 			sortOrder: i
 		}));
 		return { ok: true, value: { personas } };

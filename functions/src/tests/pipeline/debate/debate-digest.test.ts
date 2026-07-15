@@ -36,7 +36,7 @@ const makeChapter = (id: string, index: number, title: string): ChapterEntry => 
 	status: 'completed'
 });
 
-const makePersona = (id: string, name: string, approved: boolean): Persona => ({
+const makePersona = (id: string, name: string, selected: boolean): Persona => ({
 	id,
 	topicId: 't1',
 	name,
@@ -48,7 +48,7 @@ const makePersona = (id: string, name: string, approved: boolean): Persona => ({
 	interests: '',
 	nationality: '日本',
 	engagementLevel: 'moderate',
-	approved,
+	selected,
 	sortOrder: 0,
 	beliefs: [{ id: 'b0', version: 0, content: `${name}の信念`, createdAt: TS }],
 	awarenesses: [

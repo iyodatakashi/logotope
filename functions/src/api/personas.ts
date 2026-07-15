@@ -1,86 +1,82 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { onTaskDispatched } from 'firebase-functions/v2/tasks';
 import { getFirestore, Timestamp } from 'firebase-admin/firestore';
+import { nanoid } from 'nanoid';
 import { requireAuth } from '../utils/auth.js';
-import {
-	generatePersonas as runPersonaGeneration,
-	sourceTagForIndex
-} from '../agents/persona-generator-agent.js';
-import { getTopicContext } from '../pipeline/topics/topic-context.js';
-import { confirmPhaseGenerated } from '../utils/topic-phase.js';
-import type { Stakeholder } from '../types/stakeholder.types.js';
-import type { GeneratedPersona } from '../agents/persona-generator-agent.js';
+import { advancePersonaChain } from '../pipeline/personas/persona-chain.js';
+import { enqueuePersonaStep } from '../pipeline/personas/enqueue-persona-step.js';
+import { setTopicPhaseStatus } from '../utils/topic-phase.js';
+import type { PersonaStepPayload } from '../pipeline/personas/enqueue-persona-step.js';
+
+// ペルソナ生成の一気通貫 API。討論・編集と同型の「起動 onCall ＋単一 onTaskDispatched チェーン」。
+// ステークホルダー生成〜ペルソナ生成〜全ペルソナ取材をサーバ側で完結させる（クライアント在席非依存）。
 
 const db = () => getFirestore();
-
+const REGION = 'asia-northeast1';
+const MAX_ATTEMPTS = 3;
 const SECRETS = ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'TAVILY_API_KEY'];
 
-// 生成結果のエコー用タグから由来ステークホルダーの id を解決する（出力順非依存）。
-// タグ欠落/不正時は、出力位置（k 番目→採用 k 番目）と役割名照合でフォールバックする。
-// 生成件数は採用件数と一致するため、少なくとも位置フォールバックで必ず解決できる。
-const resolveStakeholderId = (
-	persona: GeneratedPersona,
-	outputIndex: number,
-	selected: Stakeholder[]
-): string => {
-	const byTag = selected.find((_, i) => sourceTagForIndex(i) === persona.sourceTag);
-	if (byTag) return byTag.id;
-	const byPosition = selected[outputIndex];
-	if (byPosition) return byPosition.id;
-	const byRole = selected.find((stakeholder) => stakeholder.role === persona.stakeholderRole);
-	return (byRole ?? selected[0]).id;
-};
+/**
+ * 一気通貫を起動する。personas フェーズを running にし新しい世代 runId を発行、最初の
+ * stakeholders ステップを1件 enqueue して即返す短時間 onCall（在席非依存・R2.1, 2.2, 2.5）。
+ * 再生成時は FE 側で下流破棄（reset）を済ませてから呼ぶ。新 runId で旧タスク id 衝突を回避する。
+ */
+export const startPersonaGeneration = onCall({ timeoutSeconds: 60 }, async (request) => {
+	requireAuth(request);
+	const { topicId } = request.data as { topicId: string };
+	if (!topicId?.trim()) throw new HttpsError('invalid-argument', 'topicId is required');
 
-export const generatePersonas = onCall(
-	{ timeoutSeconds: 300, secrets: SECRETS },
-	async (request) => {
-		requireAuth(request);
-		const { topicId, title, selectedStakeholderIds } = request.data as {
-			topicId: string;
-			title: string;
-			selectedStakeholderIds: string[];
-		};
-		if (!topicId?.trim()) throw new HttpsError('invalid-argument', 'topicId is required');
-		if (!title?.trim()) throw new HttpsError('invalid-argument', 'title is required');
-		if (!Array.isArray(selectedStakeholderIds) || selectedStakeholderIds.length === 0)
-			throw new HttpsError('invalid-argument', 'selectedStakeholderIds is required');
+	try {
+		const snap = await db().doc(`topics/${topicId}`).get();
+		if (!snap.exists) throw new HttpsError('not-found', 'Topic not found');
 
-		const snap = await db().doc(`topics/${topicId}/stakeholders/0`).get();
-		if (!snap.exists) throw new HttpsError('invalid-argument', 'stakeholders not found');
-		const stakeholders = (snap.data() as { stakeholders: Stakeholder[] }).stakeholders;
+		const runId = nanoid();
+		await db()
+			.doc(`topics/${topicId}`)
+			.update({ phase: 'personas', phaseStatus: 'running', runId, updatedAt: Timestamp.now() });
+		await enqueuePersonaStep({ topicId, runId, stepKind: 'stakeholders' });
 
-		// 採用集合で決定的に絞り込む（順序保持）。未知 id が混じる場合は不正入力として拒否する。
-		const selectedIdSet = new Set(selectedStakeholderIds);
-		const selected = stakeholders.filter((stakeholder) => selectedIdSet.has(stakeholder.id));
-		if (selected.length !== selectedIdSet.size)
-			throw new HttpsError('invalid-argument', 'selectedStakeholderIds contains unknown id');
+		return { topicId };
+	} catch (err) {
+		console.error('[startPersonaGeneration] error', { topicId }, err);
+		throw err instanceof HttpsError
+			? err
+			: new HttpsError('internal', err instanceof Error ? err.message : String(err));
+	}
+});
 
-		const topicContext = await getTopicContext(topicId);
-		const result = await runPersonaGeneration(title, selected, topicId, topicContext);
-		if (!result.ok) {
-			const message = 'message' in result.error ? result.error.message : result.error.code;
-			console.error('[generatePersonas] error', { topicId, title }, result.error);
-			throw new HttpsError('internal', message);
+/**
+ * ペルソナ生成ステップをタスクとして実行する。段の判別・生成物永続・次段 enqueue は
+ * advancePersonaChain が担う。例外は Cloud Tasks のリトライに委ね、終端失敗（最終試行）で
+ * personas フェーズを停止（stopped）にする（R5.1）。
+ */
+export const runPersonaStep = onTaskDispatched(
+	{
+		timeoutSeconds: 540,
+		region: REGION,
+		secrets: SECRETS,
+		retryConfig: { maxAttempts: MAX_ATTEMPTS, minBackoffSeconds: 30 },
+		rateLimits: { maxConcurrentDispatches: 5 }
+	},
+	async (req) => {
+		const payload = req.data as PersonaStepPayload;
+		try {
+			await advancePersonaChain(payload);
+		} catch (err) {
+			console.error(
+				'[runPersonaStep] error',
+				{
+					topicId: payload.topicId,
+					stepKind: payload.stepKind,
+					personaId: payload.personaId,
+					retryCount: req.retryCount
+				},
+				err
+			);
+			if ((req.retryCount ?? 0) >= MAX_ATTEMPTS - 1) {
+				await setTopicPhaseStatus(payload.topicId, 'personas', 'stopped');
+			}
+			throw err;
 		}
-
-		// 全ペルソナ文書を一括（batch）で永続化する。途中失敗では未コミット（全件 or 未書込）と
-		// なり、不完全な成果物を残さない。結果の Single Source of Truth は Firestore。
-		const batch = db().batch();
-		result.value.personas.forEach((persona, index) => {
-			// sourceTag は由来解決用の一時項目。永続前に stakeholderId へ畳んで除去する。
-			const { id, sourceTag: _sourceTag, ...rest } = persona;
-			batch.set(db().doc(`topics/${topicId}/personas/${id}`), {
-				...rest,
-				stakeholderId: resolveStakeholderId(persona, index, selected),
-				sortOrder: index,
-				approved: false,
-				beliefs: [],
-				createdAt: Timestamp.now()
-			});
-		});
-		await batch.commit();
-		// 永続化成功後、完了状態はサーバ権威で確定する。クライアントの生存や callable の
-		// タイムアウトに依存せず、running のときだけ generated へ冪等遷移させる。
-		await confirmPhaseGenerated(topicId, 'personas');
-		return {};
 	}
 );

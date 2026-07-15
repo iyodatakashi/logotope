@@ -63,8 +63,8 @@ vi.mock('../../../pipeline/topics/topics.js', () => ({
 }));
 vi.mock('../../../pipeline/personas/personas.js', () => ({
 	getPersonasByTopicId: vi.fn(async () => [
-		{ id: 'p1', name: 'A', approved: true, beliefs: [] },
-		{ id: 'p2', name: 'B', approved: true, beliefs: [] }
+		{ id: 'p1', name: 'A', selected: true, beliefs: [] },
+		{ id: 'p2', name: 'B', selected: true, beliefs: [] }
 	])
 }));
 

@@ -10,8 +10,7 @@ setGlobalOptions({
 });
 
 export { generateFactResearch } from './api/fact-research.js';
-export { generateStakeholders } from './api/stakeholders.js';
-export { generatePersonas } from './api/personas.js';
+export { startPersonaGeneration, runPersonaStep } from './api/personas.js';
 export { runInterview } from './api/interviews.js';
 export { generateChapters } from './api/chapters.js';
 export { startDebate, restartDebate, resetDebate, runStep } from './api/debates.js';

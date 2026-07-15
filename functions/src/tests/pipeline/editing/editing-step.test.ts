@@ -149,7 +149,7 @@ describe('runChapterEditStep', () => {
 		holder.mock!.store.set('topics/t1/personas/p1', {
 			topicId: 't1',
 			name: 'p1',
-			approved: true,
+			selected: true,
 			sortOrder: 0,
 			stakeholderRole: '一般'
 		});
@@ -257,11 +257,11 @@ describe('runChapterEditStep', () => {
 });
 
 describe('runImpressionsStep', () => {
-	const setPersona = (id: string, sortOrder: number, approved: boolean) =>
+	const setPersona = (id: string, sortOrder: number, selected: boolean) =>
 		holder.mock!.store.set(`topics/t1/personas/${id}`, {
 			topicId: 't1',
 			name: id,
-			approved,
+			selected,
 			sortOrder,
 			stakeholderRole: '一般'
 		});
