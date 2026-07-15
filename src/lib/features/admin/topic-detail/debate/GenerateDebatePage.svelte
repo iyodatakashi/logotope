@@ -205,6 +205,8 @@
 		display: grid;
 		grid-template-columns: 1fr 3fr;
 		gap: 24px;
+		max-width: 960px;
+		margin: 0 auto;
 	}
 
 	.generate-debate-page__chapter-index {
