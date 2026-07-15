@@ -39,9 +39,7 @@
 	// 生成を一度でも実行した後の状態（完了・停止・前進済み）は「ペルソナを再生成する」を出す。
 	// 前進済み（approved・見返し中）も生成完了と同様に扱う。未実行（not_started）だけが「生成する」。
 	const isGenerated = $derived(
-		personasState === 'generated' ||
-			personasState === 'stopped' ||
-			personasState === 'approved'
+		personasState === 'generated' || personasState === 'stopped' || personasState === 'approved'
 	);
 	// 次フェーズへ前進できる条件: 生成完了（generated）か前進済み（approved）で、採用が1件以上。
 	// stopped（失敗）や running・not_started では前進不可。
@@ -104,7 +102,7 @@
 			</Button>
 
 			{#if isRunning}
-				<Button variant="filled" rounded loading onclick={() => {}}>ペルソナを生成する</Button>
+				<Button variant="ghost" rounded loading onclick={() => {}}>ペルソナを生成する</Button>
 			{:else if isGenerated}
 				<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
 					ペルソナを再生成する
