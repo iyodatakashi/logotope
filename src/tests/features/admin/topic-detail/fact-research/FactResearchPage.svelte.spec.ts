@@ -23,7 +23,10 @@ const { goto, spies, state } = vi.hoisted(() => ({
 	state: {
 		phase: 'fact-research' as string,
 		phaseStatus: 'generated' as string,
-		factBaseData: null as { facts: { statement: string; sources: unknown[] }[]; generatedAt: unknown } | null
+		factBaseData: null as {
+			facts: { statement: string; sources: unknown[] }[];
+			generatedAt: unknown;
+		} | null
 	}
 }));
 
@@ -77,7 +80,60 @@ afterEach(() => {
 });
 
 describe('FactResearchPage', () => {
-	it('再実行は確認後にサーバ権威の単一操作のみを呼ぶ（下流 reset を呼ばない）', async () => {
+	it('未生成では中央に単一の実行ボタンを出し、確認なしで直接調査を開始する', async () => {
+		state.phaseStatus = 'not_started';
+
+		mount();
+
+		// 「実行せず承認する」は撤去済み。
+		expect(page.getByRole('button', { name: '実行せず承認する' }).elements()).toHaveLength(0);
+
+		await page.getByRole('button', { name: '事実リサーチを実行する' }).click();
+		// 確認ダイアログを挟まず直接 generateFactResearch を呼ぶ。
+		expect(spies.generateFactResearch).toHaveBeenCalledOnce();
+	});
+
+	it('未生成では「次に進む」を不活性にする', async () => {
+		state.phaseStatus = 'not_started';
+
+		mount();
+
+		await expect.element(page.getByRole('button', { name: '次に進む' })).toBeDisabled();
+	});
+
+	it('生成完了なら結果が空でも「次に進む」で承認して personas へ前進する', async () => {
+		state.phaseStatus = 'generated';
+		state.factBaseData = { facts: [], generatedAt: {} };
+
+		mount();
+
+		await expect.element(page.getByRole('button', { name: '次に進む' })).not.toBeDisabled();
+
+		await page.getByRole('button', { name: '次に進む' }).click();
+		expect(spies.approveFactResearch).toHaveBeenCalledOnce();
+		expect(goto).toHaveBeenCalledWith('/admin/topics/t1/personas');
+	});
+
+	it('承認が失敗したときは遷移せず操作ペインにエラーを表示する', async () => {
+		state.phaseStatus = 'generated';
+		spies.approveFactResearch.mockRejectedValueOnce(new Error('fail'));
+
+		mount();
+
+		await page.getByRole('button', { name: '次に進む' }).click();
+
+		expect(goto).not.toHaveBeenCalled();
+		await expect.element(page.getByRole('alert')).toBeInTheDocument();
+	});
+
+	it('前に戻るでテーマ設定へ遷移する', async () => {
+		mount();
+
+		await page.getByRole('button', { name: '前に戻る' }).click();
+		expect(goto).toHaveBeenCalledWith('/admin/topics/t1/theme');
+	});
+
+	it('再調査は確認後にサーバ権威の単一操作のみを呼ぶ（下流 reset を呼ばない）', async () => {
 		mount();
 
 		await page.getByRole('button', { name: '再調査する' }).click();
@@ -91,7 +147,7 @@ describe('FactResearchPage', () => {
 		expect(spies.resetEditing).not.toHaveBeenCalled();
 	});
 
-	it('再実行押下直後は旧事実を即時に隠す（実削除の同期反映を待たない）', async () => {
+	it('再調査押下直後は旧事実を即時に隠す（実削除の同期反映を待たない）', async () => {
 		state.factBaseData = { facts: [{ statement: '旧事実', sources: [] }], generatedAt: {} };
 		// 往復中（サーバがまだ running を書かず、旧事実も実削除前）の状態を模擬。
 		spies.generateFactResearch.mockImplementation(() => new Promise<void>(() => {}));

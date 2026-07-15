@@ -79,6 +79,54 @@ afterEach(() => {
 });
 
 describe('GenerateChaptersPage', () => {
+	it('未生成では中央に生成ボタンを出し、独立承認ボタンは出さない', async () => {
+		state.phaseStatus = 'not_started';
+
+		mount();
+
+		await expect
+			.element(page.getByRole('button', { name: '章立てを生成する' }))
+			.toBeInTheDocument();
+		expect(page.getByRole('button', { name: '承認して次へ進む' }).elements()).toHaveLength(0);
+	});
+
+	it('未生成では「次に進む」を不活性にする', async () => {
+		state.phaseStatus = 'not_started';
+
+		mount();
+
+		await expect.element(page.getByRole('button', { name: '次に進む' })).toBeDisabled();
+	});
+
+	it('生成済みなら「次に進む」で承認して討論画面へ前進する', async () => {
+		state.phaseStatus = 'generated';
+
+		mount();
+
+		await page.getByRole('button', { name: '次に進む' }).click();
+		expect(spies.approveChapters).toHaveBeenCalledOnce();
+		expect(goto).toHaveBeenCalledWith('/admin/topics/t1/debate');
+	});
+
+	it('承認が失敗したときは遷移せず操作ペインにエラーを表示する', async () => {
+		state.phaseStatus = 'generated';
+		spies.approveChapters.mockRejectedValueOnce(new Error('fail'));
+
+		mount();
+
+		await page.getByRole('button', { name: '次に進む' }).click();
+
+		expect(goto).not.toHaveBeenCalled();
+		await expect.element(page.getByRole('alert')).toBeInTheDocument();
+	});
+
+	it('前に戻るでペルソナ生成画面へ遷移する', async () => {
+		mount();
+
+		await page.getByRole('button', { name: '前に戻る' }).click();
+		expect(goto).toHaveBeenCalledWith('/admin/topics/t1/personas');
+	});
+
 	it('再生成は確認後にサーバ権威の単一操作のみを呼ぶ（下流 reset を呼ばない）', async () => {
 		mount();
 

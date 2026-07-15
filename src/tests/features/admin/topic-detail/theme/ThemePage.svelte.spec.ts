@@ -41,21 +41,25 @@ describe('ThemePage.svelte', () => {
 		sourceUrls = [];
 	});
 
-	it('テーマ設定中はタイトル・詳細説明・参考URLを編集でき、承認導線を表示する', async () => {
+	it('テーマ設定中はタイトル・詳細説明・参考URLを編集でき、前進導線（次に進む）を表示する', async () => {
 		render(ThemePage);
 
 		await expect.element(page.getByLabelText('タイトル')).toHaveValue('テストテーマ');
 		await expect.element(page.getByLabelText('詳細説明')).toHaveValue('背景');
 		await expect.element(page.getByRole('button', { name: 'URLを追加' })).toBeInTheDocument();
-		await expect
-			.element(page.getByRole('button', { name: '承認して次へ進む' }))
-			.toBeInTheDocument();
+		await expect.element(page.getByRole('button', { name: '次に進む' })).toBeInTheDocument();
 	});
 
-	it('承認するとテーマを保存して事実リサーチフェーズへ前進する', async () => {
+	it('先頭ステップのため「前に戻る」を表示しない', async () => {
 		render(ThemePage);
 
-		await page.getByRole('button', { name: '承認して次へ進む' }).click();
+		expect(page.getByRole('button', { name: '前に戻る' }).elements()).toHaveLength(0);
+	});
+
+	it('「次に進む」でテーマを保存・承認してから事実リサーチ画面へ遷移する', async () => {
+		render(ThemePage);
+
+		await page.getByRole('button', { name: '次に進む' }).click();
 
 		expect(mockSave).toHaveBeenCalledOnce();
 		expect(mockFetchSourceContents).not.toHaveBeenCalled();
@@ -63,21 +67,34 @@ describe('ThemePage.svelte', () => {
 		expect(mockGoto).toHaveBeenCalledWith('/admin/topics/t1/fact-research');
 	});
 
-	it('参考URLがあれば承認時に本文取得を実行してから前進する', async () => {
+	it('参考URLがあれば「次に進む」時に本文取得を実行してから前進する', async () => {
 		sourceUrls = ['https://example.com'];
 		render(ThemePage);
 
-		await page.getByRole('button', { name: '承認して次へ進む' }).click();
+		await page.getByRole('button', { name: '次に進む' }).click();
 
 		expect(mockFetchSourceContents).toHaveBeenCalledOnce();
 		expect(mockApproveTheme).toHaveBeenCalledOnce();
 	});
 
-	it('承認済み（approved）では承認導線を表示しない', async () => {
+	it('承認が失敗したときは遷移せず操作ペインにエラーを表示する', async () => {
+		mockApproveTheme.mockRejectedValueOnce(new Error('fail'));
+		render(ThemePage);
+
+		await page.getByRole('button', { name: '次に進む' }).click();
+
+		expect(mockGoto).not.toHaveBeenCalled();
+		await expect.element(page.getByRole('alert')).toBeInTheDocument();
+	});
+
+	it('承認済み（approved）でも編集内容を閲覧でき、押下時は承認を再実行せず遷移のみ行う', async () => {
 		phase = 'fact-research';
 		render(ThemePage);
 
 		await expect.element(page.getByLabelText('タイトル')).toHaveValue('テストテーマ');
-		expect(page.getByRole('button', { name: '承認して次へ進む' }).elements()).toHaveLength(0);
+
+		await page.getByRole('button', { name: '次に進む' }).click();
+		expect(mockApproveTheme).not.toHaveBeenCalled();
+		expect(mockGoto).toHaveBeenCalledWith('/admin/topics/t1/fact-research');
 	});
 });

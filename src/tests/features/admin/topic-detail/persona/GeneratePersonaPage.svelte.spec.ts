@@ -205,6 +205,20 @@ describe('GeneratePersonaPage', () => {
 		expect(goto).toHaveBeenCalledWith('/admin/topics/t1/chapters');
 	});
 
+	it('前進が失敗したときは遷移せず操作ペインにエラーを表示する', async () => {
+		state.phaseStatus = 'generated';
+		state.stakeholders = [makeStakeholder('sid-a', '医師')];
+		state.personas = [makePersona({ id: 'p1', stakeholderId: 'sid-a', selected: true })];
+		spies.advancePastPersonas.mockRejectedValueOnce(new Error('fail'));
+
+		mount();
+
+		await page.getByRole('button', { name: '次に進む' }).click();
+
+		expect(goto).not.toHaveBeenCalled();
+		await expect.element(page.getByRole('alert')).toBeInTheDocument();
+	});
+
 	it('採用が0件だと「次に進む」が不活性になる（採用ゲート）', async () => {
 		state.phaseStatus = 'generated';
 		state.stakeholders = [makeStakeholder('sid-a', '医師')];
@@ -221,7 +235,12 @@ describe('GeneratePersonaPage', () => {
 		state.phaseStatus = 'not_started';
 		state.stakeholders = [makeStakeholder('sid-a', '医師')];
 		state.personas = [
-			makePersona({ id: 'p1', stakeholderId: 'sid-a', selected: true, interview: { status: 'completed' } })
+			makePersona({
+				id: 'p1',
+				stakeholderId: 'sid-a',
+				selected: true,
+				interview: { status: 'completed' }
+			})
 		];
 
 		mount();

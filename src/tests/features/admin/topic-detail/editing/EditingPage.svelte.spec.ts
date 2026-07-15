@@ -24,7 +24,8 @@ const { spies, state } = vi.hoisted(() => ({
 	}
 }));
 
-vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
+const { goto } = vi.hoisted(() => ({ goto: vi.fn() }));
+vi.mock('$app/navigation', () => ({ goto }));
 
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
@@ -78,6 +79,41 @@ afterEach(() => {
 });
 
 describe('EditingPage', () => {
+	it('最終ステップのため「次に進む」を出さない', async () => {
+		mount();
+
+		expect(page.getByRole('button', { name: '次に進む' }).elements()).toHaveLength(0);
+	});
+
+	it('討論未完了でもゲート文言を出しつつ「前に戻る」から討論画面へ戻れる', async () => {
+		// 討論がまだ実行中＝編集の前提未充足。
+		state.phase = 'debate';
+		state.phaseStatus = 'running';
+
+		mount();
+
+		await expect
+			.element(page.getByText('討論が完了すると編集を開始できます。'))
+			.toBeInTheDocument();
+		// 討論未完了では中央の実行ボタンは出さない。
+		expect(page.getByRole('button', { name: '編集を開始する' }).elements()).toHaveLength(0);
+
+		await page.getByRole('button', { name: '前に戻る' }).click();
+		expect(goto).toHaveBeenCalledWith('/admin/topics/t1/debate');
+	});
+
+	it('討論完了後は中央に実行操作を出し、前に戻るで討論画面へ戻れる', async () => {
+		state.phase = 'editing';
+		state.phaseStatus = 'not_started';
+
+		mount();
+
+		await expect.element(page.getByRole('button', { name: '編集を開始する' })).toBeInTheDocument();
+
+		await page.getByRole('button', { name: '前に戻る' }).click();
+		expect(goto).toHaveBeenCalledWith('/admin/topics/t1/debate');
+	});
+
 	it('やり直しは確認後に startEditing のみを呼ぶ（resetEditing を呼ばない）', async () => {
 		mount();
 

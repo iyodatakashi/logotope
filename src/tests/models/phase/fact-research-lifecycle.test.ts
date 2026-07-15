@@ -4,10 +4,11 @@ import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
 import type { PhaseStatus } from '$lib/models/phase/phase.types';
 
 /**
- * 事実リサーチフェーズのライフサイクル検証（R2.1・R2.2・R2.6）。
- * 実行→承認・実行せず承認のどちらの経路も同じ nextPhase('fact-research')==='personas' 前進を通り、
+ * 事実リサーチフェーズのライフサイクル検証（R2.1・R2.2・R2.5）。
+ * 承認による phase 前進は結果が空でも空でなくても同じ nextPhase('fact-research')==='personas' を通り、
  * 未承認の間はペルソナ以降が not_started（layout リダイレクトが phaseOrder で担保）になることを、
- * フェーズモデルの純粋関数で end-to-end に固定する（フェーズ統合後は fact-research の次が personas）。
+ * フェーズモデルの純粋関数で end-to-end に固定する（画面遷移は各画面が直接持つが、ドメイン前進は
+ * 引き続き nextPhase＝advancePhase 経路で成立する）。
  */
 describe('事実リサーチのライフサイクルとゲート（R2.2）', () => {
 	it('事実リサーチがテーマ設定の直後・ペルソナ生成の直前にある（R2.1）', () => {
@@ -16,13 +17,13 @@ describe('事実リサーチのライフサイクルとゲート（R2.2）', () 
 		expect(phaseOrder('personas')).toBe(2);
 	});
 
-	it('承認（実行あり）はペルソナ生成へ前進する', () => {
-		// 実行→編集→承認: generated 状態から承認して次フェーズへ
+	it('承認（advancePhase）はペルソナ生成へ前進する', () => {
+		// generated 状態から approveFactResearch＝advancePhase('fact-research') で次フェーズへ
 		expect(nextPhase('fact-research')).toBe('personas');
 	});
 
-	it('実行せず承認（空確定）も同じ nextPhase 経路でペルソナ生成へ前進する（R2.5）', () => {
-		// 空承認も approveFactResearch＝advancePhase('fact-research') を通るため経路は同一
+	it('結果が空でも承認は同じ nextPhase 経路でペルソナ生成へ前進する（R2.5）', () => {
+		// 空の事実基盤でも approveFactResearch＝advancePhase('fact-research') を通るため経路は同一
 		expect(nextPhase('fact-research')).toBe('personas');
 	});
 
