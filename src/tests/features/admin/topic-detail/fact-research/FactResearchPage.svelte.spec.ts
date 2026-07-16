@@ -136,8 +136,8 @@ describe('FactResearchPage', () => {
 	it('再調査は確認後にサーバ権威の単一操作のみを呼ぶ（下流 reset を呼ばない）', async () => {
 		mount();
 
-		await page.getByRole('button', { name: '再調査する' }).click();
-		await page.getByRole('button', { name: '再実行する' }).click();
+		await page.getByRole('button', { name: '事実リサーチを再実行する' }).click();
+		await page.getByRole('button', { name: '再実行する', exact: true }).click();
 
 		expect(spies.generateFactResearch).toHaveBeenCalledOnce();
 		expect(spies.resetStakeholders).not.toHaveBeenCalled();
@@ -156,8 +156,8 @@ describe('FactResearchPage', () => {
 
 		await expect.element(page.getByText('旧事実').first()).toBeInTheDocument();
 
-		await page.getByRole('button', { name: '再調査する' }).click();
-		await page.getByRole('button', { name: '再実行する' }).click();
+		await page.getByRole('button', { name: '事実リサーチを再実行する' }).click();
+		await page.getByRole('button', { name: '再実行する', exact: true }).click();
 
 		// 実状態はまだ fact-research/generated（旧事実残存）だが、実行中スケルトンで即時に隠れる。
 		expect(page.getByText('旧事実').elements()).toHaveLength(0);

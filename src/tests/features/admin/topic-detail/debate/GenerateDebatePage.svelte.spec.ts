@@ -82,23 +82,27 @@ describe('GenerateDebatePage', () => {
 		expect(page.getByRole('checkbox', { name: '1章で討論を終了する' }).elements()).toHaveLength(0);
 	});
 
-	it('実行中は中央に停止ボタンを出す', async () => {
+	it('実行中は中央に停止ボタンを出し、確認後に停止する', async () => {
 		state.phaseStatus = 'running';
 
 		mount();
 
-		await expect.element(page.getByRole('button', { name: '討論を停止する' })).toBeInTheDocument();
-		await page.getByRole('button', { name: '討論を停止する' }).click();
+		await expect
+			.element(page.getByRole('button', { name: '討論を停止する' }).first())
+			.toBeInTheDocument();
+		// 中央の停止ボタン→確認ダイアログ→ダイアログの停止ボタンで stopDebate を呼ぶ。
+		await page.getByRole('button', { name: '討論を停止する' }).first().click();
+		await page.getByRole('button', { name: '討論を停止する' }).nth(1).click();
 		expect(spies.stopDebate).toHaveBeenCalledOnce();
 	});
 
-	it('停止状態では「最初からやり直す」1つだけを出し「再開する」は出さない', async () => {
+	it('停止状態では「討論を最初からやり直す」1つだけを出し「再開する」は出さない', async () => {
 		state.phaseStatus = 'stopped';
 
 		mount();
 
 		await expect
-			.element(page.getByRole('button', { name: '最初からやり直す', exact: true }).first())
+			.element(page.getByRole('button', { name: '討論を最初からやり直す' }))
 			.toBeInTheDocument();
 		expect(page.getByRole('button', { name: '討論を再開する' }).elements()).toHaveLength(0);
 	});
@@ -153,8 +157,8 @@ describe('GenerateDebatePage', () => {
 
 		mount();
 
-		await page.getByRole('button', { name: '最初からやり直す', exact: true }).nth(0).click();
-		await page.getByRole('button', { name: '最初からやり直す', exact: true }).nth(1).click();
+		await page.getByRole('button', { name: '討論を最初からやり直す' }).click();
+		await page.getByRole('button', { name: '最初からやり直す', exact: true }).click();
 
 		expect(spies.startDebate).toHaveBeenCalledOnce();
 		expect(spies.startDebate).toHaveBeenCalledWith();

@@ -85,7 +85,7 @@ describe('GenerateChaptersPage', () => {
 		mount();
 
 		await expect
-			.element(page.getByRole('button', { name: '章立てを生成する' }))
+			.element(page.getByRole('button', { name: 'アジェンダを生成する' }))
 			.toBeInTheDocument();
 		expect(page.getByRole('button', { name: '承認して次へ進む' }).elements()).toHaveLength(0);
 	});
@@ -130,8 +130,8 @@ describe('GenerateChaptersPage', () => {
 	it('再生成は確認後にサーバ権威の単一操作のみを呼ぶ（下流 reset を呼ばない）', async () => {
 		mount();
 
+		await page.getByRole('button', { name: 'アジェンダを再生成する' }).click();
 		await page.getByRole('button', { name: '再生成する', exact: true }).click();
-		await page.getByRole('button', { name: '再生成する', exact: true }).nth(1).click();
 
 		expect(spies.generateChapters).toHaveBeenCalledOnce();
 		expect(spies.resetChapters).not.toHaveBeenCalled();
@@ -148,8 +148,8 @@ describe('GenerateChaptersPage', () => {
 
 		await expect.element(page.getByText('旧論点').first()).toBeInTheDocument();
 
+		await page.getByRole('button', { name: 'アジェンダを再生成する' }).click();
 		await page.getByRole('button', { name: '再生成する', exact: true }).click();
-		await page.getByRole('button', { name: '再生成する', exact: true }).nth(1).click();
 
 		expect(page.getByText('旧論点').elements()).toHaveLength(0);
 	});
