@@ -210,12 +210,18 @@
 				{#if debateCompleted}
 					{#if logicalState === 'running'}
 						<Button variant="ghost" rounded icon="cached" loading onclick={() => {}}>
-							編集をやり直す
+							編集を開始する
 						</Button>
 					{:else if logicalState === 'not_started'}
 						<Button variant="filled" rounded icon="cached" onclick={start}>編集を開始する</Button>
 					{:else}
-						<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
+						<Button
+							variant="filled"
+							rounded
+							icon="cached"
+							color="var(--danger-color)"
+							onclick={() => regenerateDialog?.open()}
+						>
 							編集をやり直す
 						</Button>
 					{/if}

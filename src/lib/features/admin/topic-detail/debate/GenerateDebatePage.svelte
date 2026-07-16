@@ -18,6 +18,7 @@
 	let isApproving = $state(false);
 	let approveError = $state('');
 
+	let stopDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 
 	const generate = async () => {
@@ -125,10 +126,24 @@
 			{#if logicalState === 'not_started'}
 				<Button variant="filled" rounded icon="cached" onclick={generate}>討論を開始する</Button>
 			{:else if logicalState === 'running'}
-				<Button variant="outlined" rounded onclick={stop}>討論を停止する</Button>
+				<Button
+					variant="filled"
+					rounded
+					icon="block"
+					color="var(--danger-color)"
+					onclick={() => stopDialog?.open()}
+				>
+					討論を停止する
+				</Button>
 			{:else}
-				<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
-					最初からやり直す
+				<Button
+					variant="filled"
+					rounded
+					icon="cached"
+					color="var(--danger-color)"
+					onclick={() => regenerateDialog?.open()}
+				>
+					討論を最初からやり直す
 				</Button>
 			{/if}
 			<div class="generate-debate-page__forward">
@@ -172,6 +187,16 @@
 		</div>
 	{/snippet}
 </PhasePanel>
+
+<ConfirmDialog
+	bind:this={stopDialog}
+	title="討論を停止しますか？"
+	description="討論を途中で停止すると、最初からやり直す必要があります。"
+	danger
+	submitLabel="討論を停止する"
+	cancelLabel="キャンセル"
+	onSubmit={stop}
+/>
 
 <ConfirmDialog
 	bind:this={regenerateDialog}

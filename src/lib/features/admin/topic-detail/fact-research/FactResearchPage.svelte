@@ -107,14 +107,22 @@
 				前に戻る
 			</Button>
 			{#if logicalState === 'running'}
-				<Button variant="ghost" rounded icon="cached" loading onclick={() => {}}>再調査する</Button>
+				<Button variant="ghost" rounded icon="cached" loading onclick={() => {}}>
+					事実リサーチを実行する
+				</Button>
 			{:else if logicalState === 'not_started'}
 				<Button variant="filled" rounded icon="cached" onclick={generate}>
 					事実リサーチを実行する
 				</Button>
 			{:else}
-				<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
-					再調査する
+				<Button
+					variant="filled"
+					rounded
+					icon="cached"
+					color="var(--danger-color)"
+					onclick={() => regenerateDialog?.open()}
+				>
+					事実リサーチを再実行する
 				</Button>
 			{/if}
 			<div class="fact-research-page__forward">

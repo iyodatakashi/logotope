@@ -128,12 +128,22 @@
 				前に戻る
 			</Button>
 			{#if logicalState === 'running'}
-				<Button variant="ghost" rounded icon="cached" loading onclick={() => {}}>再生成する</Button>
+				<Button variant="ghost" rounded icon="cached" loading onclick={() => {}}>
+					アジェンダを生成する
+				</Button>
 			{:else if logicalState === 'not_started'}
-				<Button variant="filled" rounded icon="cached" onclick={generate}>章立てを生成する</Button>
+				<Button variant="filled" rounded icon="cached" onclick={generate}>
+					アジェンダを生成する
+				</Button>
 			{:else}
-				<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
-					再生成する
+				<Button
+					variant="filled"
+					rounded
+					icon="cached"
+					color="var(--danger-color)"
+					onclick={() => regenerateDialog?.open()}
+				>
+					アジェンダを再生成する
 				</Button>
 			{/if}
 			<div class="generate-chapters-page__forward">

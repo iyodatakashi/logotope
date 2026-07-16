@@ -127,13 +127,19 @@
 			{#if isRunning}
 				<Button variant="ghost" rounded loading onclick={() => {}}>ペルソナを生成する</Button>
 			{:else if isGenerated}
-				<Button variant="ghost" rounded icon="cached" onclick={() => regenerateDialog?.open()}>
+				<Button
+					variant="filled"
+					rounded
+					icon="cached"
+					color="var(--danger-color)"
+					onclick={() => regenerateDialog?.open()}
+				>
 					ペルソナを再生成する
 				</Button>
 			{:else}
-				<Button variant="filled" rounded icon="cached" onclick={onExecute}
-					>ペルソナを生成する</Button
-				>
+				<Button variant="filled" rounded icon="cached" onclick={onExecute}>
+					ペルソナを生成する
+				</Button>
 			{/if}
 
 			<div class="generate-persona-page__forward">
