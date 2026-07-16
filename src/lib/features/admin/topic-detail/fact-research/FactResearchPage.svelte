@@ -7,6 +7,7 @@
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import { Button, ConfirmDialog, Skeleton } from '@14ch/svelte-ui';
 	import FactResearchItem from './FactResearchItem.svelte';
+	import FactResearchListSkeleton from './FactResearchItemSkeleton.svelte';
 
 	const PHASE: PhaseSlug = 'fact-research';
 
@@ -149,11 +150,11 @@
 			{#if logicalState === 'not_started'}
 				調査結果はまだありません
 			{:else if logicalState === 'running'}
-				<Skeleton
-					patterns={[{ type: 'box', width: '100%', height: '96px' }]}
-					repeat={4}
-					repeatGap="8px"
-				/>
+				<ul class="fact-research-page__fact-list">
+					{#each Array(5) as _item}
+						<FactResearchListSkeleton />
+					{/each}
+				</ul>
 			{:else if draftFacts.length > 0}
 				<ul class="fact-research-page__fact-list">
 					{#each draftFacts as _fact, index (index)}
@@ -209,7 +210,7 @@
 	.fact-research-page__fact-list {
 		display: flex;
 		flex-direction: column;
-		gap: 8px;
+		gap: 16px;
 	}
 
 	.fact-research-page__empty {
