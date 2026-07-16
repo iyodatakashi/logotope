@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Chapter } from '$lib/models/chapter/chapter.types';
+	import { Icon } from '@14ch/svelte-ui';
 
 	interface Props {
 		chapters: Chapter[];
@@ -17,12 +18,18 @@
 			<div class="debate-chapter-index__title">{chapter.title}</div>
 			{#if chapter === currentChapter && chapter.agendaItemStatuses?.length}
 				<ul class="debate-chapter-index__agenda">
-					{#each chapter.agendaItemStatuses as dp (dp.point)}
-						<li class="debate-chapter-index__agenda-item" data-status={dp.status}>
-							<span class="debate-chapter-index__status-badge"
-								>{dp.status === 'untouched' ? '未' : dp.status === 'introduced' ? '着' : '済'}</span
-							>
-							{dp.point}
+					{#each chapter.agendaItemStatuses as agendaItemStatus (agendaItemStatus.point)}
+						<li class="debate-chapter-index__agenda-item" data-status={agendaItemStatus.status}>
+							{#if agendaItemStatus.status === 'untouched'}
+								<Icon>check_indeterminate_small</Icon>
+							{:else if agendaItemStatus.status === 'introduced'}
+								<Icon>cached</Icon>
+							{:else}
+								<Icon>check</Icon>
+							{/if}
+							<div class="debate-chapter-index__agenda-item__point">
+								{agendaItemStatus.point}
+							</div>
 						</li>
 					{/each}
 				</ul>
@@ -65,25 +72,24 @@
 	}
 	.debate-chapter-index__agenda-item {
 		display: flex;
-		align-items: baseline;
-		gap: 4px;
+		align-items: top;
+		gap: 8px;
 		font-size: var(--svelte-ui-font-size-sm);
 	}
-	.debate-chapter-index__status-badge {
-		flex-shrink: 0;
-		font-size: var(--svelte-ui-font-size-sm);
-		font-weight: 700;
-		padding: 1px 4px;
-		border-radius: 3px;
-		background: #e0e0e0;
-		color: #757575;
+
+	.debate-chapter-index__agenda-item[data-status='introduced'] :global(.icon) {
+		animation: debate-chapter-index-spin 2.4s linear infinite;
 	}
-	.debate-chapter-index__agenda-item[data-status='introduced'] .debate-chapter-index__status-badge {
-		background: #fff3e0;
-		color: #e65100;
+
+	@keyframes debate-chapter-index-spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
-	.debate-chapter-index__agenda-item[data-status='addressed'] .debate-chapter-index__status-badge {
-		background: #e8f5e9;
-		color: #2e7d32;
+
+	@media (prefers-reduced-motion: reduce) {
+		.debate-chapter-index__agenda-item[data-status='introduced'] :global(.icon) {
+			animation: none;
+		}
 	}
 </style>
