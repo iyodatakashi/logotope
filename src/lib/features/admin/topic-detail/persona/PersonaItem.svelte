@@ -74,6 +74,7 @@
 		height: 100%;
 		padding: 16px;
 		background-color: var(--white);
+		border: solid 1px var(--svelte-ui-border-weak-color);
 		border-radius: 4px;
 	}
 
