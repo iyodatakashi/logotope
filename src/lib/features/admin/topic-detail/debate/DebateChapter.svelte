@@ -61,14 +61,14 @@
 					turnId={turn.id}
 					selectedPersonaId={chapter.turns[i + 1]?.personaId ?? chapter.pendingTurn?.personaId}
 				/>
-				{#if awarenesses.length > 0}
+				{#if turn.status === 'evaluating'}
+					<EngagementListSkeleton speakerPersonaId={turn.personaId} />
+				{:else}
 					<ul class="debate-chapter__awarenesses">
 						{#each awarenesses as aw, awIdx (awIdx)}
 							<li>💡 {personaMap.get(aw.personaId)?.name ?? ''}: {aw.content}</li>
 						{/each}
 					</ul>
-				{:else if turn.status === 'evaluating'}
-					<EngagementListSkeleton speakerPersonaId={turn.personaId} />
 				{/if}
 			</div>
 		{/each}
