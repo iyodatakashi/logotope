@@ -4,7 +4,7 @@
 	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import { Button, ConfirmDialog } from '@14ch/svelte-ui';
+	import { Button, ConfirmDialog, Input, Textarea } from '@14ch/svelte-ui';
 
 	const PHASE: PhaseSlug = 'chapters';
 
@@ -167,7 +167,38 @@
 
 	{#snippet content()}
 		<div class="generate-chapters-page__content">
-			{#if !isStarting && !isRegenerating}
+			{#if isStarting || isRegenerating}{:else}
+				{#if chapters}
+					<ol class="generate-chapters-page__chapter-list">
+						{#each chapters as chapter (chapter.id)}
+							<li>
+								<div class="generate-chapter-page__chapter-title">
+									<Input
+										bind:value={chapter.title}
+										inline
+										focusStyle="background"
+										placeholder="チャプタータイトル"
+									/>
+								</div>
+								{#if chapter.agenda?.length}
+									<ul class="generate-chapters-page__agenda-list">
+										{#each chapter.agenda as _agendaItem, i (i)}
+											<li class="generate-chapters-page__agenda-item">
+												<Textarea
+													bind:value={chapter.agenda[i]}
+													inline
+													focusStyle="background"
+													minHeight={0}
+													placeholder="論点"
+												/>
+											</li>
+										{/each}
+									</ul>
+								{/if}
+							</li>
+						{/each}
+					</ol>
+				{/if}
 				{#if chapterIssues?.issues?.length}
 					<section class="generate-chapters-page__issues">
 						<h3>Step 1: 生成した切り口</h3>
@@ -230,25 +261,6 @@
 						</ul>
 					</section>
 				{/if}
-				{#if chapters}
-					<section class="generate-chapters-page__issues">
-						<h3>Step 4: 論点精査結果</h3>
-						<ol class="generate-chapters-page__chapters">
-							{#each chapters as chapter (chapter.id)}
-								<li>
-									<strong>{chapter.title}</strong>
-									{#if chapter.agenda?.length}
-										<ul class="generate-chapters-page__points">
-											{#each chapter.agenda as point, i (i)}
-												<li>{point}</li>
-											{/each}
-										</ul>
-									{/if}
-								</li>
-							{/each}
-						</ol>
-					</section>
-				{/if}
 			{/if}
 		</div>
 	{/snippet}
@@ -283,30 +295,34 @@
 	}
 
 	.generate-chapters-page__content {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
 		max-width: 960px;
 		margin: 0 auto;
 	}
 
-	.generate-chapters-page__chapters {
-		margin: 16px 0;
-		padding-left: 24px;
+	.generate-chapters-page__chapter-list {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
+		gap: 16px;
+		line-height: normal;
 	}
-	.generate-chapters-page__chapters li {
-		line-height: 1.5;
+
+	.generate-chapter-page__chapter-title {
+		font-size: var(--svelte-ui-font-size-lg);
+		font-weight: bold;
 	}
-	.generate-chapters-page__points {
-		margin: 6px 0 0;
+
+	.generate-chapters-page__agenda-list {
+		padding-top: 8px;
 		padding-left: 20px;
 		display: flex;
 		flex-direction: column;
-		gap: 2px;
+		gap: 8px;
 		list-style: disc;
 	}
-	.generate-chapters-page__points li {
-		color: #888;
+	.generate-chapters-page__agenda-item {
 		line-height: 1.5;
 	}
 	.generate-chapters-page__issues {
