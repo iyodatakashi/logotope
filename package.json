@@ -47,6 +47,7 @@
 		"firebase": "^12.14.0",
 		"isomorphic-dompurify": "^3.18.0",
 		"marked": "^18.0.5",
-		"nanoid": "^5.1.11"
+		"nanoid": "^5.1.11",
+		"svelte-dnd-action": "^0.9.74"
 	}
 }

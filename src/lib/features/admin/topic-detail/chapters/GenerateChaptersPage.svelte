@@ -4,9 +4,15 @@
 	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
-	import { Button, ConfirmDialog, Input, Textarea } from '@14ch/svelte-ui';
+	import { Button, ConfirmDialog, Icon, IconButton, Input, Textarea } from '@14ch/svelte-ui';
+	import { dragHandleZone, dragHandle } from 'svelte-dnd-action';
+	import type { DndEvent } from 'svelte-dnd-action';
+	import { flip } from 'svelte/animate';
+	import { nanoid } from 'nanoid';
+	import type { Chapter } from '$lib/models/chapter/chapter.types';
 
 	const PHASE: PhaseSlug = 'chapters';
+	const FLIP_MS = 150;
 
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 	// 「次に進む」押下中の loading・多重押下抑止と、承認失敗時のエラー表示。
@@ -65,6 +71,120 @@
 		if ((real === 'running' || real === 'stopped') && !hasChapterData) {
 			isRegenerating = false;
 		}
+	});
+
+	// ---- 章立ての手動編集（タイトル/論点の編集・並べ替え・追加削除） ----
+	// Firestore の agenda は string[] で安定 id を持たないため、編集用に {id,text} を付与したローカルモデルを持つ。
+	// 章の id 構成（追加・削除・並べ替え・再生成）が変わったときだけ再シードし、テキスト編集中の巻き戻りを避ける。
+	type EditAgendaItem = { id: string; text: string };
+	type EditChapter = { id: string; title: string; agenda: EditAgendaItem[] };
+
+	let editChapters = $state<EditChapter[]>([]);
+	let seededSignature = '';
+
+	const toEditChapter = (chapter: Chapter): EditChapter => ({
+		id: chapter.id,
+		title: chapter.title,
+		agenda: (chapter.agenda ?? []).map((text) => ({ id: nanoid(), text }))
+	});
+
+	$effect(() => {
+		const storeChapters = currentTopicStore.chaptersStore.chapters;
+		const signature = storeChapters.map((chapter) => chapter.id).join(',');
+		if (signature === seededSignature) return;
+		seededSignature = signature;
+		editChapters = storeChapters.map(toEditChapter);
+	});
+
+	const findEditChapter = (chapterId: string) =>
+		editChapters.find((chapter) => chapter.id === chapterId);
+
+	// タイトル・論点をまとめて当該章へ保存。テキスト編集はデバウンス、構造変更（並べ替え・追加削除）は即時に呼ぶ。
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	const saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	const saveChapter = (chapterId: string) => {
+		const chapter = findEditChapter(chapterId);
+		if (!chapter) return;
+		currentTopicStore.chaptersStore.updateChapter(chapterId, {
+			title: chapter.title,
+			agenda: chapter.agenda.map((item) => item.text)
+		});
+	};
+	const scheduleSave = (chapterId: string) => {
+		clearTimeout(saveTimers.get(chapterId));
+		saveTimers.set(
+			chapterId,
+			setTimeout(() => saveChapter(chapterId), 600)
+		);
+	};
+
+	const handleChaptersConsider = (event: CustomEvent<DndEvent<EditChapter>>) => {
+		editChapters = event.detail.items;
+	};
+	const handleChaptersFinalize = (event: CustomEvent<DndEvent<EditChapter>>) => {
+		editChapters = event.detail.items;
+		currentTopicStore.chaptersStore.reorderChapters(editChapters.map((chapter) => chapter.id));
+	};
+
+	const handleAgendaConsider = (
+		chapterId: string,
+		event: CustomEvent<DndEvent<EditAgendaItem>>
+	) => {
+		const chapter = findEditChapter(chapterId);
+		if (chapter) chapter.agenda = event.detail.items;
+	};
+	const handleAgendaFinalize = (
+		chapterId: string,
+		event: CustomEvent<DndEvent<EditAgendaItem>>
+	) => {
+		const chapter = findEditChapter(chapterId);
+		if (!chapter) return;
+		chapter.agenda = event.detail.items;
+		saveChapter(chapterId);
+	};
+
+	const addAgendaItem = (chapterId: string) => {
+		const chapter = findEditChapter(chapterId);
+		if (!chapter) return;
+		chapter.agenda = [...chapter.agenda, { id: nanoid(), text: '' }];
+		saveChapter(chapterId);
+	};
+	const removeAgendaItem = (chapterId: string, itemId: string) => {
+		const chapter = findEditChapter(chapterId);
+		if (!chapter) return;
+		chapter.agenda = chapter.agenda.filter((item) => item.id !== itemId);
+		saveChapter(chapterId);
+	};
+
+	const addChapter = () => currentTopicStore.chaptersStore.addChapter();
+
+	let deleteChapterDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
+	let deleteTargetChapterId: string | null = $state(null);
+	const requestDeleteChapter = (chapterId: string) => {
+		deleteTargetChapterId = chapterId;
+		deleteChapterDialog?.open();
+	};
+	const confirmDeleteChapter = () => {
+		if (deleteTargetChapterId) currentTopicStore.chaptersStore.deleteChapter(deleteTargetChapterId);
+		deleteTargetChapterId = null;
+	};
+
+	let deleteAgendaDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
+	let deleteAgendaTarget: { chapterId: string; itemId: string } | null = $state(null);
+	const requestDeleteAgendaItem = (chapterId: string, itemId: string) => {
+		deleteAgendaTarget = { chapterId, itemId };
+		deleteAgendaDialog?.open();
+	};
+	const confirmDeleteAgendaItem = () => {
+		if (deleteAgendaTarget)
+			removeAgendaItem(deleteAgendaTarget.chapterId, deleteAgendaTarget.itemId);
+		deleteAgendaTarget = null;
+	};
+	const deleteAgendaText = $derived.by(() => {
+		const target = deleteAgendaTarget;
+		if (!target) return '';
+		const chapter = findEditChapter(target.chapterId);
+		return chapter?.agenda.find((item) => item.id === target.itemId)?.text ?? '';
 	});
 
 	const generate = async () => {
@@ -169,35 +289,105 @@
 		<div class="generate-chapters-page__content">
 			{#if isStarting || isRegenerating}{:else}
 				{#if chapters}
-					<ol class="generate-chapters-page__chapter-list">
-						{#each chapters as chapter (chapter.id)}
-							<li>
-								<div class="generate-chapter-page__chapter-title">
-									<Input
-										bind:value={chapter.title}
-										inline
-										focusStyle="background"
-										placeholder="チャプタータイトル"
-									/>
+					<ol
+						class="generate-chapters-page__chapter-list"
+						use:dragHandleZone={{ items: editChapters, flipDurationMs: FLIP_MS, type: 'chapters' }}
+						onconsider={handleChaptersConsider}
+						onfinalize={handleChaptersFinalize}
+					>
+						{#each editChapters as chapter (chapter.id)}
+							<li class="generate-chapters-page__chapter" animate:flip={{ duration: FLIP_MS }}>
+								<div class="generate-chapters-page__chapter-header">
+									<span
+										class="generate-chapters-page__drag-handle"
+										use:dragHandle
+										aria-label="チャプターを並べ替え"
+									>
+										<Icon>drag_handle</Icon>
+									</span>
+									<div class="generate-chapters-page__chapter-title">
+										<Input
+											bind:value={chapter.title}
+											oninput={() => scheduleSave(chapter.id)}
+											inline
+											fullWidth
+											focusStyle="background"
+											placeholder="チャプタータイトル"
+										/>
+									</div>
+									<IconButton
+										ariaLabel="チャプターを削除"
+										iconFilled
+										onclick={() => requestDeleteChapter(chapter.id)}
+									>
+										cancel
+									</IconButton>
 								</div>
-								{#if chapter.agenda?.length}
-									<ul class="generate-chapters-page__agenda-list">
-										{#each chapter.agenda as _agendaItem, i (i)}
-											<li class="generate-chapters-page__agenda-item">
+
+								<ul
+									class="generate-chapters-page__agenda-list"
+									use:dragHandleZone={{
+										items: chapter.agenda,
+										flipDurationMs: FLIP_MS,
+										type: `agenda-${chapter.id}`
+									}}
+									onconsider={(event) => handleAgendaConsider(chapter.id, event)}
+									onfinalize={(event) => handleAgendaFinalize(chapter.id, event)}
+								>
+									{#each chapter.agenda as item (item.id)}
+										<li
+											class="generate-chapters-page__agenda-item"
+											animate:flip={{ duration: FLIP_MS }}
+										>
+											<span
+												class="generate-chapters-page__drag-handle"
+												use:dragHandle
+												aria-label="論点を並べ替え"
+											>
+												<Icon>drag_handle</Icon>
+											</span>
+											<div class="generate-chapters-page__agenda-text">
 												<Textarea
-													bind:value={chapter.agenda[i]}
+													bind:value={item.text}
+													oninput={() => scheduleSave(chapter.id)}
 													inline
 													focusStyle="background"
 													minHeight={0}
 													placeholder="論点"
 												/>
-											</li>
-										{/each}
-									</ul>
-								{/if}
+											</div>
+											<IconButton
+												ariaLabel="論点を削除"
+												iconFilled
+												fontSize={18}
+												onclick={() => requestDeleteAgendaItem(chapter.id, item.id)}
+											>
+												cancel
+											</IconButton>
+										</li>
+									{/each}
+								</ul>
+
+								<div class="generate-chapters-page__agenda-add">
+									<Button
+										variant="ghost"
+										size="small"
+										icon="add"
+										rounded
+										onclick={() => addAgendaItem(chapter.id)}
+									>
+										論点を追加
+									</Button>
+								</div>
 							</li>
 						{/each}
 					</ol>
+
+					<div class="generate-chapters-page__chapter-add">
+						<Button variant="ghost" rounded icon="add" onclick={addChapter}>
+							チャプターを追加
+						</Button>
+					</div>
 				{/if}
 				{#if chapterIssues?.issues?.length}
 					<section class="generate-chapters-page__issues">
@@ -276,6 +466,26 @@
 	onSubmit={regenerate}
 />
 
+<ConfirmDialog
+	bind:this={deleteChapterDialog}
+	title="このチャプターを削除しますか？"
+	description="チャプターと、その中の討論・編集データも削除されます。"
+	danger
+	submitLabel="削除する"
+	cancelLabel="キャンセル"
+	onSubmit={confirmDeleteChapter}
+/>
+
+<ConfirmDialog
+	bind:this={deleteAgendaDialog}
+	title="この論点を削除しますか？"
+	description={deleteAgendaText}
+	danger
+	submitLabel="削除する"
+	cancelLabel="キャンセル"
+	onSubmit={confirmDeleteAgendaItem}
+/>
+
 <style>
 	.generate-chapters-page__actions {
 		display: flex;
@@ -307,23 +517,62 @@
 		flex-direction: column;
 		gap: 16px;
 		line-height: normal;
+		list-style: none;
+		padding: 0;
 	}
 
-	.generate-chapter-page__chapter-title {
+	.generate-chapters-page__chapter {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
+	.generate-chapters-page__chapter-header {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.generate-chapters-page__chapter-title {
+		flex: 1;
 		font-size: var(--svelte-ui-font-size-lg);
 		font-weight: bold;
 	}
 
+	.generate-chapters-page__drag-handle {
+		display: inline-flex;
+		align-items: center;
+		color: var(--svelte-ui-text-subtle-color);
+		cursor: grab;
+		touch-action: none;
+	}
+
 	.generate-chapters-page__agenda-list {
-		padding-top: 8px;
-		padding-left: 20px;
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		list-style: disc;
+		padding: 0 0 0 28px;
+		list-style: none;
 	}
+
 	.generate-chapters-page__agenda-item {
+		display: flex;
+		align-items: center;
+		gap: 8px;
 		line-height: 1.5;
+	}
+
+	.generate-chapters-page__agenda-text {
+		flex: 1;
+	}
+
+	.generate-chapters-page__agenda-add {
+		padding-left: 28px;
+	}
+
+	.generate-chapters-page__chapter-add {
+		display: flex;
+		justify-content: center;
 	}
 	.generate-chapters-page__issues {
 		border: 1px solid #e0e0e0;
