@@ -43,14 +43,11 @@
 		display: flex;
 		flex-wrap: wrap;
 		gap: 4px;
-		margin-top: 6px;
 	}
 	.engagement-list__engagement {
 		font-size: var(--svelte-ui-font-size-sm);
-		padding: 1px 6px;
+		padding: 0 8px;
 		border-radius: 3px;
-		background: #eee;
-		color: #555;
 	}
 	.engagement-list__engagement[data-mode='opinion'] {
 		background: #e8f5e9;

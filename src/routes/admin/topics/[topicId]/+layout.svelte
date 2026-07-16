@@ -106,7 +106,7 @@
 	}
 
 	.topic-detail-layout__body {
-		background: var(--base-100);
+		background: var(--base-50);
 		overflow: hidden;
 	}
 </style>
