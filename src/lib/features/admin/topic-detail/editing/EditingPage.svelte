@@ -232,74 +232,76 @@
 		</div>
 	{/snippet}
 	{#snippet content()}
-		{#if !debateCompleted}
-			<!-- 討論完了前は編集開始の前提を満たさない（画面側の大前提ゲート・Req 6.10） -->
-			<div class="editing-page__editing-gate">討論が完了すると編集を開始できます。</div>
-		{:else}
-			<div class="editing-page__content">
-				{#if displayChapters.length}
-					<div class="editing-page__toolbar">
-						<Checkbox bind:value={showDiff}>原本との差分を表示</Checkbox>
-					</div>
-				{/if}
+		<div class="editing-page__content">
+			{#if !debateCompleted}
+				<!-- 討論完了前は編集開始の前提を満たさない（画面側の大前提ゲート・Req 6.10） -->
+				<div class="editing-page__editing-gate">討論が完了すると編集を開始できます。</div>
+			{:else}
+				<div class="editing-page__content">
+					{#if displayChapters.length}
+						<div class="editing-page__toolbar">
+							<Checkbox bind:value={showDiff}>原本との差分を表示</Checkbox>
+						</div>
+					{/if}
 
-				<!-- 導入（intro）＝記事の先頭。生成前でも枠は常に出す。 -->
-				<EditingNarration
-					label="導入"
-					part={currentTopicStore.editorialStore.intro}
-					{showDiff}
-					onRegenerate={() => regenerateArticleElement({ kind: 'intro' })}
-				/>
+					<!-- 導入（intro）＝記事の先頭。生成前でも枠は常に出す。 -->
+					<EditingNarration
+						label="導入"
+						part={currentTopicStore.editorialStore.intro}
+						{showDiff}
+						onRegenerate={() => regenerateArticleElement({ kind: 'intro' })}
+					/>
 
-				<!-- 本体（body＝章） -->
-				{#if displayChapters.length}
-					<div class="editing-page__chapters">
-						{#each displayChapters as chapter (chapter.id)}
-							<EditingChapter
-								title={chapter.title}
-								status={chapter.status}
-								failureReason={chapter.failureReason}
-								showRegenerate={isEditingFinished && chapter.canRegenerate}
-								turns={chapter.turns}
-								sourceTurns={chapter.sourceTurns}
-								{showDiff}
-								onRegenerate={() =>
-									regenerateArticleElement({ kind: 'chapter', chapterId: chapter.id })}
-							/>
-						{/each}
-					</div>
-				{/if}
-
-				<!-- 締め（outro）＝本体の後。生成前でも枠は常に出す。 -->
-				<EditingNarration
-					label="締め"
-					part={currentTopicStore.editorialStore.outro}
-					{showDiff}
-					onRegenerate={() => regenerateArticleElement({ kind: 'outro' })}
-				/>
-
-				<!-- 所感（impressions）＝締めの後。参加者ごとの締めの所感。 -->
-				{#if displayImpressions.length}
-					<section class="editing-page__impressions">
-						<h3 class="editing-page__impressions-label">所感</h3>
-						<div class="editing-page__impressions-list">
-							{#each displayImpressions as impression (impression.personaId)}
-								<EditingImpression
-									personaId={impression.personaId}
-									part={impression.part}
+					<!-- 本体（body＝章） -->
+					{#if displayChapters.length}
+						<div class="editing-page__chapters">
+							{#each displayChapters as chapter (chapter.id)}
+								<EditingChapter
+									title={chapter.title}
+									status={chapter.status}
+									failureReason={chapter.failureReason}
+									showRegenerate={isEditingFinished && chapter.canRegenerate}
+									turns={chapter.turns}
+									sourceTurns={chapter.sourceTurns}
 									{showDiff}
 									onRegenerate={() =>
-										regenerateArticleElement({
-											kind: 'impression',
-											personaId: impression.personaId
-										})}
+										regenerateArticleElement({ kind: 'chapter', chapterId: chapter.id })}
 								/>
 							{/each}
 						</div>
-					</section>
-				{/if}
-			</div>
-		{/if}
+					{/if}
+
+					<!-- 締め（outro）＝本体の後。生成前でも枠は常に出す。 -->
+					<EditingNarration
+						label="締め"
+						part={currentTopicStore.editorialStore.outro}
+						{showDiff}
+						onRegenerate={() => regenerateArticleElement({ kind: 'outro' })}
+					/>
+
+					<!-- 所感（impressions）＝締めの後。参加者ごとの締めの所感。 -->
+					{#if displayImpressions.length}
+						<section class="editing-page__impressions">
+							<h3 class="editing-page__impressions-label">所感</h3>
+							<div class="editing-page__impressions-list">
+								{#each displayImpressions as impression (impression.personaId)}
+									<EditingImpression
+										personaId={impression.personaId}
+										part={impression.part}
+										{showDiff}
+										onRegenerate={() =>
+											regenerateArticleElement({
+												kind: 'impression',
+												personaId: impression.personaId
+											})}
+									/>
+								{/each}
+							</div>
+						</section>
+					{/if}
+				</div>
+			{/if}
+		</div>
 	{/snippet}
 </PhasePanel>
 
@@ -345,6 +347,8 @@
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
+		max-width: 960px;
+		margin: 0 auto;
 	}
 
 	.editing-page__chapters {
