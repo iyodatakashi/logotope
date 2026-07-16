@@ -81,7 +81,7 @@
 	--select-color: var(--primary-color-tp200);
 	--select-color-dark: var(--primary-color-tp300);
 	--focus-color: var(--primary-500);
-	--effect-color: #e53734;
+	--effect-color: var(--svelte-ui-danger-color);
 	--link-color: var(--primary-600);
 	--link-color-light: var(--primary-500);
 
@@ -89,8 +89,8 @@
 	--text-light: var(--base-500);
 	--text-white: rgba(255, 255, 255, 0.9);
 	--text-white-light: rgba(255, 255, 255, 0.5);
-	--text-error: #db5757;
-	--danger-color: #db5757;
+	--text-error: var(--svelte-ui-danger-color);
+	--danger-color: var(--svelte-ui-danger-color);
 	--danger-color-light: #e89292;
 
 	--border-color: var(--base-200-transparent);
