@@ -60,7 +60,7 @@
 						inline
 						focusStyle="background"
 						placeholder="タイトルを入力してください"
-						disabled={!phaseEditable({ published: currentTopicStore.topic.published }, 'theme')}
+						readonly={!phaseEditable({ published: currentTopicStore.topic.published }, 'theme')}
 						onchange={save}
 					/>
 				</h2>
