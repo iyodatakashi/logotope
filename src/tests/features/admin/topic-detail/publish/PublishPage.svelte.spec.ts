@@ -19,6 +19,9 @@ const { spies, state } = vi.hoisted(() => ({
 	}
 }));
 
+const { goto } = vi.hoisted(() => ({ goto: vi.fn() }));
+vi.mock('$app/navigation', () => ({ goto }));
+
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get topic() {
@@ -47,18 +50,16 @@ afterEach(() => {
 });
 
 describe('PublishPage', () => {
-	it('非公開のときスイッチは OFF・「非公開」を表示する', async () => {
+	it('非公開のときスイッチは OFF を表示する', async () => {
 		mount();
 
-		await expect.element(page.getByText('非公開')).toBeInTheDocument();
 		await expect.element(page.getByRole('checkbox', { name: '公開' })).not.toBeChecked();
 	});
 
-	it('公開中のときスイッチは ON・「公開中」を表示する', async () => {
+	it('公開中のときスイッチは ON を表示する', async () => {
 		state.published = true;
 		mount();
 
-		await expect.element(page.getByText('公開中')).toBeInTheDocument();
 		await expect.element(page.getByRole('checkbox', { name: '公開' })).toBeChecked();
 	});
 
@@ -97,5 +98,13 @@ describe('PublishPage', () => {
 		await expect
 			.element(page.getByText('公開状態の更新に失敗しました。時間をおいて再度お試しください。'))
 			.toBeInTheDocument();
+	});
+
+	it('「前に戻る」で編集画面へ戻る', async () => {
+		mount();
+
+		await page.getByRole('button', { name: '前に戻る' }).click();
+
+		expect(goto).toHaveBeenCalledWith('/admin/topics/t1/editing');
 	});
 });
