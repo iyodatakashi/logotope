@@ -1,49 +1,38 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import TopicListItem from '$lib/features/topics/list/TopicListItem.svelte';
-	import { topicsStore } from '$lib/stores/topics.svelte';
+	import { navigating } from '$app/state';
+	import PublishedTopicItem from '$lib/features/public/PublishedTopicItem.svelte';
+	import type { PageData } from './$types';
 
-	const topics = $derived(
-		topicsStore.topics
-			.filter((topic) => topic.published)
-			.sort(
-				(a, b) =>
-					(b.publishedAt ?? b.updatedAt).getTime() - (a.publishedAt ?? a.updatedAt).getTime()
-			)
-	);
-	const loaded = $derived(topicsStore.isLoaded);
+	interface Props {
+		data: PageData;
+	}
 
-	onMount(() => {
-		topicsStore.start();
-		return () => topicsStore.stop();
-	});
+	let { data }: Props = $props();
 </script>
 
 <svelte:head>
-	<title>logotope — 多様な視点から議論を可視化</title>
-	<meta name="description" content="AIが多様な立場の意見を公平に可視化する討論プラットフォーム。" />
-	<meta property="og:title" content="logotope — 多様な視点から議論を可視化" />
-	<meta
-		property="og:description"
-		content="AIが多様な立場の意見を公平に可視化する討論プラットフォーム。"
-	/>
+	<title>logotope — 公開された討論一覧</title>
+	<meta name="description" content="公開された討論記事の一覧。多様な立場の意見に触れる入口です。" />
+	<meta property="og:title" content="logotope — 公開された討論一覧" />
+	<meta property="og:description" content="公開された討論記事の一覧。多様な立場の意見に触れる入口です。" />
 </svelte:head>
 
 <main class="home-page">
-	<header>
-		<h1>logotope</h1>
-		<p class="home-page__tagline">AIが多様な立場の意見を公平に可視化する討論プラットフォーム</p>
+	<header class="home-page__header">
+		<h1 class="home-page__title">logotope</h1>
 	</header>
 
-	{#if !loaded}
-		<p class="home-page__empty">読み込み中...</p>
-	{:else if topics.length === 0}
-		<p class="home-page__empty">公開された討論はまだありません。</p>
+	{#if navigating.to}
+		<p class="home-page__status">読み込み中...</p>
+	{:else if data.loadError}
+		<p class="home-page__status">一覧の取得に失敗しました。時間をおいて再度お試しください。</p>
+	{:else if data.topics.length === 0}
+		<p class="home-page__status">公開された討論はまだありません。</p>
 	{:else}
 		<ul class="home-page__list">
-			{#each topics as topic (topic.id)}
+			{#each data.topics as topic (topic.id)}
 				<li>
-					<TopicListItem {topic} />
+					<PublishedTopicItem {topic} />
 				</li>
 			{/each}
 		</ul>
@@ -56,21 +45,21 @@
 		margin: 0 auto;
 		padding: 32px 16px;
 	}
-	header {
+	.home-page__header {
 		margin-bottom: 32px;
 	}
-	.home-page__tagline {
-		color: #555;
+	.home-page__title {
 		margin: 0;
 	}
 	.home-page__list {
 		list-style: none;
 		padding: 0;
+		margin: 0;
 		display: flex;
 		flex-direction: column;
 		gap: 12px;
 	}
-	.home-page__empty {
+	.home-page__status {
 		color: #757575;
 	}
 </style>
