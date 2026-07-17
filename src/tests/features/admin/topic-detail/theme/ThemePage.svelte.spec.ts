@@ -13,6 +13,7 @@ vi.mock('$app/navigation', () => ({ goto: mockGoto }));
 
 let phase = 'theme';
 let sourceUrls: string[] = [];
+let published = false;
 
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
@@ -24,6 +25,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				sourceUrls,
 				phase,
 				phaseStatus: 'not_started',
+				published,
 				save: mockSave,
 				fetchSourceContents: mockFetchSourceContents,
 				approveTheme: mockApproveTheme
@@ -39,6 +41,7 @@ describe('ThemePage.svelte', () => {
 		vi.clearAllMocks();
 		phase = 'theme';
 		sourceUrls = [];
+		published = false;
 	});
 
 	it('テーマ設定中はタイトル・詳細説明・参考URLを編集でき、前進導線（次に進む）を表示する', async () => {
@@ -85,6 +88,19 @@ describe('ThemePage.svelte', () => {
 
 		expect(mockGoto).not.toHaveBeenCalled();
 		await expect.element(page.getByRole('alert')).toBeInTheDocument();
+	});
+
+	it('公開中はコンテンツ変更操作（タイトル・詳細・URL追加）を凍結する（閲覧・遷移は可能）', async () => {
+		published = true;
+		sourceUrls = ['https://example.com'];
+		render(ThemePage);
+
+		await expect.element(page.getByLabelText('タイトル')).toBeDisabled();
+		await expect.element(page.getByLabelText('詳細説明')).toBeDisabled();
+		await expect.element(page.getByRole('button', { name: 'URLを追加' })).toBeDisabled();
+		// 閲覧・前進は可能（次に進むは無効化しない）。
+		await expect.element(page.getByLabelText('タイトル')).toHaveValue('テストテーマ');
+		await expect.element(page.getByRole('button', { name: '次に進む' })).not.toBeDisabled();
 	});
 
 	it('承認済み（approved）でも編集内容を閲覧でき、押下時は承認を再実行せず遷移のみ行う', async () => {

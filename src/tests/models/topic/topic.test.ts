@@ -160,6 +160,40 @@ describe('createTopicStates', () => {
 		});
 	});
 
+	describe('公開フェーズへの前進・公開/非公開 (publish-phase task 2.3)', () => {
+		it('approveEditing は (publish, not_started) へ前進する（編集確定→公開）', async () => {
+			const store = makeTopic();
+			await store.approveEditing();
+			expect(updateDoc).toHaveBeenCalledWith(
+				TOPIC_PATH,
+				expect.objectContaining({ phase: 'publish', phaseStatus: 'not_started' })
+			);
+		});
+
+		it('publishDebate は published=true と publishedAt を書き、personaCount を再集計する', async () => {
+			vi.mocked(getDocs).mockResolvedValue({ size: 3, docs: [{}, {}, {}] } as never);
+			const store = makeTopic({ id: 't1' });
+			await store.publishDebate();
+			const call = updateCallsFor('topics/t1').at(-1)?.[1] as unknown as Record<string, unknown>;
+			expect(call).toEqual(
+				expect.objectContaining({ published: true, publishedAt: 'NOW', personaCount: 3 })
+			);
+		});
+
+		it('unpublishDebate は published=false のみ書き、publishedAt は書かない（保持）', async () => {
+			const store = makeTopic({ id: 't1' });
+			await store.unpublishDebate();
+			const call = updateCallsFor('topics/t1').at(-1)?.[1] as unknown as Record<string, unknown>;
+			expect(call).toEqual(expect.objectContaining({ published: false }));
+			expect(call).not.toHaveProperty('publishedAt');
+		});
+
+		it('published getter は入力の公開状態を反映する', () => {
+			expect(makeTopic({ published: true }).published).toBe(true);
+			expect(makeTopic({ published: false }).published).toBe(false);
+		});
+	});
+
 	describe('編集フェーズの起動・再実行 (task 6.2)', () => {
 		it('startEditing は startEditing onCall を topicId 付きで呼ぶ', async () => {
 			const callable = vi.fn().mockResolvedValue({ data: { topicId: 't1' } });

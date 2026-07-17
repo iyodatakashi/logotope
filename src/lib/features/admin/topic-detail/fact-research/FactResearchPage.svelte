@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
+	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import type { FactItem } from '$lib/models/factBase/factBase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
@@ -10,6 +10,11 @@
 	import FactResearchListSkeleton from './FactResearchItemSkeleton.svelte';
 
 	const PHASE: PhaseSlug = 'fact-research';
+
+	// 公開中はコンテンツ変更操作を凍結する（閲覧・遷移は許可）。
+	const editable = $derived(
+		phaseEditable({ published: currentTopicStore.topic?.published ?? false }, PHASE)
+	);
 
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 
@@ -112,7 +117,7 @@
 					事実リサーチを実行する
 				</Button>
 			{:else if logicalState === 'not_started'}
-				<Button variant="filled" rounded icon="cached" onclick={generate}>
+				<Button variant="filled" rounded icon="cached" disabled={!editable} onclick={generate}>
 					事実リサーチを実行する
 				</Button>
 			{:else}
@@ -121,6 +126,7 @@
 					rounded
 					icon="cached"
 					color="var(--danger-color)"
+					disabled={!editable}
 					onclick={() => regenerateDialog?.open()}
 				>
 					事実リサーチを再実行する
@@ -162,6 +168,7 @@
 							bind:fact={draftFacts[index]}
 							onchange={save}
 							onRemove={() => removeFact(index)}
+							{editable}
 						/>
 					{/each}
 				</ul>

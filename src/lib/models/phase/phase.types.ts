@@ -4,7 +4,8 @@ export type PhaseSlug =
 	| 'personas'
 	| 'chapters'
 	| 'debate'
-	| 'editing';
+	| 'editing'
+	| 'publish';
 
 // 永続する状態（stopped は全フェーズ共通の失敗・停止状態。error は stopped に集約）
 export type PhaseStatus = 'not_started' | 'running' | 'generated' | 'stopped';

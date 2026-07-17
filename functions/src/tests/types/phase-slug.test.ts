@@ -9,7 +9,8 @@ const CANONICAL_PHASE_KEYS = [
 	'personas',
 	'chapters',
 	'debate',
-	'editing'
+	'editing',
+	'publish'
 ] as const;
 
 // 型網羅チェック: PhaseSlug / GeneratePhase の値が増減すると Record リテラルがコンパイルエラーになる。
@@ -19,7 +20,8 @@ const PHASE_KEY_EXHAUSTIVE: Record<PhaseSlug, true> = {
 	personas: true,
 	chapters: true,
 	debate: true,
-	editing: true
+	editing: true,
+	publish: true
 };
 
 const GENERATE_PHASE_EXHAUSTIVE: Record<GeneratePhase, true> = {
@@ -40,7 +42,8 @@ describe('BE PhaseSlug slug 集合の self-check', () => {
 			'personas',
 			'chapters',
 			'debate',
-			'editing'
+			'editing',
+			'publish'
 		]);
 	});
 

@@ -2,13 +2,18 @@
 	import { Button, ConfirmDialog } from '@14ch/svelte-ui';
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
+	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import DebateChapterIndex from './DebateChapterIndex.svelte';
 	import DebateChapter from './DebateChapter.svelte';
 
 	const PHASE: PhaseSlug = 'debate';
+
+	// 公開中はコンテンツ変更操作を凍結する（閲覧・遷移は許可）。
+	const editable = $derived(
+		phaseEditable({ published: currentTopicStore.topic?.published ?? false }, PHASE)
+	);
 	// 押下直後の楽観的な「実行中」表示用フラグ。討論は running をサーバが書くため
 	// callable 往復のあいだ表示が変わらない。その間を埋める表示専用のフラグ。
 	// isResetting はやり直し時に旧ターンを即時非表示にする。
@@ -124,13 +129,16 @@
 				前に戻る
 			</Button>
 			{#if logicalState === 'not_started'}
-				<Button variant="filled" rounded icon="cached" onclick={generate}>討論を開始する</Button>
+				<Button variant="filled" rounded icon="cached" disabled={!editable} onclick={generate}>
+					討論を開始する
+				</Button>
 			{:else if logicalState === 'running'}
 				<Button
 					variant="filled"
 					rounded
 					icon="block"
 					color="var(--danger-color)"
+					disabled={!editable}
 					onclick={() => stopDialog?.open()}
 				>
 					討論を停止する
@@ -141,6 +149,7 @@
 					rounded
 					icon="cached"
 					color="var(--danger-color)"
+					disabled={!editable}
 					onclick={() => regenerateDialog?.open()}
 				>
 					討論を最初からやり直す

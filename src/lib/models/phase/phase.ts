@@ -14,8 +14,6 @@ export const nextPhase = (key: PhaseSlug): PhaseSlug | null => {
 	return PHASE_DEFS[index + 1].key;
 };
 
-export const isLastPhase = (key: PhaseSlug): boolean => phaseOrder(key) === PHASE_DEFS.length - 1;
-
 export const phasePath = (topicId: string, phase: PhaseSlug): string => {
 	const phaseDefinition = PHASE_DEFS.find((entry) => entry.key === phase) ?? PHASE_DEFS[0];
 	return `/admin/topics/${topicId}/${phaseDefinition.key}`;
@@ -35,17 +33,28 @@ export const phaseLogicalState = (
 	return current.phaseStatus;
 };
 
-// ダッシュボード一覧のバッジ用に (phase, phaseStatus) からラベル/スタイルキーを導出する
+// トピック状態 × 対象フェーズ → 編集可否。phaseLogicalState と同型の導出パターン。
+// 公開画面（publish）は常に編集可（公開中にスイッチを OFF にできる必要がある）。
+// それ以外のフェーズは非公開のときのみ編集可（公開中はコンテンツ変更操作を凍結する）。
+export const phaseEditable = (current: { published: boolean }, target: PhaseSlug): boolean =>
+	target === 'publish' ? true : !current.published;
+
+// ダッシュボード一覧のバッジ用に (phase, phaseStatus, published) からラベル/スタイルキーを導出する。
+// publish フェーズは可逆トグル（published）で完了を判定するため phaseStatus を参照しない。
 export const phaseDisplayLabel = (current: {
 	phase: PhaseSlug;
 	phaseStatus: PhaseStatus;
+	published: boolean;
 }): { label: string; styleKey: string } => {
-	const { phase, phaseStatus } = current;
+	const { phase, phaseStatus, published } = current;
+	if (phase === 'publish')
+		return published
+			? { label: '公開中', styleKey: 'completed' }
+			: { label: '未公開', styleKey: 'pending' };
 	const phaseDefinition = PHASE_DEFS.find((entry) => entry.key === phase) ?? PHASE_DEFS[0];
 	const label = phaseDefinition.statusLabels[phaseStatus];
 	if (phaseStatus === 'running') return { label, styleKey: 'running' };
 	if (phaseStatus === 'stopped') return { label, styleKey: 'stopped' };
-	if (phaseStatus === 'generated')
-		return { label, styleKey: isLastPhase(phase) ? 'completed' : 'ready' };
+	if (phaseStatus === 'generated') return { label, styleKey: 'ready' };
 	return { label, styleKey: 'pending' };
 };

@@ -81,13 +81,14 @@ export const confirmDebateGenerated = async (topicId: string): Promise<boolean> 
 
 /**
  * 討論フェーズが完了（generated 到達）しているかを判定する。編集開始の前提ゲート（Req 5.4）。
- * phase が editing に進んでいる場合は討論を完了して次段へ移っているため完了扱い（編集の再実行を許可する）。
+ * phase が discussion より後（editing / publish）に進んでいる場合は討論を完了して次段へ移っているため
+ * 完了扱い（非公開化後に publish から編集を再実行する経路もブロックしない）。
  */
 export const isDebateCompleted = async (topicId: string): Promise<boolean> => {
 	const snap = await db().doc(`topics/${topicId}`).get();
 	if (!snap.exists) return false;
 	const data = snap.data() as { phase?: PhaseSlug; phaseStatus?: PhaseStatus };
-	if (data.phase === 'editing') return true;
+	if (data.phase === 'editing' || data.phase === 'publish') return true;
 	return data.phase === 'debate' && data.phaseStatus === 'generated';
 };
 

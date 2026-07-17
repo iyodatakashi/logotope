@@ -8,14 +8,16 @@
 
 	let { topic }: Props = $props();
 
-	const formatDate = (date: Date): string => dayjs(date).format('YYYY年M月D日');
+	// publishedAt 未設定（運用上発生しない）を吸収する。日時表示専用で公開判定には使わない。
+	const formatDate = (date: Date | undefined): string =>
+		date ? dayjs(date).format('YYYY年M月D日') : '';
 </script>
 
 <a href="/debate/{topic.id}" class="topic-list-item">
 	<h2 class="topic-list-item__title">{topic.title}</h2>
 	<div class="topic-list-item__meta">
 		<span class="topic-list-item__persona-count">{topic.personaCount ?? 0}名参加</span>
-		{#if topic.publishedAt}
+		{#if topic.published}
 			<span class="topic-list-item__published-at">{formatDate(topic.publishedAt)}</span>
 		{/if}
 	</div>

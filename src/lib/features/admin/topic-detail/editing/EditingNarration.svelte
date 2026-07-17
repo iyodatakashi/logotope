@@ -9,8 +9,9 @@
 		part: Narration; // editorial の intro/outro（{ status, draft, final }）
 		showDiff: boolean;
 		onRegenerate: () => void | Promise<void>; // サーバへの再生成委譲。ローディングは当要素が自持ちする
+		editable?: boolean; // 公開中は再生成を凍結する
 	}
-	let { label, part, showDiff, onRegenerate }: Props = $props();
+	let { label, part, showDiff, onRegenerate, editable = true }: Props = $props();
 
 	// クリック→サーバが生成中を書くまでの遅延分の楽観ローディング（二重実行防止）。
 	// 書き込み後は status（スケルトン）が引き継ぐため、この要素にローカルで閉じてよい。
@@ -54,7 +55,9 @@
 			{:else if outcome === 'gen_failed'}
 				<span class="editing-narration__element-status" data-status="gen_failed">生成失敗</span>
 			{/if}
-			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating}>再生成</Button>
+			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating} disabled={!editable}
+				>再生成</Button
+			>
 		{/if}
 	</div>
 	{#if inProgress}

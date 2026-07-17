@@ -26,6 +26,20 @@ vi.mock('$lib/stores/topics.svelte.js', () => ({
 					title: '停止したテーマ',
 					phase: 'debate',
 					phaseStatus: 'stopped'
+				},
+				{
+					id: 't3',
+					title: '公開されたテーマ',
+					phase: 'publish',
+					phaseStatus: 'not_started',
+					published: true
+				},
+				{
+					id: 't4',
+					title: '下書きのテーマ',
+					phase: 'publish',
+					phaseStatus: 'not_started',
+					published: false
 				}
 			];
 		}
@@ -45,5 +59,11 @@ describe('TopicListPage.svelte', () => {
 		render(TopicListPage);
 		await expect.element(page.getByText('停止したテーマ')).toBeInTheDocument();
 		await expect.element(page.getByText('討論停止')).toBeInTheDocument();
+	});
+
+	it('公開フェーズは published からバッジ（公開中／未公開）を表示する', async () => {
+		render(TopicListPage);
+		await expect.element(page.getByText('公開中', { exact: true })).toBeInTheDocument();
+		await expect.element(page.getByText('未公開', { exact: true })).toBeInTheDocument();
 	});
 });

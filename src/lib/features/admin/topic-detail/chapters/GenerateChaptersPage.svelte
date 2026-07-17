@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
+	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import { Button, ConfirmDialog, Icon, IconButton, Input, Textarea } from '@14ch/svelte-ui';
@@ -12,6 +12,11 @@
 	import type { Chapter } from '$lib/models/chapter/chapter.types';
 
 	const PHASE: PhaseSlug = 'chapters';
+
+	// 公開中はコンテンツ変更操作（生成・並べ替え・インライン編集・追加削除）を凍結する（閲覧・遷移は許可）。
+	const editable = $derived(
+		phaseEditable({ published: currentTopicStore.topic?.published ?? false }, PHASE)
+	);
 	const FLIP_MS = 150;
 
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
@@ -252,7 +257,7 @@
 					アジェンダを生成する
 				</Button>
 			{:else if logicalState === 'not_started'}
-				<Button variant="filled" rounded icon="cached" onclick={generate}>
+				<Button variant="filled" rounded icon="cached" disabled={!editable} onclick={generate}>
 					アジェンダを生成する
 				</Button>
 			{:else}
@@ -261,6 +266,7 @@
 					rounded
 					icon="cached"
 					color="var(--danger-color)"
+					disabled={!editable}
 					onclick={() => regenerateDialog?.open()}
 				>
 					アジェンダを再生成する
@@ -291,7 +297,13 @@
 				{#if chapters}
 					<ol
 						class="generate-chapters-page__chapter-list"
-						use:dragHandleZone={{ items: editChapters, flipDurationMs: FLIP_MS, type: 'chapters' }}
+						use:dragHandleZone={{
+							items: editChapters,
+							flipDurationMs: FLIP_MS,
+							type: 'chapters',
+							dragDisabled: !editable,
+							dropFromOthersDisabled: !editable
+						}}
 						onconsider={handleChaptersConsider}
 						onfinalize={handleChaptersFinalize}
 					>
@@ -313,11 +325,13 @@
 											fullWidth
 											focusStyle="background"
 											placeholder="チャプタータイトル"
+											disabled={!editable}
 										/>
 									</div>
 									<IconButton
 										ariaLabel="チャプターを削除"
 										iconFilled
+										disabled={!editable}
 										onclick={() => requestDeleteChapter(chapter.id)}
 									>
 										cancel
@@ -329,7 +343,9 @@
 									use:dragHandleZone={{
 										items: chapter.agenda,
 										flipDurationMs: FLIP_MS,
-										type: `agenda-${chapter.id}`
+										type: `agenda-${chapter.id}`,
+										dragDisabled: !editable,
+										dropFromOthersDisabled: !editable
 									}}
 									onconsider={(event) => handleAgendaConsider(chapter.id, event)}
 									onfinalize={(event) => handleAgendaFinalize(chapter.id, event)}
@@ -354,12 +370,14 @@
 													focusStyle="background"
 													minHeight={0}
 													placeholder="論点"
+													disabled={!editable}
 												/>
 											</div>
 											<IconButton
 												ariaLabel="論点を削除"
 												iconFilled
 												fontSize={18}
+												disabled={!editable}
 												onclick={() => requestDeleteAgendaItem(chapter.id, item.id)}
 											>
 												cancel
@@ -374,6 +392,7 @@
 										size="small"
 										icon="add"
 										rounded
+										disabled={!editable}
 										onclick={() => addAgendaItem(chapter.id)}
 									>
 										論点を追加
@@ -384,7 +403,7 @@
 					</ol>
 
 					<div class="generate-chapters-page__chapter-add">
-						<Button variant="ghost" rounded icon="add" onclick={addChapter}>
+						<Button variant="ghost" rounded icon="add" disabled={!editable} onclick={addChapter}>
 							チャプターを追加
 						</Button>
 					</div>

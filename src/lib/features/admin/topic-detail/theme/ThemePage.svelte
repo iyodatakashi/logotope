@@ -2,7 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { Button, Input, Textarea } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
+	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import {
@@ -12,6 +12,11 @@
 	} from '$lib/models/topic/topic.constants';
 
 	const PHASE: PhaseSlug = 'theme';
+
+	// 公開中はコンテンツ変更操作を凍結する（閲覧・遷移は許可）。
+	const editable = $derived(
+		phaseEditable({ published: currentTopicStore.topic?.published ?? false }, PHASE)
+	);
 
 	// テーマ設定は生成を伴わないため、状態は not_started（設定中）か approved（承認済み）のみ。
 	const logicalState = $derived.by(() => {
@@ -115,6 +120,7 @@
 						bind:value={currentTopicStore.topic.title}
 						onchange={save}
 						placeholder="討論テーマのタイトルを入力してください（{TITLE_MAX_LENGTH}文字以内）"
+						disabled={!editable}
 						fullWidth
 					/>
 					{#if titleError}
@@ -130,6 +136,7 @@
 						onchange={save}
 						placeholder="テーマの背景・文脈を入力してください（任意・{DESCRIPTION_MAX_LENGTH}文字以内）"
 						rows={6}
+						disabled={!editable}
 						fullWidth
 					/>
 					{#if descriptionError}
@@ -146,9 +153,14 @@
 								onchange={save}
 								ariaLabel={`参考URL ${urlIndex + 1}`}
 								placeholder="https://"
+								disabled={!editable}
 								fullWidth
 							/>
-							<Button type="button" variant="ghost" onclick={() => removeUrl(urlIndex)}>削除</Button
+							<Button
+								type="button"
+								variant="ghost"
+								disabled={!editable}
+								onclick={() => removeUrl(urlIndex)}>削除</Button
 							>
 						</div>
 						{#if urlErrors[urlIndex]}
@@ -156,7 +168,9 @@
 						{/if}
 					{/each}
 					{#if currentTopicStore.topic.sourceUrls.length < MAX_SOURCE_URLS}
-						<Button type="button" variant="outlined" onclick={addUrl}>URLを追加</Button>
+						<Button type="button" variant="outlined" disabled={!editable} onclick={addUrl}>
+							URLを追加
+						</Button>
 					{/if}
 				</div>
 			</div>

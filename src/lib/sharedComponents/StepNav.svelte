@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { StepNav } from '@14ch/svelte-ui';
 	import { phasePath } from '$lib/models/phase/phase';
-	import { type PhaseSlug } from '$lib/models/phase/phase.types';
+	import { type PhaseSlug, type PhaseStatus } from '$lib/models/phase/phase.types';
 
 	// ナビの見せ方（どのフェーズを1ステップに束ね、どう名付けるか）は UI の都合なので、
 	// phase モデルではなくこのコンポーネントが持つ。モデルからは素のフェーズ情報だけを受け取る。
@@ -13,15 +13,25 @@
 		{ id: 'persona', label: 'ペルソナ生成', phases: ['personas'] },
 		{ id: 'agenda', label: 'アジェンダ生成', phases: ['chapters'] },
 		{ id: 'debate', label: '討論', phases: ['debate'] },
-		{ id: 'editing', label: '編集', phases: ['editing'] }
+		{ id: 'editing', label: '編集', phases: ['editing'] },
+		{ id: 'publish', label: '公開', phases: ['publish'] }
 	];
 
 	// currentPath は実際に開いている URL。省略時は現在フェーズのパスで代替する。
+	// phaseStatus/published は現在フェーズの完了判定に使う（progress.status の導出）。
 	let {
 		topicId,
 		currentPhase,
+		phaseStatus,
+		published,
 		currentPath
-	}: { topicId: string; currentPhase: PhaseSlug; currentPath?: string } = $props();
+	}: {
+		topicId: string;
+		currentPhase: PhaseSlug;
+		phaseStatus: PhaseStatus;
+		published: boolean;
+		currentPath?: string;
+	} = $props();
 
 	// href: グループが現在フェーズを含むならそのフェーズ、含まなければ先頭フェーズへのパス。
 	// matchingPath: グループ内（例: stakeholders/personas/interviews）のどの URL でも
@@ -39,9 +49,19 @@
 		}))
 	);
 
-	// progress は到達済みの最遠ステップ。フェーズは順に進むため、現在フェーズを含むグループがそれに当たる。
-	// 可変な配列 index ではなくステップのユニークキー（value）で指定する。
-	const progress = $derived(STEP_GROUPS.find((group) => group.phases.includes(currentPhase))?.id);
+	// progress は到達済みの最遠ステップ（現在フェーズを含むグループ）。可変な配列 index ではなく
+	// ステップのユニークキー（value）で指定する。status は現在フェーズの完了判定:
+	// publish は可逆トグル published、それ以外は phaseStatus === 'generated' を完了とみなす。
+	// status: 'done' なら現在ステップ自身も完了表示になり、手前の前進済みステップは自動で completed。
+	const progressStep = $derived(
+		STEP_GROUPS.find((group) => group.phases.includes(currentPhase))?.id
+	);
+	const progressStatus = $derived<'done' | 'in-progress'>(
+		(currentPhase === 'publish' ? published : phaseStatus === 'generated') ? 'done' : 'in-progress'
+	);
+	const progress = $derived(
+		progressStep ? { step: progressStep, status: progressStatus } : undefined
+	);
 
 	const resolvedCurrentPath = $derived(currentPath ?? phasePath(topicId, currentPhase));
 </script>

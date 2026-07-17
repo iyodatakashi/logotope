@@ -3,9 +3,9 @@ import {
 	phasePath,
 	phaseOrder,
 	nextPhase,
-	isLastPhase,
 	phaseLogicalState,
-	phaseDisplayLabel
+	phaseDisplayLabel,
+	phaseEditable
 } from '$lib/models/phase/phase';
 import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
 import type { PhaseSlug, PhaseStatus, PhaseLogicalState } from '$lib/models/phase/phase.types';
@@ -17,7 +17,8 @@ const CANONICAL_PHASE_KEYS = [
 	'personas',
 	'chapters',
 	'debate',
-	'editing'
+	'editing',
+	'publish'
 ] as const;
 
 // PhaseSlug の型網羅チェック: 値が増減すると Record リテラルがコンパイルエラーになる
@@ -27,18 +28,20 @@ const PHASE_SLUG_EXHAUSTIVE: Record<PhaseSlug, true> = {
 	personas: true,
 	chapters: true,
 	debate: true,
-	editing: true
+	editing: true,
+	publish: true
 };
 
 describe('PHASE_DEFS', () => {
-	it('6フェーズが正準リスト順で定義されている', () => {
+	it('7フェーズが正準リスト順で定義されている', () => {
 		expect(PHASE_DEFS.map((d) => d.key)).toEqual([
 			'theme',
 			'fact-research',
 			'personas',
 			'chapters',
 			'debate',
-			'editing'
+			'editing',
+			'publish'
 		]);
 	});
 
@@ -125,6 +128,15 @@ describe('slug 集合・順序・ラベルの self-check（挙動不変の担保
 					generated: '編集完了',
 					stopped: '編集停止'
 				}
+			},
+			{
+				key: 'publish',
+				statusLabels: {
+					not_started: '未公開',
+					running: '未公開',
+					generated: '未公開',
+					stopped: '未公開'
+				}
 			}
 		]);
 	});
@@ -163,13 +175,14 @@ describe('phaseLogicalState 順序ケースの同値テーブル', () => {
 	);
 });
 
-describe('phaseOrder / nextPhase / isLastPhase', () => {
+describe('phaseOrder / nextPhase', () => {
 	it('phaseOrder は配列位置を返す', () => {
 		expect(phaseOrder('theme')).toBe(0);
 		expect(phaseOrder('fact-research')).toBe(1);
 		expect(phaseOrder('personas')).toBe(2);
 		expect(phaseOrder('chapters')).toBe(3);
 		expect(phaseOrder('editing')).toBe(5);
+		expect(phaseOrder('publish')).toBe(6);
 	});
 
 	it('nextPhase は次の slug を返し、最終フェーズでは null', () => {
@@ -178,15 +191,8 @@ describe('phaseOrder / nextPhase / isLastPhase', () => {
 		expect(nextPhase('personas')).toBe('chapters');
 		expect(nextPhase('chapters')).toBe('debate');
 		expect(nextPhase('debate')).toBe('editing');
-		expect(nextPhase('editing')).toBeNull();
-	});
-
-	it('isLastPhase は最終フェーズのみ true', () => {
-		expect(isLastPhase('theme')).toBe(false);
-		expect(isLastPhase('fact-research')).toBe(false);
-		expect(isLastPhase('personas')).toBe(false);
-		expect(isLastPhase('debate')).toBe(false);
-		expect(isLastPhase('editing')).toBe(true);
+		expect(nextPhase('editing')).toBe('publish');
+		expect(nextPhase('publish')).toBeNull();
 	});
 });
 
@@ -280,10 +286,33 @@ describe('phaseDisplayLabel', () => {
 		['editing', 'not_started', '討論完了', 'pending'],
 		['editing', 'running', '編集中', 'running'],
 		['editing', 'stopped', '編集停止', 'stopped'],
-		['editing', 'generated', '編集完了', 'completed']
+		['editing', 'generated', '編集完了', 'ready']
 	];
 
 	it.each(cases)('(%s, %s) → %s / %s', (phase, phaseStatus, label, styleKey) => {
-		expect(phaseDisplayLabel({ phase, phaseStatus })).toEqual({ label, styleKey });
+		expect(phaseDisplayLabel({ phase, phaseStatus, published: false })).toEqual({ label, styleKey });
+	});
+
+	it('publish は published を直読みして公開中/未公開を導出する（phaseStatus を見ない）', () => {
+		expect(
+			phaseDisplayLabel({ phase: 'publish', phaseStatus: 'not_started', published: true })
+		).toEqual({ label: '公開中', styleKey: 'completed' });
+		expect(
+			phaseDisplayLabel({ phase: 'publish', phaseStatus: 'not_started', published: false })
+		).toEqual({ label: '未公開', styleKey: 'pending' });
+	});
+});
+
+describe('phaseEditable', () => {
+	it('publish フェーズは公開中でも常に編集可（スイッチ OFF のため）', () => {
+		expect(phaseEditable({ published: true }, 'publish')).toBe(true);
+		expect(phaseEditable({ published: false }, 'publish')).toBe(true);
+	});
+
+	it('publish 以外は公開中のみ編集不可', () => {
+		for (const target of ['theme', 'fact-research', 'personas', 'chapters', 'debate', 'editing'] as const) {
+			expect(phaseEditable({ published: true }, target)).toBe(false);
+			expect(phaseEditable({ published: false }, target)).toBe(true);
+		}
 	});
 });

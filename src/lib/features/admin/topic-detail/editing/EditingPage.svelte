@@ -2,7 +2,7 @@
 	import { Button, Checkbox, ConfirmDialog } from '@14ch/svelte-ui';
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
+	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import EditingNarration from './EditingNarration.svelte';
@@ -17,6 +17,9 @@
 	let showDiff = $state(true);
 	// 押下直後の楽観的な「実行中」表示用フラグ。実状態(running)が反映されたら解除する。
 	let isStarting = $state(false);
+	// 「次に進む」押下中の loading・多重押下抑止と、承認失敗時のエラー表示。
+	let isApproving = $state(false);
+	let approveError = $state('');
 
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 
@@ -67,6 +70,23 @@
 		const topic = currentTopicStore.topic;
 		if (!topic) return;
 		goto(phasePath(topic.id, 'debate'));
+	};
+
+	// 承認を「次に進む」に畳み込む。編集完了で活性。未承認なら編集を確定してから公開画面へ遷移し、
+	// 失敗時は遷移せずエラーを表示する（フェーズ不変）。
+	const handleForwardClick = async () => {
+		const topic = currentTopicStore.topic;
+		if (!topic || !canAdvance) return;
+		isApproving = true;
+		approveError = '';
+		try {
+			if (logicalState !== 'approved') await topic.approveEditing();
+			goto(phasePath(topic.id, 'publish'));
+		} catch {
+			approveError = '編集の確定に失敗しました。時間をおいて再試行してください。';
+		} finally {
+			isApproving = false;
+		}
 	};
 
 	// 記事要素（導入・締め・所感・章）の個別再生成はサーバへ委譲するだけ。処理中のローディングは各 Section が
@@ -149,6 +169,14 @@
 			: 'not_started';
 	});
 
+	// 「次に進む」の活性条件。編集生成完了（generated）または前進済み（approved）で活性。
+	const canAdvance = $derived(logicalState === 'generated' || logicalState === 'approved');
+
+	// 公開中はコンテンツ変更操作（編集の開始・やり直し・各要素の再生成）を凍結する（閲覧・遷移は許可）。
+	const editable = $derived(
+		phaseEditable({ published: currentTopicStore.topic?.published ?? false }, PHASE)
+	);
+
 	// 編集の生成が走り終えたか（generated=全章成功 / stopped=途中終了。どちらも「もう動いていない」）。
 	// 章（本体）の未完成明示・再生成ボタンの表示にのみ使う（章ステータスは本 spec の対象外で従来通り）。
 	// 導入・締め・所感の記事要素は各自の進捗ステータスで表示を決めるため、このフラグに依存しない（Req 2.1, 2.2）。
@@ -213,13 +241,16 @@
 							編集を開始する
 						</Button>
 					{:else if logicalState === 'not_started'}
-						<Button variant="filled" rounded icon="cached" onclick={start}>編集を開始する</Button>
+						<Button variant="filled" rounded icon="cached" disabled={!editable} onclick={start}>
+							編集を開始する
+						</Button>
 					{:else}
 						<Button
 							variant="filled"
 							rounded
 							icon="cached"
 							color="var(--danger-color)"
+							disabled={!editable}
 							onclick={() => regenerateDialog?.open()}
 						>
 							編集をやり直す
@@ -227,8 +258,22 @@
 					{/if}
 				{/if}
 			</div>
-			<!-- 最終ステップのため「次に進む」は持たない（3領域の右端は空）。 -->
-			<div class="editing-page__spacer"></div>
+			<div class="editing-page__forward">
+				<Button
+					variant="filled"
+					icon="arrow_forward"
+					iconPosition="right"
+					rounded
+					loading={isApproving}
+					disabled={!canAdvance}
+					onclick={handleForwardClick}
+				>
+					次に進む
+				</Button>
+				{#if approveError}
+					<p class="editing-page__error" role="alert">{approveError}</p>
+				{/if}
+			</div>
 		</div>
 	{/snippet}
 	{#snippet content()}
@@ -249,6 +294,7 @@
 						label="導入"
 						part={currentTopicStore.editorialStore.intro}
 						{showDiff}
+						{editable}
 						onRegenerate={() => regenerateArticleElement({ kind: 'intro' })}
 					/>
 
@@ -264,6 +310,7 @@
 									turns={chapter.turns}
 									sourceTurns={chapter.sourceTurns}
 									{showDiff}
+									{editable}
 									onRegenerate={() =>
 										regenerateArticleElement({ kind: 'chapter', chapterId: chapter.id })}
 								/>
@@ -276,6 +323,7 @@
 						label="締め"
 						part={currentTopicStore.editorialStore.outro}
 						{showDiff}
+						{editable}
 						onRegenerate={() => regenerateArticleElement({ kind: 'outro' })}
 					/>
 
@@ -289,6 +337,7 @@
 										personaId={impression.personaId}
 										part={impression.part}
 										{showDiff}
+										{editable}
 										onRegenerate={() =>
 											regenerateArticleElement({
 												kind: 'impression',
@@ -328,9 +377,15 @@
 		gap: 8px;
 	}
 
-	.editing-page__spacer {
-		/* 最終ステップは右端（次に進む）を持たないが、中央スロットを中央に保つための空プレースホルダ。 */
-		width: 0;
+	.editing-page__forward {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.editing-page__error {
+		color: var(--svelte-ui-error-color);
+		font-size: var(--svelte-ui-font-size-sm);
 	}
 
 	.editing-page__toolbar {

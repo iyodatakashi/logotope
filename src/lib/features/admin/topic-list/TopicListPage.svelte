@@ -11,8 +11,13 @@
 	const getBadge = (topic: {
 		phase: PhaseSlug;
 		phaseStatus: PhaseStatus;
+		published: boolean;
 	}): { label: string; styleKey: string } =>
-		phaseDisplayLabel({ phase: topic.phase, phaseStatus: topic.phaseStatus });
+		phaseDisplayLabel({
+			phase: topic.phase,
+			phaseStatus: topic.phaseStatus,
+			published: topic.published
+		});
 </script>
 
 <div class="topic-list-page">

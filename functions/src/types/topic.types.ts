@@ -22,6 +22,8 @@ export type TopicForFirestore = {
 	personaCount?: number;
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
+	// 公開状態の真実。publish/unpublish 操作のみが書く。欠落 = 非公開（FE TopicForFirestore と同一形）。
+	published?: boolean;
 	publishedAt?: Timestamp;
 };
 

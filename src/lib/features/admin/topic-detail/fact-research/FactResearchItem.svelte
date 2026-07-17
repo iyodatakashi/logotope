@@ -6,11 +6,13 @@
 	let {
 		fact = $bindable(),
 		onchange,
-		onRemove
+		onRemove,
+		editable = true
 	}: {
 		fact: FactItem;
 		onchange: () => void;
 		onRemove: () => void;
+		editable?: boolean;
 	} = $props();
 
 	let confirmDialogRef: SvelteComponent | undefined = $state();
@@ -24,6 +26,7 @@
 			minHeight={0}
 			fullWidth
 			focusStyle="background"
+			disabled={!editable}
 			{onchange}
 		/>
 	</div>
@@ -45,6 +48,7 @@
 		variant="ghost"
 		iconFilled
 		fontSize={18}
+		disabled={!editable}
 		onclick={() => {
 			confirmDialogRef?.open();
 		}}

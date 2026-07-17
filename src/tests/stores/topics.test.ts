@@ -8,8 +8,13 @@ const mockBatchCommit = vi.fn().mockResolvedValue(undefined);
 const mockWriteBatch = vi.fn(() => ({ delete: mockBatchDelete, commit: mockBatchCommit }));
 type AnySnap = { docs: unknown[] };
 
+let snapshotCb: ((snap: { docs: unknown[] }) => void) | null = null;
+
 vi.mock('firebase/firestore', () => ({
-	onSnapshot: vi.fn(),
+	onSnapshot: vi.fn((_q: unknown, cb: (snap: { docs: unknown[] }) => void) => {
+		snapshotCb = cb;
+		return vi.fn();
+	}),
 	collection: vi.fn((_db: unknown, ...segments: string[]) => ({ path: segments.join('/') })),
 	query: vi.fn(),
 	orderBy: vi.fn(),
@@ -22,6 +27,30 @@ vi.mock('firebase/firestore', () => ({
 
 import { setDoc, getDocs } from 'firebase/firestore';
 import { topicsStore } from '$lib/stores/topics.svelte';
+
+describe('toTopic 読み込み境界 - published 正規化', () => {
+	const ts = { toDate: () => new Date(2026, 0, 1) };
+	const makeDoc = (id: string, extra: Record<string, unknown>) => ({
+		id,
+		data: () => ({
+			id,
+			title: id,
+			phase: 'theme',
+			phaseStatus: 'not_started',
+			createdAt: ts,
+			updatedAt: ts,
+			...extra
+		})
+	});
+
+	it('published 欠落の既存トピックはアプリ層で published=false として読める', () => {
+		topicsStore.start();
+		snapshotCb?.({ docs: [makeDoc('no-flag', {}), makeDoc('published', { published: true })] });
+
+		expect(topicsStore.getById('no-flag')?.published).toBe(false);
+		expect(topicsStore.getById('published')?.published).toBe(true);
+	});
+});
 
 describe('topicsStore.addTopic', () => {
 	beforeEach(() => {

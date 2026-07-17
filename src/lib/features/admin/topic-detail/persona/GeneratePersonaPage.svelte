@@ -2,13 +2,16 @@
 	import { goto } from '$app/navigation';
 	import { Button, ConfirmDialog, Skeleton } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import { phaseLogicalState, phasePath } from '$lib/models/phase/phase';
+	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseLogicalState } from '$lib/models/phase/phase.types';
 	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
 	import PersonaItem from './PersonaItem.svelte';
 
 	const topic = $derived(currentTopicStore.topic);
 	const personas = $derived(currentTopicStore.personasStore.personas);
+
+	// 公開中はコンテンツ変更操作を凍結する（閲覧・遷移は許可）。
+	const editable = $derived(phaseEditable({ published: topic?.published ?? false }, 'personas'));
 
 	let regenerateDialog: ReturnType<typeof ConfirmDialog> | undefined = $state();
 
@@ -132,12 +135,13 @@
 					rounded
 					icon="cached"
 					color="var(--danger-color)"
+					disabled={!editable}
 					onclick={() => regenerateDialog?.open()}
 				>
 					ペルソナを再生成する
 				</Button>
 			{:else}
-				<Button variant="filled" rounded icon="cached" onclick={onExecute}>
+				<Button variant="filled" rounded icon="cached" disabled={!editable} onclick={onExecute}>
 					ペルソナを生成する
 				</Button>
 			{/if}
@@ -172,7 +176,7 @@
 			{:else if hasPersonas}
 				<div class="generate-persona-page__rows">
 					{#each personas as persona (persona.id)}
-						<PersonaItem {persona} />
+						<PersonaItem {persona} {editable} />
 					{/each}
 				</div>
 			{/if}

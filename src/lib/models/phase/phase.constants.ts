@@ -1,6 +1,6 @@
 import type { PhaseDef } from './phase.types';
 
-// 正準 slug リスト（順序込み）: ['theme', 'fact-research', 'personas', 'chapters', 'debate', 'editing']
+// 正準 slug リスト（順序込み）: ['theme', 'fact-research', 'personas', 'chapters', 'debate', 'editing', 'publish']
 // 配列順 = フェーズ進行順の唯一の真実。BE 側 PhaseKey と値集合・順序を一致させる。
 export const PHASE_DEFS: readonly PhaseDef[] = [
 	{
@@ -59,6 +59,19 @@ export const PHASE_DEFS: readonly PhaseDef[] = [
 			running: '編集中',
 			generated: '編集完了',
 			stopped: '編集停止'
+		}
+	},
+	{
+		// publish は公開 ON/OFF を可逆トグル（published）で扱うフェーズで、phaseStatus は
+		// publish フェーズでは意味を持たない（not_started のまま動かさない）。実際のバッジは
+		// phaseDisplayLabel の publish 分岐が published から導出するため、statusLabels は
+		// 全状態フォールバック（'未公開'）として定義する（theme と同様の特例）。
+		key: 'publish',
+		statusLabels: {
+			not_started: '未公開',
+			running: '未公開',
+			generated: '未公開',
+			stopped: '未公開'
 		}
 	}
 ];

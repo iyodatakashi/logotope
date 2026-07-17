@@ -5,7 +5,7 @@
 
 	const topics = $derived(
 		topicsStore.topics
-			.filter((topic) => topic.publishedAt != null)
+			.filter((topic) => topic.published)
 			.sort(
 				(a, b) =>
 					(b.publishedAt ?? b.updatedAt).getTime() - (a.publishedAt ?? a.updatedAt).getTime()

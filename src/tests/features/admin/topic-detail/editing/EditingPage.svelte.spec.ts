@@ -15,7 +15,8 @@ const { spies, state } = vi.hoisted(() => ({
 	spies: {
 		startEditing: vi.fn(),
 		resetEditing: vi.fn(),
-		regenerateArticleElement: vi.fn()
+		regenerateArticleElement: vi.fn(),
+		approveEditing: vi.fn()
 	},
 	state: {
 		// editing フェーズにいる（討論は通過済み＝debateCompleted）。
@@ -40,7 +41,8 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 				},
 				startEditing: spies.startEditing,
 				resetEditing: spies.resetEditing,
-				regenerateArticleElement: spies.regenerateArticleElement
+				regenerateArticleElement: spies.regenerateArticleElement,
+				approveEditing: spies.approveEditing
 			};
 		},
 		get editedChaptersStore() {
@@ -79,10 +81,33 @@ afterEach(() => {
 });
 
 describe('EditingPage', () => {
-	it('最終ステップのため「次に進む」を出さない', async () => {
+	it('編集完了で「次に進む」を押すと編集を承認して公開画面へ遷移する', async () => {
 		mount();
 
-		expect(page.getByRole('button', { name: '次に進む' }).elements()).toHaveLength(0);
+		await page.getByRole('button', { name: '次に進む' }).click();
+
+		expect(spies.approveEditing).toHaveBeenCalledOnce();
+		expect(goto).toHaveBeenCalledWith('/admin/topics/t1/publish');
+	});
+
+	it('編集未完了（not_started）では「次に進む」が不活性で承認しない', async () => {
+		state.phaseStatus = 'not_started';
+		mount();
+
+		await expect.element(page.getByRole('button', { name: '次に進む' })).toBeDisabled();
+		expect(spies.approveEditing).not.toHaveBeenCalled();
+	});
+
+	it('承認が失敗するとエラーを表示し、公開画面へ遷移しない', async () => {
+		spies.approveEditing.mockRejectedValueOnce(new Error('失敗'));
+		mount();
+
+		await page.getByRole('button', { name: '次に進む' }).click();
+
+		await expect
+			.element(page.getByText('編集の確定に失敗しました。時間をおいて再試行してください。'))
+			.toBeInTheDocument();
+		expect(goto).not.toHaveBeenCalled();
 	});
 
 	it('討論未完了でもゲート文言を出しつつ「前に戻る」から討論画面へ戻れる', async () => {

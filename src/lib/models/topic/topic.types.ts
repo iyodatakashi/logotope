@@ -27,6 +27,8 @@ export type TopicForFirestore = {
 	personaCount?: number;
 	createdAt: Timestamp;
 	updatedAt: Timestamp;
+	// 公開状態の真実。publish/unpublish 操作のみが書く。欠落 = 非公開（既存トピックの現実を型が反映する）。
+	published?: boolean;
 	publishedAt?: Timestamp;
 };
 
@@ -43,5 +45,7 @@ export type Topic = {
 	personaCount?: number;
 	createdAt: Date;
 	updatedAt: Date;
+	// アプリ層では常に boolean（読み込み境界 toTopic で欠落を false に正規化する）。
+	published: boolean;
 	publishedAt?: Date;
 };

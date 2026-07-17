@@ -27,6 +27,7 @@ export const createTopicStates = (topicDoc: Topic) => {
 	const personaCount: number = $state(topicDoc.personaCount ?? 0);
 	const createdAt: Date = topicDoc.createdAt;
 	const updatedAt: Date = topicDoc.updatedAt;
+	const published: boolean = $state(topicDoc.published);
 	const publishedAt: Date | undefined = topicDoc.publishedAt;
 
 	// 現在フェーズを承認し、定義配列の次フェーズへ前進させる（最終フェーズでは前進しない）。
@@ -93,6 +94,11 @@ export const createTopicStates = (topicDoc: Topic) => {
 		await advancePhase('debate');
 	};
 
+	// 編集を確定して公開（publish）フェーズへ前進させる。編集 generated のときのみ画面から到達できる。
+	const approveEditing = async (): Promise<void> => {
+		await advancePhase('editing');
+	};
+
 	// 編集を開始する（既存成果物破棄→実行中化→章チェーン投入はサーバ責務）。
 	const startEditing = async (): Promise<void> => {
 		const startEditingCallable = httpsCallable<{ topicId: string }, { topicId: string }>(
@@ -121,8 +127,17 @@ export const createTopicStates = (topicDoc: Topic) => {
 		const now = Timestamp.now();
 		await updateDoc(doc(db, 'topics', id), {
 			personaCount,
+			published: true,
 			publishedAt: now,
 			updatedAt: now
+		});
+	};
+
+	// トピックを非公開に戻す。published=false のみ書き、publishedAt（最後に公開した日時）は保持する。
+	const unpublishDebate = async (): Promise<void> => {
+		await updateDoc(doc(db, 'topics', id), {
+			published: false,
+			updatedAt: Timestamp.now()
 		});
 	};
 
@@ -230,6 +245,9 @@ export const createTopicStates = (topicDoc: Topic) => {
 		get updatedAt() {
 			return updatedAt;
 		},
+		get published() {
+			return published;
+		},
 		get publishedAt() {
 			return publishedAt;
 		},
@@ -264,9 +282,11 @@ export const createTopicStates = (topicDoc: Topic) => {
 		advancePastPersonas,
 		approveChapters,
 		approveDebate,
+		approveEditing,
 		startEditing,
 		regenerateArticleElement,
-		publishDebate
+		publishDebate,
+		unpublishDebate
 	};
 };
 

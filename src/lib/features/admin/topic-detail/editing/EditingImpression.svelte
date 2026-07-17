@@ -10,8 +10,9 @@
 		part: Narration; // 参加者1人分の所感（{ status, draft, final }）
 		showDiff: boolean;
 		onRegenerate: () => void | Promise<void>; // サーバへの再生成委譲。ローディングは当要素が自持ちする
+		editable?: boolean; // 公開中は再生成を凍結する
 	}
-	let { personaId, part, showDiff, onRegenerate }: Props = $props();
+	let { personaId, part, showDiff, onRegenerate, editable = true }: Props = $props();
 
 	// 話者ラベルは personaId から描画時に解決する（型には畳まない・Req 3.1）。引き当て表は storeから直接読む。
 	const persona = $derived(currentTopicStore.personasStore.personaMap.get(personaId));
@@ -68,7 +69,9 @@
 	{/if}
 	{#if !inProgress}
 		<div class="editing-impression__regenerate">
-			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating}>再生成</Button>
+			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating} disabled={!editable}
+			>再生成</Button
+		>
 		</div>
 	{/if}
 </div>

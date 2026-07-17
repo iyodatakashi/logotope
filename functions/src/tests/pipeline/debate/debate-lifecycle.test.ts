@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockDelete = vi.fn().mockResolvedValue(undefined);
 const mockUpdate = vi.fn().mockResolvedValue(undefined);
 const mockSet = vi.fn().mockResolvedValue(undefined);
-const mockDoc = vi.fn().mockReturnValue({ update: mockUpdate, set: mockSet });
+const mockDocGet = vi.fn();
+const mockDoc = vi.fn().mockReturnValue({ update: mockUpdate, set: mockSet, get: mockDocGet });
 
 // collection ごとに異なる get を返すために path で分岐する
 const mockChaptersGet = vi.fn();
@@ -39,7 +40,8 @@ vi.mock('../../../pipeline/editing/edited-repository.js', () => ({
 
 import {
 	restartDebateFromChapter,
-	resetDebate
+	resetDebate,
+	isDebateCompleted
 } from '../../../pipeline/debate/debate-lifecycle.js';
 
 const makeChapterDoc = (id: string, turns: { id: string }[] = []) => ({
@@ -211,6 +213,41 @@ describe('編集成果物の破棄（reset/restart 整合）', () => {
 		await resetDebate('topic1');
 
 		expect(mockClearEditedArtifact).toHaveBeenCalledWith('topic1');
+	});
+});
+
+describe('isDebateCompleted - 討論完了判定', () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+	});
+
+	const mockPhase = (phase?: string, phaseStatus?: string) => {
+		mockDocGet.mockResolvedValue({ exists: true, data: () => ({ phase, phaseStatus }) });
+	};
+
+	it('phase=publish は討論完了扱い（非公開化後の編集再実行を弾かない）', async () => {
+		mockPhase('publish', 'not_started');
+		expect(await isDebateCompleted('topic1')).toBe(true);
+	});
+
+	it('phase=editing は討論完了扱い', async () => {
+		mockPhase('editing', 'stopped');
+		expect(await isDebateCompleted('topic1')).toBe(true);
+	});
+
+	it('phase=debate かつ generated は完了', async () => {
+		mockPhase('debate', 'generated');
+		expect(await isDebateCompleted('topic1')).toBe(true);
+	});
+
+	it('phase=debate かつ running は未完了', async () => {
+		mockPhase('debate', 'running');
+		expect(await isDebateCompleted('topic1')).toBe(false);
+	});
+
+	it('ドキュメントが存在しなければ未完了', async () => {
+		mockDocGet.mockResolvedValue({ exists: false, data: () => undefined });
+		expect(await isDebateCompleted('topic1')).toBe(false);
 	});
 });
 

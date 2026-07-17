@@ -5,7 +5,7 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import InterviewDialog from './InterviewDialog.svelte';
 
-	let { persona }: { persona: Persona } = $props();
+	let { persona, editable = true }: { persona: Persona; editable?: boolean } = $props();
 	let interviewDialogRef: SvelteComponent | undefined = $state();
 
 	const interview = $derived(persona.interview);
@@ -28,6 +28,7 @@
 			<Checkbox
 				value={persona.selected}
 				onchange={toggleSelected}
+				disabled={!editable}
 				ariaLabel="このペルソナを討論に採用する"
 			/>
 		</div>
@@ -57,6 +58,7 @@
 			rounded
 			icon="cached"
 			loading={interview?.status === 'in_progress'}
+			disabled={!editable}
 			onclick={reinterview}
 		>
 			再取材する

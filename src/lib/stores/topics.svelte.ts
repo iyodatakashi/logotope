@@ -24,6 +24,8 @@ const toTopic = (topicDoc: TopicForFirestore): Topic => ({
 	sourceContentsFetchedAt: topicDoc.sourceContentsFetchedAt?.toDate(),
 	createdAt: topicDoc.createdAt.toDate(),
 	updatedAt: topicDoc.updatedAt.toDate(),
+	// 欠落（フィールド未設定の既存トピック）は非公開に正規化し、アプリ層に optional を漏らさない。
+	published: topicDoc.published ?? false,
 	publishedAt: topicDoc.publishedAt?.toDate()
 });
 

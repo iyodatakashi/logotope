@@ -15,6 +15,7 @@
 		sourceTurns: Turn[]; // この章の原本ターン。差分の由来テキスト参照に使う
 		showDiff: boolean;
 		onRegenerate: () => void | Promise<void>;
+		editable?: boolean; // 公開中は再生成を凍結する
 	}
 	let {
 		title,
@@ -24,7 +25,8 @@
 		turns,
 		sourceTurns,
 		showDiff,
-		onRegenerate
+		onRegenerate,
+		editable = true
 	}: Props = $props();
 
 	// 話者名/役割を描画時に id から解決するための引き当て表は storeから直接読む（Turn と同じ責務境界）。
@@ -78,7 +80,9 @@
 			<span class="editing-chapter__failure-reason">検証不合格: {failureReason}</span>
 		{/if}
 		{#if showRegenerate}
-			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating}>再生成</Button>
+			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating} disabled={!editable}
+				>再生成</Button
+			>
 		{/if}
 	</header>
 	<div class="editing-chapter__turns">

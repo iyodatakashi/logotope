@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { Snippet } from 'svelte';
-	import { phasePath, phaseOrder } from '$lib/models/phase/phase';
+	import { phasePath, phaseOrder, phaseEditable } from '$lib/models/phase/phase';
 	import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
 	import { type PhaseSlug } from '$lib/models/phase/phase.types';
 	import StepNav from '$lib/sharedComponents/StepNav.svelte';
@@ -60,13 +60,20 @@
 						inline
 						focusStyle="background"
 						placeholder="タイトルを入力してください"
+						disabled={!phaseEditable({ published: currentTopicStore.topic.published }, 'theme')}
 						onchange={save}
 					/>
 				</h2>
 			{/if}
 		</div>
 		<div class="topic-detail-layout__step-navi">
-			<StepNav {topicId} {currentPhase} currentPath={page.url.pathname} />
+			<StepNav
+				{topicId}
+				{currentPhase}
+				phaseStatus={currentTopicStore.topic?.phaseStatus ?? 'not_started'}
+				published={currentTopicStore.topic?.published ?? false}
+				currentPath={page.url.pathname}
+			/>
 		</div>
 	</div>
 

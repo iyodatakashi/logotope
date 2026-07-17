@@ -4,16 +4,16 @@ service cloud.firestore {
   match /databases/{database}/documents {
     match /topics/{topicId} {
       allow read, write: if request.auth != null;
-      allow read: if resource.data.publishedAt != null;
+      allow read: if resource.data.published == true;
 
       match /personas/{personaId} {
         allow read, write: if request.auth != null;
-        allow read: if get(/databases/$(database)/documents/topics/$(topicId)).data.publishedAt != null;
+        allow read: if get(/databases/$(database)/documents/topics/$(topicId)).data.published == true;
       }
 
       match /chapters/{chapterId} {
         allow read, write: if request.auth != null;
-        allow read: if get(/databases/$(database)/documents/topics/$(topicId)).data.publishedAt != null;
+        allow read: if get(/databases/$(database)/documents/topics/$(topicId)).data.published == true;
 
         match /engagements/{personaId} {
           allow read, write: if request.auth != null;
@@ -22,13 +22,13 @@ service cloud.firestore {
 
       match /editedChapters/{chapterId} {
         allow read, write: if request.auth != null;
-        allow read: if get(/databases/$(database)/documents/topics/$(topicId)).data.publishedAt != null;
+        allow read: if get(/databases/$(database)/documents/topics/$(topicId)).data.published == true;
       }
 
       // 導入・締め・所感を統合した editorial/0（旧 postDebateComments / editedPostDebateComments / editedIntroClosing を統合）
       match /editorial/{docId} {
         allow read, write: if request.auth != null;
-        allow read: if get(/databases/$(database)/documents/topics/$(topicId)).data.publishedAt != null;
+        allow read: if get(/databases/$(database)/documents/topics/$(topicId)).data.published == true;
       }
 
       match /chapterAnalysis/{docId} {
