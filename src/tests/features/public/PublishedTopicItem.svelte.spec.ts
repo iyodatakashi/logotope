@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser';
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import PublishedTopicItem from '$lib/features/public/PublishedTopicItem.svelte';
+import PublishedTopicItem from '$lib/features/public/article-list/PublishedTopicItem.svelte';
 import type { PublishedTopic } from '$lib/models/published/published-topic.types';
 
 const topic: PublishedTopic = {

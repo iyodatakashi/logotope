@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { navigating } from '$app/state';
-	import PublishedTopicItem from '$lib/features/public/PublishedTopicItem.svelte';
+	import PublishedTopicItem from '$lib/features/public/article-list/PublishedTopicItem.svelte';
 	import type { PageData } from './$types';
 
 	interface Props {
@@ -14,7 +14,10 @@
 	<title>logotope — 公開された討論一覧</title>
 	<meta name="description" content="公開された討論記事の一覧。多様な立場の意見に触れる入口です。" />
 	<meta property="og:title" content="logotope — 公開された討論一覧" />
-	<meta property="og:description" content="公開された討論記事の一覧。多様な立場の意見に触れる入口です。" />
+	<meta
+		property="og:description"
+		content="公開された討論記事の一覧。多様な立場の意見に触れる入口です。"
+	/>
 </svelte:head>
 
 <main class="home-page">
