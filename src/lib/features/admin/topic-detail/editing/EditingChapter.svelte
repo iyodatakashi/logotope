@@ -80,8 +80,11 @@
 			<span class="editing-chapter__failure-reason">検証不合格: {failureReason}</span>
 		{/if}
 		{#if showRegenerate}
-			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating} disabled={!editable}
-				>再生成</Button
+			<Button
+				variant="outlined"
+				onclick={handleRegenerate}
+				loading={regenerating}
+				disabled={!editable}>再生成</Button
 			>
 		{/if}
 	</header>
@@ -112,7 +115,7 @@
 				>
 					<div class="editing-chapter__speaker">
 						<div class="editing-chapter__speaker-name">{speaker.name}</div>
-						{#if speaker.role}<span class="editing-chapter__role">({speaker.role})</span>{/if}
+						{#if speaker.role}<span class="editing-chapter__role">（{speaker.role}）</span>{/if}
 						{#if turn.speechMode}
 							<span class="editing-chapter__speech-mode" data-mode={turn.speechMode}
 								>{turn.speechMode}</span

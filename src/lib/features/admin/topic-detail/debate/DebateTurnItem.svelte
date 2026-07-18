@@ -35,7 +35,7 @@
 	<div class="debate-turn-item__speaker">
 		<div class="debate-turn-item__speaker-name">{speaker.name}</div>
 		{#if speaker.role}
-			<span class="debate-turn-item__role">({speaker.role})</span>
+			<span class="debate-turn-item__role">（{speaker.role}）</span>
 		{/if}
 		{#if turn.speechMode}
 			<span class="debate-turn-item__speech-mode" data-mode={turn.speechMode}>
