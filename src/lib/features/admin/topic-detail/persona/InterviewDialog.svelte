@@ -77,13 +77,17 @@
 				<div class="interview-item__md-body">{@html md(interview.researchSummary)}</div>
 			</div>
 		{/if}
-		<div class="interview-item__section">
-			<p class="interview-item__section-label">③ 最終信念</p>
-			<div class="interview-item__md-body interview-item__md-body--belief">
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -- DOMPurifyでサニタイズ済み -->
-				{@html md(belief)}
+		{#if belief}
+			<div class="interview-item__section">
+				<p class="interview-item__section-label">③ 最終信念</p>
+				<div class="interview-item__md-body interview-item__md-body--belief">
+					<!-- eslint-disable-next-line svelte/no-at-html-tags -- DOMPurifyでサニタイズ済み -->
+					{@html md(belief)}
+				</div>
 			</div>
-		</div>
+		{:else}
+			信念を生成中
+		{/if}
 		{#if interview?.interviewRecord}
 			<div class="interview-item__section">
 				<p class="interview-item__section-label">取材記録</p>
