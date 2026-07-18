@@ -25,6 +25,7 @@ import { generateObject } from 'ai';
 import { buildImpressionPart } from '../../../pipeline/editing/element-builders.js';
 import {
 	validateEditedChapter,
+	reinsertProtectedTurns,
 	computeProtectedTurnIds,
 	runChapterEditStep,
 	runImpressionsStep
@@ -62,9 +63,9 @@ beforeEach(() => {
 describe('validateEditedChapter', () => {
 	const raw = [makeTurn('t1'), makeTurn('t2'), makeTurn('t3')];
 
-	it('由来ID妥当・話者整合・時系列昇順・保護対象残存なら合格', () => {
+	it('由来ID妥当・話者整合・時系列昇順なら合格', () => {
 		const drafts = [makeDraft(['t1', 't2']), makeDraft(['t3'])];
-		const result = validateEditedChapter(drafts, raw, new Set(['t1']));
+		const result = validateEditedChapter(drafts, raw);
 		expect(result.ok).toBe(true);
 	});
 
@@ -74,23 +75,23 @@ describe('validateEditedChapter', () => {
 			makeDraft(['t1'], { personaId: 'wrong', speakerType: 'facilitator' }),
 			makeDraft(['t2', 't3'])
 		];
-		const result = validateEditedChapter(drafts, raw, new Set());
+		const result = validateEditedChapter(drafts, raw);
 		expect(result.ok).toBe(true);
 	});
 
 	it('原本に存在しない sourceTurnId は不合格', () => {
-		const result = validateEditedChapter([makeDraft(['tX'])], raw, new Set());
+		const result = validateEditedChapter([makeDraft(['tX'])], raw);
 		expect(result.ok).toBe(false);
 	});
 
-	it('保護対象が除外されていれば不合格', () => {
-		const result = validateEditedChapter([makeDraft(['t2', 't3'])], raw, new Set(['t1']));
-		expect(result.ok).toBe(false);
+	it('保護対象が除外されていても検証は合格（埋め戻しに委ねる）', () => {
+		const result = validateEditedChapter([makeDraft(['t2', 't3'])], raw);
+		expect(result.ok).toBe(true);
 	});
 
 	it('連結ターンの話者が食い違えば不合格（衝突した話者を理由に含める）', () => {
 		const mixed = [makeTurn('t1'), makeTurn('t2', { personaId: 'p2' })];
-		const result = validateEditedChapter([makeDraft(['t1', 't2'])], mixed, new Set());
+		const result = validateEditedChapter([makeDraft(['t1', 't2'])], mixed);
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.error.message).toContain('ペルソナ(p2)');
@@ -100,7 +101,7 @@ describe('validateEditedChapter', () => {
 
 	it('ファシリテーターとペルソナの連結は話者衝突として不合格', () => {
 		const mixed = [makeTurn('t1'), makeTurn('t2', { speakerType: 'facilitator', personaId: null })];
-		const result = validateEditedChapter([makeDraft(['t1', 't2'])], mixed, new Set());
+		const result = validateEditedChapter([makeDraft(['t1', 't2'])], mixed);
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.error.message).toContain('ファシリテーター');
@@ -108,17 +109,40 @@ describe('validateEditedChapter', () => {
 	});
 
 	it('由来IDの重複使用は不合格', () => {
-		const result = validateEditedChapter(
-			[makeDraft(['t1']), makeDraft(['t1', 't2'])],
-			raw,
-			new Set()
-		);
+		const result = validateEditedChapter([makeDraft(['t1']), makeDraft(['t1', 't2'])], raw);
 		expect(result.ok).toBe(false);
 	});
 
 	it('時系列順序が逆転していれば不合格', () => {
-		const result = validateEditedChapter([makeDraft(['t3']), makeDraft(['t1'])], raw, new Set());
+		const result = validateEditedChapter([makeDraft(['t3']), makeDraft(['t1'])], raw);
 		expect(result.ok).toBe(false);
+	});
+});
+
+describe('reinsertProtectedTurns', () => {
+	const raw = [
+		makeTurn('t1'),
+		makeTurn('t2', { speechMode: 'fact' }),
+		makeTurn('t3', { speakerType: 'facilitator', personaId: null })
+	];
+
+	it('落ちていない保護ターンはそのまま（ドラフトを変えない）', () => {
+		const drafts = [makeDraft(['t1', 't2']), makeDraft(['t3'])];
+		const result = reinsertProtectedTurns(drafts, raw, new Set(['t2']));
+		expect(result).toEqual(drafts);
+	});
+
+	it('落ちた保護ターンを原本のまま時系列位置に埋め戻す', () => {
+		// LLM が t2（保護・fact）を除外。t1 と t3 だけ残した。
+		const drafts = [makeDraft(['t1']), makeDraft(['t3'], { speakerType: 'facilitator', personaId: null })];
+		const result = reinsertProtectedTurns(drafts, raw, new Set(['t2']));
+
+		expect(result.map((draft) => draft.sourceTurnIds)).toEqual([['t1'], ['t2'], ['t3']]);
+		const reinserted = result[1];
+		// 原本のまま（未編集）・話者/speechMode を原本から引き継ぐ
+		expect(reinserted.content).toBe('発言t2');
+		expect(reinserted.speechMode).toBe('fact');
+		expect(reinserted.personaId).toBe('p1');
 	});
 });
 

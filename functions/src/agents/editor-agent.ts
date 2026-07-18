@@ -1,4 +1,4 @@
-import { generateObject, generateText } from 'ai';
+import { generateObject } from 'ai';
 import { z } from 'zod';
 import { sonnet } from '../llm/models.js';
 import { formatPersonas } from '../utils/prompt-formatters.js';
@@ -18,24 +18,38 @@ export type EditedTurnDraft = {
 	speechMode?: 'opinion' | 'fact' | 'question';
 };
 
-const editorSystemPrompt = `あなたは討論の書き起こしを整える熟練の編集者です。読み物としての質を高めることが役割ですが、以下の不変条件を絶対に守ってください。
+// 章編集・散文編集で共有する編集スタンス。積極的に整え、意味・立場・帰属・人物像は保持する。
+// 口ごとの追加ルール（章の構造ルール／散文ルール）はこの下に個別に足す。
+const editingStance = `あなたは討論のテキストを、読み物として通用する水準まで積極的に編集する熟練の編集者です。あなたの仕事は原文をなるべく残すことではなく、意味を保ったまま締まった読みやすい文章に書き直すことです。ただし以下の不変条件を絶対に守ってください。
 
 【保持する（改変禁止）】
-- 各発言の主張内容・立場・論旨。新たな意見・主張・結論・事実を加えない。
+- 主張内容・立場・論旨。新たな意見・主張・結論・事実を加えない。
 - 事実的主張の内容（ファクトチェック対象を含む）。
 - 発言の帰属（誰の発言か）。話者を取り違えない。
-- 発言ごとの口調・人物像（ペルソナの個性）。
-- 発言内・発言間に、編集前に存在しなかった矛盾を生じさせない。
+- 口調・人物像（ペルソナの個性）。ただし個性の保持は、口癖や言い回しを丸ごと残すことではなく、整えた後も「その人が言いそうな話し方」に読めることを指す。
+- 編集前に存在しなかった矛盾を生じさせない。
 
-【行う（可読性向上）】
-- 同一発言内および文脈上の冗長な繰り返し・不要な前置き・冗長な言い回しを取り除く。
-- 意味を変えず矛盾を生じさせない範囲で、自然で読みやすい文章へリライトする。
+【編集の姿勢】
+- まわりくどい言い回しは、簡潔で明快な文へ書き直す。単なる語尾の微修正で済ませず、文の骨格から整える。
+- 意味・主張・立場を変えず、矛盾を生じさせない範囲で行う。
+- 編集は原文と同じ言語で行う。`;
+
+const editChapterSystemPrompt = `${editingStance}
+
+以下は討論本文を「章」として編集するときの追加ルールです。原文は話し言葉の書き起こしなので、積極的に整えます。
+
+【章編集で積極的に行う】
+- 話し言葉特有の冗長な前置き・相槌・言い直し・同じ内容の繰り返しを積極的に削る。原文の長さを保つ必要はなく、内容が変わらない限り短くしてよい。
+- 相槌や中身の薄い同意など意味の乏しい発言、冗長で新たな情報を持たない発言は、編集成果物から積極的に除外してよい（sourceTurnIds に含めない）。
 - 内容的に重複するが固有の情報を含む発言は、簡潔化しつつ発言として保持する。
-- 冗長で新たな情報を持たない発言は編集成果物から除外してよい（sourceTurnIds に含めない）。
 - 発言の除外により同一話者の発言が連続する場合、それらを1つの自然な発言に連結し、その turn の sourceTurnIds に由来する原本ターンIDをすべて列挙する。
+- 言葉足らずで何を指すか分かりにくい発言は、括弧（　）で言葉を補って読み手に伝わるようにする。ただし補うのは、話し手が言おうとした内容の復元（省略された主語・目的語、指示語「それ・あれ」が指す先、前提となっている固有名詞や文脈）に限る。話し手が述べていない新しい主張・意見・事実・評価を括弧内に足してはならない。過剰に付けず、無いと意味が取りにくい箇所だけにとどめる。
 
-【制約】
-- 保護対象ターン（後述）は除外しない。必ずいずれかの編集後ターンの sourceTurnIds に含める。
+【最優先・保護対象ターン（[🔒除外禁止] の印が付いた発言）】
+- この印の付いた発言は、たとえ短くても・相槌や薄い同意に見えても・冗長に見えても、絶対に除外しない。上の「積極的に除外してよい」より常にこの規則が優先する。
+- 除外しないだけで、読みやすく編集すること自体は行ってよい（むしろ整えること）。必ずいずれかの編集後ターンの sourceTurnIds に、その印の付いた原本ターンIDを残すこと。
+
+【構造の制約】
 - 各編集後ターンの sourceTurnIds は入力ターンIDの部分集合とし、1件以上を必ず含める。
 - 【最重要・厳守】1つの編集後ターンには単一の話者の発言だけをまとめる。話者（ペルソナ／ファシリテーター）の異なる原本ターンを、1つの編集後ターンの sourceTurnIds に混在させてはならない。
   - 特に、ファシリテーターの発言とペルソナの発言を1つにまとめてはならない。ファシリテーターの発言は独立した編集後ターン（sourceTurnIds はそのファシリテーターターンのみ）にするか、冗長なら除外する。
@@ -43,8 +57,14 @@ const editorSystemPrompt = `あなたは討論の書き起こしを整える熟�
   - 連結してよいのは、同一 personaId の発言が（冗長ターンの除外により）連続する場合に限る。
   - 悪い例: あるペルソナの発言とファシリテーターの相槌を1ターンにまとめる／ペルソナAとペルソナBの発言を1ターンにまとめる。これらは禁止。
 - 発言の時系列順序を入れ替えない。章をまたいだ移動・連結をしない。
-- 可読性向上のための編集が意味の保持・無矛盾と両立しない箇所に限り、原文を維持する。
-- 編集は原文と同じ言語で行う。`;
+- 可読性向上のための編集が意味の保持・無矛盾と両立しない箇所に限り、原文を維持する。`;
+
+const editNarrationSystemPrompt = `${editingStance}
+
+以下は導入・締め・所感などの散文を編集するときのルールです。
+- 対象は単一の連続した散文ブロック1つです。発言の分割・話者の区別・ターンの概念はありません（章編集のような構造ルールは適用しません）。
+- 元の文章の要素は落とさず、1つの読みやすい文章に整えます。新しい情報や論評を加えず、長さを大きく変えないでください。
+- 前置き・見出し・区切り線などは付けず、整えた本文だけを content に入れてください。`;
 
 const editChapterSchema = z.object({
 	turns: z.array(
@@ -58,20 +78,27 @@ const editChapterSchema = z.object({
 	)
 });
 
-// 各ターンを turn.id 付きで整形する。LLM が sourceTurnIds でこの id を参照できるようにする
+const editNarrationSchema = z.object({
+	content: z.string()
+});
+
+// 各ターンを turn.id 付きで整形する。LLM が sourceTurnIds でこの id を参照できるようにする。
+// 保護対象ターンは行頭に印を付け、除外判断が起きる場所で「これは残す」を直接見えるようにする。
 const formatTurnsWithIds = (
 	turns: ReadonlyArray<DebateTurn>,
-	personas: ReadonlyArray<Persona>
+	personas: ReadonlyArray<Persona>,
+	protectedTurnIds: ReadonlySet<string>
 ): string =>
 	turns
 		.map((turn) => {
+			const mark = protectedTurnIds.has(turn.id) ? '[🔒除外禁止] ' : '';
 			if (turn.personaId) {
 				const persona = personas.find((candidate) => candidate.id === turn.personaId);
 				const name = persona ? persona.name : `Persona(${turn.personaId})`;
 				const role = persona ? persona.specificRole || persona.stakeholderRole : '';
-				return `[ID:${turn.id}][${name}(${role})(personaId:${turn.personaId})]: ${turn.content}`;
+				return `${mark}[ID:${turn.id}][${name}(${role})(personaId:${turn.personaId})]: ${turn.content}`;
 			}
-			return `[ID:${turn.id}][ファシリテーター]: ${turn.content}`;
+			return `${mark}[ID:${turn.id}][ファシリテーター]: ${turn.content}`;
 		})
 		.join('\n');
 
@@ -92,12 +119,12 @@ export const editChapter = async (
 
 		const result = await generateObject({
 			model: sonnet,
-			system: editorSystemPrompt,
+			system: editChapterSystemPrompt,
 			schema: editChapterSchema,
 			messages: [
 				{
 					role: 'user',
-					content: `章「${chapter.title}」の発言を編集者観点でリライトしてください。各編集後ターンには、由来する原本ターンID（[ID:...]）を sourceTurnIds に列挙してください。${pointsSection}\n\n参加者:\n${formatPersonas([...personas])}${protectedSection}\n\n【原本ターン（時系列順）】\n${formatTurnsWithIds(chapter.turns, personas)}`
+					content: `章「${chapter.title}」の発言を編集者観点でリライトしてください。各編集後ターンには、由来する原本ターンID（[ID:...]）を sourceTurnIds に列挙してください。${pointsSection}\n\n参加者:\n${formatPersonas([...personas])}${protectedSection}\n\n【原本ターン（時系列順）。[🔒除外禁止] の付いた発言は編集してよいが除外は不可】\n${formatTurnsWithIds(chapter.turns, personas, protectedTurnIds)}`
 				}
 			]
 		});
@@ -124,18 +151,19 @@ const editNarration = async (
 	draft: string
 ): Promise<Result<string, PipelineError>> => {
 	try {
-		const result = await generateText({
+		const result = await generateObject({
 			model: sonnet,
-			system: editorSystemPrompt,
+			system: editNarrationSystemPrompt,
+			schema: editNarrationSchema,
 			messages: [
 				{
 					role: 'user',
-					content: `次の${label}の文章を、意味・主張・事実を変えずに読みやすく整えてください。新しい情報や論評を加えず、長さも大きく変えないでください。整えた本文だけを返してください。\n\n【${label}】\n${draft}`
+					content: `次の${label}の文章を、意味を変えずに読みやすく整えてください。\n\n【${label}】\n${draft}`
 				}
 			]
 		});
 
-		const text = result.text.trim();
+		const text = result.object.content.trim();
 		if (!text) {
 			return {
 				ok: false,

@@ -111,12 +111,11 @@ export const computeProtectedTurnIds = (
  * - 各 sourceTurnId が当該章の原本ターンを指し、重複使用がない（新規発言・分裂・並べ替えの防止）
  * - 連結ターンの sourceTurnIds が同一話者・同一 personaId、ドラフト宣言とも一致
  * - ドラフトの最小由来インデックスが昇順（時系列順序が原本と矛盾しない）
- * - 保護対象ターンがいずれかのドラフトの由来に残る（除外されていない）
+ * 保護対象ターンの除外はここでは失敗にしない。うっかり除外は reinsertProtectedTurns が原本を埋め戻して担保する。
  */
 export const validateEditedChapter = (
 	drafts: ReadonlyArray<EditedTurnDraft>,
-	rawTurns: ReadonlyArray<DebateTurn>,
-	protectedTurnIds: ReadonlySet<string>
+	rawTurns: ReadonlyArray<DebateTurn>
 ): Result<true, PipelineError> => {
 	const fail = (message: string): Result<true, PipelineError> => ({
 		ok: false,
@@ -159,11 +158,50 @@ export const validateEditedChapter = (
 		prevMinIndex = minIndex;
 	}
 
-	for (const protectedId of protectedTurnIds) {
-		if (!usedSourceIds.has(protectedId)) return fail(`保護対象ターンが除外された: ${protectedId}`);
-	}
-
 	return { ok: true, value: true };
+};
+
+/**
+ * 最後の安全網: LLM が保護対象ターンをうっかり除外した場合に、その原本を1発言＝1ドラフトとして
+ * 時系列位置に埋め戻し、消失を防ぐ（Req 6.4）。埋め戻したテキストは未編集なので、これは予防（プロンプトの
+ * [🔒除外禁止] 提示）が効かなかったときのみ発火する。発火は warn ログに残し、予防の効きを観測できるようにする。
+ * 検証通過後のドラフト（時系列昇順・単一話者）に対して呼ぶ。
+ */
+export const reinsertProtectedTurns = (
+	drafts: ReadonlyArray<EditedTurnDraft>,
+	rawTurns: ReadonlyArray<DebateTurn>,
+	protectedTurnIds: ReadonlySet<string>,
+	context?: { topicId: string; chapterId: string }
+): EditedTurnDraft[] => {
+	const indexById = new Map(rawTurns.map((turn, index) => [turn.id, index]));
+	const usedSourceIds = new Set(drafts.flatMap((draft) => draft.sourceTurnIds));
+	const missing = [...protectedTurnIds].filter((id) => !usedSourceIds.has(id));
+	if (missing.length === 0) return [...drafts];
+
+	console.warn('[reinsertProtectedTurns] protected turns dropped by editor; re-inserting raw', {
+		...context,
+		droppedTurnIds: missing
+	});
+
+	const turnById = new Map(rawTurns.map((turn) => [turn.id, turn]));
+	const minIndexOf = (draft: EditedTurnDraft): number =>
+		Math.min(...draft.sourceTurnIds.map((id) => indexById.get(id) ?? 0));
+
+	const entries = drafts.map((draft) => ({ draft, sortIndex: minIndexOf(draft) }));
+	for (const id of missing) {
+		const raw = turnById.get(id)!;
+		entries.push({
+			draft: {
+				sourceTurnIds: [id],
+				speakerType: raw.speakerType as 'persona' | 'facilitator',
+				personaId: raw.personaId ?? null,
+				content: raw.content,
+				...(raw.speechMode ? { speechMode: raw.speechMode } : {})
+			},
+			sortIndex: indexById.get(id) ?? 0
+		});
+	}
+	return entries.sort((a, b) => a.sortIndex - b.sortIndex).map((entry) => entry.draft);
 };
 
 /**
@@ -221,7 +259,7 @@ export const runChapterEditStep = async (
 	);
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 
-	const validation = validateEditedChapter(result.value, chapter.turns, protectedTurnIds);
+	const validation = validateEditedChapter(result.value, chapter.turns);
 	if (!validation.ok) {
 		// 構造検証不合格。理由をログと成果物に残し、管理画面での把握・診断に使う（Req 6.4 / Monitoring）。
 		const reason = pipelineErrorMessage(validation.error);
@@ -243,11 +281,16 @@ export const runChapterEditStep = async (
 		return 'failed';
 	}
 
+	// うっかり除外の安全網: 落ちた保護対象ターンがあれば原本を埋め戻してから確定する（発火時は warn ログ）。
+	const drafts = reinsertProtectedTurns(result.value, chapter.turns, protectedTurnIds, {
+		topicId,
+		chapterId: chapter.id
+	});
 	const completed: EditedChapterForFirestore = {
 		chapterIndex: chapter.chapterIndex,
 		title: chapter.title,
 		agenda: chapter.agenda,
-		turns: toEditedTurns(result.value, chapter.turns),
+		turns: toEditedTurns(drafts, chapter.turns),
 		status: 'completed'
 	};
 	await writeEditedChapter(topicId, chapter.id, completed);
