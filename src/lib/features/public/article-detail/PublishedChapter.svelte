@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ArticleSpeech from './ArticleSpeech.svelte';
+	import PublishedAwarenessButton from './PublishedAwarenessButton.svelte';
 	import type { PublishedChapter } from '$lib/models/published/published-article.types';
 
 	interface Props {
@@ -13,7 +13,7 @@
 	<h2 class="article-chapter__title">{chapter.title}</h2>
 	<div class="article-chapter__speeches">
 		{#each chapter.speeches as speech (speech.id)}
-			<ArticleSpeech {speech} />
+			<PublishedAwarenessButton {speech} />
 		{/each}
 	</div>
 </section>

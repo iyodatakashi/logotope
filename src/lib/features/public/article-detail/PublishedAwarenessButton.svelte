@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { IconButton } from '@14ch/svelte-ui';
-	import AwarenessDialog from './AwarenessDialog.svelte';
+	import PublishedAwarenessDialog from './PublishedAwarenessDialog.svelte';
 	import type { PublishedSpeech } from '$lib/models/published/published-article.types';
 
 	interface Props {
@@ -10,10 +10,13 @@
 
 	// 気づきは本文に展開せず、1件以上のときだけアフォーダンスを出しダイアログへ委ねる（Req 3.1, 3.2, 3.4）。
 	const awarenessCount = $derived(speech.awarenesses.length);
-	let dialogRef: ReturnType<typeof AwarenessDialog> | undefined = $state();
+	let dialogRef: ReturnType<typeof PublishedAwarenessDialog> | undefined = $state();
 </script>
 
-<div class="article-speech" class:article-speech--facilitator={speech.speakerType === 'facilitator'}>
+<div
+	class="article-speech"
+	class:article-speech--facilitator={speech.speakerType === 'facilitator'}
+>
 	<div class="article-speech__speaker">
 		<span class="article-speech__name">{speech.speakerName}</span>
 		{#if speech.speakerRole}
@@ -34,7 +37,7 @@
 	</div>
 	<p class="article-speech__content">{speech.content}</p>
 	{#if awarenessCount > 0}
-		<AwarenessDialog bind:this={dialogRef} awarenesses={speech.awarenesses} />
+		<PublishedAwarenessDialog bind:this={dialogRef} awarenesses={speech.awarenesses} />
 	{/if}
 </div>
 

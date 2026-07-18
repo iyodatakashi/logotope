@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
-import ArticleChapter from '$lib/features/public/article-detail/ArticleChapter.svelte';
+import PublishedChapter from '$lib/features/public/article-detail/PublishedChapter.svelte';
 import type { PublishedChapter } from '$lib/models/published/published-article.types';
 
 const chapter: PublishedChapter = {
@@ -27,16 +27,16 @@ const chapter: PublishedChapter = {
 	]
 };
 
-describe('ArticleChapter', () => {
+describe('PublishedChapter', () => {
 	it('section に安定な id と data-chapter-index を持つ（Req 1.4, 4.2, 4.3）', async () => {
-		render(ArticleChapter, { chapter });
+		render(PublishedChapter, { chapter });
 		const section = document.querySelector('section.article-chapter');
 		expect(section?.id).toBe('chapter-2');
 		expect(section?.getAttribute('data-chapter-index')).toBe('2');
 	});
 
 	it('発話を発話順に描画する（Req 2.1）', async () => {
-		render(ArticleChapter, { chapter });
+		render(PublishedChapter, { chapter });
 		const contents = Array.from(document.querySelectorAll('.article-speech__content')).map(
 			(el) => el.textContent
 		);

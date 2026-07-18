@@ -12,14 +12,14 @@ class MockIntersectionObserver {
 	disconnect() {}
 }
 
-import ArticleToc from '$lib/features/public/article-detail/ArticleToc.svelte';
+import PublishedChapterIndex from '$lib/features/public/article-detail/PublishedChapterIndex.svelte';
 
 const chapters = [
 	{ index: 0, title: '第一章' },
 	{ index: 1, title: '第二章' }
 ];
 
-describe('ArticleToc', () => {
+describe('PublishedChapterIndex', () => {
 	afterEach(() => {
 		observerCb = null;
 		vi.unstubAllGlobals();
@@ -27,7 +27,7 @@ describe('ArticleToc', () => {
 
 	it('章リンクを #chapter-{index} で描画し、要素差し替え（<strong>）を使わない（Req 4.2, 4.4）', async () => {
 		vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
-		render(ArticleToc, { chapters });
+		render(PublishedChapterIndex, { chapters });
 		await expect
 			.element(page.getByRole('link', { name: '第一章' }))
 			.toHaveAttribute('href', '#chapter-0');
@@ -39,7 +39,7 @@ describe('ArticleToc', () => {
 
 	it('可視章の目次項目に状態クラス --active が付く（Req 4.3, 4.4）', async () => {
 		vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
-		render(ArticleToc, { chapters });
+		render(PublishedChapterIndex, { chapters });
 		observerCb?.([{ isIntersecting: true, target: { getAttribute: () => '1' } }]);
 		await vi.waitFor(() => {
 			const active = document.querySelector('.article-toc__item--active');
