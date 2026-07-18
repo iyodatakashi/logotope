@@ -114,6 +114,15 @@ dataconnect/
 - **型定義**: PascalCase（例: `DebateSession`, `PersonaBelief`）
 - **GraphQL型**: PascalCase（例: `DebateTopic`, `PersonaProfile`）
 
+## 公開（閲覧）型と管理（Admin）型の分離（重要）
+
+公開（閲覧者向け）のアプリ層データ型は、管理（Admin）側の型と**名前も定義も完全に分離**する。混在させると、管理機能の巨大なミューテーション面（`createTopicStates` が返す `TopicStates` 等）が公開の読み取り経路に型依存として持ち込まれ、結合・歪みの原因になる。
+
+- **公開側の型には必ず `Published` 接頭辞を付ける**（例: `PublishedTopic` / `PublishedArticle` / `PublishedChapter`）。読み取り専用の最小射影とし、表示に必要なフィールドだけを持たせる。
+- **公開のコンポーネント・データ取得は `Published*` 型のみに依存する**。管理用の型・ストア（`Topic` / `TopicStates` / `topicsStore` / `createTopicStates` / `*ForFirestore`）には依存しない。
+- Firestore コレクションは共有しうるが、**読み込み境界で永続ドキュメント → `Published*` に射影して変換**する（Admin 型を経由しない）。
+- 公開部品を作る際、既存の管理用コンポーネントを「見た目が同じだから」と型ごと流用しない。見た目の踏襲は可、型・データ経路の共有は不可。
+
 ## CSS / スタイル記法
 
 - **BEM記法で書く**（Block・Element `__`・Modifier `--`）。
