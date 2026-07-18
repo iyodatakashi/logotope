@@ -1129,12 +1129,13 @@ describe('generateImpression', () => {
 		expect(system).not.toContain('上書きされた最新信念');
 	});
 
-	it('蓄積された気づきを事後コメントの入力（揮発部）に反映する', async () => {
-		const formatMod = await import('../../utils/prompt-formatters.js');
+	it('蓄積された気づきを、討論全文の後・末尾側に置き、それを軸にコメントさせる（末尾＝最終発言にしない）', async () => {
 		const aiMod = await import('ai');
-		vi.mocked(aiMod.generateObject).mockResolvedValueOnce({
-			object: { content: 'コメント' }
-		} as never);
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateObject).mockImplementation(async (args: unknown) => {
+			capturedArgs.push(args);
+			return { object: { content: 'コメント' } } as never;
+		});
 
 		const personaWithAwareness: Persona = {
 			...mockPersona,
@@ -1153,9 +1154,34 @@ describe('generateImpression', () => {
 		const { generateImpression } = await import('../../agents/persona-agent.js');
 		await generateImpression(personaWithAwareness, mockTurns);
 
-		expect(vi.mocked(formatMod.formatAwarenessSection)).toHaveBeenCalledWith(
-			personaWithAwareness.awarenesses
-		);
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		// 気づきの内容が入力に反映される
+		expect(userContent).toContain('討論で得た気づき');
+		// 順序：討論全文 → 気づき（気づきは全文より後ろ＝末尾側に来て、最終発言が末尾にならない）
+		expect(userContent.indexOf('討論全文:')).toBeLessThan(userContent.indexOf('討論で得た気づき'));
+		// 気づきを軸に、最終発言への反応にしない旨の指示が含まれる
+		expect(userContent).toContain('あなた自身の気づき');
+		expect(userContent).toContain('最後の発言');
+	});
+
+	it('気づきが空でも討論全文から生成する（信念のみにはしない）', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateObject).mockImplementation(async (args: unknown) => {
+			capturedArgs.push(args);
+			return { object: { content: 'コメント' } } as never;
+		});
+
+		const personaNoAwareness: Persona = { ...mockPersona, awarenesses: [] };
+
+		const { generateImpression } = await import('../../agents/persona-agent.js');
+		await generateImpression(personaNoAwareness, mockTurns);
+
+		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
+			.content;
+		expect(userContent).toContain('討論全文:');
+		expect(userContent).toContain('最後の発言');
 	});
 });
 

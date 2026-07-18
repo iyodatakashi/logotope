@@ -458,8 +458,25 @@ export const generateImpression = async (
 	personas: ReadonlyArray<Persona> = []
 ): Promise<Result<ImpressionResult, PipelineError>> => {
 	try {
-		// 見解は「固定の信念（主軸・system）＋討論で得た気づき（揮発部）」から都度導出する（4.1/4.3）
-		const awarenessNote = formatAwarenessSection(persona.awarenesses);
+		// 見解は「固定の信念（主軸・system）＋討論で得た気づき（揮発部）」から都度導出する（4.1/4.3）。
+		// プロンプトは「討論全文 → 気づきリスト → 指示」の順にし、生成直前（末尾）に来るのを最終発言ではなく
+		// 本人の気づき＋指示にする。これで末尾発言への引っ張られ（リセンシー）を気づき側へ向け直す。
+		const awarenessLines = (persona.awarenesses ?? [])
+			.map(
+				(awareness) =>
+					`- （${awareness.kind === 'reception' ? '受容' : '自分の気づき'}）${awareness.content}`
+			)
+			.join('\n');
+		const hasAwareness = awarenessLines.length > 0;
+
+		const transcriptSection = `討論全文:\n${formatTurns(turns, personas)}`;
+		const awarenessSection = hasAwareness
+			? `\n\nあなたが討論中に得た気づき（他者の意見に「一理ある」と受け止めた点や、自分の中で生じた気づき）:\n${awarenessLines}`
+			: '';
+		const instruction = hasAwareness
+			? `\n\n上の討論を踏まえつつ、${persona.name}として討論後のコメントを2〜4文で述べてください。討論の特定の発言、とりわけ最後の発言に反応するのではなく、上に挙げた「あなた自身の気づき」を軸に、自分の考えがどう動いたか・何が印象に残ったかを自分の言葉で述べること（討論全文は、その気づきを具体的に思い出すための材料として使ってよい）。「今日の話を聞いていて」「討論を通じて」「今回の議論で」のような振り返りの前置き・実況で始めないこと。前置きは付けず、いきなり感じたこと・考えの変化そのものから書き出す。`
+			: `\n\n上の討論を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。特定の発言、とりわけ最後の発言だけに反応せず、討論全体の中で実際に自分の考えに影響した点を選ぶこと。「今日の話を聞いていて」「討論を通じて」「今回の議論で」のような振り返りの前置き・実況で始めないこと。前置きは付けず、いきなり感じたこと・考えの変化そのものから書き出す。`;
+
 		const result = await generateObject({
 			model: sonnet,
 			system: buildPersonaSystemPrompt(persona, '', getBelief(persona)),
@@ -467,7 +484,7 @@ export const generateImpression = async (
 			messages: [
 				{
 					role: 'user',
-					content: `以下の討論全体を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。\n「今日の話を聞いていて」「討論を通じて」「今回の議論で」のような、振り返りの前置き・実況で始めないこと。前置きは付けず、いきなり感じたこと・考えの変化そのものから書き出してください。${awarenessNote}\n\n討論全体:\n${formatTurns(turns, personas)}`
+					content: `${transcriptSection}${awarenessSection}${instruction}`
 				}
 			]
 		});
