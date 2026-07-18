@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Persona } from '$lib/models/persona/persona.types';
 	import type { SvelteComponent } from 'svelte';
-	import { Checkbox, Button } from '@14ch/svelte-ui';
+	import { Checkbox, Button, Input, Textarea } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import InterviewDialog from './InterviewDialog.svelte';
 
@@ -13,6 +13,17 @@
 	// 採用/不採用は安定 id をキーに永続する（フェーズ承認・前進とは独立にいつでも切替可能）。
 	const toggleSelected = (selected: boolean) =>
 		currentTopicStore.personasStore.setSelected(persona.id, selected);
+
+	// 名前・年齢・肩書き・プロフィールのインライン編集を即保存する（取材は再実行しない）。
+	// specificRole が未設定のペルソナでは undefined を書かない（Firestore が undefined を拒否するため）。
+	const saveProfile = () => {
+		currentTopicStore.personasStore.updatePersona(persona.id, {
+			name: persona.name,
+			age: persona.age,
+			background: persona.background,
+			...(persona.specificRole !== undefined ? { specificRole: persona.specificRole } : {})
+		});
+	};
 
 	// 再取材はこのペルソナ1人だけを取り直す（取材の成否に関わらず常時可能）。
 	const reinterview = () => {
@@ -32,8 +43,28 @@
 				ariaLabel="このペルソナを討論に採用する"
 			/>
 		</div>
-		<span class="persona-item__name">{persona.name}</span>
-		<span class="persona-item__age">{persona.age}歳</span>
+		<span class="persona-item__name">
+			<Input
+				inline
+				focusStyle="background"
+				bind:value={persona.name}
+				onchange={saveProfile}
+				disabled={!editable}
+				ariaLabel="ペルソナの名前"
+			/>
+		</span>
+		<span class="persona-item__age">
+			<Input
+				inline
+				type="number"
+				min={0}
+				focusStyle="background"
+				bind:value={persona.age}
+				onchange={saveProfile}
+				disabled={!editable}
+				ariaLabel="年齢"
+			/>歳
+		</span>
 		<span
 			class="persona-item__status-badge"
 			class:persona-item__status-badge--done={interview?.status === 'completed'}
@@ -47,12 +78,36 @@
 		</span>
 	</div>
 
-	<button class="persona-item__body" onclick={() => interviewDialogRef?.open()}>
-		<div class="persona-item__badge">{persona.specificRole ?? persona.stakeholderRole}</div>
-		<div class="persona-item__bg">{persona.background}</div>
-	</button>
+	<div class="persona-item__badge">
+		<Input
+			inline
+			fullWidth
+			focusStyle="background"
+			bind:value={persona.specificRole}
+			onchange={saveProfile}
+			disabled={!editable}
+			ariaLabel="肩書き"
+			placeholder={persona.stakeholderRole}
+		/>
+	</div>
+
+	<div class="persona-item__bg">
+		<Textarea
+			inline
+			minHeight={0}
+			fullWidth
+			focusStyle="background"
+			bind:value={persona.background}
+			onchange={saveProfile}
+			disabled={!editable}
+			ariaLabel="プロフィール"
+		/>
+	</div>
 
 	<div class="persona-item__footer">
+		<Button variant="ghost" rounded icon="menu_book" onclick={() => interviewDialogRef?.open()}>
+			信念を見る
+		</Button>
 		<Button
 			variant="ghost"
 			rounded
@@ -92,14 +147,6 @@
 		}
 	}
 
-	.persona-item__body {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		text-align: left;
-		color: var(--svelte-ui-text-color);
-	}
-
 	.persona-item__bg {
 		font-size: var(--svelte-ui-font-size-sm);
 	}
@@ -107,6 +154,7 @@
 	.persona-item__footer {
 		display: flex;
 		justify-content: flex-end;
+		gap: 8px;
 	}
 
 	.persona-item__status-badge {

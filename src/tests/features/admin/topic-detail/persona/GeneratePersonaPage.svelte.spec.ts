@@ -20,6 +20,7 @@ const { goto, spies, state } = vi.hoisted(() => ({
 		resetDebate: vi.fn(),
 		resetEditing: vi.fn(),
 		setSelected: vi.fn(),
+		updatePersona: vi.fn(),
 		reinterview: vi.fn()
 	},
 	state: {
@@ -66,6 +67,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 					return state.personas;
 				},
 				setSelected: spies.setSelected,
+				updatePersona: spies.updatePersona,
 				reinterview: spies.reinterview
 			};
 		}
@@ -262,7 +264,10 @@ describe('GeneratePersonaPage', () => {
 
 		mount();
 
-		await page.getByRole('checkbox').nth(0).click({ force: true });
+		// svelte-ui のトークン未読込でチェックボックスが 0px 幅になり座標ヒットテストが隣の
+		// インライン入力に吸われるため、要素へ直接 click を送って onchange 配線を検証する。
+		const checkbox = page.getByRole('checkbox').nth(0).element() as HTMLInputElement;
+		checkbox.click();
 
 		expect(spies.setSelected).toHaveBeenCalledWith('p1', false);
 	});

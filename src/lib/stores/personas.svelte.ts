@@ -79,6 +79,15 @@ export const createPersonasStore = (topicId: string) => {
 		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), { selected });
 	};
 
+	// 名前・肩書き・年齢・プロフィールなど表示項目を当該ペルソナ文書へ永続する。
+	// 長すぎる肩書きの読みやすさ調整などが目的で、取材は再実行しない（信念には影響しない）。
+	const updatePersona = async (
+		personaId: string,
+		patch: Partial<Pick<PersonaForFirestore, 'name' | 'specificRole' | 'age' | 'background'>>
+	): Promise<void> => {
+		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), patch);
+	};
+
 	// ペルソナ単位の再取材。単一ペルソナのみを取材し、他ペルソナの結果に影響しない（成否問わず常時可能）。
 	const reinterview = async (personaId: string, topicTitle: string): Promise<void> => {
 		await runInterview(personaId, topicTitle);
@@ -155,6 +164,7 @@ export const createPersonasStore = (topicId: string) => {
 		start,
 		stop,
 		setSelected,
+		updatePersona,
 		reinterview,
 		runInterview,
 		setPersonasPhaseRunning,
