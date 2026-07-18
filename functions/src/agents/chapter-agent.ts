@@ -30,7 +30,7 @@ const buildTopicContextSection = (topicContext?: TopicContext): string => {
 const SCORE_THRESHOLD = 7;
 
 const CHAPTER_GENERATION_GOAL = `【ゴール】
-これは討論コンテンツの章立てを作る作業です。目指すのは「章ごとに主題が明確で、読みやすい討論コンテンツ」。各章は1つの主題に絞られ、視聴者がその主題を見失わずに読み進められる状態を目標とします。主題がぼやける細切れの章や、章をまたいだ同じ話の繰り返しは読みやすさを損なうため避けます。`;
+これは討論コンテンツの章立てを作る作業です。目指すのは「章ごとに主題が明確で、読みやすい討論コンテンツ」。各章は1つの主題に絞られ、読者がその主題を見失わずに読み進められる状態を目標とします。主題がぼやける細切れの章や、章をまたいだ同じ話の繰り返しは読みやすさを損なうため避けます。`;
 
 const scoringResultSchema = z.object({
 	scoredIssues: z.array(
