@@ -174,7 +174,7 @@ describe('runInterview', () => {
 	});
 
 	describe('Phase3: 最終信念生成', () => {
-		it('ドラフトと検証レポートをプロンプトに含める', async () => {
+		it('検証レポートを対等な材料として渡し、ドラフト文面は下敷きにしない', async () => {
 			mockGenerateObject
 				.mockResolvedValueOnce({ object: makeDraftBeliefObject() })
 				.mockResolvedValueOnce({ object: makeFinalBeliefObject() });
@@ -184,9 +184,13 @@ describe('runInterview', () => {
 				messages: Array<{ content: string }>;
 			};
 			const prompt = args.messages[0].content;
-			expect(prompt).toContain('draft-stance');
+			// 検証レポートは材料として渡る
 			expect(prompt).toContain('verification report text');
-			expect(prompt).toContain('比較参照');
+			// ドラフト信念の文面は Phase3 に渡さない（anchoring 源を断つ）
+			expect(prompt).not.toContain('draft-stance');
+			expect(prompt).not.toContain('比較参照');
+			// 一致点/相違点/新発見を対等な材料として扱う
+			expect(prompt).toContain('対等な材料');
 		});
 
 		it('generateObject失敗時はResult.errorを返す', async () => {
@@ -417,10 +421,10 @@ describe('runInterview', () => {
 			expect(finalPrompt).toContain('前提としている事実（立場から見た事実）');
 		});
 
-		it('乖離を「システムの推定違いの是正」として耐性なく反映する指示を含む', async () => {
+		it('相違点・新発見を対等な材料として実態側へ反映し、ステレオタイプに戻さない指示を含む', async () => {
 			const finalPrompt = await getFinalPrompt();
-			expect(finalPrompt).toContain('推定違いの是正');
-			expect(finalPrompt).toContain('耐性');
+			expect(finalPrompt).toContain('対等な材料');
+			expect(finalPrompt).toContain('ステレオタイプに戻すのは不可');
 		});
 
 		it('層②を共有事実基盤と区別し、共通見解へ均さず帰属保持する旨を含む', async () => {
@@ -434,9 +438,10 @@ describe('runInterview', () => {
 			expect(finalPrompt).toMatch(/戯画|捏造/);
 		});
 
-		it('ドラフトの perceivedFacts を比較参照としてプロンプトに含める', async () => {
+		it('層②の種は検証レポートの「立場から見た実態」から採り、ドラフトの perceivedFacts は渡さない', async () => {
 			const finalPrompt = await getFinalPrompt();
-			expect(finalPrompt).toContain('draft-perceived-facts');
+			expect(finalPrompt).not.toContain('draft-perceived-facts');
+			expect(finalPrompt).toContain('立場から見た実態');
 		});
 	});
 });

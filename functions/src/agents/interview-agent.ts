@@ -67,7 +67,6 @@ export const runInterview = async (
 	const finalResult = await generateFinalBelief(
 		topicTitle,
 		persona,
-		draftResult.value,
 		verifyResult.value.verificationReport,
 		topicContext
 	);
@@ -236,7 +235,6 @@ const verifyWithGrounding = async (
 const generateFinalBelief = async (
 	topicTitle: string,
 	persona: Persona,
-	draft: DraftBelief,
 	verificationReport: string,
 	topicContext?: TopicContext
 ): Promise<Result<{ belief: string; interviewRecord: string }, PipelineError>> => {
@@ -250,26 +248,22 @@ const generateFinalBelief = async (
 					role: 'user',
 					content: `テーマ「${topicTitle}」について、ペルソナ「${persona.name}」（${persona.age}歳、${persona.occupation}、${persona.specificRole}）の最終的な信念ドキュメントと取材記録をゼロから生成してください。
 
-【重要な指示】
-- 下記のドラフト信念は「出発点」ではなく「比較参照」として扱うこと
-- 検証レポートで判明したギャップ・新発見を最大限反映する。ドラフト（AIの初期推定）と検証で判明した実態が食い違う場合は、その乖離を「システムの推定違いの是正」として耐性なく（ドラフトに固執せず）実態側へ反映する
-- ステレオタイプの一般論ではなく、このペルソナ固有の経験・葛藤・価値観を描く。ただしペルソナを戯画化せず、その認識に至った背景・根拠を伴わせ、実態が得られない部分を推測で捏造しない
+【材料（下記の検証レポート）の扱い（最重要）】
+- 信念は、下記の検証レポートを材料としてゼロから構築する。特定のドラフト文面を下敷きにしてなぞってはならない（ドラフトは既に破棄されている）。
+- 検証レポートの3区分を対等な材料として扱う：
+  - 「一致点」＝実態で裏づけられた信念の核。採用する。
+  - 「相違点」＝ステレオタイプと実態のズレ。実態側を採り、当人の中の葛藤・留保として織り込む。
+  - 「新発見」＝ステレオタイプでは見えていなかった側面。信念に新しい次元・多面性として加える。
+- 一致点だけを並べてステレオタイプに戻すのは不可。相違点・新発見の一つひとつが、最終信念のどこかに具体的な痕跡（懸念の拡張・内的な葛藤・留保・新しい観点）として現れること。
+- ただし検証で一致確認された当人の立場そのものは反転させない（補正＝立場の変更ではなく、立体化・多面化である）。
+- ステレオタイプの一般論ではなく、このペルソナ固有の経験・葛藤・価値観を描く。戯画化せず、その認識に至った背景・根拠を伴わせ、実態が得られない部分を推測で捏造しない。
 - 取材記録は1000字以上の具体的な質疑応答形式で書く
 - 【確定した客観的事実（共通前提）】がある場合、このペルソナに関連する具体的事実は一般論に薄めず具体的に反映する。関連する事実が無ければ無理に盛り込まない${factSection}
 
 【立場から見た事実（層②）の扱い（重要）】
-- この立場の当事者が「事実」として認識している内容（立場から見た事実）を、共有された客観的事実基盤（共通前提）とは区別して保持する
+- この立場の当事者が「事実」として認識している内容（立場から見た事実）を、共有された客観的事実基盤（共通前提）とは区別して保持する。種は検証レポートの「立場から見た実態」から採る。
 - その事実認識が共通見解（コンセンサス）と異なっても、共通見解や他の立場へ均さず、このペルソナに帰属する事実認識として書く
 - ただし戯画化・捏造はせず、検証で実態が得られない事実認識は生成しない（無理に作らない）
-
-【比較参照：ドラフト信念（ステレオタイプ仮説）】
-- 立場と根拠: ${draft.stanceAndGrounds}
-- 核心的主張: ${draft.coreClaims}
-- 懸念事項: ${draft.concerns}
-- 価値観: ${draft.values}
-- 妥協点: ${draft.compromisePoints}
-- 変化の可能性: ${draft.changePotential}
-- 立場から見た事実（層②のドラフト）: ${draft.perceivedFacts ?? '（未推定）'}
 
 【検証レポート（Google検索グラウンディングによる反証的検証結果）】
 ${verificationReport}
