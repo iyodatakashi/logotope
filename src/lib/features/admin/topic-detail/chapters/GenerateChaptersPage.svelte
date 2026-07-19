@@ -570,7 +570,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-		padding: 0 0 0 28px;
+		padding: 0 0 0 32px;
 		list-style: none;
 	}
 
@@ -578,7 +578,7 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		line-height: 1.5;
+		line-height: normal;
 	}
 
 	.generate-chapters-page__agenda-text {
@@ -592,14 +592,6 @@
 	.generate-chapters-page__chapter-add {
 		display: flex;
 		justify-content: center;
-	}
-	.generate-chapters-page__issues {
-		border: 1px solid #e0e0e0;
-		border-radius: 6px;
-		padding: 12px;
-	}
-	.generate-chapters-page__issues h3 {
-		margin: 0 0 12px;
 	}
 	.generate-chapters-page__issues-grid {
 		display: grid;
@@ -618,46 +610,22 @@
 	}
 
 	.generate-chapters-page__scored-issues {
-		list-style: none;
-		margin: 0;
-		padding: 0;
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
 	}
 
 	.generate-chapters-page__scored-issues li {
 		display: grid;
 		grid-template-columns: 2rem 3.5rem 1fr;
 		grid-template-rows: auto auto;
-		gap: 0 8px;
-		padding: 6px 8px;
-		border-radius: 4px;
-	}
-	.generate-chapters-page__scored-issues li.generate-chapters-page__scored-issue--selected {
-		background: #e8f5e9;
-	}
-	.generate-chapters-page__scored-issues li.generate-chapters-page__scored-issue--rejected {
-		background: #fafafa;
-		opacity: 0.6;
 	}
 	.generate-chapters-page__score {
 		grid-row: 1 / 3;
 		align-self: center;
 		text-align: center;
 	}
-	.generate-chapters-page__scored-issue--selected .generate-chapters-page__score {
-		color: #2e7d32;
-	}
-	.generate-chapters-page__scored-issue--rejected .generate-chapters-page__score {
-		color: #9e9e9e;
-	}
 	.generate-chapters-page__issue-source {
-		color: #757575;
 		align-self: end;
-	}
-	.generate-chapters-page__issue-text {
-		color: #212121;
 	}
 	.generate-chapters-page__reason {
 		grid-column: 3;

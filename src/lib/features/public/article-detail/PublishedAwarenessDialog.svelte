@@ -31,8 +31,6 @@
 		display: flex;
 		flex-direction: column;
 	}
-	.published-awareness-dialog__item {
-	}
 	.published-awareness-dialog__persona {
 		font-weight: bold;
 	}

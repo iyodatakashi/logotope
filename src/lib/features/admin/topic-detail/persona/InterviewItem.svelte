@@ -284,12 +284,8 @@
 	.interview-item__source-summary {
 		font-size: var(--svelte-ui-font-size-sm);
 	}
-	.interview-item__source-entry ul {
-	}
 	.interview-item__source-entry li {
 		font-size: var(--svelte-ui-font-size-sm);
-	}
-	.interview-item__source-entry a {
 	}
 	.interview-item__source-entry a:hover {
 		text-decoration: underline;

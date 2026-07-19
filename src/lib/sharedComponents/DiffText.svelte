@@ -13,8 +13,6 @@
 </span>
 
 <style>
-	.diff-text {
-	}
 	ins {
 		background: #e6ffed;
 		color: #22863a;
