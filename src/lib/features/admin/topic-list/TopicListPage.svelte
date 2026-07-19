@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AdminTemplate from '$lib/features/admin/AdminTemplate.svelte';
 	import { Button } from '@14ch/svelte-ui';
 	import NewTopicDialog from '$lib/features/admin/new-topic-dialog/NewTopicDialog.svelte';
 	import { topicsStore } from '$lib/stores/topics.svelte';
@@ -20,34 +21,38 @@
 		});
 </script>
 
-<div class="topic-list-page">
-	<header>
-		<h1>管理ダッシュボード</h1>
-		<div class="topic-list-page__actions">
-			<Button variant="filled" onclick={() => newTopicDialogRef?.open()}>新しいテーマを作成</Button>
-		</div>
-	</header>
+<AdminTemplate>
+	<div class="topic-list-page">
+		<header>
+			<h1>管理ダッシュボード</h1>
+			<div class="topic-list-page__actions">
+				<Button variant="filled" onclick={() => newTopicDialogRef?.open()}
+					>新しいテーマを作成</Button
+				>
+			</div>
+		</header>
 
-	{#if !topicsStore.isLoaded}
-		<p>読み込み中...</p>
-	{:else if topicsStore.topics.length === 0}
-		<p class="topic-list-page__empty">テーマがありません。新しいテーマを作成してください。</p>
-	{:else}
-		<ul class="topic-list-page__topic-list">
-			{#each topicsStore.topics as topic (topic.id)}
-				{@const badge = getBadge(topic)}
-				<li class="topic-list-page__topic-card">
-					<a href={`/admin/topics/${topic.id}`}>
-						<span class="topic-list-page__title">{topic.title}</span>
-						<span class="topic-list-page__badge topic-list-page__badge--{badge.styleKey}"
-							>{badge.label}</span
-						>
-					</a>
-				</li>
-			{/each}
-		</ul>
-	{/if}
-</div>
+		{#if !topicsStore.isLoaded}
+			<p>読み込み中...</p>
+		{:else if topicsStore.topics.length === 0}
+			<p class="topic-list-page__empty">テーマがありません。新しいテーマを作成してください。</p>
+		{:else}
+			<ul class="topic-list-page__topic-list">
+				{#each topicsStore.topics as topic (topic.id)}
+					{@const badge = getBadge(topic)}
+					<li class="topic-list-page__topic-card">
+						<a href={`/admin/topics/${topic.id}`}>
+							<span class="topic-list-page__title">{topic.title}</span>
+							<span class="topic-list-page__badge topic-list-page__badge--{badge.styleKey}"
+								>{badge.label}</span
+							>
+						</a>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</div>
+</AdminTemplate>
 
 <NewTopicDialog bind:this={newTopicDialogRef} />
 
