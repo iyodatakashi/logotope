@@ -1,14 +1,14 @@
 // 公開記事の読み取り専用・最小射影。Admin 型（EditingChapter / EditingNarration / *ForFirestore）とは分離する。
 // 射影/join は取得関数（published-article.ts）にインラインで書き、このファイルは型と型ガードのみに保つ。
 
-// 気づき。発話の由来ターンから集約し、境界でペルソナ名を解決して焼き込む。
+// 気づき。ターンの由来から集約し、境界でペルソナ名を解決して焼き込む。
 export type PublishedAwareness = {
 	personaName: string;
 	content: string;
 };
 
-// 1 発話。読み物本文・話者・気づきのみを持ち、診断注釈（factCheck / engagementScore / speechMode 等）は含めない。
-export type PublishedSpeech = {
+// 1 ターン（発言）。読み物本文・話者・気づきのみを持ち、診断注釈（factCheck / engagementScore / speechMode 等）は含めない。
+export type PublishedTurn = {
 	id: string;
 	speakerType: 'facilitator' | 'persona';
 	speakerName: string; // ペルソナ名／ファシリテーター表記
@@ -21,7 +21,7 @@ export type PublishedSpeech = {
 export type PublishedChapter = {
 	index: number;
 	title: string;
-	speeches: PublishedSpeech[];
+	turns: PublishedTurn[];
 };
 
 // 導入/締めの本文（final ?? draft）。内容が無い要素は article 側で null を持つ。

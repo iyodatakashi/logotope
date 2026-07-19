@@ -3,11 +3,12 @@ import { render } from 'vitest-browser-svelte';
 
 import PublishedChapter from '$lib/features/public/article-detail/PublishedChapter.svelte';
 import type { PublishedChapter as PublishedChapterModel } from '$lib/models/published/published-article.types';
+import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
 const chapter: PublishedChapterModel = {
 	index: 2,
 	title: '章タイトル',
-	speeches: [
+	turns: [
 		{
 			id: 's1',
 			speakerType: 'persona',
@@ -19,7 +20,7 @@ const chapter: PublishedChapterModel = {
 		{
 			id: 's2',
 			speakerType: 'facilitator',
-			speakerName: 'ファシリテーター',
+			speakerName: FACILITATOR_NAME,
 			speakerRole: '',
 			content: '次の発言',
 			awarenesses: []
@@ -35,9 +36,9 @@ describe('PublishedChapter', () => {
 		expect(section?.getAttribute('data-chapter-index')).toBe('2');
 	});
 
-	it('発話を発話順に描画する（Req 2.1）', async () => {
+	it('発言を発言順に描画する（Req 2.1）', async () => {
 		render(PublishedChapter, { chapter });
-		const contents = Array.from(document.querySelectorAll('.published-awareness-button__content')).map(
+		const contents = Array.from(document.querySelectorAll('.published-turn-item__content')).map(
 			(el) => el.textContent
 		);
 		expect(contents).toEqual(['最初の発言', '次の発言']);

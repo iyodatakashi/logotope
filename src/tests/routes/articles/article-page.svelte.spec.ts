@@ -18,7 +18,7 @@ const article: PublishedArticle = {
 		{
 			index: 0,
 			title: '第一章',
-			speeches: [
+			turns: [
 				{ id: 's1', speakerType: 'persona', speakerName: 'Alice', speakerRole: '賛成派', content: '賛成です。', awarenesses: [] }
 			]
 		}

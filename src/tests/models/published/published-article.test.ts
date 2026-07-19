@@ -13,6 +13,7 @@ vi.mock('firebase/firestore', () => ({
 
 import { getDoc, getDocs } from 'firebase/firestore';
 import { fetchPublishedArticle } from '$lib/models/published/published-article';
+import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
 type Data = Record<string, unknown>;
 type CollDoc = { id: string; data: Data };
@@ -51,7 +52,11 @@ const setup = (fixture: {
 	});
 };
 
-const publishedTopic = { title: 'T', published: true, publishedAt: makeTimestamp(new Date(2026, 0, 1)) };
+const publishedTopic = {
+	title: 'T',
+	published: true,
+	publishedAt: makeTimestamp(new Date(2026, 0, 1))
+};
 
 describe('fetchPublishedArticle — 公開判定と写像', () => {
 	beforeEach(() => vi.clearAllMocks());
@@ -86,7 +91,11 @@ describe('fetchPublishedArticle — 射影と join', () => {
 	beforeEach(() => vi.clearAllMocks());
 
 	const fullFixture = {
-		topic: { title: '公開タイトル', published: true, publishedAt: makeTimestamp(new Date(2026, 3, 15)) },
+		topic: {
+			title: '公開タイトル',
+			published: true,
+			publishedAt: makeTimestamp(new Date(2026, 3, 15))
+		},
 		editorial: {
 			intro: { final: 'INTRO-final', draft: 'INTRO-draft' },
 			outro: { final: null, draft: 'OUTRO-draft' },
@@ -147,7 +156,13 @@ describe('fetchPublishedArticle — 射影と join', () => {
 					title: 'edited-title-0',
 					status: 'completed',
 					turns: [
-						{ id: 'e1', sourceTurnIds: ['t1', 't2'], speakerType: 'persona', personaId: 'p1', content: 'edited-e1' }
+						{
+							id: 'e1',
+							sourceTurnIds: ['t1', 't2'],
+							speakerType: 'persona',
+							personaId: 'p1',
+							content: 'edited-e1'
+						}
 					]
 				}
 			},
@@ -158,7 +173,13 @@ describe('fetchPublishedArticle — 射影と join', () => {
 					title: 'edited-title-1',
 					status: 'failed',
 					turns: [
-						{ id: 'ex', sourceTurnIds: ['t3'], speakerType: 'persona', personaId: 'p2', content: 'edited-ex' }
+						{
+							id: 'ex',
+							sourceTurnIds: ['t3'],
+							speakerType: 'persona',
+							personaId: 'p2',
+							content: 'edited-ex'
+						}
 					]
 				}
 			}
@@ -183,7 +204,11 @@ describe('fetchPublishedArticle — 射影と join', () => {
 	it('導入・締めが両方 null の要素は null（省略）にする', async () => {
 		setup({
 			topic: publishedTopic,
-			editorial: { intro: { final: null, draft: null }, outro: { final: null, draft: null }, impressions: {} }
+			editorial: {
+				intro: { final: null, draft: null },
+				outro: { final: null, draft: null },
+				impressions: {}
+			}
 		});
 		const article = await fetchPublishedArticle('t1');
 		expect(article?.intro).toBeNull();
@@ -202,10 +227,10 @@ describe('fetchPublishedArticle — 射影と join', () => {
 		setup(fullFixture);
 		const article = await fetchPublishedArticle('t1');
 		expect(article?.chapters[0].title).toBe('edited-title-0');
-		expect(article?.chapters[0].speeches.map((s) => s.id)).toEqual(['e1']);
+		expect(article?.chapters[0].turns.map((s) => s.id)).toEqual(['e1']);
 		// chapterIndex 1 は failed のため原本にフォールバック
 		expect(article?.chapters[1].title).toBe('orig-title-1');
-		expect(article?.chapters[1].speeches.map((s) => s.id)).toEqual(['t3', 't4']);
+		expect(article?.chapters[1].turns.map((s) => s.id)).toEqual(['t3', 't4']);
 	});
 
 	it('章は chapterIndex 順で index を持つ', async () => {
@@ -217,12 +242,16 @@ describe('fetchPublishedArticle — 射影と join', () => {
 	it('話者を解決する（persona は name/role、facilitator はラベル）', async () => {
 		setup(fullFixture);
 		const article = await fetchPublishedArticle('t1');
-		const persona = article?.chapters[0].speeches[0];
-		expect(persona).toMatchObject({ speakerType: 'persona', speakerName: 'Alice', speakerRole: 'RoleA' });
-		const facilitator = article?.chapters[1].speeches[1];
+		const persona = article?.chapters[0].turns[0];
+		expect(persona).toMatchObject({
+			speakerType: 'persona',
+			speakerName: 'Alice',
+			speakerRole: 'RoleA'
+		});
+		const facilitator = article?.chapters[1].turns[1];
 		expect(facilitator).toMatchObject({
 			speakerType: 'facilitator',
-			speakerName: 'ファシリテーター',
+			speakerName: FACILITATOR_NAME,
 			speakerRole: ''
 		});
 	});
@@ -230,24 +259,24 @@ describe('fetchPublishedArticle — 射影と join', () => {
 	it('specificRole が無い persona は stakeholderRole を役割にする', async () => {
 		setup(fullFixture);
 		const article = await fetchPublishedArticle('t1');
-		expect(article?.chapters[1].speeches[0]).toMatchObject({ speakerName: 'Bob', speakerRole: 'SB' });
+		expect(article?.chapters[1].turns[0]).toMatchObject({ speakerName: 'Bob', speakerRole: 'SB' });
 	});
 
-	it('編集後発話は複数 sourceTurnIds の気づきを集約する', async () => {
+	it('編集後発言は複数 sourceTurnIds の気づきを集約する', async () => {
 		setup(fullFixture);
 		const article = await fetchPublishedArticle('t1');
-		expect(article?.chapters[0].speeches[0].awarenesses).toEqual([
+		expect(article?.chapters[0].turns[0].awarenesses).toEqual([
 			{ personaName: 'Alice', content: 'aw-t1' },
 			{ personaName: 'Bob', content: 'aw-t2' }
 		]);
 	});
 
-	it('原本発話は自ターン id で気づきを逆引きし、無ければ空配列', async () => {
+	it('原本発言は自ターン id で気づきを逆引きし、無ければ空配列', async () => {
 		setup(fullFixture);
 		const article = await fetchPublishedArticle('t1');
 		// t3・t4 に紐づく気づきは無い
-		expect(article?.chapters[1].speeches[0].awarenesses).toEqual([]);
-		expect(article?.chapters[1].speeches[1].awarenesses).toEqual([]);
+		expect(article?.chapters[1].turns[0].awarenesses).toEqual([]);
+		expect(article?.chapters[1].turns[1].awarenesses).toEqual([]);
 	});
 
 	it('所感は sortOrder 昇順で final ?? draft を採用し、両 null は省く', async () => {
@@ -262,7 +291,7 @@ describe('fetchPublishedArticle — 射影と join', () => {
 	it('診断注釈（speechMode 等）は射影に含めない', async () => {
 		setup(fullFixture);
 		const article = await fetchPublishedArticle('t1');
-		expect(article?.chapters[0].speeches[0]).not.toHaveProperty('speechMode');
-		expect(article?.chapters[0].speeches[0]).not.toHaveProperty('factCheck');
+		expect(article?.chapters[0].turns[0]).not.toHaveProperty('speechMode');
+		expect(article?.chapters[0].turns[0]).not.toHaveProperty('factCheck');
 	});
 });

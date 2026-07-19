@@ -3,10 +3,11 @@ import { publicDb } from '$lib/firebase-public';
 import type {
 	PublishedArticle,
 	PublishedChapter,
-	PublishedSpeech,
+	PublishedTurn,
 	PublishedAwareness,
 	PublishedImpression
 } from './published-article.types';
+import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
 // 読み取り元の最小 shape（Admin 型・*ForFirestore は経由せず、Firestore 永続形の必要フィールドだけを写す）。
 type TopicDoc = { title: string; published?: boolean; publishedAt?: Timestamp };
@@ -34,7 +35,6 @@ type EditedChapterDoc = {
 type AwarenessDoc = { content: string; triggeredByTurnId: string };
 type PersonaDoc = { name: string; specificRole?: string; stakeholderRole: string; awarenesses?: AwarenessDoc[] };
 
-const FACILITATOR_NAME = 'ファシリテーター';
 
 // 公開済み単一討論を publicDb で読み、読み物 PublishedArticle へ射影/join する。
 // 記事なし（不在・未公開・permission-denied）は null。それ以外の取得失敗のみ throw。
@@ -81,14 +81,14 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 			: { speakerType: 'facilitator' as const, speakerName: FACILITATOR_NAME, speakerRole: '' };
 	};
 
-	// 原本発話は自ターン id、編集後発話は連結元 sourceTurnIds 全てから気づきを集約する。
-	const speechFromOriginal = (turn: TurnDoc): PublishedSpeech => ({
+	// 原本ターンは自ターン id、編集後ターンは連結元 sourceTurnIds 全てから気づきを集約する。
+	const turnFromOriginal = (turn: TurnDoc): PublishedTurn => ({
 		id: turn.id,
 		...resolveSpeaker(turn.personaId),
 		content: turn.content,
 		awarenesses: awarenessesByTurn.get(turn.id) ?? []
 	});
-	const speechFromEdited = (turn: EditedTurnDoc): PublishedSpeech => ({
+	const turnFromEdited = (turn: EditedTurnDoc): PublishedTurn => ({
 		id: turn.id,
 		...resolveSpeaker(turn.personaId),
 		content: turn.content,
@@ -106,9 +106,9 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 		const original = snap.data() as ChapterDoc;
 		const edited = editedByIndex.get(original.chapterIndex);
 		if (edited && edited.status === 'completed') {
-			return { index: edited.chapterIndex, title: edited.title, speeches: edited.turns.map(speechFromEdited) };
+			return { index: edited.chapterIndex, title: edited.title, turns: edited.turns.map(turnFromEdited) };
 		}
-		return { index: original.chapterIndex, title: original.title, speeches: original.turns.map(speechFromOriginal) };
+		return { index: original.chapterIndex, title: original.title, turns: original.turns.map(turnFromOriginal) };
 	});
 
 	const editorial = editorialSnap.exists() ? (editorialSnap.data() as EditorialDoc) : null;
