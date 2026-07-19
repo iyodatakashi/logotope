@@ -3,6 +3,7 @@
 	import PublishedAwarenessDialog from './PublishedAwarenessDialog.svelte';
 	import type { PublishedTurn } from '$lib/models/published/published-article.types';
 	import { convertToHtml } from '$lib/utils/formatText';
+	import PersonaAvatar from '$lib/sharedComponents/PersonaAvatar.svelte';
 
 	interface Props {
 		turn: PublishedTurn;
@@ -18,6 +19,7 @@
 	class="published-turn-item"
 	class:published-turn-item--facilitator={turn.speakerType === 'facilitator'}
 >
+	<PersonaAvatar />
 	<div class="published-turn-item__speaker">
 		<span class="published-turn-item__name">{turn.speakerName}</span>
 		{#if turn.speakerRole}
