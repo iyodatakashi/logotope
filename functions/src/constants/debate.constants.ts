@@ -21,9 +21,6 @@ export const DEFAULT_INTERVENTION_COOLDOWN = 3;
 /** 1章あたりの目標ターン数（既定） */
 export const TURNS_PER_CHAPTER = 15;
 
-/** 討論全体のターン上限（既定） */
-export const MAX_TURNS = 200;
-
 /** 議論の沈静化（盛り上がりが低い状態）が連続したターン数の上限。これを超えたら章を早期終了する */
 export const QUIET_STREAK_LIMIT = 5;
 

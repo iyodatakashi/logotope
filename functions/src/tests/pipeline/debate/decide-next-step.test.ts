@@ -8,7 +8,7 @@ import type { DebateOptions } from '../../../types/debate.types.js';
 import type { AgendaItemState } from '../../../types/chapter.types.js';
 import type { DebateTurn } from '../../../types/turn.types.js';
 
-const options: DebateOptions = { turnsPerChapter: 15, maxTurns: 200, interventionCooldown: 3 };
+const options: DebateOptions = { turnsPerChapter: 15, interventionCooldown: 3 };
 
 // cap: hasPoints → ceil(15*2.5)=38 / noPoints → ceil(15*1.5)=23
 // earlyThreshold: ceil(15*0.75)=12, QUIET_STREAK_LIMIT=5
@@ -26,7 +26,6 @@ const turns = (n: number): DebateTurn[] => Array.from({ length: n }, (_, i) => p
 
 const base = (overrides: Partial<Parameters<typeof decideNextStep>[0]> = {}) => ({
 	chapterTurns: turns(5),
-	globalTurnCount: 5,
 	quietStreak: 0,
 	agenda: [] as AgendaItemState[],
 	options,
@@ -36,45 +35,32 @@ const base = (overrides: Partial<Parameters<typeof decideNextStep>[0]> = {}) => 
 
 describe('decideNextStep', () => {
 	it('cap・早期終了いずれも未成立なら turn を返し期待位置は章ローカル長', () => {
-		const result = decideNextStep(base({ chapterTurns: turns(5), globalTurnCount: 5 }));
+		const result = decideNextStep(base({ chapterTurns: turns(5) }));
 		expect(result).toEqual({ kind: 'turn', expectedTurnIndex: 5 });
 	});
 
 	it('cap 到達かつ最終章でなければ chapter-end を返す', () => {
-		const result = decideNextStep(base({ chapterTurns: turns(23), globalTurnCount: 23 }));
+		const result = decideNextStep(base({ chapterTurns: turns(23) }));
 		expect(result).toEqual({ kind: 'chapter-end', expectedTurnIndex: 23 });
 	});
 
 	it('cap 到達かつ最終章でも chapter-end を返す（最終章判定は dispatcher 側で行う）', () => {
-		const result = decideNextStep(
-			base({ chapterTurns: turns(23), globalTurnCount: 23, isLastChapter: true })
-		);
+		const result = decideNextStep(base({ chapterTurns: turns(23), isLastChapter: true }));
 		expect(result).toEqual({ kind: 'chapter-end', expectedTurnIndex: 23 });
 	});
 
-	it('globalTurnCount が maxTurns 以上なら章を終了する（chapter-end）', () => {
-		const result = decideNextStep(base({ chapterTurns: turns(10), globalTurnCount: 200 }));
-		expect(result.kind).toBe('chapter-end');
-	});
-
 	it('早期終了条件成立（進捗閾値超え＋カウンタ上限）なら chapter-end を返す', () => {
-		const result = decideNextStep(
-			base({ chapterTurns: turns(13), globalTurnCount: 13, quietStreak: 5 })
-		);
+		const result = decideNextStep(base({ chapterTurns: turns(13), quietStreak: 5 }));
 		expect(result).toEqual({ kind: 'chapter-end', expectedTurnIndex: 13 });
 	});
 
 	it('早期終了の進捗閾値未満なら turn を返す（継続）', () => {
-		const result = decideNextStep(
-			base({ chapterTurns: turns(10), globalTurnCount: 10, quietStreak: 5 })
-		);
+		const result = decideNextStep(base({ chapterTurns: turns(10), quietStreak: 5 }));
 		expect(result.kind).toBe('turn');
 	});
 
 	it('カウンタが上限未満（カバレッジ評価で 0 リセット相当）なら turn を返す（継続）', () => {
-		const result = decideNextStep(
-			base({ chapterTurns: turns(13), globalTurnCount: 13, quietStreak: 0 })
-		);
+		const result = decideNextStep(base({ chapterTurns: turns(13), quietStreak: 0 }));
 		expect(result.kind).toBe('turn');
 	});
 
@@ -83,7 +69,7 @@ describe('decideNextStep', () => {
 			...turns(22),
 			personaTurn(22, { targetPersonaId: 'p2', targetedBy: 'persona' })
 		];
-		const result = decideNextStep(base({ chapterTurns, globalTurnCount: 23, isLastChapter: true }));
+		const result = decideNextStep(base({ chapterTurns, isLastChapter: true }));
 		expect(result).toEqual({ kind: 'turn', expectedTurnIndex: 23, finalResponse: true });
 	});
 
@@ -94,7 +80,7 @@ describe('decideNextStep', () => {
 			personaTurn(22, { personaId: 'p1', targetPersonaId: 'p2', targetedBy: 'persona' }),
 			personaTurn(23, { personaId: 'p2' })
 		];
-		const result = decideNextStep(base({ chapterTurns, globalTurnCount: 24, isLastChapter: true }));
+		const result = decideNextStep(base({ chapterTurns, isLastChapter: true }));
 		expect(result).toEqual({ kind: 'chapter-end', expectedTurnIndex: 24 });
 	});
 
@@ -102,7 +88,6 @@ describe('decideNextStep', () => {
 		const result = decideNextStep(
 			base({
 				chapterTurns: turns(30),
-				globalTurnCount: 30,
 				agenda: [{ point: '論点A', status: 'introduced' }]
 			})
 		);
@@ -111,7 +96,7 @@ describe('decideNextStep', () => {
 	});
 
 	it('同一入力から常に同一の出力を返す（決定論）', () => {
-		const args = base({ chapterTurns: turns(23), globalTurnCount: 23 });
+		const args = base({ chapterTurns: turns(23) });
 		expect(decideNextStep(args)).toEqual(decideNextStep(args));
 	});
 
@@ -120,7 +105,6 @@ describe('decideNextStep', () => {
 			const result = decideNextStep(
 				base({
 					chapterTurns: turns(5),
-					globalTurnCount: 5,
 					quietStreak: 0, // 盛り上がり中（早期終了カウンタは 0）
 					agenda: [
 						{ point: '論点A', status: 'addressed' },
@@ -135,7 +119,6 @@ describe('decideNextStep', () => {
 			const result = decideNextStep(
 				base({
 					chapterTurns: turns(5),
-					globalTurnCount: 5,
 					quietStreak: 0,
 					agenda: [
 						{ point: '論点A', status: 'addressed' },
@@ -154,7 +137,6 @@ describe('decideNextStep', () => {
 			const result = decideNextStep(
 				base({
 					chapterTurns,
-					globalTurnCount: 6,
 					quietStreak: 0,
 					agenda: [{ point: '論点A', status: 'addressed' }]
 				})
@@ -166,7 +148,6 @@ describe('decideNextStep', () => {
 			const result = decideNextStep(
 				base({
 					chapterTurns: turns(3),
-					globalTurnCount: 3,
 					quietStreak: 0,
 					agenda: [{ point: '論点A', status: 'addressed' }]
 				})
@@ -175,9 +156,7 @@ describe('decideNextStep', () => {
 		});
 
 		it('4.4 agendaItem を持たない章には本条件を適用しない（従来どおり継続）', () => {
-			const result = decideNextStep(
-				base({ chapterTurns: turns(5), globalTurnCount: 5, quietStreak: 0, agenda: [] })
-			);
+			const result = decideNextStep(base({ chapterTurns: turns(5), quietStreak: 0, agenda: [] }));
 			expect(result).toEqual({ kind: 'turn', expectedTurnIndex: 5 });
 		});
 	});

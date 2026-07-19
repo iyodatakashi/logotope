@@ -82,7 +82,7 @@ vi.mock('../../../pipeline/debate/enqueue-step.js', () => ({
 }));
 
 import { advanceDebate } from '../../../pipeline/debate/debate-orchestrator.js';
-import { MAX_TURNS } from '../../../constants/debate.constants.js';
+import { TURNS_PER_CHAPTER, TURN_CAP_RATIO } from '../../../constants/debate.constants.js';
 
 const TOPIC_ID = 'topic1';
 const RUN_ID = 'run1';
@@ -412,9 +412,12 @@ describe('回帰: drift 非発火でもハードキャップで終端する', ()
 			await advanceDebate(stepQueue.shift()!);
 		}
 
-		// ガード到達前に自然終端し、討論はハードキャップで完了している
+		// ガード到達前に自然終端し、討論は章キャップで完了している（全体上限は廃止済み）
 		expect(guard).toBeLessThan(2000);
 		expect(holder.mock.store.get(`topics/${TOPIC_ID}`)?.phaseStatus).toBe('generated');
-		expect(chapterTurns().length).toBeLessThanOrEqual(MAX_TURNS);
+		// 論点なし章の cap（ceil(15*1.5)=23）＋末尾指名への最終応答 1 で頭打ちになる
+		expect(chapterTurns().length).toBeLessThanOrEqual(
+			Math.ceil(TURNS_PER_CHAPTER * TURN_CAP_RATIO) + 1
+		);
 	});
 });

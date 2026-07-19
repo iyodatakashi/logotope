@@ -187,7 +187,7 @@ describe('performTurnStep - 早期終了間際の継続保護（非LLM・Task 4�
 		} as never);
 	});
 
-	const options = { turnsPerChapter: 4, maxTurns: 100, interventionCooldown: 2 };
+	const options = { turnsPerChapter: 4, interventionCooldown: 2 };
 
 	// 章ローカル3ターン（turnsPerChapter=4 → 早期閾値 ceil(3)=3）で早期終了圏に入れる
 	const earlyEndCtx = (agenda: DebateState['agenda']): StepContext => {
@@ -274,7 +274,6 @@ describe('performTurnStep - 発言コミット後にカバレッジを記録し�
 
 		await performTurnStep(ctx, makePayload({ stepKind: 'turn', expectedTurnIndex: 1 }), {
 			turnsPerChapter: 10,
-			maxTurns: 100,
 			interventionCooldown: 2
 		});
 
@@ -298,7 +297,6 @@ describe('performTurnStep - 追記棄却理由の伝播（R9.2）', () => {
 	const runTurn = () =>
 		performTurnStep(makeCtx({}), makePayload({ stepKind: 'turn', expectedTurnIndex: 0 }), {
 			turnsPerChapter: 10,
-			maxTurns: 100,
 			interventionCooldown: 2
 		});
 
@@ -367,7 +365,7 @@ describe('performTurnStep - 章末+1（freeze）の指名者のみ評価（2.1�
 		await performTurnStep(
 			ctx,
 			makePayload({ stepKind: 'turn', expectedTurnIndex: 1, finalResponse: true }),
-			{ turnsPerChapter: 10, maxTurns: 100, interventionCooldown: 2 }
+			{ turnsPerChapter: 10, interventionCooldown: 2 }
 		);
 
 		// 全非話者の一括評価は行わない（2.1）
@@ -410,7 +408,7 @@ describe('performTurnStep - 最後の論点消化のみ（committed-no-turn・Ta
 		const result = await performTurnStep(
 			ctx,
 			makePayload({ stepKind: 'turn', expectedTurnIndex: 1 }),
-			{ turnsPerChapter: 10, maxTurns: 100, interventionCooldown: 2 }
+			{ turnsPerChapter: 10, interventionCooldown: 2 }
 		);
 
 		// 余計なペルソナ発言は生成しない
@@ -456,7 +454,7 @@ describe('末尾評価の配線（コミット後・自己修復・章クロー�
 		return makeCtx({ chapterDoc, state, chapterTurnStartInState: 0 });
 	};
 
-	const options = { turnsPerChapter: 10, maxTurns: 100, interventionCooldown: 2 };
+	const options = { turnsPerChapter: 10, interventionCooldown: 2 };
 
 	it('通常ターン確定後に、確定ターン自身への末尾評価を実行する（4.1/1.1）', async () => {
 		vi.mocked(generatePersonaTurn).mockResolvedValue({

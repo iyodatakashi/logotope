@@ -24,7 +24,6 @@ import {
 	TURN_CAP_RATIO,
 	AGENDA_TURN_CAP_RATIO,
 	TURNS_PER_CHAPTER,
-	MAX_TURNS,
 	DEFAULT_INTERVENTION_COOLDOWN
 } from '../../constants/debate.constants.js';
 import { isEarlyEndCandidate } from './utils.js';
@@ -37,7 +36,6 @@ import type { NextStep, StepPayload, StepContext } from '../../types/step.types.
 
 export const DEFAULT_OPTIONS: DebateOptions = {
 	turnsPerChapter: TURNS_PER_CHAPTER,
-	maxTurns: MAX_TURNS,
 	interventionCooldown: DEFAULT_INTERVENTION_COOLDOWN
 };
 
@@ -57,13 +55,11 @@ type TurnFollowupStep = Extract<NextStep, { kind: 'turn' | 'chapter-end' }>;
  */
 export const decideNextStep = ({
 	chapterTurns,
-	globalTurnCount,
 	quietStreak,
 	agenda,
 	options
 }: {
 	chapterTurns: DebateTurn[];
-	globalTurnCount: number;
 	quietStreak: number;
 	agenda: AgendaItemState[];
 	options: DebateOptions;
@@ -78,8 +74,9 @@ export const decideNextStep = ({
 	// 次に追記すべき章ローカル位置（= 現在のターン数）。frontier 照合に使う
 	const expectedTurnIndex = chapterTurnCount;
 
-	// 章上限に到達、または討論全体の上限に到達したか（cap は最優先のハード終了条件）
-	const hitCap = chapterTurnCount >= cap || globalTurnCount >= options.maxTurns;
+	// 章上限に到達したか（cap は最優先のハード終了条件）。討論全体の総ターン上限は設けず、
+	// 総量は章数（＝主題数）なりに伸びるに任せる。各章は自分の cap で必ず閉じるため終端は保証される。
+	const hitCap = chapterTurnCount >= cap;
 	// 一定割合まで進み、かつ盛り上がりが連続して低いなら早期終了（判定式は isEarlyEndCandidate に一本化）
 	const earlyEnd = isEarlyEndCandidate(chapterTurnCount, options.turnsPerChapter, quietStreak);
 	// 章の全 agendaItem が消化済み（addressed）なら盛り上がりに関わらず章を終了する。
@@ -189,7 +186,6 @@ const enqueueAfterTurn = async (
 	if (ctx.chapterDoc.status === 'completed') return;
 	const next = decideNextStep({
 		chapterTurns: ctx.state.turns.slice(ctx.chapterTurnStartInState),
-		globalTurnCount: ctx.state.turns.length,
 		quietStreak,
 		agenda: ctx.state.agenda,
 		options: buildStepOptions(payload)

@@ -11,7 +11,6 @@ export type AwarenessEvent = {
 
 export type DebateOptions = {
 	turnsPerChapter: number;
-	maxTurns: number;
 	interventionCooldown: number;
 	singleChapterMode?: boolean;
 };
