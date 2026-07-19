@@ -21,7 +21,7 @@
 	<div class="published-turn-item__speaker">
 		<span class="published-turn-item__name">{turn.speakerName}</span>
 		{#if turn.speakerRole}
-			<span class="published-turn-item__role">（{turn.speakerRole}）</span>
+			<span class="published-turn-item__role">{turn.speakerRole}</span>
 		{/if}
 	</div>
 	<p class="published-turn-item__content">{@html convertToHtml(turn.content)}</p>

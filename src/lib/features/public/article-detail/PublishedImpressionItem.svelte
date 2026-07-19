@@ -12,7 +12,7 @@
 	<div class="published-impression-item__speaker">
 		<span class="published-impression-item__name">{impression.speakerName}</span>
 		{#if impression.speakerRole}
-			<span class="published-impression-item__role">（{impression.speakerRole}）</span>
+			<span class="published-impression-item__role">{impression.speakerRole}</span>
 		{/if}
 	</div>
 	<p class="published-impression-item__content">{@html convertToHtml(impression.content)}</p>
@@ -31,9 +31,5 @@
 	}
 	.published-impression-item__name {
 		font-weight: bold;
-	}
-	.published-impression-item__role {
-		font-size: var(--svelte-ui-font-size-sm);
-		color: #757575;
 	}
 </style>
