@@ -30,14 +30,14 @@ const chapter: PublishedChapter = {
 describe('PublishedChapter', () => {
 	it('section に安定な id と data-chapter-index を持つ（Req 1.4, 4.2, 4.3）', async () => {
 		render(PublishedChapter, { chapter });
-		const section = document.querySelector('section.article-chapter');
+		const section = document.querySelector('section.published-chapter');
 		expect(section?.id).toBe('chapter-2');
 		expect(section?.getAttribute('data-chapter-index')).toBe('2');
 	});
 
 	it('発話を発話順に描画する（Req 2.1）', async () => {
 		render(PublishedChapter, { chapter });
-		const contents = Array.from(document.querySelectorAll('.article-speech__content')).map(
+		const contents = Array.from(document.querySelectorAll('.published-awareness-button__content')).map(
 			(el) => el.textContent
 		);
 		expect(contents).toEqual(['最初の発言', '次の発言']);

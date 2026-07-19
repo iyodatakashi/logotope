@@ -7,19 +7,19 @@
 	let { label, content }: Props = $props();
 </script>
 
-<section class="article-narration">
-	<h2 class="article-narration__label">{label}</h2>
-	<p class="article-narration__body">{content}</p>
+<section class="published-narration">
+	<h2 class="published-narration__label">{label}</h2>
+	<p class="published-narration__body">{content}</p>
 </section>
 
 <style>
-	.article-narration__label {
+	.published-narration__label {
 		margin: 0 0 8px;
 		font-size: var(--svelte-ui-font-size-sm);
 		font-weight: 700;
 		color: #7b1fa2;
 	}
-	.article-narration__body {
+	.published-narration__body {
 		margin: 0;
 		line-height: 1.8;
 		white-space: pre-wrap;

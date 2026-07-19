@@ -31,18 +31,18 @@
 	});
 </script>
 
-<nav class="article-toc" aria-label="目次">
-	<ul class="article-toc__list">
+<nav class="published-chapter-index" aria-label="目次">
+	<ul class="published-chapter-index__list">
 		{#each chapters as chapter (chapter.index)}
-			<li class="article-toc__item" class:article-toc__item--active={chapter.index === activeIndex}>
-				<a class="article-toc__link" href="#chapter-{chapter.index}">{chapter.title}</a>
+			<li class="published-chapter-index__item" class:published-chapter-index__item--active={chapter.index === activeIndex}>
+				<a class="published-chapter-index__link" href="#chapter-{chapter.index}">{chapter.title}</a>
 			</li>
 		{/each}
 	</ul>
 </nav>
 
 <style>
-	.article-toc__list {
+	.published-chapter-index__list {
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -50,7 +50,7 @@
 		flex-direction: column;
 		gap: 4px;
 	}
-	.article-toc__link {
+	.published-chapter-index__link {
 		display: block;
 		padding: 6px 8px;
 		border-left: 2px solid transparent;
@@ -64,11 +64,11 @@
 			background 0.15s,
 			border-color 0.15s;
 	}
-	.article-toc__link:hover {
+	.published-chapter-index__link:hover {
 		background: #f5f5f5;
 		color: #333;
 	}
-	.article-toc__item--active .article-toc__link {
+	.published-chapter-index__item--active .published-chapter-index__link {
 		border-left-color: #7b1fa2;
 		color: #7b1fa2;
 		font-weight: 700;

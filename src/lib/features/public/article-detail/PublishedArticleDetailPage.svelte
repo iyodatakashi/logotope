@@ -27,16 +27,16 @@
 </svelte:head>
 
 {#if navigating.to}
-	<p class="article-page__status">読み込み中...</p>
+	<p class="published-article-detail-page__status">読み込み中...</p>
 {:else}
-	<div class="article-page">
-		<aside class="article-page__toc">
+	<div class="published-article-detail-page">
+		<aside class="published-article-detail-page__toc">
 			<PublishedChapterIndex chapters={article.chapters} />
 		</aside>
-		<main class="article-page__main">
-			<header class="article-page__header">
-				<h1 class="article-page__title">{article.title}</h1>
-				<span class="article-page__published-at">{formattedDate}</span>
+		<main class="published-article-detail-page__main">
+			<header class="published-article-detail-page__header">
+				<h1 class="published-article-detail-page__title">{article.title}</h1>
+				<span class="published-article-detail-page__published-at">{formattedDate}</span>
 			</header>
 
 			{#if article.intro}
@@ -52,23 +52,23 @@
 			{/if}
 
 			{#if article.impressions.length > 0}
-				<section class="article-page__impressions">
-					<h2 class="article-page__impressions-title">参加者の所感</h2>
+				<section class="published-article-detail-page__impressions">
+					<h2 class="published-article-detail-page__impressions-title">参加者の所感</h2>
 					{#each article.impressions as impression (impression.personaId)}
 						<PublishedImpression {impression} />
 					{/each}
 				</section>
 			{/if}
 
-			<footer class="article-page__footer">
-				<a class="article-page__home-link" href="/">記事一覧へ戻る</a>
+			<footer class="published-article-detail-page__footer">
+				<a class="published-article-detail-page__home-link" href="/">記事一覧へ戻る</a>
 			</footer>
 		</main>
 	</div>
 {/if}
 
 <style>
-	.article-page {
+	.published-article-detail-page {
 		max-width: 960px;
 		margin: 0 auto;
 		padding: 32px 16px;
@@ -77,43 +77,43 @@
 		gap: 32px;
 		align-items: start;
 	}
-	.article-page__toc {
+	.published-article-detail-page__toc {
 		position: sticky;
 		top: 24px;
 	}
-	.article-page__main {
+	.published-article-detail-page__main {
 		min-width: 0;
 	}
-	.article-page__header {
+	.published-article-detail-page__header {
 		margin-bottom: 32px;
 	}
-	.article-page__title {
+	.published-article-detail-page__title {
 		margin: 0 0 8px;
 	}
-	.article-page__published-at {
+	.published-article-detail-page__published-at {
 		font-size: var(--svelte-ui-font-size-sm);
 		color: #757575;
 	}
-	.article-page__impressions {
+	.published-article-detail-page__impressions {
 		margin-top: 32px;
 		padding-top: 24px;
 		border-top: 1px solid #e0e0e0;
 	}
-	.article-page__impressions-title {
+	.published-article-detail-page__impressions-title {
 		font-size: 1.25rem;
 		margin: 0 0 12px;
 	}
-	.article-page__footer {
+	.published-article-detail-page__footer {
 		margin-top: 48px;
 	}
-	.article-page__home-link {
+	.published-article-detail-page__home-link {
 		color: #7b1fa2;
 		text-decoration: none;
 	}
-	.article-page__home-link:hover {
+	.published-article-detail-page__home-link:hover {
 		text-decoration: underline;
 	}
-	.article-page__status {
+	.published-article-detail-page__status {
 		max-width: 960px;
 		margin: 0 auto;
 		padding: 32px 16px;
@@ -122,10 +122,10 @@
 
 	/* 狭幅時は目次の固定を解除し単カラムにする（Req 10.1, 10.2）。 */
 	@media (max-width: 768px) {
-		.article-page {
+		.published-article-detail-page {
 			grid-template-columns: 1fr;
 		}
-		.article-page__toc {
+		.published-article-detail-page__toc {
 			position: static;
 		}
 	}

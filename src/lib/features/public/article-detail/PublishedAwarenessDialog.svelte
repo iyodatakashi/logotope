@@ -14,17 +14,17 @@
 </script>
 
 <Dialog bind:this={dialogRef} title="気づき" scrollable width="480px">
-	<ul class="awareness-dialog__list">
+	<ul class="published-awareness-dialog__list">
 		{#each awarenesses as awareness, i (i)}
-			<li class="awareness-dialog__item">
-				<span class="awareness-dialog__persona">{awareness.personaName}</span>: {awareness.content}
+			<li class="published-awareness-dialog__item">
+				<span class="published-awareness-dialog__persona">{awareness.personaName}</span>: {awareness.content}
 			</li>
 		{/each}
 	</ul>
 </Dialog>
 
 <style>
-	.awareness-dialog__list {
+	.published-awareness-dialog__list {
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -32,10 +32,10 @@
 		flex-direction: column;
 		gap: 12px;
 	}
-	.awareness-dialog__item {
+	.published-awareness-dialog__item {
 		line-height: 1.6;
 	}
-	.awareness-dialog__persona {
+	.published-awareness-dialog__persona {
 		font-weight: bold;
 	}
 </style>

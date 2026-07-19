@@ -34,7 +34,7 @@ describe('PublishedChapterIndex', () => {
 		await expect
 			.element(page.getByRole('link', { name: '第二章' }))
 			.toHaveAttribute('href', '#chapter-1');
-		expect(document.querySelector('.article-toc strong')).toBeNull();
+		expect(document.querySelector('.published-chapter-index strong')).toBeNull();
 	});
 
 	it('可視章の目次項目に状態クラス --active が付く（Req 4.3, 4.4）', async () => {
@@ -42,10 +42,10 @@ describe('PublishedChapterIndex', () => {
 		render(PublishedChapterIndex, { chapters });
 		observerCb?.([{ isIntersecting: true, target: { getAttribute: () => '1' } }]);
 		await vi.waitFor(() => {
-			const active = document.querySelector('.article-toc__item--active');
+			const active = document.querySelector('.published-chapter-index__item--active');
 			expect(active?.textContent).toContain('第二章');
 		});
 		// 強調は状態クラスで表現し、要素差し替え（<strong>）はしない。
-		expect(document.querySelector('.article-toc strong')).toBeNull();
+		expect(document.querySelector('.published-chapter-index strong')).toBeNull();
 	});
 });

@@ -32,7 +32,7 @@ describe('PublishedAwarenessButton', () => {
 	it('気づき1件以上で件数付きアフォーダンスを出し、本文に気づきを展開しない（Req 3.1, 3.2）', async () => {
 		render(PublishedAwarenessButton, { speech: withAwarenesses });
 		await expect.element(page.getByRole('button', { name: /気づき.*2.*件/ })).toBeInTheDocument();
-		const body = document.querySelector('.article-speech__content');
+		const body = document.querySelector('.published-awareness-button__content');
 		expect(body?.textContent).toBe('賛成です。');
 		expect(body?.textContent).not.toContain('気づきの内容');
 	});

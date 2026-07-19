@@ -14,13 +14,13 @@
 </script>
 
 <div
-	class="article-speech"
-	class:article-speech--facilitator={speech.speakerType === 'facilitator'}
+	class="published-awareness-button"
+	class:published-awareness-button--facilitator={speech.speakerType === 'facilitator'}
 >
-	<div class="article-speech__speaker">
-		<span class="article-speech__name">{speech.speakerName}</span>
+	<div class="published-awareness-button__speaker">
+		<span class="published-awareness-button__name">{speech.speakerName}</span>
 		{#if speech.speakerRole}
-			<span class="article-speech__role">（{speech.speakerRole}）</span>
+			<span class="published-awareness-button__role">（{speech.speakerRole}）</span>
 		{/if}
 		{#if awarenessCount > 0}
 			<IconButton
@@ -35,33 +35,33 @@
 			</IconButton>
 		{/if}
 	</div>
-	<p class="article-speech__content">{speech.content}</p>
+	<p class="published-awareness-button__content">{speech.content}</p>
 	{#if awarenessCount > 0}
 		<PublishedAwarenessDialog bind:this={dialogRef} awarenesses={speech.awarenesses} />
 	{/if}
 </div>
 
 <style>
-	.article-speech {
+	.published-awareness-button {
 		padding: 12px 0;
 	}
-	.article-speech__speaker {
+	.published-awareness-button__speaker {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 		margin-bottom: 4px;
 	}
-	.article-speech__name {
+	.published-awareness-button__name {
 		font-weight: bold;
 	}
-	.article-speech__role {
+	.published-awareness-button__role {
 		font-size: var(--svelte-ui-font-size-sm);
 		color: #757575;
 	}
-	.article-speech--facilitator .article-speech__name {
+	.published-awareness-button--facilitator .published-awareness-button__name {
 		color: #1565c0;
 	}
-	.article-speech__content {
+	.published-awareness-button__content {
 		margin: 0;
 		line-height: 1.8;
 		white-space: pre-wrap;
