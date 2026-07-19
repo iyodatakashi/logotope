@@ -6,7 +6,7 @@
 	import { phasePath, phaseOrder, phaseEditable } from '$lib/models/phase/phase';
 	import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
 	import { type PhaseSlug } from '$lib/models/phase/phase.types';
-	import StepNav from '$lib/sharedComponents/StepNav.svelte';
+	import StepNav from '$lib/features/admin/topic-detail/StepNav.svelte';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { TITLE_MAX_LENGTH } from '$lib/models/topic/topic.constants';
 

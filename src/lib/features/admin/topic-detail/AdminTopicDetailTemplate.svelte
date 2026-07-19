@@ -12,18 +12,18 @@
 	let { actions, content, progress }: Props = $props();
 </script>
 
-<div class="phase-panel">
+<div class="admin-topic-detail-template">
 	{#if actions}
-		<div class="phase-panel__actions-pane">
-			<div class="phase-panel__actions-content">
+		<div class="admin-topic-detail-template__actions-pane">
+			<div class="admin-topic-detail-template__actions-content">
 				{@render actions()}
 			</div>
 		</div>
 	{/if}
 
-	<div class="phase-panel__contents-pane">
+	<div class="admin-topic-detail-template__contents-pane">
 		{#if progress}
-			<div class="phase-panel__progress">
+			<div class="admin-topic-detail-template__progress">
 				{@render progress()}
 			</div>
 		{/if}
@@ -35,12 +35,12 @@
 </div>
 
 <style>
-	.phase-panel {
+	.admin-topic-detail-template {
 		height: 100%;
 		overflow: auto;
 	}
 
-	.phase-panel__actions-pane {
+	.admin-topic-detail-template__actions-pane {
 		position: sticky;
 		top: 0;
 		padding: 24px;
@@ -49,16 +49,16 @@
 		z-index: 100;
 	}
 
-	.phase-panel__actions-content {
+	.admin-topic-detail-template__actions-content {
 		max-width: 960px;
 		margin: 0 auto;
 	}
 
-	.phase-panel__contents-pane {
+	.admin-topic-detail-template__contents-pane {
 		padding: 0 24px 24px;
 	}
 
-	.phase-panel__progress {
+	.admin-topic-detail-template__progress {
 		margin-bottom: 12px;
 	}
 </style>

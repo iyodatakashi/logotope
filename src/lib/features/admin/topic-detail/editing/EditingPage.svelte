@@ -4,7 +4,7 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
-	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import AdminTopicDetailTemplate from '$lib/features/admin/topic-detail/AdminTopicDetailTemplate.svelte';
 	import EditingNarration from './EditingNarration.svelte';
 	import EditingImpression from './EditingImpression.svelte';
 	import EditingChapter from './EditingChapter.svelte';
@@ -228,7 +228,7 @@
 	});
 </script>
 
-<PhasePanel>
+<AdminTopicDetailTemplate>
 	{#snippet actions()}
 		<div class="editing-page__actions">
 			<Button variant="outlined" icon="arrow_back" rounded onclick={handleBackClick}>
@@ -352,7 +352,7 @@
 			{/if}
 		</div>
 	{/snippet}
-</PhasePanel>
+</AdminTopicDetailTemplate>
 
 <ConfirmDialog
 	bind:this={regenerateDialog}

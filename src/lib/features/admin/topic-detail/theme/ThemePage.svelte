@@ -4,7 +4,7 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
-	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import AdminTopicDetailTemplate from '$lib/features/admin/topic-detail/AdminTopicDetailTemplate.svelte';
 	import {
 		TITLE_MAX_LENGTH,
 		DESCRIPTION_MAX_LENGTH,
@@ -90,7 +90,7 @@
 	};
 </script>
 
-<PhasePanel>
+<AdminTopicDetailTemplate>
 	{#snippet actions()}
 		<div class="theme-page__actions">
 			<Button
@@ -176,7 +176,7 @@
 			</div>
 		{/if}
 	{/snippet}
-</PhasePanel>
+</AdminTopicDetailTemplate>
 
 <style>
 	.theme-page__actions {

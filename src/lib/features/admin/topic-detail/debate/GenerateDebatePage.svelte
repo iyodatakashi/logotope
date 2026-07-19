@@ -4,7 +4,7 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
-	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import AdminTopicDetailTemplate from '$lib/features/admin/topic-detail/AdminTopicDetailTemplate.svelte';
 	import DebateChapterIndex from './DebateChapterIndex.svelte';
 	import DebateChapter from './DebateChapter.svelte';
 
@@ -122,7 +122,7 @@
 	});
 </script>
 
-<PhasePanel>
+<AdminTopicDetailTemplate>
 	{#snippet actions()}
 		<div class="generate-debate-page__actions">
 			<Button variant="outlined" icon="arrow_back" rounded onclick={handleBackClick}>
@@ -195,7 +195,7 @@
 			</div>
 		</div>
 	{/snippet}
-</PhasePanel>
+</AdminTopicDetailTemplate>
 
 <ConfirmDialog
 	bind:this={stopDialog}

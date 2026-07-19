@@ -3,7 +3,7 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
-	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import AdminTopicDetailTemplate from '$lib/features/admin/topic-detail/AdminTopicDetailTemplate.svelte';
 	import { Button, ConfirmDialog, Icon, IconButton, Input, Textarea } from '@14ch/svelte-ui';
 	import { dragHandleZone, dragHandle } from 'svelte-dnd-action';
 	import type { DndEvent } from 'svelte-dnd-action';
@@ -246,7 +246,7 @@
 	};
 </script>
 
-<PhasePanel>
+<AdminTopicDetailTemplate>
 	{#snippet actions()}
 		<div class="generate-chapters-page__actions">
 			<Button variant="outlined" icon="arrow_back" rounded onclick={handleBackClick}>
@@ -473,7 +473,7 @@
 			{/if}
 		</div>
 	{/snippet}
-</PhasePanel>
+</AdminTopicDetailTemplate>
 
 <ConfirmDialog
 	bind:this={regenerateDialog}

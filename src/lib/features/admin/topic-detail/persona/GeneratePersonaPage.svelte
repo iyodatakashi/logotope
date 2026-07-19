@@ -4,7 +4,7 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseLogicalState } from '$lib/models/phase/phase.types';
-	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import AdminTopicDetailTemplate from '$lib/features/admin/topic-detail/AdminTopicDetailTemplate.svelte';
 	import PersonaItem from './PersonaItem.svelte';
 
 	const topic = $derived(currentTopicStore.topic);
@@ -120,7 +120,7 @@
 	};
 </script>
 
-<PhasePanel>
+<AdminTopicDetailTemplate>
 	{#snippet actions()}
 		<div class="generate-persona-page__actions">
 			<Button variant="outlined" icon="arrow_back" rounded onclick={handleBackClick}>
@@ -182,7 +182,7 @@
 			{/if}
 		</div>
 	{/snippet}
-</PhasePanel>
+</AdminTopicDetailTemplate>
 
 <ConfirmDialog
 	bind:this={regenerateDialog}

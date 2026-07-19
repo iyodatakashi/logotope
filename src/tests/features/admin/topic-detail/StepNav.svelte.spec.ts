@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser';
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import StepNav from '$lib/sharedComponents/StepNav.svelte';
+import StepNav from '$lib/features/admin/topic-detail/StepNav.svelte';
 
 describe('StepNav.svelte', () => {
 	it('ペルソナ生成ステップを単一フェーズ personas に対応させてグループラベルを表示する', async () => {

@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import { phasePath } from '$lib/models/phase/phase';
-	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import AdminTopicDetailTemplate from '$lib/features/admin/topic-detail/AdminTopicDetailTemplate.svelte';
 
 	// 公開フェーズの画面。他フェーズと同じ操作ペイン（前に戻る＋中央操作）の構成に揃える。
 	// 表示の真実は永続値 topic.published（onSnapshot 由来）で、楽観状態は持たない。
@@ -37,7 +37,7 @@
 	};
 </script>
 
-<PhasePanel>
+<AdminTopicDetailTemplate>
 	{#snippet actions()}
 		<div class="publish-page__actions">
 			<Button variant="outlined" icon="arrow_back" rounded onclick={handleBackClick}>
@@ -66,7 +66,7 @@
 			</div>
 		{/if}
 	{/snippet}
-</PhasePanel>
+</AdminTopicDetailTemplate>
 
 <style>
 	.publish-page__actions {

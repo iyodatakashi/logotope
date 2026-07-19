@@ -4,7 +4,7 @@
 	import { phaseEditable, phaseLogicalState, phasePath } from '$lib/models/phase/phase';
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import type { FactItem } from '$lib/models/factBase/factBase.types';
-	import PhasePanel from '$lib/sharedComponents/PhasePanel.svelte';
+	import AdminTopicDetailTemplate from '$lib/features/admin/topic-detail/AdminTopicDetailTemplate.svelte';
 	import { Button, ConfirmDialog, Skeleton } from '@14ch/svelte-ui';
 	import FactResearchItem from './FactResearchItem.svelte';
 	import FactResearchListSkeleton from './FactResearchItemSkeleton.svelte';
@@ -106,7 +106,7 @@
 	};
 </script>
 
-<PhasePanel>
+<AdminTopicDetailTemplate>
 	{#snippet actions()}
 		<div class="fact-research-page__actions">
 			<Button variant="outlined" icon="arrow_back" rounded onclick={handleBackClick}>
@@ -179,7 +179,7 @@
 			{/if}
 		</div>
 	{/snippet}
-</PhasePanel>
+</AdminTopicDetailTemplate>
 
 <ConfirmDialog
 	bind:this={regenerateDialog}
