@@ -19,9 +19,7 @@
 <style>
 	.published-article-list-item {
 		display: block;
-		padding: 16px;
 		border: 1px solid #e0e0e0;
-		border-radius: 8px;
 		text-decoration: none;
 		color: inherit;
 		transition: background 0.15s;
@@ -33,9 +31,5 @@
 		font-size: 1rem;
 		font-weight: bold;
 		margin: 0 0 8px;
-	}
-	.published-article-list-item__published-at {
-		font-size: var(--svelte-ui-font-size-sm);
-		color: #757575;
 	}
 </style>

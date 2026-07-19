@@ -93,14 +93,8 @@
 	.debate-turn-item__speaker-name {
 		font-weight: bold;
 	}
-	.debate-turn-item__role {
-		color: #757575;
-		font-size: var(--svelte-ui-font-size-sm);
-	}
 	.debate-turn-item__speech-mode {
 		font-size: var(--svelte-ui-font-size-sm);
-		color: #555;
-		background: #eee;
 		padding: 1px 5px;
 		border-radius: 3px;
 	}

@@ -28,10 +28,8 @@
 	}
 	.article-error__message {
 		margin: 0 0 24px;
-		color: #757575;
 	}
 	.article-error__home-link {
-		color: #7b1fa2;
 		text-decoration: none;
 	}
 	.article-error__home-link:hover {

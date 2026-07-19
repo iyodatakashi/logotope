@@ -34,7 +34,10 @@
 <nav class="published-chapter-index" aria-label="目次">
 	<ul class="published-chapter-index__list">
 		{#each chapters as chapter (chapter.index)}
-			<li class="published-chapter-index__item" class:published-chapter-index__item--active={chapter.index === activeIndex}>
+			<li
+				class="published-chapter-index__item"
+				class:published-chapter-index__item--active={chapter.index === activeIndex}
+			>
 				<a class="published-chapter-index__link" href="#chapter-{chapter.index}">{chapter.title}</a>
 			</li>
 		{/each}
@@ -58,7 +61,6 @@
 		text-decoration: none;
 		color: #757575;
 		font-size: var(--svelte-ui-font-size-sm);
-		line-height: 1.5;
 		transition:
 			color 0.15s,
 			background 0.15s,

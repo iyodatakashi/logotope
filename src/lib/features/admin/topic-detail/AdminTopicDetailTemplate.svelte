@@ -16,10 +16,9 @@
 	interface Props {
 		actions?: Snippet; // 操作ペインの中身（ボタン群・注記など）
 		content?: Snippet; // コンテンツ本体
-		progress?: Snippet; // コンテンツ先頭に置く進捗表示
 	}
 
-	let { actions, content, progress }: Props = $props();
+	let { actions, content }: Props = $props();
 
 	const topicId = page.params.topicId as string;
 	const currentPhase = $derived<PhaseSlug>(currentTopicStore.topic?.phase ?? 'theme');
@@ -75,12 +74,6 @@
 			{/if}
 
 			<div class="admin-topic-detail-template__contents-pane">
-				{#if progress}
-					<div class="admin-topic-detail-template__progress">
-						{@render progress()}
-					</div>
-				{/if}
-
 				{#if content}
 					{@render content()}
 				{/if}
@@ -138,9 +131,5 @@
 
 	.admin-topic-detail-template__contents-pane {
 		padding: 0 24px 24px;
-	}
-
-	.admin-topic-detail-template__progress {
-		margin-bottom: 12px;
 	}
 </style>

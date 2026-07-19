@@ -14,7 +14,6 @@
 
 <style>
 	.diff-text {
-		line-height: 1.8;
 	}
 	ins {
 		background: #e6ffed;

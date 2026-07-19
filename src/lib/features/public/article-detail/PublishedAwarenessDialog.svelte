@@ -30,10 +30,8 @@
 		list-style: none;
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
 	}
 	.published-awareness-dialog__item {
-		line-height: 1.6;
 	}
 	.published-awareness-dialog__persona {
 		font-weight: bold;
