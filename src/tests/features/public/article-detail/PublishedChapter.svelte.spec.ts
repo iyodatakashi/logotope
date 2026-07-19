@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 import PublishedChapter from '$lib/features/public/article-detail/PublishedChapter.svelte';
-import type { PublishedChapter } from '$lib/models/published/published-article.types';
+import type { PublishedChapter as PublishedChapterModel } from '$lib/models/published/published-article.types';
 
-const chapter: PublishedChapter = {
+const chapter: PublishedChapterModel = {
 	index: 2,
 	title: '章タイトル',
 	speeches: [
