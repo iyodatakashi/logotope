@@ -3,6 +3,7 @@
 	import DiffText from '$lib/sharedComponents/DiffText.svelte';
 	import { computeInlineDiff } from '$lib/utils/inlineDiff';
 	import type { Narration } from '$lib/models/editorial/editorial.types';
+	import { convertToHtml } from '$lib/utils/formatText';
 
 	interface Props {
 		label: string; // 「導入」/「締め」
@@ -55,8 +56,11 @@
 			{:else if outcome === 'gen_failed'}
 				<span class="editing-narration__element-status" data-status="gen_failed">生成失敗</span>
 			{/if}
-			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating} disabled={!editable}
-				>再生成</Button
+			<Button
+				variant="outlined"
+				onclick={handleRegenerate}
+				loading={regenerating}
+				disabled={!editable}>再生成</Button
 			>
 		{/if}
 	</div>
@@ -67,7 +71,7 @@
 	{:else if showDiff && diff}
 		<p class="editing-narration__body"><DiffText segments={diff} /></p>
 	{:else}
-		<p class="editing-narration__body">{content}</p>
+		<p class="editing-narration__body">{@html convertToHtml(content)}</p>
 	{/if}
 </section>
 
@@ -85,11 +89,6 @@
 		font-size: var(--svelte-ui-font-size-sm);
 		font-weight: 700;
 		color: #7b1fa2;
-	}
-	.editing-narration__body {
-		margin: 0;
-		line-height: 1.7;
-		white-space: pre-wrap;
 	}
 	.editing-narration__stage-label {
 		font-size: var(--svelte-ui-font-size-sm);

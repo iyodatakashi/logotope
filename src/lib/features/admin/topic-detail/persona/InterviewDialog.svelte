@@ -4,6 +4,7 @@
 	import { Dialog } from '@14ch/svelte-ui';
 	import type { Persona, DraftBelief } from '$lib/models/persona/persona.types';
 	import type { SvelteComponent } from 'svelte';
+	import { convertToHtml } from '$lib/utils/formatText';
 
 	let { persona }: { persona: Persona } = $props();
 	let dialogRef: SvelteComponent | undefined = $state();
@@ -37,7 +38,7 @@
 				<dl class="interview-item__draft-belief">
 					{#each DRAFT_LABELS as { key, label } (key)}
 						<dt>{label}</dt>
-						<dd>{interview.draftBelief[key]}</dd>
+						<dd>{@html convertToHtml(interview.draftBelief[key])}</dd>
 					{/each}
 				</dl>
 			</div>
@@ -110,89 +111,31 @@
 	}
 	.interview-item__md-body {
 		font-size: var(--svelte-ui-font-size-sm);
-		line-height: 1.7;
 		word-break: break-word;
-		color: #333;
-	}
-	.interview-item__md-body.interview-item__md-body--belief {
-		color: #1a237e;
 	}
 	.interview-item__md-body :global(h1),
 	.interview-item__md-body :global(h2),
 	.interview-item__md-body :global(h3),
 	.interview-item__md-body :global(h4) {
 		font-weight: bold;
-		margin: 12px 0 4px;
-	}
-	.interview-item__md-body :global(p) {
-		margin: 4px 0;
-	}
-	.interview-item__md-body :global(ul),
-	.interview-item__md-body :global(ol) {
-		margin: 4px 0;
-		padding-left: 20px;
-	}
-	.interview-item__md-body :global(li) {
-		margin: 2px 0;
-	}
-	.interview-item__md-body :global(a) {
-		color: #1565c0;
-	}
-	.interview-item__md-body :global(code) {
-		background: #f0f0f0;
-		padding: 1px 4px;
-		border-radius: 3px;
 	}
 	.interview-item__draft-belief {
 		font-size: var(--svelte-ui-font-size-sm);
 		margin: 0;
 	}
-	.interview-item__draft-belief dt {
-		font-weight: 600;
-		color: #555;
-		margin-top: 8px;
-	}
-	.interview-item__draft-belief dd {
-		margin: 2px 0 0;
-		white-space: pre-wrap;
-		word-break: break-word;
-		color: #333;
-	}
-	.interview-item__source-entry {
-		margin-bottom: 12px;
-		padding-bottom: 12px;
-		border-bottom: 1px dashed #e0e0e0;
-	}
-	.interview-item__source-entry:last-child {
-		border-bottom: none;
-		margin-bottom: 0;
-		padding-bottom: 0;
-	}
 	.interview-item__source-summary {
 		font-size: var(--svelte-ui-font-size-sm);
-		color: #333;
-		margin: 0 0 6px;
-		line-height: 1.6;
 	}
 	.interview-item__source-entry ul {
 		margin: 0;
-		padding-left: 16px;
 	}
 	.interview-item__source-entry li {
 		font-size: var(--svelte-ui-font-size-sm);
-		margin-bottom: 6px;
-	}
-	.interview-item__source-entry a {
-		color: #1565c0;
-		text-decoration: none;
 	}
 	.interview-item__source-entry a:hover {
 		text-decoration: underline;
 	}
 	.interview-item__source-url {
-		display: block;
-		font-size: var(--svelte-ui-font-size-sm);
-		color: #999;
 		word-break: break-all;
 	}
 </style>

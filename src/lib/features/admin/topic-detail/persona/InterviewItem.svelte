@@ -4,6 +4,7 @@
 	import { Button } from '@14ch/svelte-ui';
 	import type { Persona, DraftBelief } from '$lib/models/persona/persona.types';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import { convertToHtml } from '$lib/utils/formatText';
 
 	let { persona }: { persona: Persona } = $props();
 
@@ -82,7 +83,7 @@
 					<dl class="interview-item__draft-belief">
 						{#each DRAFT_LABELS as { key, label } (key)}
 							<dt>{label}</dt>
-							<dd>{interview.draftBelief[key]}</dd>
+							<dd>{@html convertToHtml(interview.draftBelief[key])}</dd>
 						{/each}
 					</dl>
 				</div>
@@ -224,16 +225,10 @@
 	.interview-item__section-label {
 		font-size: var(--svelte-ui-font-size-sm);
 		font-weight: bold;
-		color: #757575;
-		margin: 0 0 6px;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
 	}
 	.interview-item__md-body {
 		font-size: var(--svelte-ui-font-size-sm);
-		line-height: 1.7;
 		word-break: break-word;
-		color: #333;
 	}
 	.interview-item__md-body.interview-item__md-body--belief {
 		color: #1a237e;
@@ -274,10 +269,7 @@
 		margin-top: 8px;
 	}
 	.interview-item__draft-belief dd {
-		margin: 2px 0 0;
-		white-space: pre-wrap;
 		word-break: break-word;
-		color: #333;
 	}
 	.interview-item__source-entry {
 		margin-bottom: 12px;
@@ -291,21 +283,13 @@
 	}
 	.interview-item__source-summary {
 		font-size: var(--svelte-ui-font-size-sm);
-		color: #333;
-		margin: 0 0 6px;
-		line-height: 1.6;
 	}
 	.interview-item__source-entry ul {
-		margin: 0;
-		padding-left: 16px;
 	}
 	.interview-item__source-entry li {
 		font-size: var(--svelte-ui-font-size-sm);
-		margin-bottom: 6px;
 	}
 	.interview-item__source-entry a {
-		color: #1565c0;
-		text-decoration: none;
 	}
 	.interview-item__source-entry a:hover {
 		text-decoration: underline;
@@ -313,7 +297,6 @@
 	.interview-item__source-url {
 		display: block;
 		font-size: var(--svelte-ui-font-size-sm);
-		color: #999;
 		word-break: break-all;
 	}
 </style>
