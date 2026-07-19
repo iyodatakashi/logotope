@@ -2,6 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import type { Turn } from '$lib/models/turn/turn.types';
+import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 import type { Chapter } from '$lib/models/chapter/chapter.types';
 import type { Persona } from '$lib/models/persona/persona.types';
 import type { EngagementHistoryEntryWithPersona } from '$lib/models/engagement/engagement.types';
@@ -137,7 +138,7 @@ describe('DebateChapter.svelte', () => {
 				pendingTurn: { id: 'pt-fac', expectedTurnIndex: 1, status: 'generating' }
 			})
 		});
-		await expect.element(page.getByText('ファシリテーター')).toBeInTheDocument();
+		await expect.element(page.getByText(FACILITATOR_NAME)).toBeInTheDocument();
 		await expect.element(page.getByText('発言を生成中…')).toBeInTheDocument();
 	});
 

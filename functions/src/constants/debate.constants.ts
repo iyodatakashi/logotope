@@ -1,5 +1,8 @@
 /** 討論制御に使う閾値・上限・比率の単一定義元。値の定義のみを持ち、ロジックは持たない */
 
+/** ファシリテーター（司会）の表示名。persona 未解決の facilitator ターンで使う単一定義元 */
+export const FACILITATOR_NAME = '司会';
+
 /** 意図キューの失効ターン数 */
 export const INTENT_EXPIRY_TURNS = 8;
 

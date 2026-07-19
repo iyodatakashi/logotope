@@ -7,6 +7,7 @@ import { getTopicContext } from '../topics/topic-context.js';
 import { isDebateActive } from './debate-lifecycle.js';
 import { setPendingTurn, updatePendingTurnStatus, clearPendingTurn } from './pending-turn.js';
 import { pipelineErrorMessage, validPersonaId } from './utils.js';
+import { FACILITATOR_NAME } from '../../constants/debate.constants.js';
 import { currentDateString } from '../../utils/prompt-formatters.js';
 import type {
 	DebateState,
@@ -158,7 +159,7 @@ const buildQueuedTrigger = (
 		? personas.find((persona) => persona.id === triggerTurn.personaId)
 		: undefined;
 	return {
-		speakerName: triggerPersona ? triggerPersona.name : 'ファシリテーター',
+		speakerName: triggerPersona ? triggerPersona.name : FACILITATOR_NAME,
 		content: triggerTurn.content
 	};
 };

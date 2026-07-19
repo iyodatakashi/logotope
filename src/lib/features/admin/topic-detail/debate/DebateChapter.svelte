@@ -2,6 +2,7 @@
 	import { Skeleton } from '@14ch/svelte-ui';
 	import DebateTurnItem from './DebateTurnItem.svelte';
 	import type { Turn } from '$lib/models/turn/turn.types';
+	import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 	import type { Chapter, PendingTurn } from '$lib/models/chapter/chapter.types';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 
@@ -17,7 +18,7 @@
 	const speakerLabel = (turn: Turn) => {
 		const persona = turn.personaId ? personaMap.get(turn.personaId) : null;
 		return {
-			name: persona?.name ?? 'ファシリテーター',
+			name: persona?.name ?? FACILITATOR_NAME,
 			role: persona?.specificRole ?? persona?.stakeholderRole ?? ''
 		};
 	};
@@ -44,7 +45,7 @@
 			<div class="debate-chapter__turn debate-chapter__turn--pending">
 				<div class="debate-chapter__speaker">
 					<div class="debate-chapter__speaker-name">
-						{pendingSpeaker?.name ?? 'ファシリテーター'}
+						{pendingSpeaker?.name ?? FACILITATOR_NAME}
 					</div>
 					{#if pendingSpeaker?.specificRole ?? pendingSpeaker?.stakeholderRole}
 						<span class="debate-chapter__role">
@@ -86,18 +87,10 @@
 	.debate-chapter__speaker-name {
 		font-weight: bold;
 	}
-	.debate-chapter__role {
-		color: #757575;
-		font-size: var(--svelte-ui-font-size-sm);
-		margin-left: 4px;
-	}
 	.debate-chapter__turn--pending {
 		opacity: 0.85;
 	}
 	.debate-chapter__pending-status {
 		font-size: var(--svelte-ui-font-size-sm);
-		margin-left: 6px;
-		padding: 1px 8px;
-		border-radius: 3px;
 	}
 </style>

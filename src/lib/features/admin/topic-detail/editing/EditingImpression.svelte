@@ -4,6 +4,7 @@
 	import { computeInlineDiff } from '$lib/utils/inlineDiff';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import type { Narration } from '$lib/models/editorial/editorial.types';
+	import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
 	interface Props {
 		personaId: string;
@@ -16,7 +17,7 @@
 
 	// 話者ラベルは personaId から描画時に解決する（型には畳まない・Req 3.1）。引き当て表は storeから直接読む。
 	const persona = $derived(currentTopicStore.personasStore.personaMap.get(personaId));
-	const name = $derived(persona?.name ?? 'ファシリテーター');
+	const name = $derived(persona?.name ?? FACILITATOR_NAME);
 	const role = $derived(persona?.specificRole ?? persona?.stakeholderRole ?? '');
 
 	// クリック→サーバが生成中を書くまでの遅延分の楽観ローディング（二重実行防止）。
@@ -69,9 +70,12 @@
 	{/if}
 	{#if !inProgress}
 		<div class="editing-impression__regenerate">
-			<Button variant="outlined" onclick={handleRegenerate} loading={regenerating} disabled={!editable}
-			>再生成</Button
-		>
+			<Button
+				variant="outlined"
+				onclick={handleRegenerate}
+				loading={regenerating}
+				disabled={!editable}>再生成</Button
+			>
 		</div>
 	{/if}
 </div>
@@ -94,10 +98,6 @@
 	.editing-impression__role {
 		font-size: var(--svelte-ui-font-size-sm);
 		color: #757575;
-	}
-	.editing-impression__content {
-		margin: 0;
-		line-height: 1.6;
 	}
 	.editing-impression__stage-label {
 		font-size: var(--svelte-ui-font-size-sm);

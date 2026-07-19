@@ -3,6 +3,7 @@ import type { Persona } from '../../../types/persona.types.js';
 import type { Engagement, SpeakerSelection } from '../../../types/debate.types.js';
 import type { AppendTurnInput } from '../../../types/turn.types.js';
 import type { Chapter } from '../../../types/chapter.types.js';
+import { FACILITATOR_NAME } from '../../../constants/debate.constants.js';
 
 // 非トランザクション get（isDebateActive 等）と書き込み
 const mockGet = vi.fn().mockResolvedValue({
@@ -426,7 +427,7 @@ describe('generatePersonaTurn', () => {
 		const callArgs = mockGenerateTurn.mock.calls[0];
 		const context = callArgs[1];
 		expect(context.queuedTrigger).toBeDefined();
-		expect(context.queuedTrigger.speakerName).toBe('ファシリテーター');
+		expect(context.queuedTrigger.speakerName).toBe(FACILITATOR_NAME);
 	});
 
 	it('runId ミスマッチ時に addTurn の generation_mismatch を generatePersonaTurn が伝播する', async () => {

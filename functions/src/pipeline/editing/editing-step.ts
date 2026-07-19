@@ -6,6 +6,7 @@ import { pipelineErrorMessage } from '../debate/utils.js';
 import { writeEditedChapter } from './edited-repository.js';
 import { readEditorial, impressionWriter } from './editorial-repository.js';
 import { buildImpressionPart } from './element-builders.js';
+import { FACILITATOR_NAME } from '../../constants/debate.constants.js';
 import type { EditedTurnDraft } from '../../agents/editor-agent.js';
 import type { EditedChapterForFirestore } from '../../types/chapter.types.js';
 import type {
@@ -145,7 +146,7 @@ export const validateEditedChapter = (
 			} else if (raw.speakerType !== speakerType || (raw.personaId ?? null) !== personaId) {
 				// どの話者同士が衝突したかを添えて、機序（ファシリテーター混入か別ペルソナ混入か）を診断可能にする。
 				const who = (type: string | undefined, id: string | null | undefined) =>
-					type === 'facilitator' ? 'ファシリテーター' : `ペルソナ(${id ?? 'null'})`;
+					type === 'facilitator' ? FACILITATOR_NAME : `ペルソナ(${id ?? 'null'})`;
 				return fail(
 					`連結ターンの話者が食い違う: ${sourceId} は ${who(raw.speakerType, raw.personaId)}、先頭は ${who(speakerType, personaId)}`
 				);

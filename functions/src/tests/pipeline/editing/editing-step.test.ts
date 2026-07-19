@@ -3,6 +3,7 @@ import { createFirestoreMock } from '../../helpers/firestore-mock.js';
 import type { EditedTurnDraft } from '../../../agents/editor-agent.js';
 import type { DebateTurn } from '../../../types/turn.types.js';
 import type { Persona } from '../../../types/persona.types.js';
+import { FACILITATOR_NAME } from '../../../constants/debate.constants.js';
 
 const { holder } = vi.hoisted(() => ({
 	holder: {
@@ -104,7 +105,7 @@ describe('validateEditedChapter', () => {
 		const result = validateEditedChapter([makeDraft(['t1', 't2'])], mixed);
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
-			expect(result.error.message).toContain('ファシリテーター');
+			expect(result.error.message).toContain(FACILITATOR_NAME);
 		}
 	});
 

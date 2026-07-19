@@ -13,6 +13,7 @@ import { getBelief } from '../pipeline/debate/awareness.js';
 import type { PersonaReply, ImpressionResult, Engagement } from '../types/debate.types.js';
 import type { DebateTurn, TurnGenerationContext } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
+import { FACILITATOR_NAME } from '../constants/debate.constants.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 
 type ExperienceLevel = 'young' | 'mid' | 'veteran';
@@ -246,7 +247,7 @@ export const generateTurn = async (
 			? lastTurn.personaId
 				? (personas.find((persona) => persona.id === lastTurn.personaId)?.name ??
 					`Persona(${lastTurn.personaId})`)
-				: 'ファシリテーター'
+				: FACILITATOR_NAME
 			: undefined;
 		const lastSpeakerNote = lastSpeakerName
 			? `\n\n直前の発言は${lastSpeakerName}によるものです。${lastSpeakerName}に反応する場合は冒頭で名前を呼ばず、それより前の別の人の発言を取り上げるときだけ「さっき○○さんが言っていた〜」と名前を添えること。`

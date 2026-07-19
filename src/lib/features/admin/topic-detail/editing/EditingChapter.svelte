@@ -5,6 +5,7 @@
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import type { EditedChapterDisplayStatus } from '$lib/models/chapter/chapter.types';
 	import type { Turn, TurnForEditing } from '$lib/models/turn/turn.types';
+	import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
 	interface Props {
 		title: string;
@@ -41,7 +42,7 @@
 	const speakerLabel = (turn: TurnForEditing) => {
 		const persona = turn.personaId ? personaMap.get(turn.personaId) : null;
 		return {
-			name: persona?.name ?? 'ファシリテーター',
+			name: persona?.name ?? FACILITATOR_NAME,
 			role: persona?.specificRole ?? persona?.stakeholderRole ?? ''
 		};
 	};
@@ -219,15 +220,10 @@
 		padding: 1px 5px;
 		border-radius: 3px;
 	}
-	.editing-chapter__content {
-		margin: 0;
-		line-height: 1.6;
-	}
 	.editing-chapter__awarenesses {
 		margin-top: 8px;
 		font-size: var(--svelte-ui-font-size-sm);
 		color: var(--svelte-ui-text-subtle-color);
-		list-style: none;
 		padding: 0;
 	}
 </style>
