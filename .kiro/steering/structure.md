@@ -129,8 +129,8 @@ dataconnect/
   - 例: `.persona-item`（Block）、`.persona-item__header`（Element）、`.persona-item__badge--active`（Modifier）
 - **Block名はコンポーネントのPascalCase名をkebab-caseに変換する**。
   - 例: `PersonaItem.svelte` → `.persona-item`、`PhasePanel.svelte` → `.phase-panel`
-- **`+page.svelte` / `+layout.svelte` はファイル名だけでは区別できないため、場所が分かるBlock名にする**。場所を表す接頭辞 + `-page` / `-layout` とする。
-  - 例: `admin/+layout.svelte` → `.admin-layout`、`admin/topics/[topicId]/+layout.svelte` → `.topic-detail-layout`
+- **`+page.svelte` / `+layout.svelte` が例外的にマークアップを持つ場合（→「routes は最小限のラッパーにする」参照）は、場所が分かるBlock名にする**。場所を表す接頭辞 + `-page` / `-layout` とする。
+  - 例: `admin/+layout.svelte` → `.admin-layout`
 
 ## Import Organization
 
@@ -148,6 +148,17 @@ import { formatTurn } from './utils';
 
 **Path Aliases**:
 - `$lib/`: `src/lib/` にマップ（SvelteKit標準）
+
+## routes（`+page.svelte` / `+layout.svelte`）は最小限のラッパーにする（重要）
+
+`+page.svelte` / `+layout.svelte` はファイル名が全階層で同一で、**どの階層のファイルかはディレクトリ位置でしか識別できない**。中身にロジックやマークアップを書き込むと、コードから場所を辿れず開発効率を著しく下げる。
+
+- **原則: routes 配下のファイルは、対応する feature コンポーネントを1つ import して差し込むだけの最小ラッパーにする**。画面の実体は `src/lib/features/**` の名前付きコンポーネント（`XxxPage.svelte` など）に置く。ファイル名（＝コンポーネント名）で場所と役割が一目で分かる状態を保つ。
+- **例外（理由があれば `+layout.svelte` にコードを書いてよい）**:
+  - store のライフサイクル（開始/終了）をその階層に束ねる（`$effect` で `store.start()` → cleanup を返す）
+  - 配下の全ページで常時表示し続けるべきナビゲーション等、レイアウトに恒久的に属する要素
+  - 到達ガード・リダイレクトなど、その階層に属する制御ロジック
+- 例外で書く場合も、**表示の実体はできる限り feature コンポーネントへ寄せ**、レイアウトはデータライフサイクルと制御に絞る。
 
 ## Code Organization Principles
 
