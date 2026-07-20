@@ -113,15 +113,29 @@ dataconnect/
 - **ルートファイル**: SvelteKit規約に従う（`+page.svelte`, `+layout.svelte`）
 - **型定義**: PascalCase（例: `DebateSession`, `PersonaBelief`）
 - **GraphQL型**: PascalCase（例: `DebateTopic`, `PersonaProfile`）
+- **Firestore 永続型**: `*ForFirestore` サフィックスを付ける（例: `PersonaForFirestore` / `TopicForFirestore`）。`*Doc` は使わない。狙いは「Firestore 永続形である」用途を型名で明示すること（`Doc` は用途が曖昧なので禁止）。`Timestamp`→`Date` 変換や doc id を materialize したインメモリのドメイン型は、素の名前にする（例: `Persona` / `Topic`）。両者が完全一致（id 差・日付差が無い）なら型を分けず素の名前1つにする。
+- **公開（閲覧）用の型**: `Published` 接頭辞を付ける（→「公開（閲覧）用の型は `Published` 接頭辞を付ける」節を参照）。
 
-## 公開（閲覧）型と管理（Admin）型の分離（重要）
+## 型定義の規約（重要）
 
-公開（閲覧者向け）のアプリ層データ型は、管理（Admin）側の型と**名前も定義も完全に分離**する。混在させると、管理機能の巨大なミューテーション面（`createTopicStates` が返す `TopicStates` 等）が公開の読み取り経路に型依存として持ち込まれ、結合・歪みの原因になる。
+型はプロジェクト全体で置き場所・命名・境界を統一する。**型やコードを書く前に、まずこの規約を照合する。**
 
-- **公開側の型には必ず `Published` 接頭辞を付ける**（例: `PublishedTopic` / `PublishedArticle` / `PublishedChapter`）。読み取り専用の最小射影とし、表示に必要なフィールドだけを持たせる。
-- **公開のコンポーネント・データ取得は `Published*` 型のみに依存する**。管理用の型・ストア（`Topic` / `TopicStates` / `topicsStore` / `createTopicStates` / `*ForFirestore`）には依存しない。
-- Firestore コレクションは共有しうるが、**読み込み境界で永続ドキュメント → `Published*` に射影して変換**する（Admin 型を経由しない）。
-- 公開部品を作る際、既存の管理用コンポーネントを「見た目が同じだから」と型ごと流用しない。見た目の踏襲は可、型・データ経路の共有は不可。
+- **置き場所**: フロント（`src/lib`）の型は `src/lib/models/<domain>/<domain>.types.ts` に書く。`src/lib/types/` のような汎用の場所に新しい型を置かない。Functions 側（`functions/src`）は `functions/src/types/` に書いてよい。
+- **`.types.ts` に集約**: 型定義は必ず `.types.ts` に集約する。取得/射影関数などの `.ts` にローカル型をインライン定義しない。**共用できる型は共用**し（Admin と共通なら既存型を参照）、重複定義しない。共用できず新規定義する場合のみ、用途が分かる名前・場所に置く（公開専用なら published の `.types.ts` に `Published*`）。
+- **`.types.ts` は型と型ガードのみ**: 変換関数（Firestore 型→アプリ型など）を `.types.ts` に置かない。変換は利用側（ストア・取得関数）にインラインで書く。
+- **Firestore 永続型 = `*ForFirestore`**（`*Doc` 禁止。→ Naming Conventions）。インメモリのドメイン型は素の名前。両者が完全一致（id 差・日付差が無い）なら型を分けず単一の素の名前にする（例: `Narration`）。
+- **`*ForFirestore` はフロントで引き回さない**: `*ForFirestore` は Firestore 境界（`doc.data() as XxxForFirestore` の cast）でだけ触り、その場でフロント用ドメイン型／`Published*` へ射影する。フロントの state や引数に `*ForFirestore` を保持しない。
+- **ランタイム型は永続型と一致させる**: Partial 転送形や、永続されないフィールド拡張を作らない。拡張するなら永続の書き出し・読み戻しの両方に同じフィールドを通す。
+- **型を移動したら import を直す**: 旧ファイルに `export type { X }` の re-export を残さない。利用側の import パスを新しい場所へ直接書き換える。
+
+## 公開（閲覧）用の型は `Published` 接頭辞を付ける（重要）
+
+公開（閲覧者向け）**専用に型を定義するときは、必ず `Published` 接頭辞を付ける**（例: `PublishedTopic` / `PublishedArticle` / `PublishedChapter`）。狙いは「**その型が何専用かを名前で明示する**」こと。接頭辞によって「これは公開の読み取りモデル（読み取り専用・表示に必要な最小射影）」だと型名から一目で分かる。場当たり的な名前（`PersonaDoc` / `TurnDoc` のように、公開読み取り用なのか永続型なのか判別できない命名）を付けて用途を曖昧にしない。これは**命名規約**であって、Admin と機械的に分離せよという意味ではない。
+
+- **公開専用の型には `Published` 接頭辞を付ける**。読み取り専用の最小射影とし、表示に必要なフィールドだけを持たせる。公開部品・データ取得の**出力型**はこの `Published*` を使う。
+- **共用できる型は共用する**。Admin と本当に共通な型を、公開専用として重複定義しない。特に Firestore の読み取り入力は、境界で `doc.data() as XxxForFirestore` として Admin の永続型（`*ForFirestore`）を cast 参照し、その場で `Published*` へ射影する（`*ForFirestore` を保持・引き回さない点は [[feedback-no-forfirestore-in-frontend]] と同じ）。「公開だから Admin 型に一切触れるな」という機械的分離はしない。
+- **避けたいのは、管理機能の巨大なミューテーション面を公開の読み取り経路へ引き込むこと**（`createTopicStates` が返す `TopicStates`・admin ストア等）。これは結合・歪みの原因になるので公開側に持ち込まない。分離が意味を持つのはこの一点で、原則を目的から逆算して適用する。
+- 公開部品を作る際、既存の管理用コンポーネントを「見た目が同じだから」と丸ごと流用しない。見た目の踏襲は可。
 
 ## CSS / スタイル記法
 
@@ -165,7 +179,7 @@ import { formatTurn } from './utils';
 - フロントエンドからFirebase Adminへの直接アクセス禁止（必ずFunctions経由）
 - `src/lib/server/` はSvelteKitのサーバーサイド機能（使用しない。静的ビルドのため）
 - AI処理ロジックはすべて `functions/src/pipeline/` または `functions/src/agents/` に配置
-- 型定義はフロントエンド用（`src/lib/types/`）とFunctions用（`functions/src/types/`）を分離し、重複を避けるために共通型はFunctions側で定義してAPIレスポンスとして渡す
+- 型定義はフロントエンド用（`src/lib/models/<domain>/<domain>.types.ts`）とFunctions用（`functions/src/types/`）を分離する（→「型定義の規約」）。重複を避けるため、共通型はFunctions側で定義してAPIレスポンスとして渡す
 
 ## 過度な共通化・抽象化をしない（重要）
 
