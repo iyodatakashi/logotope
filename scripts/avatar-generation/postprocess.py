@@ -13,8 +13,8 @@ from PIL import Image
 
 # これ未満のアルファ（＝薄いドロップシャドウ・背景のにじみ）は透明に落とす。
 SHADOW_CUTOFF = 36
-# 正方化後に付ける余白の割合（被写体が縁に張り付かないように）。
-MARGIN_RATIO = 0.06
+# 被写体の縦占有（残りは上の余白になる）。下端に接地するので下余白は常に0。
+SUBJECT_HEIGHT_RATIO = 0.92
 
 
 def postprocess(src: str, dst: str) -> None:
@@ -27,16 +27,16 @@ def postprocess(src: str, dst: str) -> None:
     if box:
         alpha = alpha.crop(box)
 
-    # 高さ（頭〜肩の縦）基準で正規化する。横幅が広い大柄でも全体を縮めず、
-    # 頭のサイズ・位置を一定に保ち、はみ出す肩は左右にブリードさせる（切れてよい）。
+    # 被写体のサイズは変えず（縦占有 SUBJECT_HEIGHT_RATIO）、下端に接地する。
+    # 余白は上だけに残り、下余白は0。横幅が広い大柄は左右にブリードさせる（切れてよい）。
     width, height = alpha.size
-    target_height = round(256 * (1 - MARGIN_RATIO * 2))
+    target_height = round(256 * SUBJECT_HEIGHT_RATIO)
     scale = target_height / height
     scaled = alpha.resize((max(1, round(width * scale)), target_height), Image.LANCZOS)
 
     canvas = Image.new("L", (256, 256), 0)
-    offset_x = (256 - scaled.width) // 2  # 中央寄せ。広ければ左右にはみ出して切れる
-    offset_y = round(256 * MARGIN_RATIO)  # 頭を上端側に一定マージンで置く
+    offset_x = (256 - scaled.width) // 2  # 横は中央。広ければ左右にはみ出して切れる
+    offset_y = 256 - scaled.height  # 下端に接地（下余白0・余白は上のみ）
     canvas.paste(scaled, (offset_x, offset_y))
 
     asset = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
