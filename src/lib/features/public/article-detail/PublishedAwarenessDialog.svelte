@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Dialog } from '@14ch/svelte-ui';
-	import type { PublishedAwareness } from '$lib/models/published/published-article.types';
+	import type { PublishedAwareness } from '$lib/models/published/published-article/published-article.types';
 
 	// 気づき一覧を表示する独立コンポーネント。ダイアログは自身の状態を持つ svelte-ui Dialog に委ね、
 	// 親からは open() で開く（InterviewDialog と同じ命令的パターン）。閉じるは Dialog 標準操作で本文へ戻れる。

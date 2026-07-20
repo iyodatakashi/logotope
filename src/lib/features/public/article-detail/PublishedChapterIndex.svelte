@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
-	import type { PublishedChapter } from '$lib/models/published/published-article.types';
+	import type { PublishedChapter } from '$lib/models/published/published-article/published-article.types';
 
 	interface Props {
 		chapters: Pick<PublishedChapter, 'index' | 'title'>[];

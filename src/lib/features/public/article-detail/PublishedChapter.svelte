@@ -1,6 +1,6 @@
 <script lang="ts">
 	import PublishedTurnItem from './PublishedTurnItem.svelte';
-	import type { PublishedChapter } from '$lib/models/published/published-article.types';
+	import type { PublishedChapter } from '$lib/models/published/published-article/published-article.types';
 
 	interface Props {
 		chapter: PublishedChapter;

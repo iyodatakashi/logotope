@@ -1,5 +1,5 @@
-// 公開記事の読み取り専用・最小射影。Admin 型（EditingChapter / EditingNarration / *ForFirestore）とは分離する。
-// 射影/join は取得関数（published-article.ts）にインラインで書き、このファイルは型と型ガードのみに保つ。
+// 公開記事の読み取り専用の出力型（射影の成果物）。読み取り入力は Admin 永続型（*ForFirestore）を
+// 境界で cast して参照する（published-article.ts）。このファイルは公開出力の型と型ガードのみに保つ。
 
 // 気づき。ターンの由来から集約し、境界でペルソナ名を解決して焼き込む。
 export type PublishedAwareness = {

@@ -1,4 +1,4 @@
-import { doc, getDoc, collection, getDocs, query, orderBy, type Timestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { publicDb } from '$lib/firebase-public';
 import type {
 	PublishedArticle,
@@ -7,36 +7,15 @@ import type {
 	PublishedAwareness,
 	PublishedImpression
 } from './published-article.types';
+import type { TopicForFirestore } from '$lib/models/topic/topic.types';
+import type { EditorialForFirestore, Narration } from '$lib/models/editorial/editorial.types';
+import type { TurnForFirestore, EditedTurn } from '$lib/models/turn/turn.types';
+import type { ChapterForFirestore, EditedChapterForFirestore } from '$lib/models/chapter/chapter.types';
+import type { PersonaForFirestore } from '$lib/models/persona/persona.types';
 import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
-// 読み取り元の最小 shape（Admin 型・*ForFirestore は経由せず、Firestore 永続形の必要フィールドだけを写す）。
-type TopicDoc = { title: string; published?: boolean; publishedAt?: Timestamp };
-type NarrationDoc = { draft: string | null; final: string | null };
-type ImpressionDoc = { sortOrder: number; draft: string | null; final: string | null };
-type EditorialDoc = {
-	intro?: NarrationDoc;
-	outro?: NarrationDoc;
-	impressions?: Record<string, ImpressionDoc>;
-};
-type TurnDoc = {
-	id: string;
-	speakerType: 'facilitator' | 'persona';
-	personaId?: string | null;
-	content: string;
-};
-type EditedTurnDoc = TurnDoc & { sourceTurnIds: string[] };
-type ChapterDoc = { chapterIndex: number; title: string; turns: TurnDoc[] };
-type EditedChapterDoc = {
-	chapterIndex: number;
-	title: string;
-	status: 'pending' | 'completed' | 'failed';
-	turns: EditedTurnDoc[];
-};
-type AwarenessDoc = { content: string; triggeredByTurnId: string };
-type PersonaDoc = { name: string; specificRole?: string; stakeholderRole: string; awarenesses?: AwarenessDoc[] };
-
-
 // 公開済み単一討論を publicDb で読み、読み物 PublishedArticle へ射影/join する。
+// 読み取り入力は Admin 永続型（*ForFirestore）を参照し、必要フィールドだけを射影する。
 // 記事なし（不在・未公開・permission-denied）は null。それ以外の取得失敗のみ throw。
 export const fetchPublishedArticle = async (topicId: string): Promise<PublishedArticle | null> => {
 	let topicSnap;
@@ -47,7 +26,7 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 		throw error;
 	}
 	if (!topicSnap.exists()) return null;
-	const topic = topicSnap.data() as TopicDoc;
+	const topic = topicSnap.data() as TopicForFirestore;
 	if (topic.published !== true || !topic.publishedAt) return null;
 
 	const [editorialSnap, editedChapterSnaps, chapterSnaps, personaSnaps] = await Promise.all([
@@ -57,7 +36,9 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 		getDocs(query(collection(publicDb, 'topics', topicId, 'personas'), orderBy('sortOrder')))
 	]);
 
-	const personaById = new Map(personaSnaps.docs.map((snap) => [snap.id, snap.data() as PersonaDoc]));
+	const personaById = new Map(
+		personaSnaps.docs.map((snap) => [snap.id, snap.data() as PersonaForFirestore])
+	);
 
 	// 気づきはペルソナ側に持たれるため、由来ターン id 起点に転置してペルソナ名を焼き込む（triggeredByTurnId で紐づく）。
 	const awarenessesByTurn = new Map<string, PublishedAwareness[]>();
@@ -82,13 +63,13 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 	};
 
 	// 原本ターンは自ターン id、編集後ターンは連結元 sourceTurnIds 全てから気づきを集約する。
-	const turnFromOriginal = (turn: TurnDoc): PublishedTurn => ({
+	const turnFromOriginal = (turn: TurnForFirestore): PublishedTurn => ({
 		id: turn.id,
 		...resolveSpeaker(turn.personaId),
 		content: turn.content,
 		awarenesses: awarenessesByTurn.get(turn.id) ?? []
 	});
-	const turnFromEdited = (turn: EditedTurnDoc): PublishedTurn => ({
+	const turnFromEdited = (turn: EditedTurn): PublishedTurn => ({
 		id: turn.id,
 		...resolveSpeaker(turn.personaId),
 		content: turn.content,
@@ -98,12 +79,12 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 	// 章は chapterIndex でペアリングし、編集後が completed のときのみ編集後、それ以外は原本にフォールバックする。
 	const editedByIndex = new Map(
 		editedChapterSnaps.docs.map((snap) => {
-			const edited = snap.data() as EditedChapterDoc;
+			const edited = snap.data() as EditedChapterForFirestore;
 			return [edited.chapterIndex, edited];
 		})
 	);
 	const chapters: PublishedChapter[] = chapterSnaps.docs.map((snap) => {
-		const original = snap.data() as ChapterDoc;
+		const original = snap.data() as ChapterForFirestore;
 		const edited = editedByIndex.get(original.chapterIndex);
 		if (edited && edited.status === 'completed') {
 			return { index: edited.chapterIndex, title: edited.title, turns: edited.turns.map(turnFromEdited) };
@@ -111,7 +92,7 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 		return { index: original.chapterIndex, title: original.title, turns: original.turns.map(turnFromOriginal) };
 	});
 
-	const editorial = editorialSnap.exists() ? (editorialSnap.data() as EditorialDoc) : null;
+	const editorial = editorialSnap.exists() ? (editorialSnap.data() as EditorialForFirestore) : null;
 
 	// 所感は sortOrder 昇順で final ?? draft を採り、内容が無い要素は省く。
 	const impressions: PublishedImpression[] = Object.entries(editorial?.impressions ?? {})
@@ -146,4 +127,5 @@ const isPermissionDenied = (error: unknown): boolean =>
 	typeof error === 'object' && error !== null && (error as { code?: string }).code === 'permission-denied';
 
 // 記事要素は編集後（final）があれば編集後、無ければ原本（draft）を採用。どちらも無ければ null（省略）。
-const narration = (element: NarrationDoc | undefined): string | null => element?.final ?? element?.draft ?? null;
+const narration = (element: Narration | undefined): string | null =>
+	element?.final ?? element?.draft ?? null;

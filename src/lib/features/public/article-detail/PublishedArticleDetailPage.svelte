@@ -5,7 +5,7 @@
 	import PublishedChapterIndex from '$lib/features/public/article-detail/PublishedChapterIndex.svelte';
 	import PublishedChapter from '$lib/features/public/article-detail/PublishedChapter.svelte';
 	import PublishedImpressionItem from '$lib/features/public/article-detail/PublishedImpressionItem.svelte';
-	import type { PublishedArticle } from '$lib/models/published/published-article.types';
+	import type { PublishedArticle } from '$lib/models/published/published-article/published-article.types';
 
 	let {
 		data

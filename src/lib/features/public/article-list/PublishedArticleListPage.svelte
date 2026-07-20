@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { navigating } from '$app/state';
 	import PublishedArticleListItem from '$lib/features/public/article-list/PublishedArticleListItem.svelte';
-	import type { PublishedTopic } from '$lib/models/published/published-topic.types';
+	import type { PublishedTopic } from '$lib/models/published/published-topic/published-topic.types';
 	import PublicTemplate from '$lib/features/public/PublicTemplate.svelte';
 
 	interface Props {

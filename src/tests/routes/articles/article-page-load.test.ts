@@ -1,16 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('$lib/models/published/published-article', () => ({ fetchPublishedArticle: vi.fn() }));
+vi.mock('$lib/models/published/published-article/published-article', () => ({ fetchPublishedArticle: vi.fn() }));
 vi.mock('@sveltejs/kit', () => ({
 	error: vi.fn((status: number, body: unknown) => {
 		throw Object.assign(new Error(typeof body === 'string' ? body : 'error'), { status, body });
 	})
 }));
 
-import { fetchPublishedArticle } from '$lib/models/published/published-article';
+import { fetchPublishedArticle } from '$lib/models/published/published-article/published-article';
 import { error } from '@sveltejs/kit';
 import { load } from '../../../routes/articles/[topicId]/+page';
-import type { PublishedArticle } from '$lib/models/published/published-article.types';
+import type { PublishedArticle } from '$lib/models/published/published-article/published-article.types';
 
 const runLoad = (topicId: string) =>
 	(load as (event: { params: { topicId: string } }) => Promise<{ article: PublishedArticle }>)({

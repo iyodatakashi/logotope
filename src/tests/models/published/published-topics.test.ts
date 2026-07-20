@@ -10,7 +10,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { collection, where, getDocs } from 'firebase/firestore';
-import { fetchPublishedTopics } from '$lib/models/published/published-topics';
+import { fetchPublishedTopics } from '$lib/models/published/published-topic/published-topics';
 
 const makeTimestamp = (date: Date) => ({ toDate: () => date });
 const makeDoc = (id: string, data: Record<string, unknown>) => ({ id, data: () => data });

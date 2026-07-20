@@ -6,7 +6,7 @@ import { render } from 'vitest-browser-svelte';
 vi.mock('$app/state', () => ({ navigating: { to: null } }));
 
 import ArticlePage from '../../../routes/articles/[topicId]/+page.svelte';
-import type { PublishedArticle } from '$lib/models/published/published-article.types';
+import type { PublishedArticle } from '$lib/models/published/published-article/published-article.types';
 
 const article: PublishedArticle = {
 	id: 'topic-1',

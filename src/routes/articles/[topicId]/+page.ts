@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { fetchPublishedArticle } from '$lib/models/published/published-article';
+import { fetchPublishedArticle } from '$lib/models/published/published-article/published-article';
 import type { PageLoad } from './$types';
 
 // 公開記事を SSR で取得し、記事なし（不在・未公開・permission-denied → null）は 404、

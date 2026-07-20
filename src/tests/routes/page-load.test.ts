@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('$lib/models/published/published-topics', () => ({ fetchPublishedTopics: vi.fn() }));
+vi.mock('$lib/models/published/published-topic/published-topics', () => ({ fetchPublishedTopics: vi.fn() }));
 
-import { fetchPublishedTopics } from '$lib/models/published/published-topics';
+import { fetchPublishedTopics } from '$lib/models/published/published-topic/published-topics';
 import { load } from '../../routes/+page';
-import type { PublishedTopic } from '$lib/models/published/published-topic.types';
+import type { PublishedTopic } from '$lib/models/published/published-topic/published-topic.types';
 
 const runLoad = () => (load as () => Promise<{ topics: PublishedTopic[]; loadError: boolean }>)();
 

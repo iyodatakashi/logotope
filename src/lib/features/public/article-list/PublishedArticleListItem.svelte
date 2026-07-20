@@ -1,6 +1,6 @@
 <script lang="ts">
 	import dayjs from 'dayjs';
-	import type { PublishedTopic } from '$lib/models/published/published-topic.types';
+	import type { PublishedTopic } from '$lib/models/published/published-topic/published-topic.types';
 
 	interface Props {
 		topic: PublishedTopic;

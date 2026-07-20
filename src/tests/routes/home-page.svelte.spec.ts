@@ -6,7 +6,7 @@ import { render } from 'vitest-browser-svelte';
 vi.mock('$app/state', () => ({ navigating: { to: null } }));
 
 import Page from '../../routes/+page.svelte';
-import type { PublishedTopic } from '$lib/models/published/published-topic.types';
+import type { PublishedTopic } from '$lib/models/published/published-topic/published-topic.types';
 
 const topics: PublishedTopic[] = [
 	{ id: 'topic-1', title: '消費税増税について', publishedAt: new Date(2026, 6, 6) },

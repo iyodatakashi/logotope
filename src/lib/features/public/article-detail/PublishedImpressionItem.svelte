@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PublishedImpression } from '$lib/models/published/published-article.types';
+	import type { PublishedImpression } from '$lib/models/published/published-article/published-article.types';
 	import { convertToHtml } from '$lib/utils/formatText';
 
 	interface Props {

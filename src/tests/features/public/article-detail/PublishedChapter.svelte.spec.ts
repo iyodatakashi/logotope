@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 import PublishedChapter from '$lib/features/public/article-detail/PublishedChapter.svelte';
-import type { PublishedChapter as PublishedChapterModel } from '$lib/models/published/published-article.types';
+import type { PublishedChapter as PublishedChapterModel } from '$lib/models/published/published-article/published-article.types';
 import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
 const chapter: PublishedChapterModel = {

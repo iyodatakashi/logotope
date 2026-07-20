@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 import PublishedTurnItem from '$lib/features/public/article-detail/PublishedTurnItem.svelte';
-import type { PublishedTurn } from '$lib/models/published/published-article.types';
+import type { PublishedTurn } from '$lib/models/published/published-article/published-article.types';
 
 const base: PublishedTurn = {
 	id: 's1',

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
 	import PublishedAwarenessDialog from './PublishedAwarenessDialog.svelte';
-	import type { PublishedTurn } from '$lib/models/published/published-article.types';
+	import type { PublishedTurn } from '$lib/models/published/published-article/published-article.types';
 	import { convertToHtml } from '$lib/utils/formatText';
 	import PersonaAvatar from '$lib/sharedComponents/PersonaAvatar.svelte';
 

@@ -12,7 +12,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { getDoc, getDocs } from 'firebase/firestore';
-import { fetchPublishedArticle } from '$lib/models/published/published-article';
+import { fetchPublishedArticle } from '$lib/models/published/published-article/published-article';
 import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
 type Data = Record<string, unknown>;
