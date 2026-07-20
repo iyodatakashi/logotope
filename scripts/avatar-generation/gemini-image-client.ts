@@ -1,4 +1,6 @@
-// 実モデル呼び出しアダプタ: Gemini 2.5 Flash Image を @ai-sdk/google 経由で呼ぶ。
+// 実モデル呼び出しアダプタ: Gemini 3.1 Flash Image を @ai-sdk/google 経由で呼ぶ。
+// 旧 gemini-2.5-flash-image は 2026-10-02 停止予定のため移行済み。既存アセットは 2.5 で生成
+// されているため、本モデルでのスタイル再現性は試験生成で確認すること。
 // functions 側の createGoogleGenerativeAI 利用パターン（GEMINI_API_KEY）に合わせる。
 // 依存（@ai-sdk/google, ai）は遅延 import。オフライン生成を実行する環境でのみ解決される
 // （本リポジトリのルートには未インストール。実行時は functions 相当の環境／鍵が必要）。
@@ -18,7 +20,7 @@ export const createGeminiImageClient = (): GenerateImage => {
 		const attachments = await Promise.all(referenceImages.map((path) => readFile(path)));
 
 		const result = await generateText({
-			model: google('gemini-2.5-flash-image'),
+			model: google('gemini-3.1-flash-image'),
 			// 画像モーダリティを明示（未指定だとテキストのみ返る）
 			providerOptions: { google: { responseModalities: ['TEXT', 'IMAGE'] } },
 			messages: [
