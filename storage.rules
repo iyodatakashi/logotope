@@ -1,0 +1,17 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // アバターは顔の無いシルエットで名前・発言・立場を含まないため読み取りを公開する。
+    // published で門を設けると画像1リクエストごとに Firestore read が発生し、公開ページの
+    // 表示コストに直接効くため設けない。書き込みは Admin SDK（ルールを迂回）のみ。
+    match /topics/{topicId}/avatars/{personaId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

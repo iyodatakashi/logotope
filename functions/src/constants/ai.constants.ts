@@ -14,6 +14,10 @@ export const PIPELINE_MODELS = {
 	factCheckJudge: 'gemini-2.5-flash'
 } as const;
 
+// アバター画像生成モデル。旧 gemini-2.5-flash-image は 2026-10-02 停止予定のため使わない。
+// 差し替え時は代表バリエーションでスタイル基準を再確認すること（generation-prompt.md）。
+export const AVATAR_IMAGE_MODEL = 'gemini-3.1-flash-image';
+
 export const SEARCH_CONFIG = {
 	MAX_RESULTS: 5,
 	TIMEOUT_MS: 5000
