@@ -32,6 +32,7 @@ export type GenerateResult =
 	| { ok: false; reason: 'no_seed' | 'generation_failed' };
 
 // seeds/ はこのモジュールと同じ場所に配置する（本番は lib/avatar/seeds/、テストは src/avatar/seeds/）。
+// seed は不透明 RGB（黒シルエット＋白背景）なので、そのまま編集元として渡す。
 const readSeed = (fileName: string): Promise<Buffer> =>
 	readFile(join(__dirname, 'seeds', fileName));
 

@@ -11,16 +11,21 @@
 // 全10バケット（世代5×外見表現2）を網羅し、middle は同一バケット内の散りも見る。personaId を
 // 変えるだけで seed／可変軸が決定的に散る。
 //
-// 実行: cd functions && GEMINI_API_KEY=... npx tsx src/scripts/verify-avatar-generation.ts
+// 実行: cd functions && GEMINI_API_KEY=... npx tsx src/avatar/verify-avatar-generation.ts
 
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
-import { generateAvatarAsset, type AvatarSpec } from '../avatar/avatar-engine.js';
-import { SUBJECT_HEIGHT_RATIO } from '../avatar/avatar-constants.js';
+import { generateAvatarAsset, type AvatarSpec } from './avatar-engine.js';
+import { toGeneration, selectSeed } from './avatar-seeds.js';
+import { SUBJECT_HEIGHT_RATIO } from './avatar-constants.js';
 
-const OUT_DIR = fileURLToPath(new URL('../avatar/verify', import.meta.url));
+// そのケースがエンジン内で引く seed のファイル名（再現性のため・エンジンと同じ決定的選択）。
+const seedOf = (s: AvatarSpec): string =>
+	selectSeed(s.personaId, s.attempt, toGeneration(s.age), s.genderPresentation)?.fileName ?? '(seed 無し)';
+
+const OUT_DIR = fileURLToPath(new URL('./verify', import.meta.url));
 
 /** 枠の転写の許容誤差。 */
 const HEIGHT_TOLERANCE = 0.06;
@@ -39,20 +44,13 @@ const spec = (
 ): AvatarSpec => ({ personaId, attempt: 0, age, genderPresentation, occupation });
 
 const CASES: Case[] = [
-	{ id: '01_child_m', spec: spec('v-child-m', 10, 'masculine', '小学生') },
-	{ id: '02_child_f', spec: spec('v-child-f', 11, 'feminine', '小学生') },
-	{ id: '03_young_m', spec: spec('v-young-m', 24, 'masculine', 'エンジニア') },
-	{ id: '04_young_f', spec: spec('v-young-f', 21, 'feminine', '大学生') },
-	{ id: '05_middle_m_a', spec: spec('v-mid-m-a', 38, 'masculine', '営業職') },
-	{ id: '06_middle_m_b', spec: spec('v-mid-m-b', 45, 'masculine', '工場勤務') },
-	{ id: '07_middle_m_c', spec: spec('v-mid-m-c', 34, 'masculine', 'デザイナー') },
-	{ id: '08_middle_f_a', spec: spec('v-mid-f-a', 39, 'feminine', '看護師') },
-	{ id: '09_middle_f_b', spec: spec('v-mid-f-b', 43, 'feminine', '会社員') },
-	{ id: '10_middle_f_c', spec: spec('v-mid-f-c', 36, 'feminine', '弁護士') },
-	{ id: '11_senior_m', spec: spec('v-senior-m', 58, 'masculine', '経営者') },
-	{ id: '12_senior_f', spec: spec('v-senior-f', 62, 'feminine', '教員') },
-	{ id: '13_elder_m', spec: spec('v-elder-m', 76, 'masculine', '元教師') },
-	{ id: '14_elder_f', spec: spec('v-elder-f', 72, 'feminine', '元看護師') }
+	{ id: '1_child_m', spec: spec('v-child-m', 10, 'masculine', '小学生') },
+	{ id: '2_young_m', spec: spec('v-young-m', 24, 'masculine', 'エンジニア') },
+	{ id: '3_middle_m', spec: spec('v-mid-m-a', 38, 'masculine', '営業職') },
+	{ id: '4_middle_f', spec: spec('v-mid-f-a', 39, 'feminine', '看護師') },
+	{ id: '5_senior_m', spec: spec('v-senior-m', 58, 'masculine', '経営者') },
+	{ id: '6_senior_f', spec: spec('v-senior-f', 62, 'feminine', '教員') },
+	{ id: '7_elder_f', spec: spec('v-elder-f', 72, 'feminine', '元看護師') }
 ];
 
 interface Frame {
@@ -91,6 +89,16 @@ const measureFrame = async (png: Uint8Array): Promise<Frame | null> => {
 };
 
 const main = async () => {
+	// ONLY=部分文字列: 一致する id のケースだけ回す（例: ONLY=child_m）。未指定なら全件。
+	const active = process.env.ONLY
+		? CASES.filter((c) => c.id.includes(process.env.ONLY as string))
+		: CASES;
+
+	// DRY=1: 生成せず、各ケースが引く seed だけを出す（無料でマッピング確認）。
+	if (process.env.DRY) {
+		for (const { id, spec } of active) console.log(`${id}  seed=${seedOf(spec)}`);
+		return;
+	}
 	if (!process.env.GEMINI_API_KEY) {
 		console.error('GEMINI_API_KEY が未設定。2.5 検証は実 API 生成が要る。');
 		process.exit(1);
@@ -98,7 +106,7 @@ const main = async () => {
 	await mkdir(OUT_DIR, { recursive: true });
 
 	const results = await Promise.all(
-		CASES.map(async ({ id, spec }) => {
+		active.map(async ({ id, spec }) => {
 			const result = await generateAvatarAsset(spec);
 			if (!result.ok) return { id, frame: null, note: result.reason };
 			await writeFile(join(OUT_DIR, `${id}.png`), result.asset);
