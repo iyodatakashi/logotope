@@ -1,31 +1,28 @@
-// 提供された素材から、アバターのシードを生成する。
+// 提供された素材（プロジェクトルート avatar-materials/）から、アバターのシードを初期導出した手順の記録。
 //
-// ## 位置づけ
+// ## 位置づけ ── **再実行しない**
 //
-// 成果物は functions/src/avatar/seeds/ の PNG 群であり、**それがコミット対象**である。
-// ランタイムは seeds/ だけに依存する。本スクリプトと素材ディレクトリはシードを作り直すときにのみ
-// 必要で、無くてもランタイムは動く。
+// 成果物 functions/src/avatar/seeds/ の PNG 群は、初期導出後に**手で調整済み**（顔高45%化を含む）の
+// 確定アセットで、コミット済みの真実の源である。本スクリプトを再実行すると素材から再正規化して
+// これらを上書きし、手動調整を消してしまう。したがって本ファイルは「どう導出したか」を読める記録として
+// 残すためのものであり、実行はしない。ランタイムは seeds/ だけに依存し、素材と本スクリプトは無くても動く。
 //
-// 区分（世代・外見表現）とアセット仕様は avatar-seeds.ts が持つ。ここでは持たない。
-// 本スクリプトの責務は「宣言された素材を、宣言された仕様のシードに変換し、検査する」ことだけ。
-//
-// ## 実行
-//   cd functions && npx tsx src/scripts/build-avatar-seeds.ts
-// 仕様を満たさないシードが1枚でもあれば、内容を報告して異常終了する。
+// 区分（世代・外見表現）は avatar-seeds.ts、効く定数は avatar-constants.ts が持つ。ここでは持たない。
+// 導出手順: 素材シートを白ガター検出で 4 分割 → 各体を縦占有 0.92・下端接地・横中央・256 正方へ正規化
+//   （横がはみ出す分は切る）→ 規定寸法・縦占有・下端接地を満たさなければ逸脱を報告して失敗扱い。
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import { SEED_CANVAS, SUBJECT_HEIGHT_RATIO } from '../avatar/avatar-constants.js';
 import {
 	SEED_BUCKETS,
 	SEED_INDICES,
 	SEEDS_PER_BUCKET,
-	SEED_CANVAS,
-	SEED_SUBJECT_HEIGHT_RATIO,
 	seedFileName,
 	type Generation,
-	type Presentation,
+	type SeedPresentation,
 	type SeedBucket
 } from '../avatar/avatar-seeds.js';
 
@@ -37,17 +34,19 @@ import {
  * バケットと素材ファイルの対応。
  *
  * **ファイル名から属性を導出しない。** 素材のリネームでシードのラベルが黙って変わるため。
+ * 外見表現（masculine / feminine）を明示キーにし、素材ファイル名（male_ / female_）とは分ける。
  * 全バケット分が揃っているかは実行時に検査する（下記 resolveSource）。
  */
-const SOURCE_FILES: Record<Generation, Record<Presentation, string>> = {
-	child: { male: 'male_child.png', female: 'female_child.png' },
-	young: { male: 'male_young.png', female: 'female_young.png' },
-	middle: { male: 'male_middle.png', female: 'female_middle.png' },
-	senior: { male: 'male_senior.png', female: 'female_senior.png' },
-	elder: { male: 'male_elder.png', female: 'female_elder.png' }
+const SOURCE_FILES: Record<Generation, Record<SeedPresentation, string>> = {
+	child: { masculine: 'male_child.png', feminine: 'female_child.png' },
+	young: { masculine: 'male_young.png', feminine: 'female_young.png' },
+	middle: { masculine: 'male_middle.png', feminine: 'female_middle.png' },
+	senior: { masculine: 'male_senior.png', feminine: 'female_senior.png' },
+	elder: { masculine: 'male_elder.png', feminine: 'female_elder.png' }
 };
 
-const SOURCE_DIR = fileURLToPath(new URL('../avatar/sheets', import.meta.url));
+// 素材はプロジェクトルート avatar-materials/（seeds を切り出す元。ランタイム依存ではない）。
+const SOURCE_DIR = fileURLToPath(new URL('../../../avatar-materials', import.meta.url));
 const OUT_DIR = fileURLToPath(new URL('../avatar/seeds', import.meta.url));
 
 const resolveSource = (bucket: SeedBucket): string => {
@@ -178,7 +177,7 @@ const normalize = async (figure: Buffer): Promise<Buffer> => {
 	const box = subjectBox(await toGray(figure));
 	if (!box) throw new Error('被写体を検出できない');
 
-	const targetHeight = Math.round(SEED_CANVAS * SEED_SUBJECT_HEIGHT_RATIO);
+	const targetHeight = Math.round(SEED_CANVAS * SUBJECT_HEIGHT_RATIO);
 	const scale = targetHeight / box.height;
 	const targetWidth = Math.round(box.width * scale);
 
@@ -239,10 +238,10 @@ const inspect = async (name: string, png: Buffer): Promise<Defect | null> => {
 	if (bottomMargin > 0) return { name, reason: `下端が接地していない（${bottomMargin}px 浮き）` };
 
 	const heightRatio = box.height / gray.height;
-	if (Math.abs(heightRatio - SEED_SUBJECT_HEIGHT_RATIO) > HEIGHT_TOLERANCE) {
+	if (Math.abs(heightRatio - SUBJECT_HEIGHT_RATIO) > HEIGHT_TOLERANCE) {
 		return {
 			name,
-			reason: `縦占有 ${heightRatio.toFixed(3)}（規定 ${SEED_SUBJECT_HEIGHT_RATIO} ±${HEIGHT_TOLERANCE}）`
+			reason: `縦占有 ${heightRatio.toFixed(3)}（規定 ${SUBJECT_HEIGHT_RATIO} ±${HEIGHT_TOLERANCE}）`
 		};
 	}
 
@@ -301,7 +300,7 @@ const main = async () => {
 		process.exit(1);
 	}
 	console.log(
-		`検査 OK（${SEED_CANVAS}x${SEED_CANVAS} / 縦占有 ${SEED_SUBJECT_HEIGHT_RATIO} / 下端接地）`
+		`検査 OK（${SEED_CANVAS}x${SEED_CANVAS} / 縦占有 ${SUBJECT_HEIGHT_RATIO} / 下端接地）`
 	);
 };
 

@@ -28,3 +28,5 @@ test-results
 # Firebase
 firebase-debug.log
 firestore-debug.log
+src/avatar/edit/
+src/avatar/sidebyside/

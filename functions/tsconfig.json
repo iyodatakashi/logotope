@@ -16,6 +16,8 @@
 	"exclude": [
 		"src/**/*.test.ts",
 		"src/scripts/build-avatar-seeds.ts",
-		"src/scripts/verify-avatar-generation.ts"
+		"src/scripts/verify-avatar-generation.ts",
+		"src/avatar/verify-avatar-edit.ts",
+		"src/scripts/verify-avatar-sidebyside.ts"
 	]
 }

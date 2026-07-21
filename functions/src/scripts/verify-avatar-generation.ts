@@ -1,56 +1,58 @@
-// フィジビリ検証: 実際にアバターを生成し、機械判定できる基準を測る。
+// 2.5 検証（成立ゲート・tasks 4.2）: 共有エンジンで実生成し、機械判定できる枠を実測する。
 //
-// 出力は functions/src/avatar/verify/ に保存する（コミット対象外の検証成果物）。
-// **機械判定できない項目（様式・顔の非描写・軸の適合）は人が見る。** ここでは判定しない。
+// ここを通るまで本番配線（tasks 5）へ進まない。**本番と同じ共有エンジン generateAvatarAsset を
+// 呼ぶ**（検証と本番で経路を分けない・Req 1.4）。モデルは AVATAR_IMAGE_MODEL
+// （gemini-2.5-flash-image・先行フィジビリで実績が確定しているモデル）。
+//
+//   機械判定（ここで自動）: 枠＝正方・縦占有 0.92・下端接地。
+//   人が判定（Req 7.3・ここでは判定しない）: 様式・顔の非描写・指定軸への適合・頭サイズの一貫。
+//
+// 出力は入力 seed とは別ディレクトリ（Req 1.3）: src/avatar/verify/（.gitignore 済み・コミット対象外）。
+// 全10バケット（世代5×外見表現2）を網羅し、middle は同一バケット内の散りも見る。personaId を
+// 変えるだけで seed／可変軸が決定的に散る。
 //
 // 実行: cd functions && GEMINI_API_KEY=... npx tsx src/scripts/verify-avatar-generation.ts
 
-import { mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { generateText } from 'ai';
-import { buildAvatarPrompt, type AvatarVariation } from '../avatar/avatar-prompt.js';
-import {
-	seedFileName,
-	SEED_SUBJECT_HEIGHT_RATIO,
-	type Generation,
-	type Presentation
-} from '../avatar/avatar-seeds.js';
+import { generateAvatarAsset, type AvatarSpec } from '../avatar/avatar-engine.js';
+import { SUBJECT_HEIGHT_RATIO } from '../avatar/avatar-constants.js';
 
-const MODEL = 'gemini-3.1-flash-image';
-const SEED_DIR = fileURLToPath(new URL('../avatar/seeds', import.meta.url));
 const OUT_DIR = fileURLToPath(new URL('../avatar/verify', import.meta.url));
 
-const SUBJECT_WHITE = 245;
 /** 枠の転写の許容誤差。 */
 const HEIGHT_TOLERANCE = 0.06;
 const BOTTOM_TOLERANCE = 0.01;
 
-interface Case extends AvatarVariation {
+interface Case {
 	id: string;
-	generation: Generation;
-	presentation: Presentation;
-	seedIndex: number;
+	spec: AvatarSpec;
 }
 
-/** 全10バケットを網羅し、中年層は同一バケット内での散り方も見る。 */
+const spec = (
+	personaId: string,
+	age: number,
+	genderPresentation: AvatarSpec['genderPresentation'],
+	occupation: string
+): AvatarSpec => ({ personaId, attempt: 0, age, genderPresentation, occupation });
+
 const CASES: Case[] = [
-	{ id: '01_child_m', generation: 'child', presentation: 'male', seedIndex: 1, age: 10, occupation: '小学生', hair: 'ベリーショート', body: '細身', pose: '腕組み', angle: '正面', glasses: 'なし' },
-	{ id: '02_child_f', generation: 'child', presentation: 'female', seedIndex: 2, age: 11, occupation: '小学生', hair: 'ツインテール', body: '標準', pose: '手を下ろす', angle: '斜め約30度', glasses: 'なし' },
-	{ id: '03_young_m', generation: 'young', presentation: 'male', seedIndex: 3, age: 24, occupation: 'エンジニア', hair: 'ツーブロック', body: '細身', pose: '顎に手', angle: '斜め約30度', glasses: 'あり' },
-	{ id: '04_young_f', generation: 'young', presentation: 'female', seedIndex: 4, age: 21, occupation: '大学生', hair: 'お団子アップ', body: '標準', pose: '腕組み', angle: '正面', glasses: 'なし' },
-	{ id: '05_middle_m_a', generation: 'middle', presentation: 'male', seedIndex: 1, age: 38, occupation: '営業職', hair: 'ツーブロック', body: '筋肉質（肩幅が広い）', pose: '腕組み', angle: '正面', glasses: 'なし' },
-	{ id: '06_middle_m_b', generation: 'middle', presentation: 'male', seedIndex: 2, age: 45, occupation: '工場勤務', hair: '坊主', body: '肥満（二重顎・太い首・恰幅がある）', pose: '手を下ろす', angle: '正面', glasses: 'なし' },
-	{ id: '07_middle_m_c', generation: 'middle', presentation: 'male', seedIndex: 3, age: 34, occupation: 'デザイナー', hair: 'ウルフカット', body: '細身', pose: '顎に手', angle: '斜め約30度', glasses: 'あり' },
-	{ id: '08_middle_f_a', generation: 'middle', presentation: 'female', seedIndex: 1, age: 39, occupation: '看護師', hair: 'ミディアムボブ', body: '細身', pose: '腕組み', angle: '正面', glasses: 'なし' },
-	{ id: '09_middle_f_b', generation: 'middle', presentation: 'female', seedIndex: 2, age: 43, occupation: '会社員', hair: 'ストレートロング', body: '肥満（二重顎・太い首・恰幅がある）', pose: '手を下ろす', angle: '正面', glasses: 'なし' },
-	{ id: '10_middle_f_c', generation: 'middle', presentation: 'female', seedIndex: 3, age: 36, occupation: '弁護士', hair: 'ショートボブ', body: '標準', pose: '横向き', angle: '斜め約30度', glasses: 'あり' },
-	{ id: '11_senior_m', generation: 'senior', presentation: 'male', seedIndex: 1, age: 58, occupation: '経営者', hair: 'オールバック', body: '筋肉質（肩幅が広い）', pose: '腕組み', angle: '正面', glasses: 'なし' },
-	{ id: '12_senior_f', generation: 'senior', presentation: 'female', seedIndex: 2, age: 62, occupation: '教員', hair: 'ゆるパーマショート', body: '標準', pose: '顎に手', angle: '斜め約30度', glasses: 'あり' },
-	{ id: '13_elder_m', generation: 'elder', presentation: 'male', seedIndex: 1, age: 76, occupation: '元教師', hair: '頭頂部薄毛', body: '細身', pose: '手を下ろす', angle: '正面', glasses: 'あり' },
-	{ id: '14_elder_f', generation: 'elder', presentation: 'female', seedIndex: 2, age: 72, occupation: '元看護師', hair: 'グレイヘアショート', body: '標準', pose: '腕組み', angle: '正面', glasses: 'なし' }
+	{ id: '01_child_m', spec: spec('v-child-m', 10, 'masculine', '小学生') },
+	{ id: '02_child_f', spec: spec('v-child-f', 11, 'feminine', '小学生') },
+	{ id: '03_young_m', spec: spec('v-young-m', 24, 'masculine', 'エンジニア') },
+	{ id: '04_young_f', spec: spec('v-young-f', 21, 'feminine', '大学生') },
+	{ id: '05_middle_m_a', spec: spec('v-mid-m-a', 38, 'masculine', '営業職') },
+	{ id: '06_middle_m_b', spec: spec('v-mid-m-b', 45, 'masculine', '工場勤務') },
+	{ id: '07_middle_m_c', spec: spec('v-mid-m-c', 34, 'masculine', 'デザイナー') },
+	{ id: '08_middle_f_a', spec: spec('v-mid-f-a', 39, 'feminine', '看護師') },
+	{ id: '09_middle_f_b', spec: spec('v-mid-f-b', 43, 'feminine', '会社員') },
+	{ id: '10_middle_f_c', spec: spec('v-mid-f-c', 36, 'feminine', '弁護士') },
+	{ id: '11_senior_m', spec: spec('v-senior-m', 58, 'masculine', '経営者') },
+	{ id: '12_senior_f', spec: spec('v-senior-f', 62, 'feminine', '教員') },
+	{ id: '13_elder_m', spec: spec('v-elder-m', 76, 'masculine', '元教師') },
+	{ id: '14_elder_f', spec: spec('v-elder-f', 72, 'feminine', '元看護師') }
 ];
 
 interface Frame {
@@ -60,9 +62,10 @@ interface Frame {
 	bottomMargin: number;
 }
 
-const measureFrame = async (png: Buffer): Promise<Frame | null> => {
-	const { data, info } = await sharp(png)
-		.greyscale()
+// 最終アセットはアルファ透過（RGB=黒）なので、被写体＝アルファ>0 で枠を測る。
+const measureFrame = async (png: Uint8Array): Promise<Frame | null> => {
+	const { data, info } = await sharp(Buffer.from(png))
+		.ensureAlpha()
 		.raw()
 		.toBuffer({ resolveWithObject: true });
 
@@ -70,7 +73,7 @@ const measureFrame = async (png: Buffer): Promise<Frame | null> => {
 	let bottom = -1;
 	for (let y = 0; y < info.height; y++) {
 		for (let x = 0; x < info.width; x++) {
-			if (data[y * info.width + x] < SUBJECT_WHITE) {
+			if (data[(y * info.width + x) * 4 + 3] > 0) {
 				if (y < top) top = y;
 				if (y > bottom) bottom = y;
 				break;
@@ -87,82 +90,49 @@ const measureFrame = async (png: Buffer): Promise<Frame | null> => {
 	};
 };
 
-const generate = async (testCase: Case): Promise<Buffer> => {
-	const apiKey = process.env.GEMINI_API_KEY;
-	if (!apiKey) throw new Error('GEMINI_API_KEY が未設定');
-
-	const seed = await readFile(
-		join(
-			SEED_DIR,
-			seedFileName(
-				{ generation: testCase.generation, presentation: testCase.presentation },
-				testCase.seedIndex
-			)
-		)
-	);
-
-	const google = createGoogleGenerativeAI({ apiKey });
-	const result = await generateText({
-		model: google(MODEL),
-		// 画像モーダリティを明示する（未指定だとテキストのみ返る）
-		providerOptions: { google: { responseModalities: ['TEXT', 'IMAGE'] } },
-		messages: [
-			{
-				role: 'user',
-				content: [
-					{ type: 'text', text: buildAvatarPrompt(testCase) },
-					{ type: 'file', data: seed, mediaType: 'image/png' }
-				]
-			}
-		]
-	});
-
-	const image = result.files.find((file) => file.mediaType?.startsWith('image/'));
-	if (!image) throw new Error('画像が返らなかった');
-	return Buffer.from(image.uint8Array);
-};
-
 const main = async () => {
+	if (!process.env.GEMINI_API_KEY) {
+		console.error('GEMINI_API_KEY が未設定。2.5 検証は実 API 生成が要る。');
+		process.exit(1);
+	}
 	await mkdir(OUT_DIR, { recursive: true });
 
 	const results = await Promise.all(
-		CASES.map(async (testCase) => {
-			try {
-				const png = await generate(testCase);
-				await writeFile(join(OUT_DIR, `${testCase.id}.png`), png);
-				return { testCase, frame: await measureFrame(png), error: null as string | null };
-			} catch (err) {
-				return { testCase, frame: null, error: (err as Error).message };
-			}
+		CASES.map(async ({ id, spec }) => {
+			const result = await generateAvatarAsset(spec);
+			if (!result.ok) return { id, frame: null, note: result.reason };
+			await writeFile(join(OUT_DIR, `${id}.png`), result.asset);
+			return { id, frame: await measureFrame(result.asset), note: null as string | null };
 		})
 	);
 
 	console.log('\n枠の転写（機械判定できる項目のみ）');
-	console.log('  規定: 縦占有 0.92 / 下端接地');
-	console.log('  ※ 様式・顔の非描写・軸の適合は判定していない。人が見ること。\n');
+	console.log(`  規定: 縦占有 ${SUBJECT_HEIGHT_RATIO} / 下端接地`);
+	console.log('  ※ 様式・顔の非描写・軸の適合・頭サイズの一貫は判定していない。人が見ること（Req 7.3）。\n');
 
 	let conforming = 0;
-	for (const { testCase, frame, error } of results) {
-		if (error) {
-			console.log(`  FAIL ${testCase.id}  ${error}`);
+	for (const { id, frame, note } of results) {
+		if (note) {
+			console.log(`  FAIL ${id}  ${note}`);
 			continue;
 		}
 		if (!frame) {
-			console.log(`  FAIL ${testCase.id}  被写体を検出できない`);
+			console.log(`  FAIL ${id}  被写体を検出できない`);
 			continue;
 		}
 		const squareOk = frame.width === frame.height;
-		const heightOk = Math.abs(frame.heightRatio - SEED_SUBJECT_HEIGHT_RATIO) <= HEIGHT_TOLERANCE;
+		const heightOk = Math.abs(frame.heightRatio - SUBJECT_HEIGHT_RATIO) <= HEIGHT_TOLERANCE;
 		const bottomOk = frame.bottomMargin <= BOTTOM_TOLERANCE;
 		const ok = squareOk && heightOk && bottomOk;
 		if (ok) conforming++;
 		console.log(
-			`  ${ok ? 'OK  ' : 'NG  '} ${testCase.id}  ` +
+			`  ${ok ? 'OK  ' : 'NG  '} ${id}  ` +
 				`${frame.width}x${frame.height}${squareOk ? '' : ' ← 非正方'}  ` +
 				`縦占有 ${frame.heightRatio.toFixed(3)}  下余白 ${frame.bottomMargin.toFixed(3)}`
 		);
 	}
 	console.log(`\n  枠が転写された: ${conforming}/${results.length}`);
+	console.log('  生成物は src/avatar/verify/ に保存。様式・顔・軸の合否は目視で判定すること。');
 };
 
 main().catch((err) => {
