@@ -1,14 +1,10 @@
 import sharp from 'sharp';
+import { ASSET_SIZE, SHADOW_CUTOFF, SUBJECT_HEIGHT_RATIO } from './avatar-constants.js';
 
 // 白背景の生成画像を正規アセット（256×256 のアルファ透過PNG・RGB=黒）へ確定変換する。
 // scripts/avatar-generation/postprocess.py をリファレンス仕様とし、その定数と手順を再現する
 // （ずれると全アバターの見た目が変わるため、等価性はゴールデンテストで担保する）。
-
-// これ未満のアルファ（＝薄いドロップシャドウ・背景のにじみ）は透明に落とす。
-const SHADOW_CUTOFF = 36;
-// 被写体の縦占有（残りは上の余白になる）。下端に接地するので下余白は常に0。
-const SUBJECT_HEIGHT_RATIO = 0.92;
-const ASSET_SIZE = 256;
+// 効く定数（SHADOW_CUTOFF・SUBJECT_HEIGHT_RATIO・ASSET_SIZE）は avatar-constants の単一定義を参照する。
 
 export const toAsset = async (raw: Uint8Array): Promise<Uint8Array> => {
 	const alpha = await toAlphaPlane(raw);
