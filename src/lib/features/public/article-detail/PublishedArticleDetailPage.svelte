@@ -46,7 +46,7 @@
 					{/if}
 
 					{#each article.chapters as chapter (chapter.index)}
-						<PublishedChapter {chapter} />
+						<PublishedChapter {chapter} personas={article.personas} />
 					{/each}
 
 					{#if article.outro}
@@ -60,7 +60,7 @@
 							</h2>
 							<div class="published-article-detail-page__impressions">
 								{#each article.impressions as impression (impression.personaId)}
-									<PublishedImpressionItem {impression} />
+									<PublishedImpressionItem {impression} personas={article.personas} />
 								{/each}
 							</div>
 						</section>

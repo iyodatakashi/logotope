@@ -5,14 +5,17 @@ import type {
 	PublishedChapter,
 	PublishedTurn,
 	PublishedAwareness,
-	PublishedImpression
+	PublishedImpression,
+	PublishedPersona
 } from './published-article.types';
 import type { TopicForFirestore } from '$lib/models/topic/topic.types';
 import type { EditorialForFirestore, Narration } from '$lib/models/editorial/editorial.types';
 import type { TurnForFirestore, EditedTurn } from '$lib/models/turn/turn.types';
-import type { ChapterForFirestore, EditedChapterForFirestore } from '$lib/models/chapter/chapter.types';
+import type {
+	ChapterForFirestore,
+	EditedChapterForFirestore
+} from '$lib/models/chapter/chapter.types';
 import type { PersonaForFirestore } from '$lib/models/persona/persona.types';
-import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
 // 公開済み単一討論を publicDb で読み、読み物 PublishedArticle へ射影/join する。
 // 読み取り入力は Admin 永続型（*ForFirestore）を参照し、必要フィールドだけを射影する。
@@ -31,47 +34,56 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 
 	const [editorialSnap, editedChapterSnaps, chapterSnaps, personaSnaps] = await Promise.all([
 		getDoc(doc(publicDb, 'topics', topicId, 'editorial', '0')),
-		getDocs(query(collection(publicDb, 'topics', topicId, 'editedChapters'), orderBy('chapterIndex'))),
+		getDocs(
+			query(collection(publicDb, 'topics', topicId, 'editedChapters'), orderBy('chapterIndex'))
+		),
 		getDocs(query(collection(publicDb, 'topics', topicId, 'chapters'), orderBy('chapterIndex'))),
 		getDocs(query(collection(publicDb, 'topics', topicId, 'personas'), orderBy('sortOrder')))
 	]);
 
-	const personaById = new Map(
-		personaSnaps.docs.map((snap) => [snap.id, snap.data() as PersonaForFirestore])
+	// ペルソナは記事あたり1回だけ id キーで持ち、発言・気づき・所感からは id で参照する。
+	const personas = new Map<string, PublishedPersona>(
+		personaSnaps.docs.map((snap) => {
+			const persona = snap.data() as PersonaForFirestore;
+			return [
+				snap.id,
+				{
+					id: snap.id,
+					topicId,
+					name: persona.name,
+					role: persona.specificRole ?? persona.stakeholderRole ?? '',
+					colorKey: persona.colorKey,
+					avatarGeneratedAt: persona.avatarGeneratedAt?.toDate()
+				}
+			];
+		})
 	);
 
-	// 気づきはペルソナ側に持たれるため、由来ターン id 起点に転置してペルソナ名を焼き込む（triggeredByTurnId で紐づく）。
+	// 気づきはペルソナ側に持たれるため、由来ターン id 起点に転置する（triggeredByTurnId で紐づく）。
+	// 誰の気づきかは personaId のまま保持し、描画時に personas で解決する。
 	const awarenessesByTurn = new Map<string, PublishedAwareness[]>();
-	for (const persona of personaById.values()) {
-		for (const awareness of persona.awarenesses ?? []) {
+	for (const snap of personaSnaps.docs) {
+		for (const awareness of (snap.data() as PersonaForFirestore).awarenesses ?? []) {
 			const list = awarenessesByTurn.get(awareness.triggeredByTurnId) ?? [];
-			list.push({ personaName: persona.name, content: awareness.content });
+			list.push({ personaId: snap.id, content: awareness.content });
 			awarenessesByTurn.set(awareness.triggeredByTurnId, list);
 		}
 	}
 
-	// 話者は personaId から解決し、解決できなければファシリテーター表記にする（Admin 描画と同じ規則）。
-	const resolveSpeaker = (personaId: string | null | undefined) => {
-		const persona = personaId ? personaById.get(personaId) : undefined;
-		return persona
-			? {
-					speakerType: 'persona' as const,
-					speakerName: persona.name,
-					speakerRole: persona.specificRole ?? persona.stakeholderRole ?? ''
-				}
-			: { speakerType: 'facilitator' as const, speakerName: FACILITATOR_NAME, speakerRole: '' };
-	};
+	// 解決できない話者（ファシリテーター）は null で表す（Admin 描画と同じ規則）。
+	const speakerId = (personaId: string | null | undefined): string | null =>
+		personaId && personas.has(personaId) ? personaId : null;
 
 	// 原本ターンは自ターン id、編集後ターンは連結元 sourceTurnIds 全てから気づきを集約する。
 	const turnFromOriginal = (turn: TurnForFirestore): PublishedTurn => ({
 		id: turn.id,
-		...resolveSpeaker(turn.personaId),
+		personaId: speakerId(turn.personaId),
 		content: turn.content,
 		awarenesses: awarenessesByTurn.get(turn.id) ?? []
 	});
 	const turnFromEdited = (turn: EditedTurn): PublishedTurn => ({
 		id: turn.id,
-		...resolveSpeaker(turn.personaId),
+		personaId: speakerId(turn.personaId),
 		content: turn.content,
 		awarenesses: turn.sourceTurnIds.flatMap((sourceId) => awarenessesByTurn.get(sourceId) ?? [])
 	});
@@ -87,9 +99,17 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 		const original = snap.data() as ChapterForFirestore;
 		const edited = editedByIndex.get(original.chapterIndex);
 		if (edited && edited.status === 'completed') {
-			return { index: edited.chapterIndex, title: edited.title, turns: edited.turns.map(turnFromEdited) };
+			return {
+				index: edited.chapterIndex,
+				title: edited.title,
+				turns: edited.turns.map(turnFromEdited)
+			};
 		}
-		return { index: original.chapterIndex, title: original.title, turns: original.turns.map(turnFromOriginal) };
+		return {
+			index: original.chapterIndex,
+			title: original.title,
+			turns: original.turns.map(turnFromOriginal)
+		};
 	});
 
 	const editorial = editorialSnap.exists() ? (editorialSnap.data() as EditorialForFirestore) : null;
@@ -100,16 +120,7 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 		.sort((a, b) => a.impression.sortOrder - b.impression.sortOrder)
 		.flatMap(({ personaId, impression }) => {
 			const content = impression.final ?? impression.draft;
-			if (content == null) return [];
-			const persona = personaById.get(personaId);
-			return [
-				{
-					personaId,
-					speakerName: persona?.name ?? FACILITATOR_NAME,
-					speakerRole: persona?.specificRole ?? persona?.stakeholderRole ?? '',
-					content
-				}
-			];
+			return content == null ? [] : [{ personaId, content }];
 		});
 
 	return {
@@ -118,13 +129,16 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 		publishedAt: topic.publishedAt.toDate(),
 		intro: narration(editorial?.intro),
 		outro: narration(editorial?.outro),
+		personas,
 		chapters,
 		impressions
 	};
 };
 
 const isPermissionDenied = (error: unknown): boolean =>
-	typeof error === 'object' && error !== null && (error as { code?: string }).code === 'permission-denied';
+	typeof error === 'object' &&
+	error !== null &&
+	(error as { code?: string }).code === 'permission-denied';
 
 // 記事要素は編集後（final）があれば編集後、無ければ原本（draft）を採用。どちらも無ければ null（省略）。
 const narration = (element: Narration | undefined): string | null =>

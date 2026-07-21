@@ -1,11 +1,15 @@
 <script lang="ts">
 	import PublishedTurnItem from './PublishedTurnItem.svelte';
-	import type { PublishedChapter } from '$lib/models/published/published-article/published-article.types';
+	import type {
+		PublishedChapter,
+		PublishedPersona
+	} from '$lib/models/published/published-article/published-article.types';
 
 	interface Props {
 		chapter: PublishedChapter;
+		personas: Map<string, PublishedPersona>;
 	}
-	let { chapter }: Props = $props();
+	let { chapter, personas }: Props = $props();
 </script>
 
 <!-- id/data-chapter-index は安定な chapterIndex。目次アンカーとスクロール追従の監視対象になる（Req 1.4, 2.1, 4.2, 4.3）。 -->
@@ -13,7 +17,7 @@
 	<h2 class="published-chapter__title">{chapter.title}</h2>
 	<div class="published-chapter__turns">
 		{#each chapter.turns as turn (turn.id)}
-			<PublishedTurnItem {turn} />
+			<PublishedTurnItem {turn} {personas} />
 		{/each}
 	</div>
 </section>

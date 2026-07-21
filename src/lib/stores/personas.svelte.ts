@@ -5,6 +5,7 @@ import {
 	orderBy,
 	doc,
 	updateDoc,
+	deleteField,
 	Timestamp
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -23,6 +24,7 @@ const toPersona = (id: string, raw: PersonaForFirestore): Persona => ({
 		...awareness,
 		createdAt: awareness.createdAt.toDate()
 	})),
+	avatarGeneratedAt: raw.avatarGeneratedAt?.toDate(),
 	interview: raw.interview
 		? {
 				...raw.interview,
@@ -83,7 +85,12 @@ export const createPersonasStore = (topicId: string) => {
 	// 長すぎる肩書きの読みやすさ調整などが目的で、取材は再実行しない（信念には影響しない）。
 	const updatePersona = async (
 		personaId: string,
-		patch: Partial<Pick<PersonaForFirestore, 'name' | 'specificRole' | 'age' | 'background'>>
+		patch: Partial<
+			Pick<
+				PersonaForFirestore,
+				'name' | 'specificRole' | 'age' | 'background' | 'gender' | 'genderPresentation'
+			>
+		>
 	): Promise<void> => {
 		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), patch);
 	};
@@ -91,6 +98,21 @@ export const createPersonasStore = (topicId: string) => {
 	// ペルソナ単位の再取材。単一ペルソナのみを取材し、他ペルソナの結果に影響しない（成否問わず常時可能）。
 	const reinterview = async (personaId: string, topicTitle: string): Promise<void> => {
 		await runInterview(personaId, topicTitle);
+	};
+
+	// 1ペルソナだけアバターをやり直す（再取材と同じ操作性）。生成本体はサーバ側の core を共有する。
+	// 処理開始時に旧 avatarGeneratedAt を即時クリアし、UI から処理中と分かるようにする。
+	// 配色（colorKey）は生成時に確定しており、再生成の対象は画像だけなので再割り当てしない。
+	const regenerateAvatar = async (personaId: string): Promise<void> => {
+		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), {
+			avatarGeneratedAt: deleteField()
+		});
+		const fn = httpsCallable<{ topicId: string; personaId: string }, Record<string, never>>(
+			functions,
+			'regenerateAvatar',
+			{ timeout: 310000 }
+		);
+		await fn({ topicId, personaId });
 	};
 
 	// トピックの personas フェーズを running に書く（再取材の前に stopped→running へ戻すために使う）。
@@ -167,6 +189,7 @@ export const createPersonasStore = (topicId: string) => {
 		updatePersona,
 		reinterview,
 		runInterview,
+		regenerateAvatar,
 		setPersonasPhaseRunning,
 		setPersonasPhaseStopped
 	};

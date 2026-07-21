@@ -4,6 +4,7 @@
 	import EngagementList from './EngagementList.svelte';
 	import EngagementListSkeleton from './EngagementListSkeleton.svelte';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import PersonaAvatar from '$lib/sharedComponents/PersonaAvatar.svelte';
 
 	let {
 		turn,
@@ -26,6 +27,9 @@
 	} = $props();
 
 	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
+
+	// 外見は公開記事と同じ部品に解決させる。話者をペルソナに解決できない場合は既定で描画される。
+	const persona = $derived(turn.personaId ? personaMap.get(turn.personaId) : null);
 </script>
 
 <div
@@ -33,6 +37,7 @@
 	class:debate-turn-item--facilitator={turn.speakerType === 'facilitator'}
 >
 	<div class="debate-turn-item__speaker">
+		<PersonaAvatar {persona} />
 		<div class="debate-turn-item__speaker-name">{speaker.name}</div>
 		{#if speaker.role}
 			<span class="debate-turn-item__role">（{speaker.role}）</span>
