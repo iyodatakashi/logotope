@@ -7,7 +7,7 @@ export type AgeBand =
 	| 'thirties_forties'
 	| 'fifties_sixties'
 	| 'seventies_plus';
-export type Gender = 'female' | 'male';
+export type Gender = 'female' | 'male' | 'androgynous';
 export type Angle = 'front' | 'oblique30';
 
 // 出し分ける軸（pose/表情は「話している最中の真剣な様子」で固定するため軸に持たない）
@@ -34,7 +34,9 @@ export const AGE_BAND_CODE: Record<AgeBand, string> = {
 	seventies_plus: '70plus'
 };
 
-// (年齢帯 × 性別) 別の髪型カタログ。原則1個体=1髪型。若年ほど多く、70代以上は薄毛・禿頭を含め絞る。
+// (年齢帯 × 系統) 別の髪型カタログ。原則1個体=1髪型。若年ほど多く、70代以上は薄毛・禿頭を含め絞る。
+// androgynous は姉妹仕様の検証対象外だったため、既存の語彙から中性的に振れそうな髪型を仮に置いている。
+// **未検証**。実際に中性的に見えるかは生成物を受け入れチェックリストで判定して確定させる。
 export const HAIR_CATALOG: Record<AgeBand, Record<Gender, string[]>> = {
 	child: {
 		female: [
@@ -56,6 +58,14 @@ export const HAIR_CATALOG: Record<AgeBand, Record<Gender, string[]>> = {
 			'スポーツ刈り',
 			'坊主',
 			'前髪長めマッシュ'
+		],
+		androgynous: [
+			'ショートボブ',
+			'おかっぱ',
+			'マッシュ',
+			'くせ毛マッシュ',
+			'前髪長めマッシュ',
+			'ベリーショート'
 		]
 	},
 	teens_twenties: {
@@ -81,6 +91,16 @@ export const HAIR_CATALOG: Record<AgeBand, Record<Gender, string[]>> = {
 			'ベリーショート',
 			'ウルフカット',
 			'七三',
+			'前下がりマッシュ'
+		],
+		androgynous: [
+			'マッシュ',
+			'センターパート',
+			'ウルフカット',
+			'ミディアムレイヤー',
+			'ショートボブ',
+			'ショートカット',
+			'ショートレイヤー',
 			'前下がりマッシュ'
 		]
 	},
@@ -108,6 +128,14 @@ export const HAIR_CATALOG: Record<AgeBand, Record<Gender, string[]>> = {
 			'ソフトモヒカン',
 			'ナチュラルショート',
 			'スキンフェード'
+		],
+		androgynous: [
+			'マッシュショート',
+			'ナチュラルショート',
+			'ミディアムボブ',
+			'ショートボブ',
+			'ワンレングスボブ',
+			'パーマショート'
 		]
 	},
 	fifties_sixties: {
@@ -129,6 +157,13 @@ export const HAIR_CATALOG: Record<AgeBand, Record<Gender, string[]>> = {
 			'オールバック',
 			'ソフトパーマ',
 			'ナチュラルショート'
+		],
+		androgynous: [
+			'グレイヘアショート',
+			'ショートレイヤー',
+			'ナチュラルショート',
+			'ソフトパーマ',
+			'ワンレンボブ'
 		]
 	},
 	seventies_plus: {
@@ -139,7 +174,14 @@ export const HAIR_CATALOG: Record<AgeBand, Record<Gender, string[]>> = {
 			'薄毛気味ショート',
 			'まとめ髪'
 		],
-		male: ['白髪短髪', '頭頂部薄毛', 'ほぼ禿頭（サイドのみ）', '白髪オールバック', '坊主']
+		male: ['白髪短髪', '頭頂部薄毛', 'ほぼ禿頭（サイドのみ）', '白髪オールバック', '坊主'],
+		androgynous: [
+			'グレイヘアショート',
+			'白髪短髪',
+			'薄毛気味ショート',
+			'頭頂部薄毛',
+			'ショートボブ'
+		]
 	}
 };
 

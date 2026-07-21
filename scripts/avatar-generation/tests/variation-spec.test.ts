@@ -11,7 +11,7 @@ import {
 describe('髪型カタログ', () => {
 	it('全 (年齢帯 × 性別) バケットに1件以上の髪型がある（Req 2.1）', () => {
 		for (const ageBand of Object.keys(HAIR_CATALOG) as (keyof typeof HAIR_CATALOG)[]) {
-			for (const gender of ['female', 'male'] as const) {
+			for (const gender of Object.keys(HAIR_CATALOG[ageBand]) as (keyof (typeof HAIR_CATALOG)[typeof ageBand])[]) {
 				expect(hairCatalogFor(ageBand, gender).length).toBeGreaterThan(0);
 			}
 		}
@@ -19,7 +19,7 @@ describe('髪型カタログ', () => {
 
 	it('各バケット内で髪型名が重複しない（見分けのつく別個体・Req 2.3）', () => {
 		for (const ageBand of Object.keys(HAIR_CATALOG) as (keyof typeof HAIR_CATALOG)[]) {
-			for (const gender of ['female', 'male'] as const) {
+			for (const gender of Object.keys(HAIR_CATALOG[ageBand]) as (keyof (typeof HAIR_CATALOG)[typeof ageBand])[]) {
 				const styles = hairCatalogFor(ageBand, gender);
 				expect(new Set(styles).size).toBe(styles.length);
 			}
@@ -57,6 +57,12 @@ describe('serial ↔ 髪型 の対応（カタログ順に依存しない安定�
 });
 
 describe('命名規則（Req 2.4）', () => {
+	it('全年齢帯に androgynous（中性的）のカタログがある', () => {
+		for (const ageBand of Object.keys(HAIR_CATALOG) as (keyof typeof HAIR_CATALOG)[]) {
+			expect(hairCatalogFor(ageBand, 'androgynous').length).toBeGreaterThan(0);
+		}
+	});
+
 	it('{ageBandCode}_{gender}_{serial}.png 形式で、年齢帯コードは範囲が自明', () => {
 		expect(AGE_BAND_CODE.thirties_forties).toBe('30s40s');
 		const individual = resolveVariation('thirties_forties', 'female', '01');

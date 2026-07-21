@@ -30,7 +30,8 @@ const AGE_BAND_LABEL: Record<AgeBand, string> = {
 
 const GENDER_LABEL: Record<Gender, string> = {
 	female: '女性',
-	male: '男性'
+	male: '男性',
+	androgynous: '中性的（男性・女性のどちらとも判別しにくい外見）'
 };
 
 const ANGLE_LABEL: Record<Angle, string> = {
