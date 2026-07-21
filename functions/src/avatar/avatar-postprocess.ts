@@ -2,13 +2,14 @@ import sharp from 'sharp';
 import { ASSET_SIZE, SHADOW_CUTOFF, SUBJECT_HEIGHT_RATIO } from './avatar-constants.js';
 
 // 白背景の生成画像を正規アセット（256×256 のアルファ透過PNG・RGB=黒）へ確定変換する。
-// scripts/avatar-generation/postprocess.py をリファレンス仕様とし、その定数と手順を再現する
-// （ずれると全アバターの見た目が変わるため、等価性はゴールデンテストで担保する）。
+// 手順: 輝度→アルファ → 被写体の行だけ縦切り詰め（**横は全幅保持＝横方向の位置補正なし**）→ 縦を 0.92 に
+//   スケール → 下端接地・横中央で 256 に配置。横は生成のフレームをそのまま使う（postprocess.py の横中央
+//   寄せとは意図的に異なる。腕の横張り出しで bbox が歪み頭が寄る/見切れるのを避けるため）。
 // 効く定数（SHADOW_CUTOFF・SUBJECT_HEIGHT_RATIO・ASSET_SIZE）は avatar-constants の単一定義を参照する。
 
 export const toAsset = async (raw: Uint8Array): Promise<Uint8Array> => {
 	const alpha = await toAlphaPlane(raw);
-	const cropped = cropToSubject(alpha);
+	const cropped = cropSubjectRows(alpha);
 	const scaled = await scaleToSubjectHeight(cropped);
 	const canvas = groundOnCanvas(scaled);
 
@@ -37,29 +38,33 @@ const toAlphaPlane = async (raw: Uint8Array): Promise<Plane> => {
 	return { data: plane, width: info.width, height: info.height };
 };
 
-// 被写体のバウンディングボックス（アルファが 0 でない範囲）へ切り詰める。
-const cropToSubject = (plane: Plane): Plane => {
-	let left = plane.width;
+// 被写体を含む行（上端〜下端）だけに切り詰め、**横は全幅を保つ**。
+// 横方向の位置補正（被写体bboxへの切り詰め＋中央寄せ）はしない：腕などの横張り出しが bbox を歪め、
+// 頭が寄ったり見切れたりするため。横フレームは生成のまま使い、頭の左右位置は生成側に委ねる。
+const cropSubjectRows = (plane: Plane): Plane => {
 	let top = plane.height;
-	let right = 0;
 	let bottom = 0;
 	for (let y = 0; y < plane.height; y++) {
+		let hasSubject = false;
 		for (let x = 0; x < plane.width; x++) {
-			if (plane.data[y * plane.width + x] === 0) continue;
-			if (x < left) left = x;
-			if (x >= right) right = x + 1;
+			if (plane.data[y * plane.width + x] !== 0) {
+				hasSubject = true;
+				break;
+			}
+		}
+		if (hasSubject) {
 			if (y < top) top = y;
-			if (y >= bottom) bottom = y + 1;
+			bottom = y + 1;
 		}
 	}
-	if (right <= left || bottom <= top) return plane; // 被写体が無ければ切らない（getbbox() が None の場合）
+	if (bottom <= top) return plane; // 被写体が無ければ切らない
 
-	const width = right - left;
+	const width = plane.width;
 	const height = bottom - top;
 	const data = new Uint8Array(width * height);
 	for (let y = 0; y < height; y++) {
 		for (let x = 0; x < width; x++) {
-			data[y * width + x] = plane.data[(top + y) * plane.width + (left + x)];
+			data[y * width + x] = plane.data[(top + y) * plane.width + x];
 		}
 	}
 	return { data, width, height };

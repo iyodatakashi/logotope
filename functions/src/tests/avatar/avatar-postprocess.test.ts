@@ -65,27 +65,6 @@ describe('toAsset', () => {
 		expect(opaque).toBeGreaterThan(0);
 	});
 
-	it('postprocess.py のゴールデンとアルファが等価（縁のリサンプラ差のみ許容）', async () => {
-		const golden = await decode(new Uint8Array(await readFile(fixture('postprocess-golden.png'))));
-		const mine = await decode(await toAsset(await readInput()));
-		expect(mine.width).toBe(golden.width);
-		expect(mine.height).toBe(golden.height);
-
-		const n = golden.width * golden.height;
-		let max = 0;
-		let sum = 0;
-		let over8 = 0;
-		for (let i = 0; i < n; i++) {
-			const diff = Math.abs(golden.data[i * 4 + 3] - mine.data[i * 4 + 3]);
-			if (diff > max) max = diff;
-			sum += diff;
-			if (diff > 8) over8++;
-		}
-		// アルゴリズムは postprocess.py と等価。差は sharp(lanczos3) と PIL(LANCZOS) の
-		// 縁のアンチエイリアスのみで、平均差はほぼ0・大きく外れるのは縁のごく一部（実測: 平均0.035 /
-		// >8 は 33/65536 / 最大20）。
-		expect(sum / n).toBeLessThan(0.5);
-		expect(over8).toBeLessThan(n * 0.002);
-		expect(max).toBeLessThanOrEqual(32);
-	});
+	// postprocess.py とのゴールデン等価テストは撤去した：toAsset は横方向の位置補正をしない仕様に変え、
+	// postprocess.py（横中央寄せ）と意図的に異なるため。縦0.92・下端接地・256透過は維持している。
 });
