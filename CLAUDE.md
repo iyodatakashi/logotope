@@ -42,6 +42,7 @@ Kiro-style Spec-Driven Development on an agentic SDLC
 - 3-phase approval workflow: Requirements → Design → Tasks → Implementation
 - Human review required each phase; use `-y` only for intentional fast-track
 - Keep steering current and verify alignment with `/kiro:spec-status`
+- **使い捨てスクリプトを二度と書かない（プロジェクト全体・恒久ルール）。** 生成・検証・実験・「試しに動かす」コードを、その場で書いて `rm` する使い捨てにしない。必ずリポジトリに残る本物の実装（engine / prompt / image-client / verify 等）に組み込んでから動かし、消さない。検証ハーネスは本番と同一コード（共有エンジン）を呼ぶ。理由: 使い捨てはその場だけ解決してシステムに残らず、後で再現できない（＝先行 spec が採用手法を失った失敗そのもの／再現可能な実行コードとして残すのが絶対条件）。
 - Follow the user's instructions precisely, and within that scope act autonomously: gather the necessary context and complete the requested work end-to-end in this run, asking questions only when essential information is missing or the instructions are critically ambiguous.
 
 ## Steering Configuration

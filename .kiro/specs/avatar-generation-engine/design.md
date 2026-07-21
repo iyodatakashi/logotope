@@ -19,6 +19,59 @@
 - アバター表示 UI（`PersonaAvatar.svelte`）の改修・独立着色の表示側実装。
 - ペルソナへの画像割り当てロジック、配信・キャッシュ・CDN。
 
+## フィジビリ準拠条件（`persona-avatar-image-generation/validation/` 由来・漏れなく適用する）
+
+> 出典: [per-persona-variation.md](../persona-avatar-image-generation/validation/per-persona-variation.md) ／ [results.md](../persona-avatar-image-generation/validation/results.md) ／ [go-no-go.md](../persona-avatar-image-generation/validation/go-no-go.md)。**採用手法の確定結論。再導出しない。** 破棄経路は「不採用」と明記する。実装・プロンプト・後処理・検証はここを唯一の根拠にし、記憶や破棄版（prompt.md の text-only）で埋めない。
+
+### A. 生成手法
+- A1. **編集ベース**: seed を「編集の元画像」として file 添付し、1体ずつ単発生成する。黒ベタ・顔なしのテイストはピクセルから移る（生成ツールの記憶に依存しない）。
+- A2. **不採用**: 参照画像を「別 demographic のスタイルヒント」として足す方式（対象外 demographic で線画＋顔描写に逸脱）。text-only 生成も不採用。
+- A3. **独立単発生成（per-persona）**: 「まとめて1枚に描く」はスケールは揃うが per-persona 不適（ペルソナは1体ずつ増える）ため採らない。
+- A4. モデル呼び出し: `gemini-2.5-flash-image` ＋ `responseModalities:['TEXT','IMAGE']` ＋ ベース画像（seed）添付。鍵はシークレットのインライン注入（ローカル保存しない）。
+
+### B. スケール一貫（生成側で固定・Req 4）
+- B1. **プロンプトで固定するのは「ズーム（画面内での頭の大きさ）と目線の高さ」のみ**。seed に完全一致させる。
+- B2. 体型・髪型・ポーズは固定しない（構図を固定しすぎると体型変化まで消える）。
+- B3. **後処理の幾何検出による自動スケール正規化は不採用**（顔穴＝首連結、首くびれ＝ロングヘアで破綻し、髪型・ポーズに頑健でない）。
+- B4. 顔高（`FACE_HEIGHT_PERCENT=45`）は seed の顔高の目標として採用（設計時のユーザー指示）。prompt は B1 の zoom/目線一致で seed のこの顔高を転写する。**プロンプトに絶対px（例:460px）や「体を枠に収める/フィット/縮小」を書き足さない**（＝実装が勝手に足した後付け。これがスケールを崩した）。
+- B5. スケールの拠り所は「seed（手動で顔高を揃えた確定アセット）＋ B1 の生成側固定」。独立単発でも頭サイズ・位置が揃う。
+
+### C. 様式・スタイル基準（受け入れの合否項目）
+- C1. 背景は無地の白一色（グラデーション・小物・影・枠・テクスチャなし）。
+- C2. 被写体は**黒く暗い**（黒ベタ）＝輝度→アルファで抽出できる。白い服・線画主体で明るいと胴体が透明化して抽出不能（男性逸脱 A2 の主因）。
+- C3. 顔を描かない（目・鼻・口・眉・まつげ・顔の輪郭線を描かない）。顔の内側は白のネガティブスペース（featureless）。
+- C4. **基調は黒ベタ塗りのシルエット**（写実的陰影・写真調・多色にしない。**輪郭線主体の線画は不合格**＝男性逸脱 A6）。ただし seed に含まれる**細い線描（襟・ボタン・眼鏡）**と明るい要素の様式には一致させる（seed 準拠・Req 5.2）。
+- C5. 被写体（髪・衣服・輪郭）と非被写体（顔内側・背景）が 2 色に分離できる。
+- C6. 構図はバストアップ（胸から上）・正方 1:1。
+- C7. 影・ドロップシャドウを描かない。生成時に「純白背景・影/ドロップシャドウなし」を**明示**する（影は後処理で半透明ハローになる）。
+- C8. 表情は話している最中の真剣な様子（笑顔にしない）。
+- C9. 明るい要素（白い服・グレーの髪）は輝度→アルファで薄い階調として自然に残る。**高齢の白髪はベタ塗りにせず筋のストロークで描く**（白髪感が出る・Req 3.4）。
+
+### D. 可変軸（すべてシルエットで表現・指定値で制御）
+- D1. 髪型（例: ベリーショート／ウルフ／ツーブロック／マッシュ／パーマ）。
+- D2. 体型（細身／肥満＝二重顎・太い首・恰幅／筋肉質＝広い肩幅）。
+- D3. ポーズ（腕組み／顎に手／斜め／手を下ろす／横向き）。
+- D4. 年齢は**灰色や皺でなく、頭身（頭:体 比率）・生え際・姿勢・髪型のシルエット**で表す（子供＝大きい頭身、高齢＝生え際後退・白髪ストローク）。
+- D5. アングル・服装・メガネ。
+- D6. バリエーションは AI 裁量任せにせず、各軸の指定値で制御する（Req 3.5）。
+
+### E. 後処理・アセット化（決定的）
+- E1. 輝度→アルファ変換（黒=不透明・白=透明・中間=半透明）。
+- E2. 薄い影/にじみをしきい値で透明に落とす。
+- E3. 出力は 256×256px・正方 1:1・RGB=黒のアルファ透過 PNG・同一入力に決定的。
+- E4. フレーム占有は高さ基準で正規化し、横ははみ出させる（大柄でも全体を縮小しない）。※スケール一貫の本命は B の生成側固定であり、後処理は幾何検出でスケールを作り直さない（B3）。
+- E5. 2 色独立着色が成立（silhouette 色／背景色を別指定でき、顔内側が背景色で透け、縁が濁らない）。
+- E6. 命名は `{ageBandCode}_{gender}_{serial}`、`serial` は発番後不変。
+
+### F. シード（基準ベース）整備
+- F1. 各（年齢帯×性別）バケットに on-style シード（黒ベタ・顔なし・バストアップ）を最低 1 枚確定する。**スタイル再現性はアンカー一致に依存**（一致で 3/3、不一致で 0/1）。
+- F2. 提供シート（1枚に 4 体）は白ガター検出で 2×2 → 4 分割して切り出す。
+
+### G. 運用・ゲート
+- G1. ペルソナ作成時に**オフラインで 1 回生成**し、そのペルソナの資産として保存する（ランタイム毎回生成はしない）。
+- G2. 生成失敗（画像を返さない／崩れ）に備え**リトライ＋受け入れチェック**でゲートする。
+- G3. 受け入れは C の合否項目でチェックリスト判定し、同一指示の**再現性（合格率）を記録**する。
+
 ## Boundary Commitments
 
 ### This Spec Owns
@@ -97,7 +150,7 @@ graph LR
 ### Directory Structure
 ```
 functions/src/avatar/
-├── avatar-constants.ts     # NEW: 単一定義（SEED_CANVAS=256 / SUBJECT_HEIGHT_RATIO=0.92 / SHADOW_CUTOFF=36 / FACE_HEIGHT_PERCENT=45）
+├── avatar-constants.ts     # NEW: 単一定義（SEED_CANVAS=256 / SUBJECT_HEIGHT_RATIO=0.92 / SHADOW_CUTOFF=36）
 ├── avatar-seeds.ts         # taxonomy(Generation/Presentation/toGeneration) + seed選択(selectSeed) + 命名
 ├── avatar-variation.ts     # 髪型/体型/ポーズ/アングル カタログ + resolveVariation(決定的導出)
 ├── avatar-prompt.ts        # buildAvatarPrompt（編集ベース・掃除済み）
@@ -113,11 +166,18 @@ functions/src/scripts/
 avatar-materials/           # ルート: seed の元素材（10枚）
 ```
 
-### Modified Files
-- `functions/src/api/avatars.ts` — `runAvatarCore` の生成部を `avatar-engine.generateAvatarAsset` 呼び出しへ置換。text-only `buildPrompt`/`generateImageWithRetry`/`STYLE_CLAUSES` を削除。Firestore/Storage/`avatarGeneratedAt`/例外握りつぶしは維持。
-- `functions/src/constants/ai.constants.ts` — `AVATAR_IMAGE_MODEL` を `gemini-2.5-flash-image` に。
-- `functions/src/avatar/avatar-seeds.ts` / `avatar-variation.ts` — 越権で半改変した状態を design に沿って確定（Generation ラベル・masculine/feminine・カタログ・selectSeed/resolveVariation 追加）。
-- `functions/src/avatar/seeds/*.png` — `_male_/_female_` → `_masculine_/_feminine_` にリネーム（40枚）。
+### Created / Modified Files
+
+> クリーンアップ済みの現状を反映：失敗した `api/avatars.ts` と avatar 配線は削除済み。impl は「新規作成」と「配線の再追加」を行う（既存の直しではない）。
+
+- `functions/src/api/avatars.ts`（**新規作成**）— `runAvatarCore`/`regenerateAvatar` を `avatar-engine.generateAvatarAsset` 呼び出しで実装。persona 読み・Storage 保存（`topics/{topicId}/avatars/{personaId}`）・`avatarGeneratedAt`・例外握りつぶし・リトライを持つ。
+- `functions/src/pipeline/personas/persona-chain.ts`（**avatar ステップ再追加**）— personas 段で avatar ステップを enqueue し、`avatar` ハンドラで engine 経由生成を呼ぶ（既存の color=assignAll 配線は維持）。
+- `functions/src/pipeline/personas/enqueue-persona-step.ts`（**再追加**）— `PersonaStepKind` に `avatar` を戻し、personaId 必須・deterministic id に含める。
+- `functions/src/index.ts`（**再追加**）— `regenerateAvatar` の export を戻す。
+- `functions/src/constants/ai.constants.ts` — `AVATAR_IMAGE_MODEL` を `gemini-2.5-flash-image` に（現状 3.1）。
+- `functions/src/avatar/avatar-seeds.ts`（コミット済み・masculine/feminine・`toGeneration` まで）— impl で `selectSeed(personaId, attempt, …)`・`seedFileName` を追加。
+- `functions/src/avatar/avatar-variation.ts`（**新規作成**）— 髪型/体型/ポーズ/アングル カタログ＋`resolveVariation`。
+- `functions/src/avatar/seeds/*.png` — 命名 `_male_/_female_` → `_masculine_/_feminine_` にリネーム（40枚）。
 
 ### Removed / Replaced（本番コードのみ）
 - `functions/src/api/avatars.ts` の text-only 生成経路（`buildPrompt`/`generateImageWithRetry`/`STYLE_CLAUSES`）。エンジン呼び出しへ置換。これは本番コードであり、フィジビリではない。
@@ -252,7 +312,7 @@ const resolveVariation: (personaId: string, attempt: number, generation: Generat
 ### Domain
 
 #### avatar-prompt / avatar-postprocess / avatar-image-client
-- **avatar-prompt**: `buildAvatarPrompt(variation & { age; occupation })` → テキスト。様式は seed 準拠（黒基調＋線描・白髪ストローク）、LOCKED はズーム+目線+顔高45%+接地。掃除済み。
+- **avatar-prompt**: `buildAvatarPrompt(variation & { age; occupation })` → テキスト。様式は seed 準拠（黒ベタ・顔なしシルエット＋白髪ストローク）。**LOCKED はズーム（頭の大きさ）+目線のみ（Req 4.1）**。顔高%や接地はプロンプトの固定に含めない（フィジビリ per-persona-variation.md：固定はズーム＋目線だけ、構図を固定しすぎない）。
 - **avatar-postprocess**: `toAsset(raw): Promise<Uint8Array>`。`avatar-constants` の値を参照（二重定義解消）。明るい要素は薄いアルファ階調で残す（Req 6.3）。決定的。
 - **avatar-image-client**: `generateImage(prompt, seedBytes): Promise<Uint8Array>`。`gemini-2.5-flash-image`＋`responseModalities:['TEXT','IMAGE']`＋seed を file パート添付。一時失敗は数回リトライ、使い切りで throw。
 
@@ -270,7 +330,7 @@ const resolveVariation: (personaId: string, attempt: number, generation: Generat
 | SEED_CANVAS / ASSET_SIZE | 256 | 正方サイズ | 仕様 |
 | SUBJECT_HEIGHT_RATIO | 0.92 | 縦占有・下端接地 | 採用値（0.855 は却下） |
 | SHADOW_CUTOFF | 36 | 影/にじみ除去しきい値 | postprocess.py |
-| FACE_HEIGHT_PERCENT | 45（仮） | 生成時の顔高絶対指定 | 仮値。「顔」の測定境界（生え際〜顎など）確定後に再調整 |
+| FACE_HEIGHT_PERCENT | 45 | seed の顔高の目標（手動調整済み seed の顔高。prompt は Req 4.1 の zoom/目線一致で seed のこの顔高を転写する） | 設計時のユーザー指示 |
 
 ## Error Handling
 
@@ -299,15 +359,15 @@ const resolveVariation: (personaId: string, attempt: number, generation: Generat
 
 ## Migration Strategy
 
-本番 `api/avatars.ts` は削除済みで `index.ts`/`persona-chain.ts` が dangling＝現状ビルド切れ。編集ベース手法は未検証。したがって順序を固定し、**2.5 検証 PASS を本番配線の前提条件（ゲート）**とする。
+失敗した `api/avatars.ts` と avatar 配線は既に除去済み（tsc は通る・作業ツリーはクリーン）。編集ベース手法は未検証。したがって順序を固定し、**2.5 検証 PASS を本番配線の前提条件（ゲート）**とする。
 
 1. **エンジン構築（本番未接続）**: avatar-constants / seeds taxonomy＋selectSeed / variation＋resolveVariation / prompt / image-client / engine。avatar-postprocess 流用（ゴールデン担保）。ユニット・結線テストまで。ここでは本番配線しない。
-2. **2.5 検証（ゲート）**: `verify` を 2.5 で実行。枠（機械）＋様式・顔非描写・軸適合（人）が基準を満たすまで次へ進まない。顔高45%もここで詰める。
-3. **本番復旧・配線（ゲート通過後のみ）**: `runAvatarCore`/`regenerateAvatar` をエンジン呼び出しで再実装、`index.ts`・`persona-chain.ts` 再配線、`AVATAR_IMAGE_MODEL=gemini-2.5-flash-image`。
+2. **2.5 検証（ゲート）**: `verify` を 2.5 で実行。枠（機械）＋様式・顔非描写・軸適合（人）が基準を満たすまで次へ進まない。
+3. **本番作成・配線（ゲート通過後のみ）**: `avatars.ts` を新規作成（`runAvatarCore`/`regenerateAvatar` を engine 経由で）、`persona-chain`(avatar ステップ)・`enqueue`(avatar stepKind)・`index`(export) を再追加、`AVATAR_IMAGE_MODEL=gemini-2.5-flash-image`。
 - **Rollback**: 3 で問題が出たら配線を戻す。エンジンは 1–2 で隔離済みのため本番影響を限定できる。
 
 ## Open Questions / Risks
 - **[要検証] 2.5 での品質（High）**: 未検証。不合格ならプロンプト反復。`buildAvatarPrompt` を差し替え可能に保つ。
 - **[決定済み・要観察] 可変軸の決定的割り当ての多様性**: seed4×カタログ×ハッシュで確保。verify で散りを確認。
 - **[スコープ外] 表示側独立着色（Req 6.4）**: アセットはアルファ透過で用意するが、`PersonaAvatar.svelte` の消費は後続 spec。
-- **[仮・要調整] 顔高比率**: `FACE_HEIGHT_PERCENT=45` は仮値。「顔」の測定境界（額の生え際〜顎／頭頂〜顎／眉〜顎 等）が未確定で、境界の取り方で同じ 45% でも大きさが変わる。境界を定義してから値を確定する。定数の単一定義なので調整は1箇所。
+- **[修正済] スケールの固定方法**: プロンプトで固定するのは Req 4.1 どおり**ズーム（頭の大きさ）＋目線のみ**。顔高45%（`FACE_HEIGHT_PERCENT`）は seed の顔高目標（設計時のユーザー指示）で、prompt はその seed に zoom/目線を一致させて転写する。**実装が勝手に足した「絶対px（460px）・体を枠に収める/フィット/縮小」は削除した**（これがスケールを崩した後付け）。
