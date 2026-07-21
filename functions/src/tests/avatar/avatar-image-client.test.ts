@@ -11,6 +11,7 @@ vi.mock('@ai-sdk/google', () => ({
 }));
 
 import { generateImage, MAX_ATTEMPTS } from '../../avatar/avatar-image-client';
+import { AVATAR_IMAGE_MODEL } from '../../constants/ai.constants';
 
 const imageResult = (bytes: number[]) => ({
 	files: [{ mediaType: 'image/png', uint8Array: new Uint8Array(bytes) }]
@@ -36,12 +37,12 @@ describe('generateImage', () => {
 		expect(Array.from(out)).toEqual([1, 2, 3]);
 	});
 
-	it('gemini-2.5-flash-image を TEXT+IMAGE で呼び、seed を file パートで添付する', async () => {
+	it('AVATAR_IMAGE_MODEL を TEXT+IMAGE で呼び、seed を file パートで添付する', async () => {
 		mockGenerateText.mockResolvedValueOnce(imageResult([1]));
 		const seed = new Uint8Array([7, 7, 7]);
 		await generateImage('この元画像を編集', seed);
 
-		expect(mockModelFactory).toHaveBeenCalledWith('gemini-2.5-flash-image');
+		expect(mockModelFactory).toHaveBeenCalledWith(AVATAR_IMAGE_MODEL);
 		const call = mockGenerateText.mock.calls[0][0];
 		expect(call.providerOptions.google.responseModalities).toEqual(['TEXT', 'IMAGE']);
 		const parts = call.messages[0].content;

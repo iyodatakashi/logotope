@@ -16,58 +16,38 @@ describe('buildAvatarPrompt', () => {
 		expect(buildAvatarPrompt(sample)).toBe(buildAvatarPrompt(sample));
 	});
 
-	it('seed の in-place 編集＋枠の保持を命じる（Req 3.1 の穴を塞ぐ）', () => {
+	it('編集ベースで、保つもの（正方・頭サイズ・目線・様式）を指示する', () => {
 		const prompt = buildAvatarPrompt(sample);
 		expect(prompt).toContain('画像編集の指示');
-		expect(prompt).toContain('白紙から新しく描き起こさない');
-		expect(prompt).toContain('seed の枠');
-		expect(prompt).toContain('頭の位置');
-	});
-
-	it('様式（黒基調ベタ・seedの細い線描・白髪ストローク・顔なし・白背景・影なし・バストアップ）を指示する', () => {
-		const prompt = buildAvatarPrompt(sample);
-		expect(prompt).toContain('黒基調でベタ塗り');
-		expect(prompt).toContain('細い線描');
-		expect(prompt).toContain('白髪は黒で塗らず、筋のストローク');
-		expect(prompt).toContain('featureless');
+		expect(prompt).toContain('正方形');
+		expect(prompt).toContain('頭の大きさ（画面に占める頭のサイズ）と目線の高さ');
+		expect(prompt).toContain('黒基調のシルエット');
+		expect(prompt).toContain('顔は描かない');
 		expect(prompt).toContain('ネガティブスペース');
-		expect(prompt).toContain('顔・顎の輪郭線は seed');
-		expect(prompt).toContain('背景は無地の白一色');
-		expect(prompt).toContain('影・ドロップシャドウを描かない');
-		expect(prompt).toContain('バストアップ');
-		expect(prompt).toContain('正方1:1');
-		expect(prompt).toContain('真剣な様子');
+		expect(prompt).toContain('背景は白一色');
+		expect(prompt).toContain('影は描かない');
 	});
 
-	it('スケールは「ズーム（頭の大きさ）と目線の高さだけを seed に完全一致」で固定する（Req 4.1・4.2）', () => {
+	it('変えるのは髪型・服装・メガネのみ（向き・体型・ポーズは指示しない）', () => {
 		const prompt = buildAvatarPrompt(sample);
-		expect(prompt).toContain('ズーム（頭の大きさ）と目線の高さ');
-		expect(prompt).toContain('完全に一致');
-		expect(prompt).toContain('枠を保ったまま');
-	});
-
-	it('マスター＋要件に無い後付け（絶対px・%・フィット/縮小/はみ出し）を含まない', () => {
-		const prompt = buildAvatarPrompt(sample);
-		expect(prompt).not.toContain('px');
-		expect(prompt).not.toContain('%');
-		expect(prompt).not.toContain('縮小');
-		expect(prompt).not.toContain('はみ出');
-		expect(prompt).not.toContain('フィット');
-	});
-
-	it('与えた軸値どおりの指示文を含む', () => {
-		const prompt = buildAvatarPrompt(sample);
-		expect(prompt).toContain('42歳');
 		expect(prompt).toContain('ショートボブ');
-		expect(prompt).toContain('がっしり');
-		expect(prompt).toContain('腕組み');
-		expect(prompt).toContain('斜め約30度');
-		expect(prompt).toContain('弁護士にふさわしい服装');
+		expect(prompt).toContain('弁護士にふさわしい服');
+		// 向き・体型・ポーズは編集で崩れる（新規生成に倒れる）ので指示に含めない。
+		expect(prompt).not.toContain('アングル');
+		expect(prompt).not.toContain('ポーズ');
+		expect(prompt).not.toContain('体型');
+	});
+
+	it('後付けの曖昧・誘発語（枠・上半身・絶対px）を含まない', () => {
+		const prompt = buildAvatarPrompt(sample);
+		expect(prompt).not.toContain('枠');
+		expect(prompt).not.toContain('上半身');
+		expect(prompt).not.toContain('px');
 	});
 
 	it('メガネの有無で指示が変わる', () => {
-		expect(buildAvatarPrompt({ ...sample, glasses: true })).toContain('レンズ内・目は描かない');
-		expect(buildAvatarPrompt({ ...sample, glasses: false })).toContain('メガネ: なし');
+		expect(buildAvatarPrompt({ ...sample, glasses: true })).toContain('レンズ内と目は描かない');
+		expect(buildAvatarPrompt({ ...sample, glasses: false })).toContain('メガネはかけない');
 	});
 
 	it('プロンプト全体のスナップショット', () => {
