@@ -50,6 +50,11 @@ describe('buildAvatarPrompt', () => {
 		expect(buildAvatarPrompt({ ...sample, glasses: false })).toContain('メガネはかけない');
 	});
 
+	it('白髪の指示は高齢（50歳以上）のみに含める', () => {
+		expect(buildAvatarPrompt({ ...sample, age: 40 })).not.toContain('白い細い筋');
+		expect(buildAvatarPrompt({ ...sample, age: 62 })).toContain('白い細い筋');
+	});
+
 	it('プロンプト全体のスナップショット', () => {
 		expect(buildAvatarPrompt(sample)).toMatchSnapshot();
 	});

@@ -15,13 +15,20 @@ export interface AvatarVariation extends Variation {
 	occupation: string;
 }
 
-export const buildAvatarPrompt = (v: AvatarVariation): string =>
-	[
+export const buildAvatarPrompt = (v: AvatarVariation): string => {
+	const lines = [
 		'これは画像編集の指示。添付した画像を編集して、別人のアバターにする。次を必ず守る。',
 		'- 出力は正方形（縦と横が同じ長さ）の画像にする。',
 		'- 頭の大きさ（画面に占める頭のサイズ）と目線の高さを、元画像と同じにする。',
 		'- 様式は元画像のまま保つ：黒基調のシルエット、顔は描かない（目・鼻・口・眉を描かず白のネガティブスペース）、背景は白一色、影は描かない。',
-		'- 髪・衣服・体の輪郭は黒基調でベタ塗りのシルエットにする（グレー・写実的な陰影にしない）。',
-		'- 白髪は黒でベタ塗りにせず、筋のストロークで描く。',
+		'- 髪・衣服・体の輪郭は黒基調でベタ塗りのシルエットにする（グレー・写実的な陰影にしない）。'
+	];
+	// 白髪は senior 以上（50歳〜）のみ。middle 以下には白い筋を入れさせない。
+	if (v.age >= 50) {
+		lines.push('- 白髪は、髪を黒く塗ったうえに白い細い筋（毛流れ）を入れて表す。');
+	}
+	lines.push(
 		`- 変えるのは人物を別人にすることと、次だけ：髪型を「${v.hair}」にする / 服装を「${v.occupation}にふさわしい服」にする / メガネ${v.glasses ? 'をかける（黒いフレームのみ・レンズ内と目は描かない）' : 'はかけない'}`
-	].join('\n');
+	);
+	return lines.join('\n');
+};
