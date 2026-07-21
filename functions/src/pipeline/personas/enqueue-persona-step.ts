@@ -22,7 +22,7 @@ export type PersonaStepPayload = {
  */
 export const personaTaskKey = (payload: PersonaStepPayload): string =>
 	payload.stepKind === 'interview'
-		? `${payload.runId}:interview:${payload.personaId}`
+		? `${payload.runId}:${payload.stepKind}:${payload.personaId}`
 		: `${payload.runId}:${payload.stepKind}`;
 
 /** Cloud Tasks の重複作成シグナル（ALREADY_EXISTS / 409）を判定する */

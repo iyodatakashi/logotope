@@ -9,6 +9,7 @@ import type { GeneratedPersona } from '../../agents/persona-generator-agent.js';
 import { getTopicContext } from '../topics/topic-context.js';
 import { runInterviewCore } from '../../api/interviews.js';
 import { enqueuePersonaStep } from './enqueue-persona-step.js';
+import { assignAll } from './avatar-color.js';
 import type { PersonaStepPayload } from './enqueue-persona-step.js';
 import type { Stakeholder } from '../../types/stakeholder.types.js';
 import type { Persona } from '../../types/persona.types.js';
@@ -88,6 +89,10 @@ const runPersonasStage = async (topicId: string): Promise<string[]> => {
 		throw new Error(message);
 	}
 
+	// 配色は生成時に1回だけ確定させる（以後再計算しない）。乱数を使わず人数と sortOrder だけで
+	// 決まるため、並べ替え・再表示で既存の割り当てが動かない。
+	const colorKeys = assignAll(result.value.personas.length);
+
 	// 全ペルソナ文書を一括（batch）で永続化する。途中失敗では未コミット（全件 or 未書込）。
 	const batch = db().batch();
 	const personaIds: string[] = [];
@@ -98,6 +103,7 @@ const runPersonasStage = async (topicId: string): Promise<string[]> => {
 			...rest,
 			stakeholderId: resolveStakeholderId(persona, index, stakeholders),
 			sortOrder: index,
+			colorKey: colorKeys[index],
 			selected: true,
 			beliefs: [],
 			createdAt: Timestamp.now()
@@ -146,6 +152,6 @@ export const advancePersonaChain = async (payload: PersonaStepPayload): Promise<
 		return;
 	}
 
-	if (!personaId) throw new Error('personaId is required for interview step');
+	if (!personaId) throw new Error(`personaId is required for ${stepKind} step`);
 	await runInterviewStage(topicId, personaId);
 };
