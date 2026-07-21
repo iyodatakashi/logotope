@@ -50,9 +50,10 @@ describe('buildAvatarPrompt', () => {
 		expect(buildAvatarPrompt({ ...sample, glasses: false })).toContain('メガネはかけない');
 	});
 
-	it('白髪の指示は高齢（50歳以上）のみに含める', () => {
-		expect(buildAvatarPrompt({ ...sample, age: 40 })).not.toContain('白い細い筋');
-		expect(buildAvatarPrompt({ ...sample, age: 62 })).toContain('白い細い筋');
+	it('白髪は条件付きの描画ルールで示す（無条件に全員白髪にしない）', () => {
+		const prompt = buildAvatarPrompt(sample);
+		expect(prompt).toContain('白髪を描く場合は');
+		expect(prompt).toContain('白い細い筋');
 	});
 
 	it('プロンプト全体のスナップショット', () => {
