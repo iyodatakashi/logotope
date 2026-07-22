@@ -3,6 +3,7 @@
 	import type { SvelteComponent } from 'svelte';
 	import { Checkbox, Button, Input, Textarea } from '@14ch/svelte-ui';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import PersonaAvatar from '$lib/sharedComponents/PersonaAvatar.svelte';
 	import InterviewDialog from './InterviewDialog.svelte';
 
 	let { persona, editable = true }: { persona: Persona; editable?: boolean } = $props();
@@ -50,6 +51,9 @@
 </script>
 
 <div class="persona-item">
+	<div class="persona-item__avatar">
+		<PersonaAvatar {persona} />
+	</div>
 	<div class="persona-item__header">
 		<div class="persona-item__select">
 			<Checkbox
