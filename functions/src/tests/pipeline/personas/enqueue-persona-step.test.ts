@@ -47,6 +47,21 @@ describe('personaTaskKey', () => {
 		expect(a).toBe('run-A:interview:p1');
 		expect(a).not.toBe(b);
 	});
+
+	it('avatar 段も personaId まで鍵に含める（per-persona に1本・interview と別種別）', () => {
+		const a = personaTaskKey({ topicId: 't1', runId: 'run-A', stepKind: 'avatar', personaId: 'p1' });
+		const b = personaTaskKey({ topicId: 't1', runId: 'run-A', stepKind: 'avatar', personaId: 'p2' });
+		const interview = personaTaskKey({
+			topicId: 't1',
+			runId: 'run-A',
+			stepKind: 'interview',
+			personaId: 'p1'
+		});
+		expect(a).toBe('run-A:avatar:p1');
+		expect(a).not.toBe(b);
+		// 同一 persona でも interview と avatar は別の鍵（別タスク）になる
+		expect(a).not.toBe(interview);
+	});
 });
 
 describe('enqueuePersonaStep', () => {

@@ -19,6 +19,7 @@ const { holder } = vi.hoisted(() => ({
 const mockGenerateStakeholders = vi.hoisted(() => vi.fn());
 const mockGeneratePersonas = vi.hoisted(() => vi.fn());
 const mockRunInterviewCore = vi.hoisted(() => vi.fn());
+const mockRunAvatarCore = vi.hoisted(() => vi.fn());
 const mockEnqueuePersonaStep = vi.hoisted(() => vi.fn());
 const nanoidSeq = vi.hoisted(() => ({ n: 0 }));
 
@@ -38,6 +39,7 @@ vi.mock('../../../pipeline/topics/topic-context.js', () => ({
 	getTopicContext: vi.fn(async () => ({ factBase: null }))
 }));
 vi.mock('../../../api/interviews.js', () => ({ runInterviewCore: mockRunInterviewCore }));
+vi.mock('../../../api/avatars.js', () => ({ runAvatarCore: mockRunAvatarCore }));
 vi.mock('../../../pipeline/personas/enqueue-persona-step.js', () => ({
 	enqueuePersonaStep: mockEnqueuePersonaStep
 }));
@@ -142,19 +144,21 @@ describe('advancePersonaChain — personas 段', () => {
 		});
 		expect(persona('p2')).toMatchObject({ stakeholderId: 'sid-b', sortOrder: 1, selected: true });
 		expect('sourceTag' in (persona('p1') as object)).toBe(false);
-		// ペルソナごとに interview 段を投入
-		expect(mockEnqueuePersonaStep).toHaveBeenCalledWith({
-			topicId: TOPIC_ID,
-			runId: RUN_ID,
-			stepKind: 'interview',
-			personaId: 'p1'
-		});
-		expect(mockEnqueuePersonaStep).toHaveBeenCalledWith({
-			topicId: TOPIC_ID,
-			runId: RUN_ID,
-			stepKind: 'interview',
-			personaId: 'p2'
-		});
+		// ペルソナごとに interview 段と avatar 段を投入
+		for (const id of ['p1', 'p2']) {
+			expect(mockEnqueuePersonaStep).toHaveBeenCalledWith({
+				topicId: TOPIC_ID,
+				runId: RUN_ID,
+				stepKind: 'interview',
+				personaId: id
+			});
+			expect(mockEnqueuePersonaStep).toHaveBeenCalledWith({
+				topicId: TOPIC_ID,
+				runId: RUN_ID,
+				stepKind: 'avatar',
+				personaId: id
+			});
+		}
 		expect(topic()?.phaseStatus).toBe('running');
 	});
 
@@ -195,6 +199,46 @@ describe('advancePersonaChain — interview 段', () => {
 		seedRunning();
 		await expect(
 			advancePersonaChain({ topicId: TOPIC_ID, runId: RUN_ID, stepKind: 'interview' })
+		).rejects.toThrow(/personaId is required/);
+	});
+});
+
+describe('advancePersonaChain — avatar 段', () => {
+	it('当該ペルソナの runAvatarCore を呼び、次段を投入しない', async () => {
+		seedRunning();
+		await advancePersonaChain({
+			topicId: TOPIC_ID,
+			runId: RUN_ID,
+			stepKind: 'avatar',
+			personaId: 'p1'
+		});
+
+		expect(mockRunAvatarCore).toHaveBeenCalledWith(TOPIC_ID, 'p1');
+		expect(mockEnqueuePersonaStep).not.toHaveBeenCalled();
+	});
+
+	it('取材完了で generated 遷移済み（非 running）でも running ゲートを迂回して生成する', async () => {
+		// 取材が全件完了すると personas は generated になる。並走中の avatar 段はここでも生成できる。
+		holder.mock!.store.set(`topics/${TOPIC_ID}`, {
+			phase: 'personas',
+			phaseStatus: 'generated',
+			runId: RUN_ID
+		});
+
+		await advancePersonaChain({
+			topicId: TOPIC_ID,
+			runId: RUN_ID,
+			stepKind: 'avatar',
+			personaId: 'p1'
+		});
+
+		expect(mockRunAvatarCore).toHaveBeenCalledWith(TOPIC_ID, 'p1');
+	});
+
+	it('personaId が無い avatar 段は失敗する', async () => {
+		seedRunning();
+		await expect(
+			advancePersonaChain({ topicId: TOPIC_ID, runId: RUN_ID, stepKind: 'avatar' })
 		).rejects.toThrow(/personaId is required/);
 	});
 });

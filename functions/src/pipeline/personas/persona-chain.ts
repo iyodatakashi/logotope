@@ -8,6 +8,7 @@ import {
 import type { GeneratedPersona } from '../../agents/persona-generator-agent.js';
 import { getTopicContext } from '../topics/topic-context.js';
 import { runInterviewCore } from '../../api/interviews.js';
+import { runAvatarCore } from '../../api/avatars.js';
 import { enqueuePersonaStep } from './enqueue-persona-step.js';
 import { assignAll } from './avatar-color.js';
 import type { PersonaStepPayload } from './enqueue-persona-step.js';
@@ -136,6 +137,16 @@ const runInterviewStage = async (topicId: string, personaId: string): Promise<vo
  */
 export const advancePersonaChain = async (payload: PersonaStepPayload): Promise<void> => {
 	const { topicId, runId, stepKind, personaId } = payload;
+
+	// アバター段は running ゲートの前に処理する。取材が全件完了すると personas は generated へ遷移し
+	// running でなくなるため、running を要求すると並走中のアバター段が取りこぼされる。旧世代タスクは
+	// 対象 persona が discardPersonas で消えており runAvatarCore が no-op になるため、ゲート無しで安全。
+	if (stepKind === 'avatar') {
+		if (!personaId) throw new Error('personaId is required for avatar step');
+		await runAvatarCore(topicId, personaId);
+		return;
+	}
+
 	if (!(await isPersonaRunActive(topicId, runId))) return;
 
 	if (stepKind === 'stakeholders') {
@@ -146,8 +157,11 @@ export const advancePersonaChain = async (payload: PersonaStepPayload): Promise<
 
 	if (stepKind === 'personas') {
 		const personaIds = await runPersonasStage(topicId);
+		// ペルソナごとに取材段とアバター段を並列投入する。取材が generated 確定を担い、
+		// アバターはそれと独立の副生成（best-effort・失敗は未生成のまま残す）。
 		for (const id of personaIds) {
 			await enqueuePersonaStep({ topicId, runId, stepKind: 'interview', personaId: id });
+			await enqueuePersonaStep({ topicId, runId, stepKind: 'avatar', personaId: id });
 		}
 		return;
 	}

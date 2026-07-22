@@ -6,22 +6,26 @@ import { hashTaskId } from '../debate/enqueue-step.js';
 
 const REGION = 'asia-northeast1';
 
-export type PersonaStepKind = 'stakeholders' | 'personas' | 'interview';
+export type PersonaStepKind = 'stakeholders' | 'personas' | 'interview' | 'avatar';
 
 export type PersonaStepPayload = {
 	topicId: string;
 	runId: string;
 	stepKind: PersonaStepKind;
-	// interview 段のみ必須（per-persona に並列 enqueue するため）。
+	// interview / avatar 段のみ必須（per-persona に並列 enqueue するため）。
 	personaId?: string;
 };
 
+/** per-persona に1本走る段（deterministic id に personaId を含める段）。 */
+const isPerPersonaStep = (stepKind: PersonaStepKind): boolean =>
+	stepKind === 'interview' || stepKind === 'avatar';
+
 /**
  * deterministic task id の鍵。runId と段で一意にし、再起動時の衝突を避ける。
- * interview 段はペルソナごとに1本走るため personaId まで含める。
+ * interview / avatar 段はペルソナごとに1本走るため personaId まで含める。
  */
 export const personaTaskKey = (payload: PersonaStepPayload): string =>
-	payload.stepKind === 'interview'
+	isPerPersonaStep(payload.stepKind)
 		? `${payload.runId}:${payload.stepKind}:${payload.personaId}`
 		: `${payload.runId}:${payload.stepKind}`;
 

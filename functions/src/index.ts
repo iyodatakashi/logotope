@@ -11,6 +11,7 @@ setGlobalOptions({
 
 export { generateFactResearch } from './api/fact-research.js';
 export { startPersonaGeneration, runPersonaStep } from './api/personas.js';
+export { regenerateAvatar } from './api/avatars.js';
 export { runInterview } from './api/interviews.js';
 export { generateChapters } from './api/chapters.js';
 export { startDebate, restartDebate, resetDebate, runStep } from './api/debates.js';
