@@ -7,18 +7,25 @@ const { mockGenerateImage } = vi.hoisted(() => ({ mockGenerateImage: vi.fn() }))
 vi.mock('../../avatar/avatar-image-client', () => ({ generateImage: mockGenerateImage }));
 
 import { generateAvatarAsset, type AvatarSpec } from '../../avatar/avatar-engine';
-import { toGeneration, selectSeed } from '../../avatar/avatar-seeds';
-import { resolveVariation } from '../../avatar/avatar-variation';
-import { buildAvatarPrompt } from '../../avatar/avatar-prompt';
+import {
+	seedFileName,
+	SEED_INDICES,
+	type Generation,
+	type SeedPresentation
+} from '../../avatar/avatar-seeds';
 
 const seedBytes = (fileName: string): Promise<Buffer> =>
 	readFile(fileURLToPath(new URL(`../../avatar/seeds/${fileName}`, import.meta.url)));
 const fixturePng = (): Promise<Buffer> =>
 	readFile(fileURLToPath(new URL('./fixtures/postprocess-input.png', import.meta.url)));
 
+// ランダム選択なので、渡る seed は「その世代・外見表現のプール（4枚）のどれか」で判定する。
+const poolBytes = (generation: Generation, presentation: SeedPresentation): Promise<Buffer[]> =>
+	Promise.all(SEED_INDICES.map((i) => seedBytes(seedFileName({ generation, presentation }, i))));
+const inPool = (passed: Uint8Array, pool: Buffer[]): boolean =>
+	pool.some((b) => b.equals(Buffer.from(passed)));
+
 const baseSpec: AvatarSpec = {
-	personaId: 'p1',
-	attempt: 0,
 	age: 42,
 	genderPresentation: 'masculine',
 	occupation: '弁護士'
@@ -41,22 +48,14 @@ describe('generateAvatarAsset', () => {
 		expect(meta.channels).toBe(4);
 	});
 
-	it('seed 選択→可変軸→プロンプト→モデルの結線: 決定的な seed とプロンプトを渡す', async () => {
+	it('その世代・外見表現のプールの seed とプロンプトでモデルを1回呼ぶ', async () => {
 		await generateAvatarAsset(baseSpec);
-
-		const generation = toGeneration(baseSpec.age); // middle
-		const seed = selectSeed(baseSpec.personaId, baseSpec.attempt, generation, 'masculine')!;
-		const expectedSeed = await seedBytes(seed.fileName);
-		const expectedPrompt = buildAvatarPrompt({
-			...resolveVariation(baseSpec.personaId, baseSpec.attempt, generation, 'masculine'),
-			age: baseSpec.age,
-			occupation: baseSpec.occupation
-		});
 
 		expect(mockGenerateImage).toHaveBeenCalledTimes(1);
 		const [prompt, passedSeed] = mockGenerateImage.mock.calls[0];
-		expect(prompt).toBe(expectedPrompt);
-		expect(Buffer.from(passedSeed).equals(expectedSeed)).toBe(true);
+		expect(typeof prompt).toBe('string');
+		expect(prompt).toContain('弁護士にふさわしい服');
+		expect(inPool(passedSeed, await poolBytes('middle', 'masculine'))).toBe(true);
 	});
 
 	it('androgynous は生成せず no_seed を返す（モデルを呼ばない）', async () => {
@@ -77,26 +76,12 @@ describe('generateAvatarAsset', () => {
 		expect(result).toEqual({ ok: false, reason: 'generation_failed' });
 	});
 
-	it('同一 (personaId, attempt) は常に同一 seed・同一プロンプトで呼ぶ（決定的）', async () => {
-		await generateAvatarAsset(baseSpec);
-		await generateAvatarAsset(baseSpec);
-		const [p1, s1] = mockGenerateImage.mock.calls[0];
-		const [p2, s2] = mockGenerateImage.mock.calls[1];
-		expect(p1).toBe(p2);
-		expect(Buffer.from(s1).equals(Buffer.from(s2))).toBe(true);
-	});
-
-	it('世代境界（69/70）で別世代の seed に切り替わって渡る', async () => {
+	it('世代境界（69/70）で別世代のプールの seed に切り替わって渡る', async () => {
 		await generateAvatarAsset({ ...baseSpec, age: 69 }); // senior
 		await generateAvatarAsset({ ...baseSpec, age: 70 }); // elder
-		const seniorSeed = selectSeed(baseSpec.personaId, 0, 'senior', 'masculine')!;
-		const elderSeed = selectSeed(baseSpec.personaId, 0, 'elder', 'masculine')!;
-		expect(seniorSeed.fileName).toContain('senior');
-		expect(elderSeed.fileName).toContain('elder');
-
 		const [, seniorPassed] = mockGenerateImage.mock.calls[0];
 		const [, elderPassed] = mockGenerateImage.mock.calls[1];
-		expect(Buffer.from(seniorPassed).equals(await seedBytes(seniorSeed.fileName))).toBe(true);
-		expect(Buffer.from(elderPassed).equals(await seedBytes(elderSeed.fileName))).toBe(true);
+		expect(inPool(seniorPassed, await poolBytes('senior', 'masculine'))).toBe(true);
+		expect(inPool(elderPassed, await poolBytes('elder', 'masculine'))).toBe(true);
 	});
 });

@@ -49,7 +49,7 @@ const buildSideBySidePrompt = (v: Variation & { age: number; occupation: string 
 		'右半分に、左とは別人のアバターを1体描く。左半分はそのまま一切変えない。',
 		'- 左の人物の「顔の大きさ」と「目線の高さ」に、右の人物を完全に一致させる（最重要）。',
 		'- 右の様式は左に合わせる：黒基調のシルエット、顔は描かない（目・鼻・口・眉を描かず白のネガティブスペース）、背景は白、影を描かない。',
-		`- 右の人物: 年齢${v.age}歳（皺や灰色でなくシルエットで表す） / 髪型${v.hair} / 体型${v.body} / ポーズ${v.pose} / アングル${v.angle} / 服装${v.occupation}にふさわしい服装 / メガネ${v.glasses ? 'あり' : 'なし'}`
+		`- 右の人物: 年齢${v.age}歳（皺や灰色でなくシルエットで表す） / 髪型${v.hair} / 体型${v.body} / 服装${v.occupation}にふさわしい服装 / メガネ${v.glasses ? 'あり' : 'なし'}`
 	].join('\n');
 
 // 左に seed、右を空白（白）にした CELL×2 の入力を作る。
@@ -122,7 +122,7 @@ const main = async () => {
 	const done: string[] = [];
 	for (const testCase of CASES) {
 		const generation = toGeneration(testCase.age);
-		const seed = selectSeed(testCase.personaId, 0, generation, testCase.presentation);
+		const seed = selectSeed(generation, testCase.presentation);
 		if (!seed) {
 			console.log(`skip ${testCase.id}: seed 無し`);
 			continue;
@@ -131,7 +131,7 @@ const main = async () => {
 		await writeFile(join(OUT_DIR, `input_${testCase.id}.png`), input);
 
 		const prompt = buildSideBySidePrompt({
-			...resolveVariation(testCase.personaId, 0, generation, testCase.presentation),
+			...resolveVariation(generation, testCase.presentation),
 			age: testCase.age,
 			occupation: testCase.occupation
 		});

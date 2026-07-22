@@ -8,8 +8,7 @@
 //   人が判定（Req 7.3・ここでは判定しない）: 様式・顔の非描写・指定軸への適合・頭サイズの一貫。
 //
 // 出力は入力 seed とは別ディレクトリ（Req 1.3）: src/avatar/verify/（.gitignore 済み・コミット対象外）。
-// 全10バケット（世代5×外見表現2）を網羅し、middle は同一バケット内の散りも見る。personaId を
-// 変えるだけで seed／可変軸が決定的に散る。
+// 全10バケット（世代5×外見表現2）を網羅する。seed・可変軸は生成のたびランダムに引かれる。
 //
 // 実行: cd functions && GEMINI_API_KEY=... npx tsx src/avatar/verify-avatar-generation.ts
 
@@ -18,12 +17,16 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { generateAvatarAsset, type AvatarSpec } from './avatar-engine.js';
-import { toGeneration, selectSeed } from './avatar-seeds.js';
+import { toGeneration, isSeedPresentation } from './avatar-seeds.js';
 import { SUBJECT_HEIGHT_RATIO } from './avatar-constants.js';
 
-// そのケースがエンジン内で引く seed のファイル名（再現性のため・エンジンと同じ決定的選択）。
-const seedOf = (s: AvatarSpec): string =>
-	selectSeed(s.personaId, s.attempt, toGeneration(s.age), s.genderPresentation)?.fileName ?? '(seed 無し)';
+// そのケースの seed プール（世代×外見表現）。seed・可変軸は生成のたびランダムなので、DRY では
+// どのプールに落ちるか（＝年齢→世代のマッピングと seed の有無）だけを確認する。
+const bucketOf = (s: AvatarSpec): string => {
+	const generation = toGeneration(s.age);
+	if (!isSeedPresentation(s.genderPresentation)) return `${generation}/${s.genderPresentation}  seed 無し`;
+	return `${generation}/${s.genderPresentation}  (seed・可変軸は生成ごとランダム)`;
+};
 
 const OUT_DIR = fileURLToPath(new URL('./verify', import.meta.url));
 
@@ -37,20 +40,19 @@ interface Case {
 }
 
 const spec = (
-	personaId: string,
 	age: number,
 	genderPresentation: AvatarSpec['genderPresentation'],
 	occupation: string
-): AvatarSpec => ({ personaId, attempt: 0, age, genderPresentation, occupation });
+): AvatarSpec => ({ age, genderPresentation, occupation });
 
 const CASES: Case[] = [
-	{ id: '1_child_m', spec: spec('v-child-m', 10, 'masculine', '小学生') },
-	{ id: '2_young_m', spec: spec('v-young-m', 24, 'masculine', 'エンジニア') },
-	{ id: '3_middle_m', spec: spec('v-mid-m-a', 38, 'masculine', '営業職') },
-	{ id: '4_middle_f', spec: spec('v-mid-f-a', 39, 'feminine', '看護師') },
-	{ id: '5_senior_m', spec: spec('v-senior-m', 58, 'masculine', '経営者') },
-	{ id: '6_senior_f', spec: spec('v-senior-f', 62, 'feminine', '教員') },
-	{ id: '7_elder_f', spec: spec('v-elder-f', 72, 'feminine', '元看護師') }
+	{ id: '1_child_m', spec: spec(10, 'masculine', '小学生') },
+	{ id: '2_young_m', spec: spec(24, 'masculine', 'エンジニア') },
+	{ id: '3_middle_m', spec: spec(38, 'masculine', '営業職') },
+	{ id: '4_middle_f', spec: spec(39, 'feminine', '看護師') },
+	{ id: '5_senior_m', spec: spec(58, 'masculine', '経営者') },
+	{ id: '6_senior_f', spec: spec(62, 'feminine', '教員') },
+	{ id: '7_elder_f', spec: spec(72, 'feminine', '元看護師') }
 ];
 
 interface Frame {
@@ -94,9 +96,9 @@ const main = async () => {
 		? CASES.filter((c) => c.id.includes(process.env.ONLY as string))
 		: CASES;
 
-	// DRY=1: 生成せず、各ケースが引く seed だけを出す（無料でマッピング確認）。
+	// DRY=1: 生成せず、各ケースの seed プール（年齢→世代のマッピングと seed 有無）だけを出す。
 	if (process.env.DRY) {
-		for (const { id, spec } of active) console.log(`${id}  seed=${seedOf(spec)}`);
+		for (const { id, spec } of active) console.log(`${id}  ${bucketOf(spec)}`);
 		return;
 	}
 	if (!process.env.GEMINI_API_KEY) {

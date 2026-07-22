@@ -3,14 +3,12 @@ import {
 	toGeneration,
 	seedFileName,
 	selectSeed,
-	pickDeterministic,
+	pickRandom,
 	isSeedPresentation,
 	allSeedFileNames,
 	SEED_INDICES,
 	SEEDS_PER_BUCKET
 } from '../../avatar/avatar-seeds';
-
-const manyIds = (n: number): string[] => Array.from({ length: n }, (_, i) => `persona-${i}`);
 
 describe('toGeneration', () => {
 	it('年齢帯の境界で世代が切り替わる', () => {
@@ -40,14 +38,8 @@ describe('seedFileName', () => {
 });
 
 describe('selectSeed', () => {
-	it('同一 (personaId, attempt) は常に同一 seed を返す', () => {
-		const a = selectSeed('persona-x', 0, 'young', 'masculine');
-		const b = selectSeed('persona-x', 0, 'young', 'masculine');
-		expect(a).toEqual(b);
-	});
-
 	it('選んだ seed は命名・index が整合し、index は 1..SEEDS_PER_BUCKET に収まる', () => {
-		const seed = selectSeed('persona-x', 0, 'young', 'masculine');
+		const seed = selectSeed('young', 'masculine');
 		expect(seed).not.toBeNull();
 		expect(seed!.index).toBeGreaterThanOrEqual(1);
 		expect(seed!.index).toBeLessThanOrEqual(SEEDS_PER_BUCKET);
@@ -57,37 +49,27 @@ describe('selectSeed', () => {
 	});
 
 	it('androgynous は seed 無し（null）を返す（throw しない）', () => {
-		expect(selectSeed('persona-x', 0, 'young', 'androgynous')).toBeNull();
+		expect(selectSeed('young', 'androgynous')).toBeNull();
 		expect(isSeedPresentation('androgynous')).toBe(false);
 	});
 
-	it('attempt を変えると別 seed を引きうる（再生成＝探索）', () => {
+	it('生成のたびにランダムに引き、4 枚すべてに散る', () => {
 		const indices = new Set(
-			Array.from({ length: 20 }, (_, attempt) => selectSeed('persona-x', attempt, 'young', 'masculine')!.index)
-		);
-		expect(indices.size).toBeGreaterThan(1);
-	});
-
-	it('persona 全体で seed が偏らず 4 枚すべてに散る', () => {
-		const indices = new Set(
-			manyIds(400).map((id) => selectSeed(id, 0, 'middle', 'feminine')!.index)
+			Array.from({ length: 400 }, () => selectSeed('middle', 'feminine')!.index)
 		);
 		expect(indices).toEqual(new Set(SEED_INDICES));
 	});
 });
 
-describe('pickDeterministic', () => {
-	it('同一キーは常に同一要素を返し、必ずカタログの要素を返す', () => {
+describe('pickRandom', () => {
+	it('必ずカタログの要素を返す', () => {
 		const items = ['a', 'b', 'c'] as const;
-		const first = pickDeterministic(items, 'k', 1, 'salt');
-		expect(pickDeterministic(items, 'k', 1, 'salt')).toBe(first);
-		expect(items).toContain(first);
+		expect(items).toContain(pickRandom(items));
 	});
 
-	it('salt を変えると独立に選ぶ（軸が連動しない）', () => {
-		const items = manyIds(50);
-		const bySaltA = items.map((id) => pickDeterministic(['x', 'y', 'z', 'w'], id, 0, 'a'));
-		const bySaltB = items.map((id) => pickDeterministic(['x', 'y', 'z', 'w'], id, 0, 'b'));
-		expect(bySaltA).not.toEqual(bySaltB);
+	it('多数回引くと全要素に散る', () => {
+		const items = ['x', 'y', 'z', 'w'] as const;
+		const picked = new Set(Array.from({ length: 200 }, () => pickRandom(items)));
+		expect(picked).toEqual(new Set(items));
 	});
 });

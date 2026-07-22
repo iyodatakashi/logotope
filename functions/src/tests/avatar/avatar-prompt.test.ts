@@ -6,9 +6,9 @@ const sample: AvatarVariation = {
 	occupation: '弁護士',
 	hair: 'ショートボブ',
 	body: 'がっしり',
-	pose: '腕組み',
-	angle: '斜め約30度',
-	glasses: true
+	glasses: true,
+	glassesShape: 'スクエア',
+	glassesRim: '太いフルリム'
 };
 
 describe('buildAvatarPrompt', () => {
@@ -28,14 +28,14 @@ describe('buildAvatarPrompt', () => {
 		expect(prompt).toContain('影は描かない');
 	});
 
-	it('変えるのは髪型・服装・メガネのみ（向き・体型・ポーズは指示しない）', () => {
+	it('髪型・服装・メガネに加え、体型を指示する（向き・ポーズは指示しない）', () => {
 		const prompt = buildAvatarPrompt(sample);
 		expect(prompt).toContain('ショートボブ');
 		expect(prompt).toContain('弁護士にふさわしい服');
-		// 向き・体型・ポーズは編集で崩れる（新規生成に倒れる）ので指示に含めない。
-		expect(prompt).not.toContain('アングル');
+		// 体型は seed で振れないので必須。向き・ポーズは編集で崩れるため指示せず seed に委ねる。
+		expect(prompt).toContain(sample.body);
+		expect(prompt).not.toContain('向き');
 		expect(prompt).not.toContain('ポーズ');
-		expect(prompt).not.toContain('体型');
 	});
 
 	it('後付けの曖昧・誘発語（枠・上半身・絶対px）を含まない', () => {
@@ -45,8 +45,16 @@ describe('buildAvatarPrompt', () => {
 		expect(prompt).not.toContain('px');
 	});
 
-	it('メガネの有無で指示が変わる', () => {
+	it('メガネの有無で指示が変わり、かける場合は形状と縁様式を合成する', () => {
 		expect(buildAvatarPrompt({ ...sample, glasses: true })).toContain('レンズ内と目は描かない');
+		const withFrame = buildAvatarPrompt({
+			...sample,
+			glasses: true,
+			glassesShape: '丸',
+			glassesRim: '細い縁が下側だけのアンダーリム（上側は縁なし）'
+		});
+		expect(withFrame).toContain('丸');
+		expect(withFrame).toContain('アンダーリム');
 		expect(buildAvatarPrompt({ ...sample, glasses: false })).toContain('メガネはかけない');
 	});
 

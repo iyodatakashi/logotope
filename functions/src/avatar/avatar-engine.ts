@@ -1,7 +1,7 @@
 // 唯一の生成実装（共有エンジン）。本番生成経路（runAvatarCore）と offline 検証の双方がこれだけを
 // 呼ぶことで、検証コードと本番コードの乖離を構造的に不能にする（Req 1.4）。
 //
-// 入力（personaId・attempt・age・genderPresentation・occupation）から
+// 入力（age・genderPresentation・occupation）から
 //   seed 選択 → 可変軸導出 → プロンプト → モデル呼び出し → 後処理
 // を束ね、256 透過 PNG を返す。**gender（性自認）は入力に含めない**（Req 3.7）。
 // Firestore/Storage には触れない純粋生成。適合 seed 無し（androgynous）と生成失敗は
@@ -17,10 +17,6 @@ import { generateImage } from './avatar-image-client.js';
 import { toAsset } from './avatar-postprocess.js';
 
 export interface AvatarSpec {
-	/** 決定的選択の同一性キー。 */
-	personaId: string;
-	/** 初回=0（決定的）。再生成で変えると別 seed／軸を引く（探索）。 */
-	attempt: number;
 	age: number;
 	/** 外観のみ。gender（性自認）は渡さない。 */
 	genderPresentation: PersonaGenderPresentation;
@@ -42,11 +38,11 @@ export const generateAvatarAsset = async (spec: AvatarSpec): Promise<GenerateRes
 
 	// 適合 seed の無い外見表現（androgynous）は生成せず「seed 無し」を返す。
 	if (!isSeedPresentation(presentation)) return { ok: false, reason: 'no_seed' };
-	const seed = selectSeed(spec.personaId, spec.attempt, generation, presentation);
+	const seed = selectSeed(generation, presentation);
 	if (!seed) return { ok: false, reason: 'no_seed' };
 
 	try {
-		const variation = resolveVariation(spec.personaId, spec.attempt, generation, presentation);
+		const variation = resolveVariation(generation, presentation);
 		const prompt = buildAvatarPrompt({ ...variation, age: spec.age, occupation: spec.occupation });
 		const seedBytes = await readSeed(seed.fileName);
 		const raw = await generateImage(prompt, seedBytes);

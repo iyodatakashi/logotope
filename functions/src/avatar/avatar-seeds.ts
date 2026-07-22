@@ -76,45 +76,26 @@ export const allSeedFileNames = (): string[] =>
 // （＝ズーム一貫という目的そのものを壊す）。肩が見切れても問題ない。
 
 // ==========================================================================================
-// 決定的選択
+// ランダム選択
 //
-// seed も可変軸（avatar-variation）も、同一性キー (personaId, attempt) から毎回同じ値を再計算して
-// 引く。index を外部に保存する識別子には使わない（保存すると配列の並び替え・追記で意味がずれる）。
+// seed も可変軸（avatar-variation）も、生成のたびにランダムで引く。personaId から固定しない：
+// 作り直す＝今の見た目が気に入らない、なので同じものが出ては困る（決定的だと作り直しても変わらない）。
+// index はどこにも保存しない（保存すると配列の並び替え・追記で意味がずれる）。
 // ==========================================================================================
 
-/**
- * 同一性キー（personaId・attempt・軸名など）から、配列の要素を決定的に1つ選ぶ。
- *
- * 同じキーは常に同じ要素を返す。キーに軸名を混ぜると軸ごとに独立した選択になる
- * （seed と髪型が連動しない）。ハッシュは FNV-1a 32bit で、暗号強度は要らない。
- * カタログを追記して要素数が変わると割り当ては変わりうるが、選択は毎回キーから再計算するため
- * （どこにも保存しない）挙動そのものは壊れない。可変軸は同一性ではなく見た目なので、これで足りる。
- */
-export const pickDeterministic = <T>(
-	items: readonly T[],
-	...keyParts: (string | number)[]
-): T => {
-	const input = keyParts.join(':');
-	let hash = 0x811c9dc5;
-	for (let i = 0; i < input.length; i++) {
-		hash = Math.imul(hash ^ input.charCodeAt(i), 0x01000193);
-	}
-	return items[(hash >>> 0) % items.length];
-};
+/** 配列から1要素をランダムに選ぶ。 */
+export const pickRandom = <T>(items: readonly T[]): T =>
+	items[Math.floor(Math.random() * items.length)];
 
 /**
- * (personaId, attempt) から seed を決定的に1枚選ぶ。
- *
- * 同一 (personaId, attempt) は常に同一 seed。attempt を変えると別 seed を引く（再生成＝探索）。
+ * seed を1枚ランダムに選ぶ。年齢・外見表現で適切なプール（世代×外見表現）まで絞ってから引く。
  * seed アンカーの無い外見表現（androgynous）は「seed 無し」＝ null を返す（throw しない）。
  */
 export const selectSeed = (
-	personaId: string,
-	attempt: number,
 	generation: Generation,
 	presentation: Presentation
 ): { fileName: string; index: number } | null => {
 	if (!isSeedPresentation(presentation)) return null;
-	const index = pickDeterministic(SEED_INDICES, personaId, attempt, 'seed');
+	const index = pickRandom(SEED_INDICES);
 	return { fileName: seedFileName({ generation, presentation }, index), index };
 };
