@@ -59,6 +59,11 @@ const seedPersona = (extra: Record<string, unknown> = {}) =>
 	holder.mock!.store.set(personaPath, {
 		age: 42,
 		occupation: '医師',
+		specificRole: '救急医',
+		nationality: '日本',
+		background: '地方の総合病院に勤務。',
+		interests: 'ランニング',
+		stakeholderRole: '医療従事者',
 		gender: 'non-binary',
 		genderPresentation: 'feminine',
 		...extra
@@ -89,7 +94,7 @@ describe('runAvatarCore — 成功', () => {
 		expect(persona()?.avatarGeneratedAt).toBe('TS');
 	});
 
-	it('エンジンには genderPresentation/age/occupation のみ渡し gender は渡さない', async () => {
+	it('エンジンには外観と具体プロフィールを渡すが gender（性自認）は渡さない', async () => {
 		seedPersona();
 		mockGenerate.mockResolvedValueOnce({ ok: true, asset: new Uint8Array([0]) });
 
@@ -98,7 +103,11 @@ describe('runAvatarCore — 成功', () => {
 		expect(mockGenerate).toHaveBeenCalledWith({
 			age: 42,
 			genderPresentation: 'feminine',
-			occupation: '医師'
+			occupation: '医師',
+			specificRole: '救急医',
+			nationality: '日本',
+			background: '地方の総合病院に勤務。',
+			interests: 'ランニング'
 		});
 		expect('gender' in mockGenerate.mock.calls[0][0]).toBe(false);
 	});

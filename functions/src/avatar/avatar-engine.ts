@@ -21,6 +21,11 @@ export interface AvatarSpec {
 	/** 外観のみ。gender（性自認）は渡さない。 */
 	genderPresentation: PersonaGenderPresentation;
 	occupation: string;
+	// 服装・雰囲気をペルソナの実態に合わせるための具体プロフィール（顔は描かないので装い等にだけ効く）。
+	specificRole: string;
+	nationality: string;
+	background: string;
+	interests: string;
 }
 
 export type GenerateResult =
@@ -43,7 +48,16 @@ export const generateAvatarAsset = async (spec: AvatarSpec): Promise<GenerateRes
 
 	try {
 		const variation = resolveVariation(generation, presentation);
-		const prompt = buildAvatarPrompt({ ...variation, age: spec.age, occupation: spec.occupation });
+		const prompt = buildAvatarPrompt({
+			...variation,
+			age: spec.age,
+			genderPresentation: presentation, // isSeedPresentation で masculine/feminine に絞り込み済み
+			occupation: spec.occupation,
+			specificRole: spec.specificRole,
+			nationality: spec.nationality,
+			background: spec.background,
+			interests: spec.interests
+		});
 		const seedBytes = await readSeed(seed.fileName);
 		const raw = await generateImage(prompt, seedBytes);
 		const asset = await toAsset(raw);

@@ -3,7 +3,12 @@ import { buildAvatarPrompt, type AvatarVariation } from '../../avatar/avatar-pro
 
 const sample: AvatarVariation = {
 	age: 42,
+	genderPresentation: 'feminine',
 	occupation: '弁護士',
+	specificRole: '刑事事件専門の弁護士',
+	nationality: '日本',
+	background: '都内在住。企業を早期退職して独立し、生活は安定している。',
+	interests: '登山',
 	hair: 'ショートボブ',
 	body: 'がっしり',
 	glasses: true,
@@ -28,11 +33,32 @@ describe('buildAvatarPrompt', () => {
 		expect(prompt).toContain('影は描かない');
 	});
 
-	it('髪型・服装・メガネに加え、体型を指示する（向き・ポーズは指示しない）', () => {
+	it('性別と年代を本文で明示して錨にする（別人化で seed の性別が上書きされるのを防ぐ）', () => {
+		const prompt = buildAvatarPrompt(sample);
+		expect(prompt).toContain('女性的な外見');
+		expect(prompt).toContain('元画像の性別を保ち');
+		expect(prompt).toContain('42歳相当');
+		// masculine では男性的な外見になる
+		expect(buildAvatarPrompt({ ...sample, genderPresentation: 'masculine' })).toContain(
+			'男性的な外見'
+		);
+	});
+
+	it('服装はペルソナの実態（立場・国籍・関心事・背景）に合わせ、職業から機械的にスーツにしない', () => {
+		const prompt = buildAvatarPrompt(sample);
+		expect(prompt).toContain('ふさわしい');
+		expect(prompt).toContain('機械的にスーツにせず');
+		expect(prompt).toContain(sample.specificRole);
+		expect(prompt).toContain(sample.nationality);
+		expect(prompt).toContain(sample.interests);
+		expect(prompt).toContain(sample.background);
+		// 背景を渡しても情景・小物は描かせない
+		expect(prompt).toContain('情景は描かない');
+	});
+
+	it('髪型・体型・メガネは可変軸で指示する（向き・ポーズは指示しない）', () => {
 		const prompt = buildAvatarPrompt(sample);
 		expect(prompt).toContain('ショートボブ');
-		expect(prompt).toContain('弁護士にふさわしい服');
-		// 体型は seed で振れないので必須。向き・ポーズは編集で崩れるため指示せず seed に委ねる。
 		expect(prompt).toContain(sample.body);
 		expect(prompt).not.toContain('向き');
 		expect(prompt).not.toContain('ポーズ');

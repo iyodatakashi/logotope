@@ -42,8 +42,18 @@ interface Case {
 const spec = (
 	age: number,
 	genderPresentation: AvatarSpec['genderPresentation'],
-	occupation: string
-): AvatarSpec => ({ age, genderPresentation, occupation });
+	occupation: string,
+	extra: Partial<AvatarSpec> = {}
+): AvatarSpec => ({
+	age,
+	genderPresentation,
+	occupation,
+	specificRole: occupation,
+	nationality: '日本',
+	background: '',
+	interests: '',
+	...extra
+});
 
 const CASES: Case[] = [
 	{ id: '1_child_m', spec: spec(10, 'masculine', '小学生') },
@@ -52,7 +62,17 @@ const CASES: Case[] = [
 	{ id: '4_middle_f', spec: spec(39, 'feminine', '看護師') },
 	{ id: '5_senior_m', spec: spec(58, 'masculine', '経営者') },
 	{ id: '6_senior_f', spec: spec(62, 'feminine', '教員') },
-	{ id: '7_elder_f', spec: spec(72, 'feminine', '元看護師') }
+	{ id: '7_elder_f', spec: spec(72, 'feminine', '元看護師') },
+	// 服装が背景ドリブンで変わるか（職業=無し／年金・支援で生活が苦しい高齢者）を目視確認するケース。
+	{
+		id: '8_elder_m_hardship',
+		spec: spec(72, 'masculine', '', {
+			specificRole: '再審無罪となった元受刑者',
+			background:
+				'獄中生活30年超を経て70代で再審無罪。現在は姉と二人暮らしで体調は良くなく、年金と支援団体の援助で暮らし、生活は苦しい。',
+			interests: '将棋と散歩'
+		})
+	}
 ];
 
 interface Frame {

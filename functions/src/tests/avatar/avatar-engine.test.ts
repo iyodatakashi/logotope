@@ -28,7 +28,11 @@ const inPool = (passed: Uint8Array, pool: Buffer[]): boolean =>
 const baseSpec: AvatarSpec = {
 	age: 42,
 	genderPresentation: 'masculine',
-	occupation: '弁護士'
+	occupation: '弁護士',
+	specificRole: '弁護士',
+	nationality: '日本',
+	background: '都内在住。企業法務を専門とする。',
+	interests: '読書'
 };
 
 beforeEach(async () => {
@@ -54,7 +58,9 @@ describe('generateAvatarAsset', () => {
 		expect(mockGenerateImage).toHaveBeenCalledTimes(1);
 		const [prompt, passedSeed] = mockGenerateImage.mock.calls[0];
 		expect(typeof prompt).toBe('string');
-		expect(prompt).toContain('弁護士にふさわしい服');
+		// spec の外見・具体プロフィールがプロンプトに反映される（性別の錨・立場）。
+		expect(prompt).toContain('男性的な外見');
+		expect(prompt).toContain('弁護士');
 		expect(inPool(passedSeed, await poolBytes('middle', 'masculine'))).toBe(true);
 	});
 
