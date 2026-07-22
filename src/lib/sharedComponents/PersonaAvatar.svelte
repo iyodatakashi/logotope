@@ -2,7 +2,7 @@
 	import DefaultAvatar from '$lib/assets/images/avatars/female_middle_1.png';
 	import { firebaseConfig } from '$lib/firebase-config';
 
-	// 外見の解決（配色キー→濃淡・画像 URL の組み立て・欠落時の縮退）をこの部品の中に集約する。
+	// 外見の解決（配色キー→濃淡・画像 URL の組み立て）をこの部品の中に集約する。
 	// 呼び出し側はペルソナを渡すだけで、色や URL を組み立てない。公開・管理で同一のこの部品を使う。
 	//
 	// 表示に必要な最小形だけを要求する。管理の Persona も公開読み取りモデルのペルソナも
@@ -26,20 +26,24 @@
 
 	// パスはペルソナの id と topicId から常に導出できるため保存しない。
 	// avatarGeneratedAt は存在フラグ兼キャッシュバスターで、再生成後に古い画像が出ないようにする。
-	// 未生成・失敗（未設定）のときは既定アバターへ縮退する。
+	// ペルソナ不在（ファシリテーター等の話者）は既定アバター。ペルソナは生成済みのときだけ表示し、
+	// 未生成・失敗（未設定）は既定へ縮退させず、シルエットを描かず空にする。
 	const src = $derived.by(() => {
-		if (!persona?.avatarGeneratedAt) return DefaultAvatar;
+		if (!persona) return DefaultAvatar;
+		if (!persona.avatarGeneratedAt) return null;
 		const path = encodeURIComponent(`topics/${persona.topicId}/avatars/${persona.id}`);
 		return `https://firebasestorage.googleapis.com/v0/b/${firebaseConfig.storageBucket}/o/${path}?alt=media&v=${persona.avatarGeneratedAt.getTime()}`;
 	});
 </script>
 
 <div class="persona-avatar" style:--persona-avatar-background-color={backgroundColor}>
-	<div
-		class="persona-avatar__image"
-		style:--persona-avatar-silhouette-color={silhouetteColor}
-		style:--persona-avatar-src={`url(${src})`}
-	></div>
+	{#if src}
+		<div
+			class="persona-avatar__image"
+			style:--persona-avatar-silhouette-color={silhouetteColor}
+			style:--persona-avatar-src={`url(${src})`}
+		></div>
+	{/if}
 </div>
 
 <style>
