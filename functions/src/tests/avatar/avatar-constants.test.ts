@@ -3,8 +3,7 @@ import {
 	ASSET_SIZE,
 	SEED_CANVAS,
 	SUBJECT_HEIGHT_RATIO,
-	SHADOW_CUTOFF,
-	FACE_HEIGHT_PERCENT
+	SHADOW_CUTOFF
 } from '../../avatar/avatar-constants';
 
 describe('avatar-constants', () => {
@@ -12,7 +11,6 @@ describe('avatar-constants', () => {
 		expect(ASSET_SIZE).toBe(256);
 		expect(SUBJECT_HEIGHT_RATIO).toBe(0.92);
 		expect(SHADOW_CUTOFF).toBe(36);
-		expect(FACE_HEIGHT_PERCENT).toBe(45);
 	});
 
 	it('seed キャンバスとアセットは同一の枠にする（ずれると生成物の枠がぶれる）', () => {

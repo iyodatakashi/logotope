@@ -31,21 +31,6 @@ export const SUBJECT_HEIGHT_RATIO = 0.92;
  */
 export const SHADOW_CUTOFF = 36;
 
-/**
- * 生成する画像の絶対サイズ（正方・px）。
- *
- * スケールの唯一の基準を「顔の高さ＝画像高の FACE_HEIGHT_PERCENT%」で与えるが、**比率だけでは
- * 画像高が不定で効かない**（先行フィジビリの結論）。効かせるには画像高を具体値で固定する必要がある。
- * 値自体は最終結果を変えない（後処理が被写体を ASSET_SIZE へ縮約し、最終比率は顔/被写体bbox で決まる）。
- * これはモデル挙動を安定させるための絶対アンカーで、1024 は縮約の余裕（256 の4倍）を持つ標準値。
- */
-export const GENERATION_IMAGE_SIZE = 1024;
-
-/**
- * 生成時に固定する顔の高さ（GENERATION_IMAGE_SIZE に対する％）。**仮値**。
- *
- * 「顔」の測定境界は現状 **生え際〜顎の先** を採る（頭頂〜顎／眉〜顎 だと同じ 45% でも大きさが変わる）。
- * 境界と値は 2.5 検証（tasks 4.2）で確定する。プロンプトは GENERATION_IMAGE_SIZE × この％を
- * 絶対 px（≈461px）に落として指示する。単一定義なので調整はこの1箇所で済む。
- */
-export const FACE_HEIGHT_PERCENT = 45;
+// 顔高の絶対px指示（旧 FACE_HEIGHT_PERCENT / GENERATION_IMAGE_SIZE）は不採用のため定数を置かない。
+// スケールは「プロンプトでズーム＝頭の大きさ＋目線をシードに一致させる」方式で担保する（seed の顔高を
+// 転写する。avatar-prompt 参照）。絶対px（≈461px）や「体を枠に収める/縮小」はスケールを崩したため書かない。
