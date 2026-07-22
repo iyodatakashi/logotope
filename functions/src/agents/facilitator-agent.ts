@@ -153,7 +153,7 @@ export const generateInterventionUtterance = async (
 			messages: [
 				{
 					role: 'user',
-					content: `会話がいまの論点「${action.activeAgendaItem}」から逸脱しています。新しい論点は投入せず、いまの論点へ引き戻してください。\n\n${baseContext}\n\nふさわしい参加者を1人選んで targetPersonaId に設定し、content は「すみません、少し話を戻しましょう」「本題に戻すと」のように本題への引き戻し・振り直しを明示してから、その人に「○○さん、〜についてはどうですか？」と名前で呼びかけて、いまの論点について具体的に問いかけてください。`
+					content: `取り上げるべき論点は「${action.activeAgendaItem}」です。しかし直近の会話はこの論点から離れ、別の話題に流れています。会話がいま何を話していても、その流れている話題には乗らず、論点「${action.activeAgendaItem}」そのものへ議論を戻してください。新しい論点は投入しないこと。\n\n${baseContext}\n\nふさわしい参加者を1人選んで targetPersonaId に設定し、content はその人に「○○さん、〜についてはどうですか？」と名前で呼びかけて、論点「${action.activeAgendaItem}」について具体的に問いかけてください。問いの主題は必ず論点「${action.activeAgendaItem}」にすること。直近で流れている別の話題を主題にしてはいけません。\n\n【前置きの禁止】「すみません」「少し話を戻します」「本題に戻すと」のような、逸脱を指摘したり引き戻しを宣言する前置き・釈明は一切書かないこと。謝罪や軌道修正の告知はせず、論点「${action.activeAgendaItem}」についての具体的な問いを直接投げかけて、自然にそこへ振り直してください。`
 				}
 			]
 		});
