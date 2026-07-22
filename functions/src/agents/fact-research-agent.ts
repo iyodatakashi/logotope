@@ -26,10 +26,14 @@ const structuringSchema = z.object({ facts: z.array(factSchema) });
 // Phase1 grounding: 現在日付基準でテーマの客観的事実を収集する（google_search）。
 // 後段(Phase2)は本レポートに書かれた事実しか構造化できない（捏造禁止）ため、ここで
 // 具体を詰めた網羅的なレポートを長く書くこと自体が事実基盤の情報量の天井になる。
-const buildGroundingPrompt = (title: string, now: Date): string =>
-	`本日は${formatJapaneseDate(now)}です。次のテーマについて「実際に何が起きたか／現在の状況」を検索し、確認できた客観的事実を可能な限り多く・具体的に列挙した網羅レポートを作成してください。
+const buildGroundingPrompt = (title: string, description: string, now: Date): string => {
+	// テーマ詳細（論点・観点）を検索の絞り込みレンズにする。詳細が無ければタイトルのみ（従来挙動）。
+	const focus = description.trim()
+		? `\n\n【この討論で掘り下げたい論点・観点】\n${description.trim()}\n\nこの論点にフォーカスして検索・収集する。テーマの表層キーワードに関する一般的な概況（利用率・導入率・普及状況などの統計）は、上の論点に直接関わらない限り拾わない。論点に噛み合う具体的事実（関係主体の判断・予算や投資の増減・事業や施策の動向・具体的な事例）を優先して集める。`
+		: '';
+	return `本日は${formatJapaneseDate(now)}です。次のテーマについて「実際に何が起きたか／現在の状況」を検索し、確認できた客観的事実を可能な限り多く・具体的に列挙した網羅レポートを作成してください。
 
-【テーマ】${title}
+【テーマ】${title}${focus}
 
 【収集の基準】
 - 検証可能な具体的事実（出来事・結果・数値・固有名詞・日付・経緯）を、確認できる範囲で具体的に集める
@@ -45,10 +49,12 @@ const buildGroundingPrompt = (title: string, now: Date): string =>
 - 各項目は、確認できた数値・固有名詞・日付・経緯があれば省略せず盛り込む（得られた範囲で具体を残す。数値や日付を機械的に必須とはせず、確認できない具体を推測で補ったり埋めたりしない）。一般論の「〜が起きた」で丸めず、確認できた具体はそのまま書く
 - 検索で複数回調べ、出来事の推移・関係主体それぞれの動きを幅広く拾う。要約して丸めず、得られた具体を保ったまま列挙する
 ※本文中にURL（http/https）を一切記載しないこと。出典は媒体名・調査機関名で示すこと。参照元リンクはシステムが検索情報から自動収集します。`;
+};
 
 // Phase2 構造化: grounding テキストと出典リストから、出典付きの事実項目に構造化する。
 const buildStructuringPrompt = (
 	title: string,
+	description: string,
 	now: Date,
 	groundingText: string,
 	numberedSources: SearchResult[]
@@ -56,7 +62,11 @@ const buildStructuringPrompt = (
 	const sourceList = numberedSources.length
 		? numberedSources.map((source, i) => `${i + 1}. ${source.url}`).join('\n')
 		: '（出典なし）';
-	return `以下は「${title}」について本日（${formatJapaneseDate(now)}）基準で収集した客観的事実のレポートです。レポートと出典リストをもとに、検証可能な具体的事実を構造化してください。
+	// 構造化でも同じ論点を優先軸にする（論点に関わる事実を優先し、無関係な概況を落とす）。
+	const focus = description.trim()
+		? `\n\n【掘り下げたい論点・観点】\n${description.trim()}\n※上の論点に関わる事実を優先して構造化する。論点に直接関わらない一般的な概況（利用率・導入率などの統計）は、論点の理解に必要でない限り含めない。`
+		: '';
+	return `以下は「${title}」について本日（${formatJapaneseDate(now)}）基準で収集した客観的事実のレポートです。レポートと出典リストをもとに、検証可能な具体的事実を構造化してください。${focus}
 
 【収集レポート】
 ${groundingText}
@@ -89,6 +99,7 @@ ${sourceList}
  */
 export const runFactResearch = async (
 	title: string,
+	description: string,
 	now: Date
 ): Promise<Result<FactBase, PipelineError>> => {
 	const google = getGoogleProvider();
@@ -103,7 +114,7 @@ export const runFactResearch = async (
 		const grounding = await generateText({
 			model: google(PIPELINE_MODELS.factResearch),
 			tools: { google_search: google.tools.googleSearch({}) },
-			messages: [{ role: 'user', content: buildGroundingPrompt(title, now) }]
+			messages: [{ role: 'user', content: buildGroundingPrompt(title, description, now) }]
 		});
 
 		const googleMeta = grounding.providerMetadata?.['google'] as
@@ -127,7 +138,7 @@ export const runFactResearch = async (
 			messages: [
 				{
 					role: 'user',
-					content: buildStructuringPrompt(title, now, grounding.text, numberedSources)
+					content: buildStructuringPrompt(title, description, now, grounding.text, numberedSources)
 				}
 			]
 		});

@@ -157,10 +157,10 @@ export const createTopicStates = (topicDoc: Topic) => {
 		await setPhase('fact-research', 'running');
 		try {
 			const generateFactResearchCallable = httpsCallable<
-				{ topicId: string; title: string },
+				{ topicId: string; title: string; description: string },
 				Record<string, never>
 			>(functions, 'generateFactResearch', { timeout: 310000 });
-			await generateFactResearchCallable({ topicId: id, title });
+			await generateFactResearchCallable({ topicId: id, title, description });
 			// 完了状態(phaseStatus='generated')はサーバが権威的に書くため、ここでは書かない。
 		} catch (e) {
 			// サーバが既に generated を確定済み（クライアントのタイムアウト等で reject されただけ）の

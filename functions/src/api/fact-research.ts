@@ -24,7 +24,11 @@ export const generateFactResearch = onCall(
 	{ timeoutSeconds: 300, secrets: SECRETS },
 	async (request) => {
 		requireAuth(request);
-		const { topicId, title } = request.data as { topicId: string; title: string };
+		const { topicId, title, description } = request.data as {
+			topicId: string;
+			title: string;
+			description?: string;
+		};
 		if (!topicId?.trim()) throw new HttpsError('invalid-argument', 'topicId is required');
 		if (!title?.trim()) throw new HttpsError('invalid-argument', 'title is required');
 
@@ -40,7 +44,7 @@ export const generateFactResearch = onCall(
 			await clearEditedArtifact(topicId);
 
 			// 手順3: 生成し、出典・生成基準日付きで永続する（空 grounding も同経路）。
-			const result = await runFactResearch(title, new Date());
+			const result = await runFactResearch(title, description ?? '', new Date());
 			if (!result.ok) {
 				const message = 'message' in result.error ? result.error.message : result.error.code;
 				throw new HttpsError('internal', message);
