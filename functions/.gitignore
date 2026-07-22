@@ -1,6 +1,5 @@
-# Compiled JavaScript files
-lib/**/*.js
-lib/**/*.js.map
+# Build output（コンパイル済み JS/マップ、および build でコピーする seed 等のアセット）
+lib/
 
 # TypeScript v1 declaration files
 typings/

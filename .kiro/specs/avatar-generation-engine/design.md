@@ -157,8 +157,10 @@ functions/src/avatar/
 ├── avatar-prompt.ts        # buildAvatarPrompt（編集ベース・掃除済み）
 ├── avatar-postprocess.ts   # toAsset（avatar-constants を参照）
 ├── avatar-image-client.ts  # NEW: モデル呼び出しアダプタ（3.1・seed添付・リトライ）
-├── avatar-engine.ts        # NEW: generateAvatarAsset（唯一の生成実装）
-└── seeds/                  # {generation}_{presentation}_{index}.png（masculine/feminine・各4枚）※手動調整済みの確定アセット（顔高を揃える正規化を含む）＝真実の源。再生成で上書きしない
+└── avatar-engine.ts        # NEW: generateAvatarAsset（唯一の生成実装）。seed は functions/seeds/ を `join(__dirname,'..','..','seeds')` で読む
+
+functions/seeds/             # {generation}_{presentation}_{index}.png（masculine/feminine・各4枚）※手動調整済みの確定アセット（顔高を揃える正規化を含む）＝真実の源。再生成で上書きしない。
+                             # src/lib のミラー外に置くことで build のコピー不要・テストと本番で同一パス（lib へ複製しない）
 
 functions/src/scripts/
 ├── build-avatar-seeds.ts   # 初期導出の記録。**再実行禁止**（avatar-materials から再正規化し、手動調整済み seeds を上書きするため）
@@ -178,7 +180,7 @@ avatar-materials/           # ルート: seed の元素材（10枚）
 - `functions/src/constants/ai.constants.ts` — `AVATAR_IMAGE_MODEL = 'gemini-3.1-flash-image'`（アバター用画像モデルの単一定義）。
 - `functions/src/avatar/avatar-seeds.ts`（コミット済み・masculine/feminine・`toGeneration` まで）— impl で `selectSeed(generation, presentation)`（ランダム）・`seedFileName`・`pickRandom` を追加。
 - `functions/src/avatar/avatar-variation.ts`（**新規作成**）— 髪型/体型/メガネ(形状・縁) カタログ＋`resolveVariation`（ランダム導出）。
-- `functions/src/avatar/seeds/*.png` — 命名 `_male_/_female_` → `_masculine_/_feminine_` にリネーム（40枚）。
+- `functions/seeds/*.png` — 命名 `_male_/_female_` → `_masculine_/_feminine_` にリネーム（40枚）。ビルド生成物の外（src/lib のミラー外）に置き、build でコピーしない。
 
 ### Removed / Replaced（本番コードのみ）
 - `functions/src/api/avatars.ts` の text-only 生成経路（`buildPrompt`/`generateImageWithRetry`/`STYLE_CLAUSES`）。エンジン呼び出しへ置換。これは本番コードであり、フィジビリではない。

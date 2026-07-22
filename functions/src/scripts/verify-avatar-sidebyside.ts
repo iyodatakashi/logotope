@@ -37,7 +37,7 @@ const CASES: Case[] = [
 	{ id: 'mid_m_3', personaId: 'v-mid-m-c', age: 34, presentation: 'masculine', occupation: 'デザイナー' }
 ];
 
-const SEED_DIR = fileURLToPath(new URL('../avatar/seeds', import.meta.url));
+const SEED_DIR = fileURLToPath(new URL('../../seeds', import.meta.url));
 const OUT_DIR = fileURLToPath(new URL('../avatar/verify', import.meta.url));
 
 const CELL = 256;

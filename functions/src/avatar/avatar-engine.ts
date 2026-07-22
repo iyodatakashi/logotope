@@ -32,10 +32,11 @@ export type GenerateResult =
 	| { ok: true; asset: Uint8Array } // 256x256 RGBA 黒+アルファ PNG
 	| { ok: false; reason: 'no_seed' | 'generation_failed' };
 
-// seeds/ はこのモジュールと同じ場所に配置する（本番は lib/avatar/seeds/、テストは src/avatar/seeds/）。
-// seed は不透明 RGB（黒シルエット＋白背景）なので、そのまま編集元として渡す。
+// seeds/ は functions 直下（ビルド生成物の外）に置く確定アセット。src/lib のミラー外なので、
+// __dirname から2つ上（src/avatar → functions／lib/avatar → functions）で同じ functions/seeds を指し、
+// テストと本番の双方で同一パスが通る（lib へコピーしない）。seed は不透明 RGB でそのまま編集元に渡す。
 const readSeed = (fileName: string): Promise<Buffer> =>
-	readFile(join(__dirname, 'seeds', fileName));
+	readFile(join(__dirname, '..', '..', 'seeds', fileName));
 
 export const generateAvatarAsset = async (spec: AvatarSpec): Promise<GenerateResult> => {
 	const generation = toGeneration(spec.age);

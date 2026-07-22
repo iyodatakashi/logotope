@@ -2,7 +2,7 @@
 //
 // ## 位置づけ ── **再実行しない**
 //
-// 成果物 functions/src/avatar/seeds/ の PNG 群は、初期導出後に**手で調整済み**（顔高45%化を含む）の
+// 成果物 functions/seeds/ の PNG 群は、初期導出後に**手で調整済み**（顔高を揃える正規化を含む）の
 // 確定アセットで、コミット済みの真実の源である。本スクリプトを再実行すると素材から再正規化して
 // これらを上書きし、手動調整を消してしまう。したがって本ファイルは「どう導出したか」を読める記録として
 // 残すためのものであり、実行はしない。ランタイムは seeds/ だけに依存し、素材と本スクリプトは無くても動く。
@@ -47,7 +47,7 @@ const SOURCE_FILES: Record<Generation, Record<SeedPresentation, string>> = {
 
 // 素材はプロジェクトルート avatar-materials/（seeds を切り出す元。ランタイム依存ではない）。
 const SOURCE_DIR = fileURLToPath(new URL('../../../avatar-materials', import.meta.url));
-const OUT_DIR = fileURLToPath(new URL('../avatar/seeds', import.meta.url));
+const OUT_DIR = fileURLToPath(new URL('../../seeds', import.meta.url));
 
 const resolveSource = (bucket: SeedBucket): string => {
 	const file = SOURCE_FILES[bucket.generation]?.[bucket.presentation];

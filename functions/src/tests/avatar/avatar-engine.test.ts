@@ -15,7 +15,7 @@ import {
 } from '../../avatar/avatar-seeds';
 
 const seedBytes = (fileName: string): Promise<Buffer> =>
-	readFile(fileURLToPath(new URL(`../../avatar/seeds/${fileName}`, import.meta.url)));
+	readFile(fileURLToPath(new URL(`../../../seeds/${fileName}`, import.meta.url)));
 const fixturePng = (): Promise<Buffer> =>
 	readFile(fileURLToPath(new URL('./fixtures/postprocess-input.png', import.meta.url)));
 
