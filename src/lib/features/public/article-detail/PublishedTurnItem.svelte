@@ -24,7 +24,9 @@
 </script>
 
 <div class="published-turn-item" class:published-turn-item--facilitator={!persona}>
-	<PersonaAvatar {persona} />
+	<div class="published-turn-item__avatar">
+		<PersonaAvatar {persona} />
+	</div>
 	<div class="published-turn-item__speaker">
 		<span class="published-turn-item__name">{persona?.name ?? FACILITATOR_NAME}</span>
 		{#if persona?.role}
@@ -48,22 +50,25 @@
 
 <style>
 	.published-turn-item {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
+		display: grid;
+		grid-template-columns: auto 1fr;
+		grid-template-rows: auto auto auto;
+		grid-gap: 4px 16px;
 	}
+	.published-turn-item__avatar {
+		grid-row: 1/ 4;
+	}
+
 	.published-turn-item__speaker {
 		display: flex;
 		align-items: center;
 		gap: 8px;
 	}
 	.published-turn-item__name {
+		font-size: var(--svelte-ui-font-size-lg);
 		font-weight: bold;
 	}
 	.published-turn-item__role {
 		color: var(--svelte-ui-text-color);
-	}
-	.published-turn-item--facilitator .published-turn-item__name {
-		color: red;
 	}
 </style>

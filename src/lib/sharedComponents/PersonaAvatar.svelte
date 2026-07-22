@@ -51,7 +51,7 @@
 		width: 64px;
 		height: 64px;
 		background: var(--persona-avatar-background-color);
-		border-radius: 24px;
+		border-radius: 36%;
 		overflow: hidden;
 	}
 
