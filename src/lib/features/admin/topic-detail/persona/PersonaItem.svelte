@@ -8,6 +8,11 @@
 	let { persona, editable = true }: { persona: Persona; editable?: boolean } = $props();
 	let interviewDialogRef: SvelteComponent | undefined = $state();
 
+	// アバター再生成は画像だけを作り直す1操作。取材のような常駐ステータスを持たないため、
+	// 進行中フラグはこの要素が自持ちする（store 側が開始時に avatarGeneratedAt を即時クリアするので、
+	// 押下直後に表示は既定アバターへ縮退し、完了で新しい画像に置き換わる）。
+	let regeneratingAvatar = $state(false);
+
 	const interview = $derived(persona.interview);
 
 	// 採用/不採用は安定 id をキーに永続する（フェーズ承認・前進とは独立にいつでも切替可能）。
@@ -30,6 +35,17 @@
 		const title = currentTopicStore.topic?.title;
 		if (!title) return;
 		currentTopicStore.personasStore.reinterview(persona.id, title);
+	};
+
+	// アバターをこのペルソナ1人だけ作り直す。毎回別の seed／軸を引くので、押すたびに別の見た目になる。
+	const regenerateAvatar = async () => {
+		if (regeneratingAvatar) return;
+		regeneratingAvatar = true;
+		try {
+			await currentTopicStore.personasStore.regenerateAvatar(persona.id);
+		} finally {
+			regeneratingAvatar = false;
+		}
 	};
 </script>
 
@@ -117,6 +133,16 @@
 			onclick={reinterview}
 		>
 			再取材する
+		</Button>
+		<Button
+			variant="ghost"
+			rounded
+			icon="face_retouching_natural"
+			loading={regeneratingAvatar}
+			disabled={!editable}
+			onclick={regenerateAvatar}
+		>
+			アバター再生成
 		</Button>
 	</div>
 
