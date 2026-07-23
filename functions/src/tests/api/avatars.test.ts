@@ -1,7 +1,7 @@
 /**
  * runAvatarCore / regenerateAvatar の統合テスト（本番生成経路の lifecycle）。
  * - 成功: エンジン ok → Storage 保存（正しいパス・image/png）→ avatarGeneratedAt 記録
- * - no_seed（androgynous）・generation_failed: 保存せず avatarGeneratedAt 未設定のまま
+ * - generation_failed: 保存せず avatarGeneratedAt 未設定のまま
  * - 開始時に旧 avatarGeneratedAt を即時削除する
  * - 例外は握りつぶす（throw しない）／persona 不在は no-op
  * - エンジンには genderPresentation/age/occupation のみ渡し gender は渡さない
@@ -114,17 +114,7 @@ describe('runAvatarCore — 成功', () => {
 });
 
 describe('runAvatarCore — 未生成（保存せず時刻を残さない）', () => {
-	it('no_seed（androgynous）は保存せず、開始時削除で avatarGeneratedAt を未設定のまま残す', async () => {
-		seedPersona({ genderPresentation: 'androgynous', avatarGeneratedAt: 'OLD' });
-		mockGenerate.mockResolvedValueOnce({ ok: false, reason: 'no_seed' });
-
-		await runAvatarCore(TOPIC_ID, PERSONA_ID);
-
-		expect(mockSave).not.toHaveBeenCalled();
-		expect(persona()?.avatarGeneratedAt).toBeUndefined();
-	});
-
-	it('generation_failed も保存せず未設定のまま残す', async () => {
+	it('generation_failed は保存せず未設定のまま残す', async () => {
 		seedPersona({ avatarGeneratedAt: 'OLD' });
 		mockGenerate.mockResolvedValueOnce({ ok: false, reason: 'generation_failed' });
 
@@ -140,7 +130,7 @@ describe('runAvatarCore — 未生成（保存せず時刻を残さない）', (
 		let atGenerate: unknown = 'unset';
 		mockGenerate.mockImplementationOnce(async () => {
 			atGenerate = persona()?.avatarGeneratedAt;
-			return { ok: false, reason: 'no_seed' };
+			return { ok: false, reason: 'generation_failed' };
 		});
 
 		await runAvatarCore(TOPIC_ID, PERSONA_ID);
@@ -189,9 +179,9 @@ describe('regenerateAvatar — onCall', () => {
 		expect(result).toEqual({ topicId: TOPIC_ID, personaId: PERSONA_ID, generated: true });
 	});
 
-	it('生成できなければ generated:false を返す（no_seed）', async () => {
+	it('生成できなければ generated:false を返す（generation_failed）', async () => {
 		seedPersona({ genderPresentation: 'androgynous' });
-		mockGenerate.mockResolvedValueOnce({ ok: false, reason: 'no_seed' });
+		mockGenerate.mockResolvedValueOnce({ ok: false, reason: 'generation_failed' });
 
 		const result = await call(request({ topicId: TOPIC_ID, personaId: PERSONA_ID }));
 

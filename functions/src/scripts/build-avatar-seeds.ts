@@ -1,15 +1,15 @@
-// 提供された素材（プロジェクトルート avatar-materials/）から、アバターのシードを初期導出した手順の記録。
+// 提供された素材（プロジェクトルート avatar-materials/）から、アバターのシードを導出する実装。
 //
-// ## 位置づけ ── **再実行しない**
+// ## 位置づけ ── 素材が変わったときに再実行する
 //
-// 成果物 functions/seeds/ の PNG 群は、初期導出後に**手で調整済み**（顔高を揃える正規化を含む）の
-// 確定アセットで、コミット済みの真実の源である。本スクリプトを再実行すると素材から再正規化して
-// これらを上書きし、手動調整を消してしまう。したがって本ファイルは「どう導出したか」を読める記録として
-// 残すためのものであり、実行はしない。ランタイムは seeds/ だけに依存し、素材と本スクリプトは無くても動く。
+// 成果物 functions/seeds/ の PNG 群はコミット済みの確定アセットで、ランタイムはこれだけに依存する
+// （素材と本スクリプトが無くても動く）。素材シートを差し替えたら本スクリプトを実行して seeds/ を作り直す。
+// 手動でピクセルを触って再現不能な調整を残さないのが前提（枠を変えたいときは avatar-constants の定数で
+// 調整する）。こうしておけば、同じ素材からはいつでも同じ seeds が再現できる。
 //
 // 区分（世代・外見表現）は avatar-seeds.ts、効く定数は avatar-constants.ts が持つ。ここでは持たない。
-// 導出手順: 素材シートを白ガター検出で 4 分割 → 各体を縦占有 0.92・下端接地・横中央・256 正方へ正規化
-//   （横がはみ出す分は切る）→ 規定寸法・縦占有・下端接地を満たさなければ逸脱を報告して失敗扱い。
+// 導出手順: 素材シート（2行×3列＝6体）を白ガター検出で分割 → 各体を縦占有 0.92・下端接地・横中央・
+//   256 正方へ正規化（横がはみ出す分は切る）→ 規定寸法・縦占有・下端接地を満たさなければ逸脱を報告して失敗扱い。
 
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -21,8 +21,8 @@ import {
 	SEED_INDICES,
 	SEEDS_PER_BUCKET,
 	seedFileName,
-	type Generation,
-	type SeedPresentation,
+	type SeedGeneration,
+	type Presentation,
 	type SeedBucket
 } from '../avatar/avatar-seeds.js';
 
@@ -33,16 +33,26 @@ import {
 /**
  * バケットと素材ファイルの対応。
  *
- * **ファイル名から属性を導出しない。** 素材のリネームでシードのラベルが黙って変わるため。
- * 外見表現（masculine / feminine）を明示キーにし、素材ファイル名（male_ / female_）とは分ける。
+ * **ファイル名から属性を導出しない。** 素材のリネームでシードのラベルが黙って変わるため、明示キーで対応づける。
+ * seed の世代は child / middle / elder のみ（young / senior は middle を流用するので素材を持たない）。
  * 全バケット分が揃っているかは実行時に検査する（下記 resolveSource）。
  */
-const SOURCE_FILES: Record<Generation, Record<SeedPresentation, string>> = {
-	child: { masculine: 'male_child.png', feminine: 'female_child.png' },
-	young: { masculine: 'male_young.png', feminine: 'female_young.png' },
-	middle: { masculine: 'male_middle.png', feminine: 'female_middle.png' },
-	senior: { masculine: 'male_senior.png', feminine: 'female_senior.png' },
-	elder: { masculine: 'male_elder.png', feminine: 'female_elder.png' }
+const SOURCE_FILES: Record<SeedGeneration, Record<Presentation, string>> = {
+	child: {
+		masculine: 'masculine_child.png',
+		feminine: 'feminine_child.png',
+		androgynous: 'androgynous_child.png'
+	},
+	middle: {
+		masculine: 'masculine_middle.png',
+		feminine: 'feminine_middle.png',
+		androgynous: 'androgynous_middle.png'
+	},
+	elder: {
+		masculine: 'masculine_elder.png',
+		feminine: 'feminine_elder.png',
+		androgynous: 'androgynous_elder.png'
+	}
 };
 
 // 素材はプロジェクトルート avatar-materials/（seeds を切り出す元。ランタイム依存ではない）。
@@ -129,10 +139,15 @@ const isWhiteColumn = (gray: Gray, x: number): boolean => {
 	return white / gray.height >= GUTTER_RATIO;
 };
 
-/** 中央付近で最も長い白の帯を探し、その中心を分割位置として返す。 */
-const findGutter = (length: number, isWhite: (index: number) => boolean): number => {
-	const from = Math.floor(length * 0.25);
-	const to = Math.ceil(length * 0.75);
+/** 指定範囲 [fromRatio, toRatio] で最も長い白の帯を探し、その中心を分割位置として返す。 */
+const findGutter = (
+	length: number,
+	fromRatio: number,
+	toRatio: number,
+	isWhite: (index: number) => boolean
+): number => {
+	const from = Math.floor(length * fromRatio);
+	const to = Math.ceil(length * toRatio);
 
 	let best = { start: -1, length: 0 };
 	let runStart = -1;
@@ -147,7 +162,7 @@ const findGutter = (length: number, isWhite: (index: number) => boolean): number
 		}
 	}
 
-	if (best.start < 0) throw new Error('白ガターを検出できない（素材が 2x2 でない可能性）');
+	if (best.start < 0) throw new Error('白ガターを検出できない（素材のレイアウトが 2行×3列 でない可能性）');
 	return best.start + Math.floor(best.length / 2);
 };
 
@@ -259,24 +274,33 @@ const buildBucket = async (bucket: SeedBucket): Promise<Defect[]> => {
 	});
 
 	const gray = await toGray(png);
-	const splitX = findGutter(gray.width, (x) => isWhiteColumn(gray, x));
-	const splitY = findGutter(gray.height, (y) => isWhiteRow(gray, y));
 
-	const quadrants = [
-		{ left: 0, top: 0, width: splitX, height: splitY },
-		{ left: splitX, top: 0, width: gray.width - splitX, height: splitY },
-		{ left: 0, top: splitY, width: splitX, height: gray.height - splitY },
-		{ left: splitX, top: splitY, width: gray.width - splitX, height: gray.height - splitY }
+	// 素材シートは 2行×3列。行間ガターは中央付近、列間ガターは 1/3・2/3 付近に1本ずつある。
+	// それぞれの想定位置を含む範囲で最長の白帯を探し、行2・列3のセルへ切り分ける。
+	const rowSplit = findGutter(gray.height, 0.25, 0.75, (y) => isWhiteRow(gray, y));
+	const colSplit1 = findGutter(gray.width, 0.2, 0.46, (x) => isWhiteColumn(gray, x));
+	const colSplit2 = findGutter(gray.width, 0.54, 0.8, (x) => isWhiteColumn(gray, x));
+
+	const rows = [
+		{ top: 0, height: rowSplit },
+		{ top: rowSplit, height: gray.height - rowSplit }
 	];
+	const cols = [
+		{ left: 0, width: colSplit1 },
+		{ left: colSplit1, width: colSplit2 - colSplit1 },
+		{ left: colSplit2, width: gray.width - colSplit2 }
+	];
+	// 読み順（上段左→右、下段左→右）に並べる。index はこの順で振る。
+	const cells = rows.flatMap((row) => cols.map((col) => ({ ...col, ...row })));
 
-	if (quadrants.length !== SEEDS_PER_BUCKET) {
+	if (cells.length !== SEEDS_PER_BUCKET) {
 		throw new Error(`素材から取れる個体数が SEEDS_PER_BUCKET と一致しない: ${sourcePath}`);
 	}
 
 	const defects: Defect[] = [];
-	for (const [position, quadrant] of quadrants.entries()) {
+	for (const [position, cell] of cells.entries()) {
 		const name = seedFileName(bucket, SEED_INDICES[position]);
-		const seed = await normalize(await sharp(png).extract(quadrant).png().toBuffer());
+		const seed = await normalize(await sharp(png).extract(cell).png().toBuffer());
 		await writeFile(join(OUT_DIR, name), seed);
 		const defect = await inspect(name, seed);
 		if (defect) defects.push(defect);
@@ -287,12 +311,23 @@ const buildBucket = async (bucket: SeedBucket): Promise<Defect[]> => {
 const main = async () => {
 	await mkdir(OUT_DIR, { recursive: true });
 
+	// ONLY=部分文字列: バケット名（generation_presentation）に一致するバケットだけ切り出す。
+	// 素材を1枚だけ差し替えたときの部分再生成用（例 ONLY=child_feminine）。未指定なら全バケット。
+	const only = process.env.ONLY;
+	const buckets = only
+		? SEED_BUCKETS.filter((b) => `${b.generation}_${b.presentation}`.includes(only))
+		: SEED_BUCKETS;
+	if (buckets.length === 0) {
+		console.error(`ONLY=${only} に一致するバケットがない`);
+		process.exit(1);
+	}
+
 	const defects: Defect[] = [];
-	for (const bucket of SEED_BUCKETS) {
+	for (const bucket of buckets) {
 		defects.push(...(await buildBucket(bucket)));
 	}
 
-	console.log(`シード ${SEED_BUCKETS.length * SEEDS_PER_BUCKET} 枚を生成`);
+	console.log(`シード ${buckets.length * SEEDS_PER_BUCKET} 枚を生成`);
 
 	if (defects.length > 0) {
 		console.error(`規定を満たさないシード ${defects.length} 枚:`);

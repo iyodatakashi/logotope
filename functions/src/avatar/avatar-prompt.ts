@@ -9,12 +9,12 @@
 //     （立場・国籍・関心事・背景の年収/暮らしぶり）に合わせる。
 
 import type { Variation } from './avatar-variation.js';
-import type { SeedPresentation } from './avatar-seeds.js';
+import type { Presentation } from './avatar-seeds.js';
 
 /** プロンプトの入力。可変軸（Variation）に、persona 由来の年齢・外見表現・具体プロフィールを足したもの。 */
 export interface AvatarVariation extends Variation {
 	age: number;
-	genderPresentation: SeedPresentation;
+	genderPresentation: Presentation;
 	occupation: string;
 	specificRole: string;
 	nationality: string;
@@ -22,9 +22,10 @@ export interface AvatarVariation extends Variation {
 	interests: string;
 }
 
-const PRESENTATION_LABEL: Record<SeedPresentation, string> = {
+const PRESENTATION_LABEL: Record<Presentation, string> = {
 	masculine: '男性的な外見',
-	feminine: '女性的な外見'
+	feminine: '女性的な外見',
+	androgynous: '中性的な外見'
 };
 
 export const buildAvatarPrompt = (v: AvatarVariation): string =>

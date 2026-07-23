@@ -10,22 +10,19 @@
 export const GENERATIONS = ['child', 'young', 'middle', 'senior', 'elder'] as const;
 export type Generation = (typeof GENERATIONS)[number];
 
-/** 外見表現。persona の genderPresentation と同じ区分（性自認ではない）。 */
+/** 外見表現。persona の genderPresentation と同じ区分（性自認ではない）。全表現に seed アンカーがある。 */
 export const PRESENTATIONS = ['masculine', 'feminine', 'androgynous'] as const;
 export type Presentation = (typeof PRESENTATIONS)[number];
 
 /**
- * seed アンカーがある外見表現。現状は masculine / feminine のみ。
- * androgynous のアンカーは後続で追加する（それまで seed バケットに含めない）。
+ * seed アンカーがある世代。young / senior は骨格が middle と近いため独自 seed を持たず、middle の
+ * seed を流用する（＝素材はこの3区分にのみある）。年齢由来の世代→この区分の写像は toSeedGeneration。
+ * 髪型など seed 以外の見た目は世代（5区分）で引き続き出し分ける（骨格の流用と混同しない）。
  */
-export const SEED_PRESENTATIONS = ['masculine', 'feminine'] as const satisfies readonly Presentation[];
+export const SEED_GENERATIONS = ['child', 'middle', 'elder'] as const satisfies readonly Generation[];
 
-/** seed アンカーがある外見表現の型。バケット・命名・選択はこの範囲でのみ成立する。 */
-export type SeedPresentation = (typeof SEED_PRESENTATIONS)[number];
-
-/** その外見表現に seed アンカーがあるか（androgynous は false）。 */
-export const isSeedPresentation = (presentation: Presentation): presentation is SeedPresentation =>
-	(SEED_PRESENTATIONS as readonly Presentation[]).includes(presentation);
+/** seed アンカーがある世代の型。バケット・命名・選択はこの範囲でのみ成立する。 */
+export type SeedGeneration = (typeof SEED_GENERATIONS)[number];
 
 /** age（数値）→ 世代。境界は requirements の年齢帯（10歳/10〜20代/30〜40代/50〜60代/70代以上）に対応。 */
 export const toGeneration = (age: number): Generation => {
@@ -36,25 +33,29 @@ export const toGeneration = (age: number): Generation => {
 	return 'elder';
 };
 
-/** シードを引く単位。世代と外見表現の組み合わせ（seed のある外見表現に限る）。 */
+/** 世代 → seed の世代。young / senior は骨格の近い middle の seed を流用する。 */
+export const toSeedGeneration = (generation: Generation): SeedGeneration =>
+	generation === 'child' || generation === 'elder' ? generation : 'middle';
+
+/** シードを引く単位。seed のある世代（3区分）と外見表現（3区分）の組み合わせ。 */
 export interface SeedBucket {
-	generation: Generation;
-	presentation: SeedPresentation;
+	generation: SeedGeneration;
+	presentation: Presentation;
 }
 
 /**
  * 全バケット。定義から導出する。
  * 手で列挙すると、区分を増やしたときに追随漏れが起きる。
  */
-export const SEED_BUCKETS: readonly SeedBucket[] = GENERATIONS.flatMap((generation) =>
-	SEED_PRESENTATIONS.map((presentation) => ({ generation, presentation }))
+export const SEED_BUCKETS: readonly SeedBucket[] = SEED_GENERATIONS.flatMap((generation) =>
+	PRESENTATIONS.map((presentation) => ({ generation, presentation }))
 );
 
 /**
- * 1バケットあたりのシード枚数。
+ * 1バケットあたりのシード枚数。素材シート1枚の個体数（2行×3列＝6体）と一致する。
  * 同じバケットのペルソナ同士で構図が散る度合いがこの枚数で決まる。
  */
-export const SEEDS_PER_BUCKET = 4;
+export const SEEDS_PER_BUCKET = 6;
 
 /** シードの連番。1 から SEEDS_PER_BUCKET まで。 */
 export const SEED_INDICES: readonly number[] = Array.from(
@@ -88,14 +89,16 @@ export const pickRandom = <T>(items: readonly T[]): T =>
 	items[Math.floor(Math.random() * items.length)];
 
 /**
- * seed を1枚ランダムに選ぶ。年齢・外見表現で適切なプール（世代×外見表現）まで絞ってから引く。
- * seed アンカーの無い外見表現（androgynous）は「seed 無し」＝ null を返す（throw しない）。
+ * seed を1枚ランダムに選ぶ。年齢由来の世代を seed の世代（toSeedGeneration で child/middle/elder へ）に
+ * 写し、外見表現と合わせたプールから引く。全外見表現に seed があるため必ず1枚返る。
  */
 export const selectSeed = (
 	generation: Generation,
 	presentation: Presentation
-): { fileName: string; index: number } | null => {
-	if (!isSeedPresentation(presentation)) return null;
+): { fileName: string; index: number } => {
 	const index = pickRandom(SEED_INDICES);
-	return { fileName: seedFileName({ generation, presentation }, index), index };
+	return {
+		fileName: seedFileName({ generation: toSeedGeneration(generation), presentation }, index),
+		index
+	};
 };

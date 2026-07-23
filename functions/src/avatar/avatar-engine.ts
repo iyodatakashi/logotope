@@ -4,13 +4,13 @@
 // 入力（age・genderPresentation・occupation）から
 //   seed 選択 → 可変軸導出 → プロンプト → モデル呼び出し → 後処理
 // を束ね、256 透過 PNG を返す。**gender（性自認）は入力に含めない**（Req 3.7）。
-// Firestore/Storage には触れない純粋生成。適合 seed 無し（androgynous）と生成失敗は
-// throw せず戻り値で判別する（本番は失敗を握りつぶして討論生成を止めない）。
+// Firestore/Storage には触れない純粋生成。生成失敗は throw せず戻り値で判別する
+// （本番は失敗を握りつぶして討論生成を止めない）。
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PersonaGenderPresentation } from '../types/persona.types.js';
-import { toGeneration, selectSeed, isSeedPresentation } from './avatar-seeds.js';
+import { toGeneration, selectSeed } from './avatar-seeds.js';
 import { resolveVariation } from './avatar-variation.js';
 import { buildAvatarPrompt } from './avatar-prompt.js';
 import { generateImage } from './avatar-image-client.js';
@@ -30,7 +30,7 @@ export interface AvatarSpec {
 
 export type GenerateResult =
 	| { ok: true; asset: Uint8Array } // 256x256 RGBA 黒+アルファ PNG
-	| { ok: false; reason: 'no_seed' | 'generation_failed' };
+	| { ok: false; reason: 'generation_failed' };
 
 // seeds/ は functions 直下（ビルド生成物の外）に置く確定アセット。src/lib のミラー外なので、
 // __dirname から2つ上（src/avatar → functions／lib/avatar → functions）で同じ functions/seeds を指し、
@@ -42,17 +42,15 @@ export const generateAvatarAsset = async (spec: AvatarSpec): Promise<GenerateRes
 	const generation = toGeneration(spec.age);
 	const presentation = spec.genderPresentation;
 
-	// 適合 seed の無い外見表現（androgynous）は生成せず「seed 無し」を返す。
-	if (!isSeedPresentation(presentation)) return { ok: false, reason: 'no_seed' };
+	// 全外見表現に seed があるため必ず1枚引ける（selectSeed が世代を seed の世代へ写して選ぶ）。
 	const seed = selectSeed(generation, presentation);
-	if (!seed) return { ok: false, reason: 'no_seed' };
 
 	try {
 		const variation = resolveVariation(generation, presentation);
 		const prompt = buildAvatarPrompt({
 			...variation,
 			age: spec.age,
-			genderPresentation: presentation, // isSeedPresentation で masculine/feminine に絞り込み済み
+			genderPresentation: presentation,
 			occupation: spec.occupation,
 			specificRole: spec.specificRole,
 			nationality: spec.nationality,

@@ -51,7 +51,7 @@ export const runAvatarCore = async (topicId: string, personaId: string): Promise
 			interests: persona.interests ?? ''
 		};
 		const result = await generateAvatarAsset(spec);
-		// no_seed（androgynous）・generation_failed は未生成のまま残す。
+		// generation_failed は未生成のまま残す（欠落は個別再生成・バックフィルで回収）。
 		if (!result.ok) return;
 
 		await bucket()

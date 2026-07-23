@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
 	toGeneration,
+	toSeedGeneration,
 	seedFileName,
 	selectSeed,
 	pickRandom,
-	isSeedPresentation,
 	allSeedFileNames,
 	SEED_INDICES,
 	SEEDS_PER_BUCKET
@@ -23,6 +23,16 @@ describe('toGeneration', () => {
 	});
 });
 
+describe('toSeedGeneration', () => {
+	it('young / senior は骨格の近い middle の seed を流用する（child / elder はそのまま）', () => {
+		expect(toSeedGeneration('child')).toBe('child');
+		expect(toSeedGeneration('young')).toBe('middle');
+		expect(toSeedGeneration('middle')).toBe('middle');
+		expect(toSeedGeneration('senior')).toBe('middle');
+		expect(toSeedGeneration('elder')).toBe('elder');
+	});
+});
+
 describe('seedFileName', () => {
 	it('{generation}_{presentation}_{index}.png で命名する', () => {
 		expect(seedFileName({ generation: 'middle', presentation: 'feminine' }, 3)).toBe(
@@ -30,32 +40,41 @@ describe('seedFileName', () => {
 		);
 	});
 
-	it('40枚を一意に識別する（重複なし）', () => {
+	it('54枚を一意に識別する（3世代×3外見表現×6枚・重複なし）', () => {
 		const names = allSeedFileNames();
-		expect(names.length).toBe(40);
-		expect(new Set(names).size).toBe(40);
+		expect(names.length).toBe(54);
+		expect(new Set(names).size).toBe(54);
 	});
 });
 
 describe('selectSeed', () => {
 	it('選んだ seed は命名・index が整合し、index は 1..SEEDS_PER_BUCKET に収まる', () => {
 		const seed = selectSeed('young', 'masculine');
-		expect(seed).not.toBeNull();
-		expect(seed!.index).toBeGreaterThanOrEqual(1);
-		expect(seed!.index).toBeLessThanOrEqual(SEEDS_PER_BUCKET);
-		expect(seed!.fileName).toBe(
-			seedFileName({ generation: 'young', presentation: 'masculine' }, seed!.index)
+		expect(seed.index).toBeGreaterThanOrEqual(1);
+		expect(seed.index).toBeLessThanOrEqual(SEEDS_PER_BUCKET);
+		// young は middle の seed を流用するため、ファイル名は middle バケットになる。
+		expect(seed.fileName).toBe(
+			seedFileName({ generation: 'middle', presentation: 'masculine' }, seed.index)
 		);
 	});
 
-	it('androgynous は seed 無し（null）を返す（throw しない）', () => {
-		expect(selectSeed('young', 'androgynous')).toBeNull();
-		expect(isSeedPresentation('androgynous')).toBe(false);
+	it('androgynous も seed を返す（全外見表現に seed アンカーがある）', () => {
+		const seed = selectSeed('middle', 'androgynous');
+		expect(seed.fileName).toBe(
+			seedFileName({ generation: 'middle', presentation: 'androgynous' }, seed.index)
+		);
 	});
 
-	it('生成のたびにランダムに引き、4 枚すべてに散る', () => {
+	it('senior は middle の seed プールから引く', () => {
+		const names = new Set(
+			Array.from({ length: 400 }, () => selectSeed('senior', 'feminine').fileName)
+		);
+		for (const name of names) expect(name.startsWith('middle_feminine_')).toBe(true);
+	});
+
+	it('生成のたびにランダムに引き、6 枚すべてに散る', () => {
 		const indices = new Set(
-			Array.from({ length: 400 }, () => selectSeed('middle', 'feminine')!.index)
+			Array.from({ length: 600 }, () => selectSeed('middle', 'feminine').index)
 		);
 		expect(indices).toEqual(new Set(SEED_INDICES));
 	});

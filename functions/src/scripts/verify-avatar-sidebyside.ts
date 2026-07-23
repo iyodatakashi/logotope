@@ -18,7 +18,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
-import { toGeneration, selectSeed, type SeedPresentation } from '../avatar/avatar-seeds.js';
+import { toGeneration, selectSeed, type Presentation } from '../avatar/avatar-seeds.js';
 import { resolveVariation, type Variation } from '../avatar/avatar-variation.js';
 import { generateImage } from '../avatar/avatar-image-client.js';
 
@@ -26,7 +26,7 @@ interface Case {
 	id: string;
 	personaId: string;
 	age: number;
-	presentation: SeedPresentation;
+	presentation: Presentation;
 	occupation: string;
 }
 
@@ -123,10 +123,6 @@ const main = async () => {
 	for (const testCase of CASES) {
 		const generation = toGeneration(testCase.age);
 		const seed = selectSeed(generation, testCase.presentation);
-		if (!seed) {
-			console.log(`skip ${testCase.id}: seed 無し`);
-			continue;
-		}
 		const input = await buildInput(seed.fileName);
 		await writeFile(join(OUT_DIR, `input_${testCase.id}.png`), input);
 

@@ -8,7 +8,8 @@
 //   人が判定（Req 7.3・ここでは判定しない）: 様式・顔の非描写・指定軸への適合・頭サイズの一貫。
 //
 // 出力は入力 seed とは別ディレクトリ（Req 1.3）: src/avatar/verify/（.gitignore 済み・コミット対象外）。
-// 全10バケット（世代5×外見表現2）を網羅する。seed・可変軸は生成のたびランダムに引かれる。
+// seed は child/middle/elder × 3外見表現の9バケット（young/senior は骨格の近い middle を流用）。
+// 髪型など可変軸は世代5区分で引く。seed・可変軸は生成のたびランダムに引かれる。
 //
 // 実行: cd functions && GEMINI_API_KEY=... npx tsx src/avatar/verify-avatar-generation.ts
 
@@ -17,15 +18,15 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { generateAvatarAsset, type AvatarSpec } from './avatar-engine.js';
-import { toGeneration, isSeedPresentation } from './avatar-seeds.js';
+import { toGeneration, toSeedGeneration } from './avatar-seeds.js';
 import { SUBJECT_HEIGHT_RATIO } from './avatar-constants.js';
 
-// そのケースの seed プール（世代×外見表現）。seed・可変軸は生成のたびランダムなので、DRY では
-// どのプールに落ちるか（＝年齢→世代のマッピングと seed の有無）だけを確認する。
+// そのケースの世代（髪型用）と seed プール（seed の世代×外見表現）。seed・可変軸は生成のたびランダムなので、
+// DRY では年齢→世代・seed の世代への写像だけを確認する。
 const bucketOf = (s: AvatarSpec): string => {
 	const generation = toGeneration(s.age);
-	if (!isSeedPresentation(s.genderPresentation)) return `${generation}/${s.genderPresentation}  seed 無し`;
-	return `${generation}/${s.genderPresentation}  (seed・可変軸は生成ごとランダム)`;
+	const seedGeneration = toSeedGeneration(generation);
+	return `${generation}/${s.genderPresentation}  seed=${seedGeneration}/${s.genderPresentation}  (生成ごとランダム)`;
 };
 
 const OUT_DIR = fileURLToPath(new URL('./verify', import.meta.url));
@@ -63,6 +64,8 @@ const CASES: Case[] = [
 	{ id: '5_senior_m', spec: spec(58, 'masculine', '経営者') },
 	{ id: '6_senior_f', spec: spec(62, 'feminine', '教員') },
 	{ id: '7_elder_f', spec: spec(72, 'feminine', '元看護師') },
+	// androgynous（中性的な外見）も seed があり生成できる（middle 41歳 → middle の androgynous プール）。
+	{ id: '7b_middle_a', spec: spec(41, 'androgynous', 'フリーランス') },
 	// 服装が背景ドリブンで変わるか（職業=無し／年金・支援で生活が苦しい高齢者）を目視確認するケース。
 	{
 		id: '8_elder_m_hardship',
