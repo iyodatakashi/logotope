@@ -1,56 +1,242 @@
 // 可変軸のカタログと、生成のたびのランダム導出。
 //
-// 出し分ける軸: 髪型・体型・メガネ。年齢・外見表現・職業は persona 由来で spec から与える。
+// 出し分ける軸: 髪型・審美観コード・体型・メガネ。年齢・外見表現・職業は persona 由来で spec から与える。
 // 向き・ポーズは seed 選択で振れるので軸に持たない（プロンプトで指示するとスケールが崩れると確認済み）。
 // personaId から固定せずランダムに引く：作り直す＝今の見た目が気に入らない、なので毎回別の見た目にする。
-// カタログはすべて追記で拡張できる。要素数を前提にした処理や全組み合わせの列挙は書かない（Req 3.6）。
+//
+// 髪型は「スタイル名の固定リスト」ではなく、階層B型で組み立てる（設計書 v4 系）:
+//   長さ → スタイリング状態（おろし/まとめ）→ [おろし] 前髪・シルエット・質感 / [まとめ] まとめ方
+// 各ステップは前ステップに依存した有効肢だけを提示する（触覚は B 以上、フェイスフレーミングは M 以上 等、
+// 視覚的に成立する条件を検証としてコード化）。アンコンシャスバイアスを避けるため、年齢・性別で長さや
+// スタイルをハード除外しない：らしさは「出やすさ（重み ◎3/○2/△1、既定 ○2）」で表現し、△でも引ける。
+// ハード制約は最小限（下記 allowTie）。年齢は色でなくシルエットで出す前提（白髪等の描画は avatar-prompt）。
 
 import { pickRandom, type Generation, type Presentation } from './avatar-seeds.js';
 
 /** 1個体分の可変軸の値。生成のたびにランダムに導出される。 */
 export interface Variation {
 	hair: string;
+	/** 審美観コードの英語キーワード（プロンプトに添付するだけ。パラメータ選択には影響しない）。「なし」は null。 */
+	aestheticKeyword: string | null;
 	body: string;
 	glasses: boolean;
 	glassesShape: string;
 	glassesRim: string;
 }
 
-// 髪型は世代×外見表現で語彙が変わるため、その2軸で引く。若年ほど選択肢が多く、高齢は薄毛・白髪を含む。
-// 白髪は色でなくシルエット・生え際で年齢を出す前提の語彙にする（描画様式は avatar-prompt が担う）。
-//
-// 顔・陰影を描かない黒シルエットで見分けがつくよう、各バケットは以下のシルエット区分をまたいで散らす：
-// 真のショート（地肌に近い）／ボブ（あご〜肩の丸い外郭）／肩レングス（下ろし）／ロング／
-// ボリューム（パーマ・くせ毛で横に広がる）／アップ（まとめ髪・シニヨン・ポニー・お団子）。
-// 同区分の同義語（ショートボブ・ワンレンボブ・セミロング…）で埋めない：語を変えても輪郭が同じで収束する。
-// 「ショート○○」はボブ丈であり、いわゆるショートカット（ベリーショート・刈り上げ）とは別区分。両方入れる。
-export const HAIR_CATALOG: Record<Generation, Record<Presentation, string[]>> = {
-	child: {
-		masculine: ['ナチュラルショート（自然なごく普通のショート）', 'マッシュ（丸みシルエット・ふんわり前髪）', 'ソフトボウルカット（お椀型の丸いシルエット）', 'サイドわけショート（横に分けた清潔感あるショート）', 'やんちゃマッシュ（少し長めの動きあるマッシュ）', '刈り上げナチュラル（サイドすっきりのナチュラルショート）', 'スポーティーショート（活発な印象のすっきりショート）', 'くせ毛ナチュラル（自然なくせ毛風のナチュラルスタイル）', 'フロントアップ（前髪を立ち上げたスタイル）', 'ソフトモヒカン（中央を少し立たせたソフトモヒカン）'],
-		feminine: ['ツインテール（高い位置でふたつ結び）', 'ハイポニーテール（高い位置で一束）', 'パッツンボブ（ストレートのおかっぱ・前髪パッツン）', 'ふわふわショートボブ（丸みのある柔らかいシルエット）', 'ハーフアップ（上半分を結び下は下ろす）', 'ふたつお団子（高め位置のダブルバン）', 'サイドツイン（低い位置で横に結ぶおさげ）', 'ナチュラルショートカット（自然なくせ毛風ショート）', 'カールポニーテール（巻き髪のポニーテール）', 'ふわふわミディアム（くせ毛風のミディアム・おろし）'],
-		androgynous: ['ナチュラルショート（自然なごく普通のショート）', 'マッシュ（丸みシルエット・ふんわり前髪）', 'ボウルカット（お椀型の丸いシルエット）', '刈り上げショート（サイドをすっきり刈った短めショート）', 'ミディアムボブ（あご〜肩の丸いボブ）', '肩までのストレート（下ろした肩レングス）', 'くせ毛ナチュラル（自然なくせ毛でボリュームのあるスタイル）', 'センターパートミディアム（真ん中分けのミディアム）', 'ミニお団子（小さくまとめたお団子）', 'サイドパートショート（横に分けたすっきりショート）']
-	},
-	young: {
-		masculine: ['マッシュウルフ（マッシュ×ウルフのレイヤースタイル）', 'ツーブロックマッシュ（サイド刈り上げ×マッシュトップ）', 'センターパートミディアム（センター分けのシースルーバング・ミディアム）', 'テクスチャーショート（無造作感のある動きあるショート）', 'アンダーカット（サイドと後ろを刈り上げたスタイル）', 'クロップカット（刈り上げ＋短めフラットなトップ）', 'ウルフカット（レイヤー×ウルフのエッジ感あるスタイル）', 'ソフトパーママッシュ（ゆるパーマのマッシュ）', 'センターパートウルフ（センター分け×ウルフカット）', 'ロングウルフ（肩につくくらいのウルフカット）', 'ソフトパーマミディアム（ゆるパーマのミディアムレングス）', 'ストリートマッシュ（やや長め×無造作マッシュ）'],
-		feminine: ['ミディアムウルフ（レイヤーと動きのウルフカット）', 'フレンチボブ（眉ラインの短めボブ・前髪パッツン）', 'カーテンバングロング（シースルーバング・センター分けのロング）', 'スラントボブ（前下がりボブ・顔まわり強調）', 'ショートウルフ（短め×レイヤーでエッジ感）', 'ゆるウェーブロング（ゆったりした波ウェーブのロング）', 'センターパートストレートロング（真ん中分け・ツヤ感ストレート）', 'マッシュボブ（丸みのあるマッシュシルエットのボブ）', 'ニュアンスパーマミディアム（ゆるふわパーマのミディアム）', 'ルーズお団子アップ（こなれ感のあるルーズなお団子）', 'ハイポニーテール（高い位置でまとめたポニーテール）', 'ツインお団子（Y2K風のダブルバン）'],
-		androgynous: ['センターパートミディアム（センター分け・シースルーバングのミディアム）', 'ウルフカット（レイヤー×ウルフのエッジ感あるスタイル）', 'マッシュ（丸みシルエットのマッシュ）', 'ツーブロックショート（サイド刈り上げ×短めトップ）', 'ミニボブ（あごラインの短めボブ）', 'ロングストレート（真ん中分け・ツヤ感のあるロング）', 'ソフトパーマミディアム（ゆるパーマでボリュームのあるミディアム）', 'ラフなお団子アップ（こなれ感のあるルーズなお団子）', 'ハーフアップ（上半分を結び下は下ろす）', 'ショートウルフ（短め×レイヤーでエッジ感）']
-	},
-	middle: {
-		masculine: ['クリーンビジネスショート（整えられた清潔感のあるビジネスショート）', 'テーパードショート（サイドをなだらかに短くしたショート）', 'クラシックサイドパート（横に流した伝統的な七三・サイドパート）', 'バックスウィープ（後ろに流したオールバック系スタイル）', '大人マッシュ（落ち着きのある重めマッシュ）', 'ツーブロックビジネス（サイド刈り上げ×ビジネスライクなトップ）', 'ナチュラルミディアム（自然な動きのあるミディアムレングス）', 'ウルフカットミディアム（大人なウルフカット）', 'センターパートクリーン（センター分けのすっきりスタイル）', 'ソフトパーマミディアム（大人のゆるパーマミディアム）', 'ナチュラルウェーブミディアム（自然なウェーブ感のミディアム）'],
-		feminine: ['クリーンボブ（ツヤ感のあるタイトなボブ）', 'バングレスボブ（前髪なし・スッキリしたボブ）', 'フェイスフレーミングミディアム（顔周りにのみレイヤーを入れたミディアム）', '大人版ミディアムウルフ（落ち着いた動きのウルフカット）', 'ニュアンスカールボブ（ゆるいカール感のあるボブ）', 'ローレイヤーミディアム（重さを残しつつ毛先に動きのあるミディアム）', 'ハンサムロング（重め・ツヤ感のあるストレートロング）', 'ソフトウェーブセミロング（ゆるウェーブのセミロング）', 'フレンチカジュアルショートボブ（無造作感のある短めボブ）', 'ルーズローアップ（低めの位置でまとめたこなれアップ）', 'ニュアンスパーマセミロング（ゆるパーマのセミロング）', 'バングレスセンターパートロング（前髪なし・センター分けのロング）'],
-		androgynous: ['ナチュラルショート（自然な動きのあるショート）', 'クリーンショート（整えられた清潔感のある短めショート）', 'センターパートミディアム（センター分けのすっきりミディアム）', 'ミディアムウルフ（落ち着いた動きのウルフカット）', 'ワンレングスボブ（あご〜肩のワンレンボブ）', 'ストレートロング（重め・ツヤ感のあるロング）', 'ソフトウェーブミディアム（自然なウェーブでボリュームのあるミディアム）', 'ローポニーテール（低い位置で束ねたポニーテール）', 'バックスウィープ（後ろに流したオールバック系スタイル）', 'サイドパートミディアム（横に分けた落ち着いたミディアム）']
-	},
-	senior: {
-		masculine: ['シルバーショート（グレイヘアのすっきりショート）', 'グレイビジネスショート（白髪交じりの整ったビジネスショート）', 'バックスウィープシルバー（シルバーヘアを後ろに流したスタイル）', 'クラシックサイドパートグレイ（グレイヘアの品のあるサイドパート）', 'ソフトウェーブシルバー（シルバーヘアにやわらかなウェーブ）', 'グレイテーパードショート（グレイヘアのテーパードショート）', 'グレイナチュラルミディアム（自然なグレイヘアのミディアム）', 'シルバークロップ（シルバーヘアの短めクロップ）', 'グレイミックスショート（黒と白が混ざった自然なショート）', 'ノーブルシルバーバックスウィープ（威厳のあるシルバーバックスウィープ）'],
-		feminine: ['ソフトショートボブ（柔らかみのあるショートボブ）', 'シルバーショート（グレイヘアのすっきりショートカット）', 'エレガントミディアムウェーブ（上品なウェーブのミディアム）', 'ソフトパーマボブ（柔らかいパーマのボブ）', 'シルバーグレイボブ（グレイヘアのクリーンなボブ）', 'ナチュラルカールショート（自然なカール感のあるショート）', 'グレイミックスショート（白髪交じりの自然なショート）', 'ソフトウェーブミディアム（ゆるウェーブの落ち着いたミディアム）', 'ノーブルアップスタイル（品のあるまとめ髪）', 'バングレスシルバーボブ（前髪なしのシルバーボブ）', 'グレイグラデーションミディアム（グレイと黒のグラデーションミディアム）'],
-		androgynous: ['グレイショート（白髪交じりの整ったショート）', 'シルバークロップ（シルバーヘアの短めクロップ）', 'グレイナチュラルミディアム（自然なグレイヘアのミディアム）', 'ソフトウェーブグレイ（グレイヘアのやわらかウェーブでボリューム）', 'グレイミックスボブ（白と黒が混ざったボブ）', 'グレイストレートセミロング（グレイの落ち着いたセミロング）', 'バックスウィープシルバー（シルバーを後ろに流したスタイル）', 'ローアップグレイ（低い位置でまとめたグレイのアップ）', 'センターパートグレイミディアム（センター分けのグレイミディアム）', 'グレイテーパードショート（グレイのテーパードショート）']
-	},
-	elder: {
-		masculine: ['ホワイトショート（白髪のすっきりショートカット）', 'シルバーナチュラルショート（シルバーヘアの自然なショート）', 'ホワイトウェーブショート（白髪のやわらかウェーブショート）', 'クラシックコームオーバー（ホワイトヘアを横に丁寧に流したスタイル）', 'ホワイトバックスウィープ（白髪を後ろに流した品格あるスタイル）', 'ナチュラルホワイトショート（自然に整えた白髪ショート）', 'シルバーホワイトソフトカール（シルバー〜ホワイトのやわらかいカール）', 'クラシックサイドパートホワイト（白髪の伝統的なサイドパート）', 'ホワイトナチュラルミディアム（やわらかい白髪のミディアムレングス）', 'シルバーエレガントショート（整えられた品のあるシルバーショート）'],
-		feminine: ['ホワイトショートカット（白髪のすっきりショート）', 'シルバーナチュラルショート（シルバーヘアの自然なショート）', 'ソフトウェーブホワイト（ホワイトヘアのやわらかウェーブ）', 'ショートホワイトパーマ（白髪のソフトパーマショート）', 'ホワイトシルバーボブ（白〜シルバーグラデーションのボブ）', 'ナチュラルホワイトカール（自然なカール感のある白髪スタイル）', 'クラシックショートホワイト（整えられた白髪のクラシックショート）', 'ふんわりホワイトショート（柔らかみのある白髪ショート）', 'シルバーウェーブボブ（シルバーのウェーブボブ）', 'ホワイトエレガントアップ（上品にまとめた白髪アップスタイル）', 'ホワイトナチュラルミディアム（やわらかい白髪のミディアム）'],
-		androgynous: ['ホワイトショート（白髪のすっきりショート）', 'シルバーナチュラルショート（シルバーヘアの自然なショート）', 'ホワイトウェーブショート（白髪のやわらかウェーブショート）', 'ホワイトミディアム（やわらかい白髪のミディアムレングス）', 'ホワイトシルバーボブ（白〜シルバーのボブ）', 'クラシックコームオーバー（白髪を横に丁寧に流したスタイル）', 'ホワイトバックスウィープ（白髪を後ろに流した品格あるスタイル）', 'ホワイトエレガントアップ（上品にまとめた白髪のアップスタイル）', 'ナチュラルホワイトショート（自然に整えた白髪ショート）', 'ソフトホワイトカール（やわらかい白髪のカールでボリューム）']
-	}
+// ==========================================================================================
+// 髪型（階層B型）
+// ==========================================================================================
+
+/** 長さ（第1軸）。VS=ベリーショート 〜 L=ロング。 */
+const LENGTHS = ['VS', 'S', 'B', 'M', 'SL', 'L'] as const;
+type Length = (typeof LENGTHS)[number];
+
+const LENGTH_LABEL: Record<Length, string> = {
+	VS: 'ベリーショート（耳より短い・刈り込み感）',
+	S: 'ショート（耳〜えりあし）',
+	B: 'ボブ（えりあし〜あご）',
+	M: 'ミディアム（あご〜肩）',
+	SL: 'セミロング（肩〜胸）',
+	L: 'ロング（胸以下）'
 };
+
+type Styling = 'down' | 'tied';
+
+/** 出やすさの重み。未指定の外見表現は既定 2（○）。◎=3 / ○=2 / △=1。 */
+type Weight = Partial<Record<Presentation, number>>;
+
+/** 髪型の選択肢の共通形。lengths＝その選択肢が視覚的に成立する長さ（ハード検証）。 */
+interface Option {
+	name: string;
+	lengths: readonly Length[];
+	w?: Weight;
+}
+
+// Step 1: 長さの重み。
+const LENGTH_WEIGHT: Record<Length, Weight> = {
+	VS: { feminine: 1, masculine: 3 },
+	S: { masculine: 3 },
+	B: {},
+	M: { feminine: 3 },
+	SL: { feminine: 3 },
+	L: { feminine: 3, masculine: 1 }
+};
+
+// Step 2: スタイリング状態。まとめは B 以上でのみ成立（VS/S は常におろし）。
+const TIED_LENGTHS: readonly Length[] = ['B', 'M', 'SL', 'L'];
+const STYLING_WEIGHT: Record<Styling, Weight> = {
+	down: { masculine: 3 },
+	tied: { feminine: 3 }
+};
+
+// Step 3A: 前髪（おろし時）。触覚は束を垂らすため B 以上でのみ成立。
+const BANGS: readonly Option[] = [
+	{ name: '前髪なし（額出し）', lengths: LENGTHS, w: { masculine: 3 } },
+	{ name: 'パッツン（直線的な前髪）', lengths: LENGTHS, w: { feminine: 3 } },
+	{ name: 'シースルー/カーテンバング', lengths: LENGTHS, w: { feminine: 3, androgynous: 3 } },
+	{ name: '流し前髪（サイドへ流す）', lengths: LENGTHS, w: { masculine: 3 } },
+	{ name: '触覚（顔まわりに長い束）', lengths: ['B', 'M', 'SL', 'L'], w: { feminine: 3, masculine: 1 } }
+];
+
+// Step 4A: シルエット（おろし時）。カール/パーマは質感を内包するので質感ステップを飛ばす。
+interface Silhouette extends Option {
+	curl?: boolean;
+}
+const SILHOUETTES: readonly Silhouette[] = [
+	{ name: 'クリーン（タイト・一枚岩）', lengths: LENGTHS, w: { masculine: 3 } },
+	{ name: 'マッシュ（丸みシルエット）', lengths: ['S', 'B', 'M'], w: { masculine: 3 } },
+	{ name: 'ウルフ（段差レイヤー・毛先はね）', lengths: ['S', 'B', 'M', 'SL', 'L'], w: { androgynous: 3 } },
+	{ name: 'スラント（前下がり・非対称）', lengths: ['B', 'M', 'SL', 'L'], w: { feminine: 3 } },
+	{ name: 'テクスチャー（無造作・動き重視）', lengths: ['VS', 'S', 'B', 'M'], w: { masculine: 3 } },
+	{ name: 'フェイスフレーミング（顔まわりのみレイヤー）', lengths: ['M', 'SL', 'L'], w: { feminine: 3, masculine: 1 } },
+	{ name: 'カール/パーマ（全体巻き）', lengths: LENGTHS, w: { feminine: 3, masculine: 1 }, curl: true }
+];
+
+// Step 5A: 質感（おろし時・カール以外）。
+const TEXTURES: readonly Option[] = [
+	{ name: 'ストレート', lengths: LENGTHS, w: { masculine: 3 } },
+	{ name: 'ゆるウェーブ', lengths: LENGTHS, w: { feminine: 3 } } // VS は下の LOW_WEIGHT_AT で △ に落とす
+];
+
+// Step 3B: まとめ方（まとめ時）。noMaleChild / twintail はハード制約（allowTie で除外）。
+interface Tie extends Option {
+	noMaleChild?: boolean;
+	twintail?: boolean;
+}
+const TIE_METHODS: readonly Tie[] = [
+	{ name: 'ハーフアップ', lengths: ['B', 'M', 'SL', 'L'], w: { feminine: 3 } },
+	{ name: 'ローポニーテール', lengths: ['B', 'M', 'SL', 'L'], w: { masculine: 3 } },
+	{ name: 'ハイポニーテール', lengths: ['M', 'SL', 'L'], w: { feminine: 3 } },
+	{ name: 'お団子（低め）', lengths: ['M', 'SL', 'L'], w: { feminine: 3 }, noMaleChild: true },
+	{ name: 'お団子（高め）', lengths: ['M', 'SL', 'L'], w: { masculine: 1 }, noMaleChild: true },
+	{ name: 'ツインテール', lengths: ['M'], w: { feminine: 3 }, twintail: true }
+];
+
+// △：技術的には有効だが視覚差・量の都合で出現確率を下げる（外見表現に関わらず重み1）。
+const LOW_WEIGHT_AT: ReadonlyArray<{ name: string; length: Length }> = [
+	{ name: 'ゆるウェーブ', length: 'VS' },
+	{ name: 'お団子（高め）', length: 'M' }
+];
+
+const weightFor = (w: Weight | undefined, presentation: Presentation): number =>
+	w?.[presentation] ?? 2;
+
+/** その長さでの選択肢の重み。△（LOW_WEIGHT_AT）に該当すれば外見表現によらず 1。 */
+const optionWeight = (opt: Option, length: Length, presentation: Presentation): number =>
+	LOW_WEIGHT_AT.some((o) => o.name === opt.name && o.length === length)
+		? 1
+		: weightFor(opt.w, presentation);
+
+/** 重みに比例してランダムに1つ選ぶ。合計が0にならない前提（有効肢は常に1つ以上ある）。 */
+const weightedPick = <T>(items: readonly T[], weight: (t: T) => number): T => {
+	const total = items.reduce((sum, it) => sum + weight(it), 0);
+	let r = Math.random() * total;
+	for (const it of items) {
+		r -= weight(it);
+		if (r < 0) return it;
+	}
+	return items[items.length - 1];
+};
+
+const validAt = (opt: Option, length: Length): boolean => opt.lengths.includes(length);
+
+/**
+ * まとめ方のハード制約（バイアスフリー方針の最小限の除外）:
+ * - お団子は male の child では使わない。
+ * - ツインテールは feminine の child/young でのみ使う。
+ */
+const allowTie = (tie: Tie, generation: Generation, presentation: Presentation): boolean => {
+	if (tie.noMaleChild && presentation === 'masculine' && generation === 'child') return false;
+	if (
+		tie.twintail &&
+		!(presentation === 'feminine' && (generation === 'child' || generation === 'young'))
+	)
+		return false;
+	return true;
+};
+
+/** 組み立てた髪型の構造。おろしなら bangs/silhouette(/texture)、まとめなら tie を持つ。 */
+export interface HairChoice {
+	length: Length;
+	styling: Styling;
+	bangs?: string;
+	silhouette?: string;
+	texture?: string;
+	tie?: string;
+}
+
+/** 階層B型で髪型を1つ組み立てる。各ステップは有効肢のみを外見表現の重みで引く。 */
+export const composeHair = (generation: Generation, presentation: Presentation): HairChoice => {
+	const length = weightedPick(LENGTHS, (l) => weightFor(LENGTH_WEIGHT[l], presentation));
+
+	const stylings: readonly Styling[] = TIED_LENGTHS.includes(length) ? ['down', 'tied'] : ['down'];
+	const styling = weightedPick(stylings, (s) => weightFor(STYLING_WEIGHT[s], presentation));
+
+	if (styling === 'tied') {
+		const ties = TIE_METHODS.filter(
+			(t) => validAt(t, length) && allowTie(t, generation, presentation)
+		);
+		const tie = weightedPick(ties, (t) => optionWeight(t, length, presentation));
+		return { length, styling, tie: tie.name };
+	}
+
+	const bangs = weightedPick(
+		BANGS.filter((b) => validAt(b, length)),
+		(b) => optionWeight(b, length, presentation)
+	);
+	const silhouette = weightedPick(
+		SILHOUETTES.filter((s) => validAt(s, length)),
+		(s) => optionWeight(s, length, presentation)
+	);
+	const choice: HairChoice = { length, styling, bangs: bangs.name, silhouette: silhouette.name };
+	if (!silhouette.curl) {
+		const texture = weightedPick(
+			TEXTURES.filter((t) => validAt(t, length)),
+			(t) => optionWeight(t, length, presentation)
+		);
+		choice.texture = texture.name;
+	}
+	return choice;
+};
+
+/** 組み立てた髪型を、プロンプトに載せる日本語の一文へ整形する。 */
+export const describeHair = (c: HairChoice): string =>
+	c.styling === 'tied'
+		? `長さは${LENGTH_LABEL[c.length]}。${c.tie}にまとめる。`
+		: `長さは${LENGTH_LABEL[c.length]}でおろす。前髪は${c.bangs}。シルエットは${c.silhouette}。` +
+			(c.texture ? `毛の質感は${c.texture}。` : '');
+
+// ==========================================================================================
+// 審美観コード（Step 0）
+//
+// パラメータ選択（長さ・シルエット等）には影響させず、選ばれた英語キーワードを生成プロンプトへ添付する
+// だけ。外見表現に応じた有効コードから引く（「なし」＝null を一定割合含めることで審美観の偏りを避ける）。
+// ==========================================================================================
+
+interface Aesthetic {
+	keyword: string | null;
+	presentations: readonly Presentation[];
+}
+const ALL_PRESENTATIONS: readonly Presentation[] = ['masculine', 'feminine', 'androgynous'];
+const AESTHETIC_CODES: readonly Aesthetic[] = [
+	{ keyword: 'ulzzang style', presentations: ['feminine', 'androgynous'] },
+	{ keyword: 'French casual style', presentations: ALL_PRESENTATIONS },
+	{ keyword: 'Y2K style', presentations: ALL_PRESENTATIONS },
+	{ keyword: 'androgynous cool style', presentations: ALL_PRESENTATIONS },
+	{ keyword: 'clean minimal style', presentations: ALL_PRESENTATIONS },
+	{ keyword: 'street fashion style', presentations: ALL_PRESENTATIONS },
+	{ keyword: 'barber shop style', presentations: ['masculine', 'androgynous'] },
+	{ keyword: null, presentations: ALL_PRESENTATIONS }
+];
+
+/** 審美観コードを1つ引く。外見表現に有効なコードのみが対象。「なし」は null を返す。 */
+export const selectAesthetic = (presentation: Presentation): string | null =>
+	pickRandom(AESTHETIC_CODES.filter((a) => a.presentations.includes(presentation))).keyword;
+
+// ==========================================================================================
+// 体型・メガネ
+// ==========================================================================================
 
 /** 体型（頭身・肩幅の骨格）。年齢は皺でなくこのシルエットで表す前提の語彙。 */
 export const BODY_CATALOG = ['華奢', '標準体型', 'がっしり', 'ふくよか'] as const;
@@ -78,15 +264,15 @@ export const GLASSES_SHAPE_CATALOG = [
 ] as const;
 
 /**
- * 各軸を生成のたびにランダムに選ぶ。軸ごとに独立に引くので、メガネ有無と縁様式が連動しない。
- * 髪型は世代（5区分）×外見表現（3区分）で引く。seed は骨格が近い世代へ流用されるが、髪型は年齢を
- * シルエットで表すため世代を丸めずそのまま引く。
+ * 各軸を生成のたびにランダムに導出する。軸ごとに独立に引くので、メガネ有無と縁様式が連動しない。
+ * 髪型は階層B型で組み立て（composeHair）、審美観コードは外見表現に応じて引く（selectAesthetic）。
  */
 export const resolveVariation = (
 	generation: Generation,
 	presentation: Presentation
 ): Variation => ({
-	hair: pickRandom(HAIR_CATALOG[generation][presentation]),
+	hair: describeHair(composeHair(generation, presentation)),
+	aestheticKeyword: selectAesthetic(presentation),
 	body: pickRandom(BODY_CATALOG),
 	glasses: Math.random() < GLASSES_PROBABILITY,
 	glassesShape: pickRandom(GLASSES_SHAPE_CATALOG),

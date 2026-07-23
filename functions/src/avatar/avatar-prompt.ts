@@ -28,8 +28,8 @@ const PRESENTATION_LABEL: Record<Presentation, string> = {
 	androgynous: '中性的な外見'
 };
 
-export const buildAvatarPrompt = (v: AvatarVariation): string =>
-	[
+export const buildAvatarPrompt = (v: AvatarVariation): string => {
+	const lines = [
 		'これは画像編集の指示。添付した画像を編集して、別人のアバターにする。ただし性別と年代は元画像から変えない。次を必ず守る。',
 		'- 出力は正方形（縦と横が同じ長さ）の画像にする。',
 		'- 頭の大きさ（画面に占める頭のサイズ）と目線の高さを、元画像と同じにする。',
@@ -41,5 +41,13 @@ export const buildAvatarPrompt = (v: AvatarVariation): string =>
 		'- 服装は、この人物の暮らしぶり（年代・立場・経済状況・生活実態・関心事）にふさわしいものにする。職業から機械的にスーツにせず、下記の実態に合わせる。',
 		`  立場: ${v.specificRole || v.occupation}（${v.nationality}）。関心事: ${v.interests}。背景: ${v.background}`,
 		'  ※立場・関心事・背景は服装・年代・雰囲気の判断にだけ使い、小物・場面・情景は描かない（背景は白一色のまま／顔も描かない）。',
-		`- 変えるのは人物を別人にすることと、次だけ：髪型を「${v.hair}」にする / 体型を「${v.body}」にする / メガネ${v.glasses ? `（形状は${v.glassesShape}・${v.glassesRim}）をかける（レンズ内と目は描かない）` : 'はかけない'}`
-	].join('\n');
+		`- 変えるのは人物を別人にすることと、次だけ。髪型は次のとおり: ${v.hair} 体型は「${v.body}」にする。メガネ${v.glasses ? `（形状は${v.glassesShape}・${v.glassesRim}）をかける（レンズ内と目は描かない）` : 'はかけない'}。`
+	];
+	// 審美観コード（あれば）は全体の雰囲気の寄せ先としてだけ添える。様式・顔の非描写・背景・色の指定は変えない。
+	if (v.aestheticKeyword) {
+		lines.push(
+			`- 全体の雰囲気は次のスタイルに寄せる（英語キーワード）: ${v.aestheticKeyword}。ただし上記の様式・シルエット・前髪・背景・色の指定を優先し、それらは変えない。`
+		);
+	}
+	return lines.join('\n');
+};

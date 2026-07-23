@@ -10,6 +10,7 @@ const sample: AvatarVariation = {
 	background: '都内在住。企業を早期退職して独立し、生活は安定している。',
 	interests: '登山',
 	hair: 'ショートボブ',
+	aestheticKeyword: null,
 	body: 'がっしり',
 	glasses: true,
 	glassesShape: 'スクエア',
@@ -88,6 +89,14 @@ describe('buildAvatarPrompt', () => {
 		const prompt = buildAvatarPrompt(sample);
 		expect(prompt).toContain('白髪を描く場合は');
 		expect(prompt).toContain('白い細い筋');
+	});
+
+	it('審美観コードは、あるときだけ雰囲気の寄せ先として英語キーワードで添える', () => {
+		expect(buildAvatarPrompt({ ...sample, aestheticKeyword: 'ulzzang style' })).toContain(
+			'ulzzang style'
+		);
+		// null（「なし」）のときは審美観の行を足さない
+		expect(buildAvatarPrompt({ ...sample, aestheticKeyword: null })).not.toContain('英語キーワード');
 	});
 
 	it('プロンプト全体のスナップショット', () => {
