@@ -67,16 +67,16 @@ const LENGTH_WEIGHT: Record<Length, Weight> = {
 	VS: { feminine: 0.7, masculine: 1.1, neutral: 0.8 },
 	S: { feminine: 1.0, masculine: 1.1, neutral: 0.8 },
 	B: { masculine: 1.1 },
-	M: { feminine: 1.4, masculine: 0.9 },
-	SL: { feminine: 1.4, masculine: 0.6 },
-	L: { feminine: 1.4, masculine: 0.5 }
+	M: { feminine: 1.4, masculine: 0.09 },
+	SL: { feminine: 1.4, masculine: 0.05 },
+	L: { feminine: 1.4, masculine: 0.04 }
 };
 
 // Step 2: スタイリング状態。まとめは B 以上でのみ成立（VS/S は常におろし）。
 const TIED_LENGTHS: readonly Length[] = ['B', 'M', 'SL', 'L'];
 const STYLING_WEIGHT: Record<Styling, Weight> = {
 	down: { masculine: 1.5 },
-	tied: { feminine: 1.5 }
+	tied: { feminine: 1.5, masculine: 0.15 } // 男性のまとめ髪は全体で約5%（結ぶ人はレア。全種類を一律に下げる）
 };
 
 // Step 3A: 前髪（おろし時）。触覚とカーテンバングは長い前髪を顔まわりに垂らすため B 以上でのみ成立
@@ -114,6 +114,17 @@ const SILHOUETTES: readonly Silhouette[] = [
 		name: 'テクスチャー（無造作・動き重視）',
 		lengths: ['VS', 'S', 'B', 'M'],
 		w: { masculine: 1.5 }
+	},
+	// 男性寄りの短髪スタイル。サイドを刈り上げるので短い長さでのみ成立。女性は低め（無くはない）。
+	{
+		name: '刈り上げ/フェード（サイドを刈り上げ、トップに高さを残す）',
+		lengths: ['VS', 'S', 'B'],
+		w: { masculine: 0.8, feminine: 0.3 }
+	},
+	{
+		name: 'ツーブロック/アンダーカット（サイド刈り上げ×トップ長め）',
+		lengths: ['S', 'B', 'M'],
+		w: { masculine: 1.3, feminine: 0.4 }
 	},
 	{
 		name: 'フェイスフレーミング（顔まわりのみレイヤー）',

@@ -60,7 +60,9 @@ describe('composeHair — おろし時の成立条件', () => {
 			ウルフ: ['S', 'B', 'M', 'SL', 'L'],
 			スラント: ['B', 'M', 'SL', 'L'],
 			テクスチャー: ['VS', 'S', 'B', 'M'],
-			フェイスフレーミング: ['M', 'SL', 'L']
+			フェイスフレーミング: ['M', 'SL', 'L'],
+			'刈り上げ/フェード': ['VS', 'S', 'B'],
+			'ツーブロック/アンダーカット': ['S', 'B', 'M']
 		};
 		for (const { g, p } of ALL_CASES) {
 			for (const c of samples(g, p)) {
