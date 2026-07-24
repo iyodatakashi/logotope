@@ -71,6 +71,17 @@ describe('composeHair — おろし時の成立条件', () => {
 		}
 	});
 
+	it('長い髪前提の要素（カーテンバング・全体巻き・ウェーブ）は短い髪（VS/S）には出さない', () => {
+		for (const { g, p } of ALL_CASES) {
+			for (const c of samples(g, p)) {
+				if (c.length !== 'VS' && c.length !== 'S') continue;
+				expect(startsWith(c.bangs, 'シースルー/カーテンバング')).toBe(false);
+				expect(startsWith(c.silhouette, 'カール/パーマ')).toBe(false);
+				expect(c.texture).not.toBe('ゆるウェーブ'); // 短い髪はストレートのみ
+			}
+		}
+	});
+
 	it('カール/パーマ のときだけ質感を持たない（それ以外は質感を持つ）', () => {
 		for (const { g, p } of ALL_CASES) {
 			for (const c of samples(g, p)) {
@@ -150,7 +161,7 @@ describe('selectAesthetic', () => {
 		expect(male).not.toContain('ulzzang style'); // male はオルチャンなし
 		expect(male).toContain('barber shop style');
 
-		const neu = Array.from({ length: 400 }, () => selectAesthetic('androgynous'));
+		const neu = Array.from({ length: 400 }, () => selectAesthetic('neutral'));
 		expect(neu).toContain('ulzzang style');
 		expect(neu).toContain('barber shop style');
 	});
@@ -176,7 +187,10 @@ describe('resolveVariation', () => {
 	});
 
 	it('メガネは着けたり着けなかったりする（両方が現れる）', () => {
-		const glasses = Array.from({ length: 300 }, () => resolveVariation('middle', 'feminine').glasses);
+		const glasses = Array.from(
+			{ length: 300 },
+			() => resolveVariation('middle', 'feminine').glasses
+		);
 		expect(glasses).toContain(true);
 		expect(glasses).toContain(false);
 	});

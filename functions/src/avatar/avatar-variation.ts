@@ -6,9 +6,12 @@
 //
 // 髪型は「スタイル名の固定リスト」ではなく、階層B型で組み立てる（設計書 v4 系）:
 //   長さ → スタイリング状態（おろし/まとめ）→ [おろし] 前髪・シルエット・質感 / [まとめ] まとめ方
-// 各ステップは前ステップに依存した有効肢だけを提示する（触覚は B 以上、フェイスフレーミングは M 以上 等、
-// 視覚的に成立する条件を検証としてコード化）。アンコンシャスバイアスを避けるため、年齢・性別で長さや
-// スタイルをハード除外しない：らしさは「出やすさ（重み ◎3/○2/△1、既定 ○2）」で表現し、△でも引ける。
+// 各ステップは前ステップに依存した有効肢だけを提示する（触覚・カーテンバング・巻き・ウェーブは長さが要るので
+// 短い髪には出さない＝あご下＝B 以上、フェイスフレーミングは M 以上 等、視覚的に成立する条件を検証として
+// コード化。これを緩めると「ベリーショートなのに全体巻き」等の矛盾指示になり、モデルが長い方へ寄せて短髪が
+// 出なくなる）。アンコンシャスバイアスを避けるため、年齢・性別で長さや
+// スタイルをハード除外しない：らしさは「出やすさの相対重み（基準1.0・未指定は1.0、大きいほど出やすい）」で
+// 連続的に表現する（0.7・1.3 など任意の正の数で細かく制御できる。重みが正なら消えない）。
 // ハード制約は最小限（下記 allowTie）。年齢は色でなくシルエットで出す前提（白髪等の描画は avatar-prompt）。
 
 import { pickRandom, type Generation, type Presentation } from './avatar-seeds.js';
@@ -43,7 +46,11 @@ const LENGTH_LABEL: Record<Length, string> = {
 
 type Styling = 'down' | 'tied';
 
-/** 出やすさの重み。未指定の外見表現は既定 2（○）。◎=3 / ○=2 / △=1。 */
+/**
+ * 出やすさの相対重み（外見表現ごと）。基準 1.0、未指定は 1.0。大きいほど出やすい（0.5で約半分、1.5で約1.5倍）。
+ * 同ステップ内の有効肢の合計で正規化されるので、絶対値でなく肢どうしの比だけが効く。
+ * 任意の正の数を取れる（1.3・0.7 など細かい制御も可）。
+ */
 type Weight = Partial<Record<Presentation, number>>;
 
 /** 髪型の選択肢の共通形。lengths＝その選択肢が視覚的に成立する長さ（ハード検証）。 */
@@ -54,29 +61,40 @@ interface Option {
 }
 
 // Step 1: 長さの重み。
+// 長さの重み。男性は短い側から長い側へなだらかに減らし（長め寄りの偏りを補正）、女性は逆に長い側を厚く、
+// 中性（未指定）はフラット（1.0）。値は相対重みなので、ここを 0.1 刻みで動かせば分布を細かく調整できる。
 const LENGTH_WEIGHT: Record<Length, Weight> = {
-	VS: { feminine: 1, masculine: 3 },
-	S: { masculine: 3 },
-	B: {},
-	M: { feminine: 3 },
-	SL: { feminine: 3 },
-	L: { feminine: 3, masculine: 1 }
+	VS: { feminine: 0.7, masculine: 1.1, neutral: 0.8 },
+	S: { feminine: 1.0, masculine: 1.1, neutral: 0.8 },
+	B: { masculine: 1.1 },
+	M: { feminine: 1.4, masculine: 0.9 },
+	SL: { feminine: 1.4, masculine: 0.6 },
+	L: { feminine: 1.4, masculine: 0.5 }
 };
 
 // Step 2: スタイリング状態。まとめは B 以上でのみ成立（VS/S は常におろし）。
 const TIED_LENGTHS: readonly Length[] = ['B', 'M', 'SL', 'L'];
 const STYLING_WEIGHT: Record<Styling, Weight> = {
-	down: { masculine: 3 },
-	tied: { feminine: 3 }
+	down: { masculine: 1.5 },
+	tied: { feminine: 1.5 }
 };
 
-// Step 3A: 前髪（おろし時）。触覚は束を垂らすため B 以上でのみ成立。
+// Step 3A: 前髪（おろし時）。触覚とカーテンバングは長い前髪を顔まわりに垂らすため B 以上でのみ成立
+// （ベリーショート/ショートに付けると「短いのに長い前髪」で矛盾し、短髪が出なくなる）。
 const BANGS: readonly Option[] = [
-	{ name: '前髪なし（額出し）', lengths: LENGTHS, w: { masculine: 3 } },
-	{ name: 'パッツン（直線的な前髪）', lengths: LENGTHS, w: { feminine: 3 } },
-	{ name: 'シースルー/カーテンバング', lengths: LENGTHS, w: { feminine: 3, androgynous: 3 } },
-	{ name: '流し前髪（サイドへ流す）', lengths: LENGTHS, w: { masculine: 3 } },
-	{ name: '触覚（顔まわりに長い束）', lengths: ['B', 'M', 'SL', 'L'], w: { feminine: 3, masculine: 1 } }
+	{ name: '前髪なし（額出し）', lengths: LENGTHS, w: { masculine: 1.5 } },
+	{ name: 'パッツン（直線的な前髪）', lengths: LENGTHS, w: { feminine: 1.5 } },
+	{
+		name: 'シースルー/カーテンバング',
+		lengths: ['B', 'M', 'SL', 'L'],
+		w: { feminine: 1.5, neutral: 1.5 }
+	},
+	{ name: '流し前髪（サイドへ流す）', lengths: LENGTHS, w: { masculine: 1.5 } },
+	{
+		name: '触覚（顔まわりに長い束）',
+		lengths: ['B', 'M', 'SL', 'L'],
+		w: { feminine: 1.5, masculine: 0.5 }
+	}
 ];
 
 // Step 4A: シルエット（おろし時）。カール/パーマは質感を内包するので質感ステップを飛ばす。
@@ -84,19 +102,38 @@ interface Silhouette extends Option {
 	curl?: boolean;
 }
 const SILHOUETTES: readonly Silhouette[] = [
-	{ name: 'クリーン（タイト・一枚岩）', lengths: LENGTHS, w: { masculine: 3 } },
-	{ name: 'マッシュ（丸みシルエット）', lengths: ['S', 'B', 'M'], w: { masculine: 3 } },
-	{ name: 'ウルフ（段差レイヤー・毛先はね）', lengths: ['S', 'B', 'M', 'SL', 'L'], w: { androgynous: 3 } },
-	{ name: 'スラント（前下がり・非対称）', lengths: ['B', 'M', 'SL', 'L'], w: { feminine: 3 } },
-	{ name: 'テクスチャー（無造作・動き重視）', lengths: ['VS', 'S', 'B', 'M'], w: { masculine: 3 } },
-	{ name: 'フェイスフレーミング（顔まわりのみレイヤー）', lengths: ['M', 'SL', 'L'], w: { feminine: 3, masculine: 1 } },
-	{ name: 'カール/パーマ（全体巻き）', lengths: LENGTHS, w: { feminine: 3, masculine: 1 }, curl: true }
+	{ name: 'クリーン（タイト・一枚岩）', lengths: LENGTHS, w: { masculine: 1.5 } },
+	{ name: 'マッシュ（丸みシルエット）', lengths: ['S', 'B', 'M'], w: { masculine: 1.5 } },
+	{
+		name: 'ウルフ（段差レイヤー・毛先はね）',
+		lengths: ['S', 'B', 'M', 'SL', 'L'],
+		w: { masculine: 0.6 } // 女性・中性は基準1.0。男性だけ外はねを控えめに。
+	},
+	{ name: 'スラント（前下がり・非対称）', lengths: ['B', 'M', 'SL', 'L'], w: { feminine: 1.5 } },
+	{
+		name: 'テクスチャー（無造作・動き重視）',
+		lengths: ['VS', 'S', 'B', 'M'],
+		w: { masculine: 1.5 }
+	},
+	{
+		name: 'フェイスフレーミング（顔まわりのみレイヤー）',
+		lengths: ['M', 'SL', 'L'],
+		w: { feminine: 1.5, masculine: 0.5 }
+	},
+	// 全体巻きは巻きが視覚的に成立する長さ（あご下＝B 以上）が要る。VS/S に付けると長い方へ寄る。
+	{
+		name: 'カール/パーマ（全体巻き）',
+		lengths: ['B', 'M', 'SL', 'L'],
+		w: { feminine: 1.5, masculine: 0.5 },
+		curl: true
+	}
 ];
 
-// Step 5A: 質感（おろし時・カール以外）。
+// Step 5A: 質感（おろし時・カール以外）。ウェーブは波が視覚的に成立する長さ（あご下＝B 以上）が要る。
+// VS/S は短くて波が出ないため質感はストレートのみ（波を付けると長い方へ寄って短髪が出なくなる）。
 const TEXTURES: readonly Option[] = [
-	{ name: 'ストレート', lengths: LENGTHS, w: { masculine: 3 } },
-	{ name: 'ゆるウェーブ', lengths: LENGTHS, w: { feminine: 3 } } // VS は下の LOW_WEIGHT_AT で △ に落とす
+	{ name: 'ストレート', lengths: LENGTHS, w: { masculine: 1.5 } },
+	{ name: 'ゆるウェーブ', lengths: ['B', 'M', 'SL', 'L'], w: { feminine: 1.5, masculine: 0.6 } }
 ];
 
 // Step 3B: まとめ方（まとめ時）。noMaleChild / twintail はハード制約（allowTie で除外）。
@@ -105,28 +142,27 @@ interface Tie extends Option {
 	twintail?: boolean;
 }
 const TIE_METHODS: readonly Tie[] = [
-	{ name: 'ハーフアップ', lengths: ['B', 'M', 'SL', 'L'], w: { feminine: 3 } },
-	{ name: 'ローポニーテール', lengths: ['B', 'M', 'SL', 'L'], w: { masculine: 3 } },
-	{ name: 'ハイポニーテール', lengths: ['M', 'SL', 'L'], w: { feminine: 3 } },
-	{ name: 'お団子（低め）', lengths: ['M', 'SL', 'L'], w: { feminine: 3 }, noMaleChild: true },
-	{ name: 'お団子（高め）', lengths: ['M', 'SL', 'L'], w: { masculine: 1 }, noMaleChild: true },
-	{ name: 'ツインテール', lengths: ['M'], w: { feminine: 3 }, twintail: true }
+	{ name: 'ハーフアップ', lengths: ['B', 'M', 'SL', 'L'], w: { feminine: 1.5 } },
+	{ name: 'ローポニーテール', lengths: ['B', 'M', 'SL', 'L'], w: { masculine: 1.5 } },
+	{ name: 'ハイポニーテール', lengths: ['M', 'SL', 'L'], w: { feminine: 1.5 } },
+	{ name: 'お団子（低め）', lengths: ['M', 'SL', 'L'], w: { feminine: 1.5 }, noMaleChild: true },
+	{ name: 'お団子（高め）', lengths: ['M', 'SL', 'L'], w: { masculine: 0.5 }, noMaleChild: true },
+	{ name: 'ツインテール', lengths: ['M'], w: { feminine: 1.5 }, twintail: true }
 ];
 
-// △：技術的には有効だが視覚差・量の都合で出現確率を下げる（外見表現に関わらず重み1）。
-const LOW_WEIGHT_AT: ReadonlyArray<{ name: string; length: Length }> = [
-	{ name: 'ゆるウェーブ', length: 'VS' },
-	{ name: 'お団子（高め）', length: 'M' }
+// 特定の長さで視覚差・量の都合から出現を控えめにする係数（基準重みへ乗算する）。
+const LENGTH_FACTOR: ReadonlyArray<{ name: string; length: Length; factor: number }> = [
+	{ name: 'お団子（高め）', length: 'M', factor: 0.5 }
 ];
 
 const weightFor = (w: Weight | undefined, presentation: Presentation): number =>
-	w?.[presentation] ?? 2;
+	w?.[presentation] ?? 1;
 
-/** その長さでの選択肢の重み。△（LOW_WEIGHT_AT）に該当すれば外見表現によらず 1。 */
-const optionWeight = (opt: Option, length: Length, presentation: Presentation): number =>
-	LOW_WEIGHT_AT.some((o) => o.name === opt.name && o.length === length)
-		? 1
-		: weightFor(opt.w, presentation);
+/** その長さでの選択肢の重み。基準重みに、長さ別の控えめ係数（あれば）を乗じる。 */
+const optionWeight = (opt: Option, length: Length, presentation: Presentation): number => {
+	const factor = LENGTH_FACTOR.find((f) => f.name === opt.name && f.length === length)?.factor ?? 1;
+	return weightFor(opt.w, presentation) * factor;
+};
 
 /** 重みに比例してランダムに1つ選ぶ。合計が0にならない前提（有効肢は常に1つ以上ある）。 */
 const weightedPick = <T>(items: readonly T[], weight: (t: T) => number): T => {
@@ -218,15 +254,15 @@ interface Aesthetic {
 	keyword: string | null;
 	presentations: readonly Presentation[];
 }
-const ALL_PRESENTATIONS: readonly Presentation[] = ['masculine', 'feminine', 'androgynous'];
+const ALL_PRESENTATIONS: readonly Presentation[] = ['masculine', 'feminine', 'neutral'];
 const AESTHETIC_CODES: readonly Aesthetic[] = [
-	{ keyword: 'ulzzang style', presentations: ['feminine', 'androgynous'] },
+	{ keyword: 'ulzzang style', presentations: ['feminine', 'neutral'] },
 	{ keyword: 'French casual style', presentations: ALL_PRESENTATIONS },
 	{ keyword: 'Y2K style', presentations: ALL_PRESENTATIONS },
-	{ keyword: 'androgynous cool style', presentations: ALL_PRESENTATIONS },
+	{ keyword: 'neutral cool style', presentations: ALL_PRESENTATIONS },
 	{ keyword: 'clean minimal style', presentations: ALL_PRESENTATIONS },
 	{ keyword: 'street fashion style', presentations: ALL_PRESENTATIONS },
-	{ keyword: 'barber shop style', presentations: ['masculine', 'androgynous'] },
+	{ keyword: 'barber shop style', presentations: ['masculine', 'neutral'] },
 	{ keyword: null, presentations: ALL_PRESENTATIONS }
 ];
 
