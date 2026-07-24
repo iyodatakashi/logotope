@@ -7,7 +7,7 @@
 // 実行: cd functions && npx tsx src/avatar/verify-hair-distribution.ts [generation] [N]
 //   例: npx tsx src/avatar/verify-hair-distribution.ts young 200000
 
-import { composeHair } from './avatar-variation.js';
+import { composeHair, selectAesthetic } from './avatar-variation.js';
 import { GENERATIONS, PRESENTATIONS, type Generation, type Presentation } from './avatar-seeds.js';
 
 const generation = (process.argv[2] as Generation) ?? 'young';
@@ -37,12 +37,18 @@ const report = (presentation: Presentation) => {
 	const bangs: Record<string, number> = {};
 	const texture: Record<string, number> = {};
 	const tie: Record<string, number> = {};
+	const color: Record<string, number> = {};
+	const density: Record<string, number> = {};
+	const aesthetic: Record<string, number> = {};
 	let down = 0;
 	let tied = 0;
 
 	for (let i = 0; i < N; i++) {
 		const c = composeHair(generation, presentation);
 		inc(length, c.length);
+		inc(color, c.color);
+		inc(density, c.density);
+		inc(aesthetic, selectAesthetic(generation, presentation) ?? 'なし');
 		if (c.styling === 'down') {
 			down++;
 			inc(styling, 'おろし');
@@ -63,6 +69,9 @@ const report = (presentation: Presentation) => {
 	console.log(`  [おろし内]ｼﾙｴｯﾄ : ${line(silhouette, down)}`);
 	console.log(`  [おろし内] 質感 : ${line(texture, down)}`);
 	console.log(`  [まとめ内]まとめ: ${tied ? line(tie, tied) : '（まとめ無し）'}`);
+	console.log(`  髪色            : ${line(color, N)}`);
+	console.log(`  生え際・毛量    : ${line(density, N)}`);
+	console.log(`  審美観コード    : ${line(aesthetic, N)}`);
 };
 
 for (const p of PRESENTATIONS) report(p);

@@ -140,30 +140,116 @@ describe('describeHair', () => {
 			styling: 'down',
 			bangs: 'シースルー/カーテンバング',
 			silhouette: 'ウルフ（段差レイヤー・毛先はね）',
-			texture: 'ゆるウェーブ'
+			texture: 'ゆるウェーブ',
+			color: '黒髪',
+			density: 'ふさふさ'
 		};
-		const tied: HairChoice = { length: 'SL', styling: 'tied', tie: 'ローポニーテール' };
+		const tied: HairChoice = {
+			length: 'SL',
+			styling: 'tied',
+			tie: 'ローポニーテール',
+			color: '黒髪',
+			density: 'ふさふさ'
+		};
 		expect(describeHair(down)).toContain('ミディアム');
 		expect(describeHair(down)).toContain('ウルフ');
 		expect(describeHair(tied)).toContain('セミロング');
 		expect(describeHair(tied)).toContain('ローポニーテール');
 	});
+
+	it('加齢特徴（白髪・生え際後退）は非既定のときだけ記述に足す', () => {
+		const aged: HairChoice = {
+			length: 'S',
+			styling: 'down',
+			bangs: '前髪なし（額出し）',
+			silhouette: 'クリーン（タイト・一枚岩）',
+			texture: 'ストレート',
+			color: 'グレイ／白髪',
+			density: '生え際後退'
+		};
+		expect(describeHair(aged)).toContain('白髪');
+		expect(describeHair(aged)).toContain('生え際');
+		// 既定（黒髪・ふさふさ）は足さない
+		const plain: HairChoice = { ...aged, color: '黒髪', density: 'ふさふさ' };
+		expect(describeHair(plain)).not.toContain('白髪');
+		expect(describeHair(plain)).not.toContain('生え際');
+	});
 });
 
-describe('selectAesthetic', () => {
-	it('外見表現ごとの有効コードのみを引き、「なし」(null) も現れる', () => {
-		const fem = Array.from({ length: 400 }, () => selectAesthetic('feminine'));
-		expect(fem).not.toContain('barber shop style'); // female はバーバー系なし
-		expect(fem).toContain('ulzzang style');
-		expect(fem).toContain(null);
+describe('selectAesthetic — 外見表現＋年齢', () => {
+	it('外見表現の制約: female はバーバーなし、male はオルチャンなし、「なし」も出る', () => {
+		const femYoung = Array.from({ length: 400 }, () => selectAesthetic('young', 'feminine'));
+		expect(femYoung).not.toContain('barber shop style');
+		expect(femYoung).toContain('ulzzang style');
+		expect(femYoung).toContain(null);
 
-		const male = Array.from({ length: 400 }, () => selectAesthetic('masculine'));
-		expect(male).not.toContain('ulzzang style'); // male はオルチャンなし
-		expect(male).toContain('barber shop style');
+		const maleAdult = Array.from({ length: 400 }, () => selectAesthetic('middle', 'masculine'));
+		expect(maleAdult).not.toContain('ulzzang style');
+		expect(maleAdult).toContain('barber shop style');
+	});
 
-		const neu = Array.from({ length: 400 }, () => selectAesthetic('neutral'));
-		expect(neu).toContain('ulzzang style');
-		expect(neu).toContain('barber shop style');
+	it('年齢で出し分け: 若年はトレンド系、高齢はトレンド系が出ずクリーン/クラシック系のみ', () => {
+		const young = Array.from({ length: 800 }, () => selectAesthetic('young', 'neutral'));
+		expect(young).toContain('Y2K style');
+		expect(young).toContain('ulzzang style');
+
+		const elder = Array.from({ length: 800 }, () => selectAesthetic('elder', 'neutral'));
+		expect(elder).not.toContain('Y2K style');
+		expect(elder).not.toContain('ulzzang style');
+		expect(elder).not.toContain('street fashion style');
+		expect(elder).toContain('barber shop style'); // 大人向けは高齢でも出る
+	});
+});
+
+describe('composeHair — 加齢（髪色・生え際/毛量）', () => {
+	it('子ども・若年は黒髪で、加齢の薄毛は出ない（毛量は豊か or ふさふさ）', () => {
+		for (const g of ['child', 'young'] as const) {
+			for (const p of PRESENTATIONS) {
+				for (const c of samples(g, p, 300)) {
+					expect(c.color).toBe('黒髪');
+					expect(['毛量豊か', 'ふさふさ']).toContain(c.density);
+				}
+			}
+		}
+	});
+
+	it('毛量豊か（若々しい毛量）は子ども・若年でだけ出る', () => {
+		for (const { g, p } of ALL_CASES) {
+			for (const c of samples(g, p, 400)) {
+				if (c.density === '毛量豊か') expect(['child', 'young']).toContain(g);
+			}
+		}
+		// 若年では実際に毛量豊かが現れる
+		expect(samples('young', 'masculine', 800).some((c) => c.density === '毛量豊か')).toBe(true);
+	});
+
+	it('高齢は白髪/グレイが出て、色が複数に散る', () => {
+		const cs = samples('elder', 'masculine', 2000);
+		expect(cs.some((c) => c.color !== '黒髪')).toBe(true);
+		expect(new Set(cs.map((c) => c.color)).size).toBeGreaterThan(1);
+	});
+
+	it('高齢男性は生え際後退・薄毛が出る', () => {
+		const cs = samples('elder', 'masculine', 2000);
+		expect(cs.some((c) => c.density === '生え際後退')).toBe(true);
+		expect(cs.some((c) => c.density !== 'ふさふさ')).toBe(true);
+	});
+
+	it('女性は男性型の生え際後退・著しい薄毛を出さない（全世代）', () => {
+		for (const g of GENERATIONS) {
+			for (const c of samples(g, 'feminine', 500)) {
+				expect(c.density).not.toBe('生え際後退');
+				expect(c.density).not.toBe('著しい薄毛');
+			}
+		}
+	});
+
+	it('著しい薄毛は短い髪（VS/S）でだけ出る', () => {
+		for (const { g, p } of ALL_CASES) {
+			for (const c of samples(g, p, 400)) {
+				if (c.density === '著しい薄毛') expect(['VS', 'S']).toContain(c.length);
+			}
+		}
 	});
 });
 
