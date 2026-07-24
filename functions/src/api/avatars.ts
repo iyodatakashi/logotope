@@ -9,7 +9,7 @@ import type { Persona } from '../types/persona.types.js';
 // Firestore 読み・Storage 保存・生成時刻の lifecycle だけをここが持つ（生成そのものはエンジン・Req 1.4）。
 //
 // runAvatarCore: persona 読み → 生成時刻を即時削除 → エンジン生成 → Storage 保存 → 生成時刻記録。
-// androgynous（seed 無し）・生成失敗・例外は生成時刻を未設定のまま残し、握りつぶして討論生成を止めない
+// neutral（seed 無し）・生成失敗・例外は生成時刻を未設定のまま残し、握りつぶして討論生成を止めない
 // （欠落は未生成として観測でき、管理画面の個別再生成〈regenerateAvatar〉やバックフィルで回収する）。
 
 const db = () => getFirestore();
@@ -26,7 +26,7 @@ const avatarObjectPath = (topicId: string, personaId: string): string =>
 /**
  * 1ペルソナのアバターを生成し保存する。本番と検証が同じエンジンだけを通る（乖離不能・Req 1.4）。
  * 開始時に avatarGeneratedAt を即時削除する（再生成時に古い画像が残らず既定アバターへ縮退する UX・
- * 整合性は副次）。適合 seed 無し（androgynous）・生成失敗・例外は生成時刻を未設定のまま残す。
+ * 整合性は副次）。適合 seed 無し（neutral）・生成失敗・例外は生成時刻を未設定のまま残す。
  */
 export const runAvatarCore = async (topicId: string, personaId: string): Promise<void> => {
 	const ref = db().doc(`topics/${topicId}/personas/${personaId}`);

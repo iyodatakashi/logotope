@@ -41,17 +41,17 @@ const SOURCE_FILES: Record<SeedGeneration, Record<Presentation, string>> = {
 	child: {
 		masculine: 'masculine_child.png',
 		feminine: 'feminine_child.png',
-		androgynous: 'androgynous_child.png'
+		neutral: 'neutral_child.png'
 	},
 	middle: {
 		masculine: 'masculine_middle.png',
 		feminine: 'feminine_middle.png',
-		androgynous: 'androgynous_middle.png'
+		neutral: 'neutral_middle.png'
 	},
 	elder: {
 		masculine: 'masculine_elder.png',
 		feminine: 'feminine_elder.png',
-		androgynous: 'androgynous_elder.png'
+		neutral: 'neutral_elder.png'
 	}
 };
 
@@ -162,7 +162,8 @@ const findGutter = (
 		}
 	}
 
-	if (best.start < 0) throw new Error('白ガターを検出できない（素材のレイアウトが 2行×3列 でない可能性）');
+	if (best.start < 0)
+		throw new Error('白ガターを検出できない（素材のレイアウトが 2行×3列 でない可能性）');
 	return best.start + Math.floor(best.length / 2);
 };
 

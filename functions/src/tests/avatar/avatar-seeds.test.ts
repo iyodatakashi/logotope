@@ -58,10 +58,10 @@ describe('selectSeed', () => {
 		);
 	});
 
-	it('androgynous も seed を返す（全外見表現に seed アンカーがある）', () => {
-		const seed = selectSeed('middle', 'androgynous');
+	it('neutral も seed を返す（全外見表現に seed アンカーがある）', () => {
+		const seed = selectSeed('middle', 'neutral');
 		expect(seed.fileName).toBe(
-			seedFileName({ generation: 'middle', presentation: 'androgynous' }, seed.index)
+			seedFileName({ generation: 'middle', presentation: 'neutral' }, seed.index)
 		);
 	});
 

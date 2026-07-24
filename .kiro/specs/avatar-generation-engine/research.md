@@ -60,10 +60,10 @@
 - **Selected Approach**: エンジンの画像モデルを 2.5 に固定。`AVATAR_IMAGE_MODEL` を 2.5 に戻す（現状 3.1 は破棄する text-only 経路のための値）。
 - **Rationale**: 変数を1つに絞る。検証済みモデルを本番に入れる。3.1 移行は後続 spec で単独再検証。
 
-### Decision: androgynous は生成スキップ（未生成のまま）
-- **Context**: seed アンカーが masculine/feminine のみ。persona は androgynous を取りうる。
+### Decision: neutral は生成スキップ（未生成のまま）
+- **Context**: seed アンカーが masculine/feminine のみ。persona は neutral を取りうる。
 - **Alternatives Considered**: masc/fem へマップ（外観を偽る）／スキップ（未生成）。
-- **Selected Approach**: androgynous は適合 seed 無しとして**生成をスキップし `avatarGeneratedAt` 未設定のまま残す**（既存の「未生成」許容と同じ）。androgynous seed 追加時に個別再生成で回収。
+- **Selected Approach**: neutral は適合 seed 無しとして**生成をスキップし `avatarGeneratedAt` 未設定のまま残す**（既存の「未生成」許容と同じ）。neutral seed 追加時に個別再生成で回収。
 - **Rationale**: 外観を偽らない・本番を落とさない・既存の欠落回収経路に乗る。
 
 ## Risks & Mitigations

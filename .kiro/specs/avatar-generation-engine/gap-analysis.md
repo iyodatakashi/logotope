@@ -34,7 +34,7 @@
 - `functions/src/pipeline/personas/persona-chain.ts:160` … avatar ステップで `runAvatarCore` を呼ぶ。
 - `functions/src/index.ts:15` … `regenerateAvatar` を export。
 - `functions/src/constants/ai.constants.ts:19` … `AVATAR_IMAGE_MODEL='gemini-3.1-flash-image'`。
-- `functions/src/types/persona.types.ts` … `age`・`genderPresentation`（masculine/feminine/androgynous）・`gender`（性自認）。
+- `functions/src/types/persona.types.ts` … `age`・`genderPresentation`（masculine/feminine/neutral）・`gender`（性自認）。
 - `src/lib/sharedComponents/PersonaAvatar.svelte` … 表示（現状は白背景PNGの輝度マスク再着色）。**本仕様スコープ外だが Req 6.4 の独立着色と関連**。
 
 ### 規約（structure/tech/testing より）
@@ -54,7 +54,7 @@
 | 6 後処理・アセット・独立着色・命名 | 輝度→アルファ・256透過・2色独立・命名 | avatar-postprocess.ts | **Constraint**: 独立着色の**表示側**（PersonaAvatar.svelte）はスコープ外。**Unknown**: 本番の保存命名は `personaId`（既存）で、フィジビリの `{ageBandCode}_{gender}_{serial}` とは別モデル |
 | 7 受け入れ＋検証 | 2.5で実生成し合否・再現性記録 | verify-avatar-generation.ts | **Missing**: 実行未了（0回）。**Constraint**: verify の MODEL が 3.1（→2.5）。GEMINI_API_KEY・人の目視が必要 |
 | 全体 | 破棄経路を継がない | — | **Constraint**: `scripts/prompt-builder.ts`（text-only）と avatars.ts の text-only 経路が残存。前者はフィジビリ記録として保全（不採用・非削除）、後者は本番なので置換で消す |
-| 全体 | androgynous | — | **Constraint/Unknown**: seed 無し（後回し）。ただし本番が `genderPresentation=androgynous` を受けた時の挙動が未定 |
+| 全体 | neutral | — | **Constraint/Unknown**: seed 無し（後回し）。ただし本番が `genderPresentation=neutral` を受けた時の挙動が未定 |
 
 ## 3. 実装アプローチ
 
@@ -100,7 +100,7 @@
 ### Research Needed（design で決着させる）
 1. **2.5 検証の実行**（Req 7・最重要ゲート）: 実生成→枠転写・様式・再現性を確認。GEMINI_API_KEY＋人の目視が要る。
 2. **本番の可変軸割り当て戦略**（Req 3）: 髪型/体型/ポーズ/アングル/メガネと「4枚中どの seed」を、ランダムか personaId 安定ハッシュか persona スキーマ追加か。再現性（Req 1）との整合。
-3. **androgynous 受領時の挙動**（スコープ外だが本番は受けうる）: masc/fem へマップか、生成スキップか。
+3. **neutral 受領時の挙動**（スコープ外だが本番は受けうる）: masc/fem へマップか、生成スキップか。
 4. **命名・重複の一本化方針**（Req 1.2）: male/female→masculine/feminine（seedファイル40枚＋importer）、AgeBand→Generation、HAIR_CATALOG 単一化、後処理定数 単一化。
 5. **破棄経路の扱い**: フィジビリコード（scripts/avatar-generation）は**削除せず記録として保全**。text-only は「再利用しない」だけ。消してよいのは本番 avatars.ts の text-only 経路のみ。
 6. **（スコープ外・要フラグ）表示側の独立着色**（Req 6.4）: PersonaAvatar.svelte の現行輝度マスク方式とアルファ資産の整合は後続。

@@ -25,7 +25,7 @@ export interface AvatarVariation extends Variation {
 const PRESENTATION_LABEL: Record<Presentation, string> = {
 	masculine: '男性的な外見',
 	feminine: '女性的な外見',
-	androgynous: '中性的な外見'
+	neutral: '中性的な外見'
 };
 
 export const buildAvatarPrompt = (v: AvatarVariation): string => {

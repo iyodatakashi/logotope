@@ -10,9 +10,9 @@
   - _Requirements: 1.2, 2.2, 2.3_
 
 - [x] 1.2 seed の分類とランダム選択・命名を実装する
-  - 世代（child/young/middle/senior/elder）× 外見表現（masculine/feminine、androgynous は型に持つが seed バケットに含めない）を定義し、`{generation}_{presentation}_{index}` の発番後不変な命名で 40 枚を一意識別する
-  - `age → 世代`、`genderPresentation → 外見表現` を写像し、世代×外見表現のプールから seed を1枚ランダムに選ぶ（`personaId` から固定しない）。適合 seed が無い外見表現（androgynous）は「seed 無し」を返す
-  - 完了条件: 多数回引くと全 seed に散り、androgynous は seed 無し（null）になる（単体テストで確認）
+  - 世代（child/young/middle/senior/elder）× 外見表現（masculine/feminine、neutral は型に持つが seed バケットに含めない）を定義し、`{generation}_{presentation}_{index}` の発番後不変な命名で 40 枚を一意識別する
+  - `age → 世代`、`genderPresentation → 外見表現` を写像し、世代×外見表現のプールから seed を1枚ランダムに選ぶ（`personaId` から固定しない）。適合 seed が無い外見表現（neutral）は「seed 無し」を返す
+  - 完了条件: 多数回引くと全 seed に散り、neutral は seed 無し（null）になる（単体テストで確認）
   - _Requirements: 2.6, 3.7, 6.6, 1.1_
   - _Depends: 1.1_
 
@@ -56,14 +56,14 @@
 ## 3. Core: 共有エンジン統合
 
 - [x] 3.1 唯一の生成実装（共有エンジン）を組み立てる
-  - 入力（age・genderPresentation・occupation。personaId・attempt・gender は渡さない）から、seed 選択（ランダム）→可変軸導出（ランダム）→プロンプト→モデル呼び出し→後処理を束ね、256 透過 PNG を返す。適合 seed 無し（androgynous）と生成失敗を判別できる戻り値にする（throw しない）
+  - 入力（age・genderPresentation・occupation。personaId・attempt・gender は渡さない）から、seed 選択（ランダム）→可変軸導出（ランダム）→プロンプト→モデル呼び出し→後処理を束ね、256 透過 PNG を返す。適合 seed 無し（neutral）と生成失敗を判別できる戻り値にする（throw しない）
   - Firestore/Storage には触れない純粋生成にする（本番と検証の双方がこの実装だけを呼べる）
-  - 完了条件: 正常時はアセットバイト列、androgynous は「seed 無し」、失敗は「生成失敗」を返す
+  - 完了条件: 正常時はアセットバイト列、neutral は「seed 無し」、失敗は「生成失敗」を返す
   - _Requirements: 1.1, 1.4, 3.1_
   - _Depends: 2.1, 2.2, 2.3_
 
 - [x] 3.2 エンジンと選択ロジックの単体・結線テストを書く
-  - seed 選択・可変軸導出のランダム性と分散、世代境界（12/13・29/30・49/50・69/70）、androgynous の seed 無し経路、エンジンをクライアントモックで通した結線を検証する
+  - seed 選択・可変軸導出のランダム性と分散、世代境界（12/13・29/30・49/50・69/70）、neutral の seed 無し経路、エンジンをクライアントモックで通した結線を検証する
   - 完了条件: 上記テストが緑になる
   - _Requirements: 1.1, 1.4, 3.6, 3.7_
   - _Depends: 3.1_
@@ -85,8 +85,8 @@
 ## 5. Integration: 本番復旧・配線（4.2 通過後のみ）
 
 - [x] 5.1 本番生成経路を共有エンジンで再実装する
-  - ペルソナを読み、開始時に生成時刻を即時削除し、共有エンジン（seed・可変軸は生成のたびランダム）で生成→後処理済みアセットを既存の Storage 配置（`topics/{topicId}/avatars/{personaId}`）へ保存→生成時刻を記録する。androgynous（seed 無し）と生成失敗は生成時刻を未設定のまま残し、失敗を握りつぶして討論生成を止めない
-  - 完了条件: 1ペルソナのアバターが生成・保存・記録され、androgynous と失敗は未生成として観測できる
+  - ペルソナを読み、開始時に生成時刻を即時削除し、共有エンジン（seed・可変軸は生成のたびランダム）で生成→後処理済みアセットを既存の Storage 配置（`topics/{topicId}/avatars/{personaId}`）へ保存→生成時刻を記録する。neutral（seed 無し）と生成失敗は生成時刻を未設定のまま残し、失敗を握りつぶして討論生成を止めない
+  - 完了条件: 1ペルソナのアバターが生成・保存・記録され、neutral と失敗は未生成として観測できる
   - _Requirements: 1.1, 1.4, 3.7, 6.4_
   - _Depends: 4.2_
 
@@ -103,7 +103,7 @@
   - _Depends: 5.1_
 
 - [x] 5.4 既存ペルソナのバックフィルを整合させ統合テストを書く
-  - 既存ペルソナのアバター生成を新しい本番経路へ通す。runtime を Firestore/Storage/エンジンのモックで通し、成功時の生成時刻記録・androgynous と失敗時の未設定・例外握りつぶしを検証する
+  - 既存ペルソナのアバター生成を新しい本番経路へ通す。runtime を Firestore/Storage/エンジンのモックで通し、成功時の生成時刻記録・neutral と失敗時の未設定・例外握りつぶしを検証する
   - 完了条件: バックフィルが新経路で動き、上記の runtime 分岐がテストで緑になる
   - _Requirements: 1.4, 2.6_
   - _Depends: 5.3_

@@ -180,7 +180,7 @@ describe('regenerateAvatar — onCall', () => {
 	});
 
 	it('生成できなければ generated:false を返す（generation_failed）', async () => {
-		seedPersona({ genderPresentation: 'androgynous' });
+		seedPersona({ genderPresentation: 'neutral' });
 		mockGenerate.mockResolvedValueOnce({ ok: false, reason: 'generation_failed' });
 
 		const result = await call(request({ topicId: TOPIC_ID, personaId: PERSONA_ID }));

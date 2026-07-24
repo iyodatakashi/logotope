@@ -15,7 +15,7 @@
 - 実生成（`gemini-3.1-flash-image`）で枠転写・様式・再現性を確認できる状態にする（Req 7）。
 
 ### Non-Goals
-- androgynous の seed アンカー整備（後続）。
+- neutral の seed アンカー整備（後続）。
 - アバター表示 UI（`PersonaAvatar.svelte`）の改修・独立着色の表示側実装。
 - ペルソナへの画像割り当てロジック、配信・キャッシュ・CDN。
 
@@ -85,7 +85,7 @@
 - Firestore のペルソナ/トピック スキーマ（読み取りのみ。**変更しない**）。
 - アバターの Storage 配置規約 `topics/{topicId}/avatars/{personaId}`（既存を踏襲）。
 - 表示コンポーネントと独立着色のレンダリング。
-- androgynous seed、3.1 移行。
+- neutral seed、3.1 移行。
 
 ### Allowed Dependencies
 - `@ai-sdk/google`（既存）・`ai`・`sharp`（既存 functions 依存）。
@@ -212,7 +212,7 @@ sequenceDiagram
     Core->>Store: 保存 / avatarGeneratedAt 記録
 ```
 - 生成失敗・画像未返却はエンジン内で数回リトライ。使い切ると例外 → `runAvatarCore` が握りつぶし「未生成」で残す（討論を止めない）。
-- `genderPresentation=androgynous` は適合 seed 無し → エンジンが `no_seed` を返し、`runAvatarCore` は生成せず `avatarGeneratedAt` 未設定のまま残す（androgynous seed 追加時に既存の未生成回収で拾う）。
+- `genderPresentation=neutral` は適合 seed 無し → エンジンが `no_seed` を返し、`runAvatarCore` は生成せず `avatarGeneratedAt` 未設定のまま残す（neutral seed 追加時に既存の未生成回収で拾う）。
 - 初回生成（persona chain）も再生成（`regenerateAvatar`）も、seed・可変軸は生成のたびランダムに引く（`personaId` から固定しない・決定性を持たせない）。再生成する動機は「今の見た目が気に入らない」なので、決定的だと作り直しても同じものが出てしまう。persona スキーマは変えない。
 
 ## Requirements Traceability
@@ -252,7 +252,7 @@ sequenceDiagram
 **Responsibilities & Constraints**
 - `AvatarSpec` から seed とプロンプトを組み立て（seed・可変軸は生成のたびランダムに引く）、生成画像を `toAsset` でアセット化して返す。
 - Firestore/Storage には触れない（純粋生成）。
-- 適合 seed が無い外見表現（androgynous）は `{ ok: false, reason: 'no_seed' }` を返す（throw しない）。
+- 適合 seed が無い外見表現（neutral）は `{ ok: false, reason: 'no_seed' }` を返す（throw しない）。
 
 **Dependencies**
 - Outbound: avatar-seeds, avatar-variation, avatar-prompt, avatar-image-client, avatar-postprocess — 生成部品 (P0)
@@ -291,10 +291,10 @@ interface AvatarEngine {
 **Contracts**: Service [x]
 ```typescript
 type Generation = 'child' | 'young' | 'middle' | 'senior' | 'elder';
-type Presentation = 'masculine' | 'feminine' | 'androgynous';
+type Presentation = 'masculine' | 'feminine' | 'neutral';
 type SeedPresentation = 'masculine' | 'feminine';                     // seed アンカーがある外見表現
 const SEED_PRESENTATIONS: readonly SeedPresentation[];
-const isSeedPresentation: (p: Presentation) => p is SeedPresentation; // androgynous は false
+const isSeedPresentation: (p: Presentation) => p is SeedPresentation; // neutral は false
 
 const toGeneration: (age: number) => Generation;
 interface SeedBucket { generation: Generation; presentation: SeedPresentation }
@@ -302,7 +302,7 @@ const seedFileName: (bucket: SeedBucket, index: number) => string;
 
 const pickRandom: <T>(items: readonly T[]) => T;                      // 配列から1要素をランダムに
 // seed を1枚ランダムに選ぶ。世代×外見表現でプールを絞ってから引く。
-// androgynous は seed 無し→null（throw しない）。personaId は取らない（固定しない）。
+// neutral は seed 無し→null（throw しない）。personaId は取らない（固定しない）。
 const selectSeed: (generation: Generation, presentation: Presentation)
   => { fileName: string; index: number } | null;
 ```
@@ -312,7 +312,7 @@ const selectSeed: (generation: Generation, presentation: Presentation)
 **Contracts**: Service [x]
 ```typescript
 interface Variation { hair: string; body: string; glasses: boolean; glassesShape: string; glassesRim: string; }
-// カタログから各軸を生成のたびランダムに選ぶ（軸ごと独立）。androgynous は selectSeed の null で
+// カタログから各軸を生成のたびランダムに選ぶ（軸ごと独立）。neutral は selectSeed の null で
 // 呼び出し側が先に分岐するため、presentation は SeedPresentation に限る。
 const resolveVariation: (generation: Generation, presentation: SeedPresentation) => Variation;
 ```
@@ -344,7 +344,7 @@ const resolveVariation: (generation: Generation, presentation: SeedPresentation)
 
 ### Error Strategy
 - **一時失敗（モデル API・画像未返却）**: `avatar-image-client` が数回リトライ。使い切りで throw → エンジンが `{ok:false, generation_failed}`。
-- **適合 seed 無し（androgynous）**: エンジンが `{ok:false, no_seed}`。`runAvatarCore` は生成せず `avatarGeneratedAt` 未設定のまま（未生成として観測・後で回収）。
+- **適合 seed 無し（neutral）**: エンジンが `{ok:false, no_seed}`。`runAvatarCore` は生成せず `avatarGeneratedAt` 未設定のまま（未生成として観測・後で回収）。
 - **本番の失敗方針**: `runAvatarCore` は例外/失敗を握りつぶし、討論生成を1件の失敗で止めない（既存踏襲）。欠落は管理画面の個別再生成で回収。
 
 ### Monitoring
@@ -354,7 +354,7 @@ const resolveVariation: (generation: Generation, presentation: SeedPresentation)
 
 ### Unit Tests
 - `toAsset` のゴールデン等価性（`postprocess.py` 参照・既存 `avatar-postprocess.test.ts` を定数集約後も維持）。
-- `selectSeed` / `resolveVariation` の**ランダム性・分散**（多数回引くと全 seed index・各カタログ値に散る／メガネは有無ともに現れる）。androgynous は `selectSeed`→null。
+- `selectSeed` / `resolveVariation` の**ランダム性・分散**（多数回引くと全 seed index・各カタログ値に散る／メガネは有無ともに現れる）。neutral は `selectSeed`→null。
 - `toGeneration` の境界（12/13, 29/30, 49/50, 69/70）。
 - `avatar-prompt` のスナップショット（様式・LOCKED・軸が含まれる／黒ベタ強制が無い）。
 

@@ -65,13 +65,13 @@ describe('generateAvatarAsset', () => {
 		expect(inPool(passedSeed, await poolBytes('middle', 'masculine'))).toBe(true);
 	});
 
-	it('androgynous も生成し、その世代・外見表現のプールの seed を渡す', async () => {
-		const result = await generateAvatarAsset({ ...baseSpec, genderPresentation: 'androgynous' });
+	it('neutral も生成し、その世代・外見表現のプールの seed を渡す', async () => {
+		const result = await generateAvatarAsset({ ...baseSpec, genderPresentation: 'neutral' });
 		expect(result.ok).toBe(true);
 		expect(mockGenerateImage).toHaveBeenCalledTimes(1);
 		const [prompt, passedSeed] = mockGenerateImage.mock.calls[0];
 		expect(prompt).toContain('中性的な外見');
-		expect(inPool(passedSeed, await poolBytes('middle', 'androgynous'))).toBe(true);
+		expect(inPool(passedSeed, await poolBytes('middle', 'neutral'))).toBe(true);
 	});
 
 	it('生成失敗（モデルが投げる）は generation_failed を返す（throw しない）', async () => {

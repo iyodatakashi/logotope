@@ -11,7 +11,7 @@ export const GENERATIONS = ['child', 'young', 'middle', 'senior', 'elder'] as co
 export type Generation = (typeof GENERATIONS)[number];
 
 /** 外見表現。persona の genderPresentation と同じ区分（性自認ではない）。全表現に seed アンカーがある。 */
-export const PRESENTATIONS = ['masculine', 'feminine', 'androgynous'] as const;
+export const PRESENTATIONS = ['masculine', 'feminine', 'neutral'] as const;
 export type Presentation = (typeof PRESENTATIONS)[number];
 
 /**
@@ -19,7 +19,11 @@ export type Presentation = (typeof PRESENTATIONS)[number];
  * seed を流用する（＝素材はこの3区分にのみある）。年齢由来の世代→この区分の写像は toSeedGeneration。
  * 髪型など seed 以外の見た目は世代（5区分）で引き続き出し分ける（骨格の流用と混同しない）。
  */
-export const SEED_GENERATIONS = ['child', 'middle', 'elder'] as const satisfies readonly Generation[];
+export const SEED_GENERATIONS = [
+	'child',
+	'middle',
+	'elder'
+] as const satisfies readonly Generation[];
 
 /** seed アンカーがある世代の型。バケット・命名・選択はこの範囲でのみ成立する。 */
 export type SeedGeneration = (typeof SEED_GENERATIONS)[number];

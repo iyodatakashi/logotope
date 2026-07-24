@@ -41,7 +41,7 @@
   - ペルソナ個別への画像割り当て・選択ロジック
   - 画像配信・キャッシュ・CDN・最適化
   - アバター表示 UI の改修
-  - androgynous の seed アンカー整備（本仕様は masculine / feminine で基本的な生成品質を確立する。androgynous は必要になれば後続で追加）
+  - neutral の seed アンカー整備（本仕様は masculine / feminine で基本的な生成品質を確立する。neutral は必要になれば後続で追加）
 - **Adjacent expectations**:
   - 依存元 `persona-avatar-image-generation/validation/` の結論を確定手法として引き継ぐ。破棄経路（text-only 生成／参照画像をスタイルヒントとして足す方式／後処理での自動スケール正規化／正規化 0.855・下余白 0.063）は根拠に用いず、不採用として固定する。
   - steering `spec-dependencies.md` に残る「正規化 0.855・下余白 0.063」は却下済みの古い値であり、本仕様では採用しない（採用値は 0.92・下端接地）。
@@ -67,7 +67,7 @@
 3. The シード生成 shall 出力を 256×256px・正方 1:1 とする。
 4. When 被写体の横幅がキャンバスを超える時, the シード生成 shall 横をはみ出させて切り、高さ基準の配置を保つ。
 5. If 出力が規定の寸法・縦占有・下端接地を満たさない場合, then the シード生成 shall 逸脱内容を報告して失敗として扱う。
-6. The シード生成 shall 世代（child / young / middle / senior / elder）× 外見表現（masculine / feminine）のバケットごとに、見分けのつく複数のシードを出力する（androgynous は本仕様では扱わず、必要になれば後続で追加する）。
+6. The シード生成 shall 世代（child / young / middle / senior / elder）× 外見表現（masculine / feminine）のバケットごとに、見分けのつく複数のシードを出力する（neutral は本仕様では扱わず、必要になれば後続で追加する）。
 
 ### Requirement 3: 編集ベースの生成と可変軸の制御
 **Objective:** エンジン開発者 として、シード 1 枚を編集して別個体を生成したい。それによって テイストを保ったままペルソナ固有のアバターを出せる ため。
@@ -79,7 +79,7 @@
 4. Where 白髪を描く場合, the アバター生成エンジン shall 髪を黒くベタ塗りしたうえに白い細い筋（毛流れ）を入れて表す（無条件でなく、白髪を描くときの描き方の条件付きルール）。
 5. The アバター生成エンジン shall バリエーションを AI の裁量任せにせず、各軸のカタログ値で制御する（選択は生成のたびランダム）。
 6. The アバター生成エンジン shall 各軸の値カタログ（髪型・体型・メガネなど）を後から追記で拡張できる形に保ち、カタログの要素数に依存する処理や全組み合わせの列挙を行わない。
-7. The アバター生成エンジン shall 外見表現に persona の `genderPresentation`（masculine / feminine / androgynous ＝外観）のみを用い、`gender`（性自認・non-binary を含む）を生成入力に含めない。
+7. The アバター生成エンジン shall 外見表現に persona の `genderPresentation`（masculine / feminine / neutral ＝外観）のみを用い、`gender`（性自認・non-binary を含む）を生成入力に含めない。
 
 ### Requirement 4: スケール一貫（生成側で固定）
 **Objective:** エンジン開発者 として、個体ごとに独立生成しても頭のサイズと位置を揃えたい。それによって 一覧表示でアバターが不揃いにならない ため。

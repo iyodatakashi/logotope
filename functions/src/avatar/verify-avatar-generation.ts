@@ -64,8 +64,8 @@ const CASES: Case[] = [
 	{ id: '5_senior_m', spec: spec(58, 'masculine', '経営者') },
 	{ id: '6_senior_f', spec: spec(62, 'feminine', '教員') },
 	{ id: '7_elder_f', spec: spec(72, 'feminine', '元看護師') },
-	// androgynous（中性的な外見）も seed があり生成できる（middle 41歳 → middle の androgynous プール）。
-	{ id: '7b_middle_a', spec: spec(41, 'androgynous', 'フリーランス') },
+	// neutral（中性的な外見）も seed があり生成できる（middle 41歳 → middle の neutral プール）。
+	{ id: '7b_middle_a', spec: spec(41, 'neutral', 'フリーランス') },
 	// 服装が背景ドリブンで変わるか（職業=無し／年金・支援で生活が苦しい高齢者）を目視確認するケース。
 	{
 		id: '8_elder_m_hardship',
@@ -141,7 +141,9 @@ const main = async () => {
 
 	console.log('\n枠の転写（機械判定できる項目のみ）');
 	console.log(`  規定: 縦占有 ${SUBJECT_HEIGHT_RATIO} / 下端接地`);
-	console.log('  ※ 様式・顔の非描写・軸の適合・頭サイズの一貫は判定していない。人が見ること（Req 7.3）。\n');
+	console.log(
+		'  ※ 様式・顔の非描写・軸の適合・頭サイズの一貫は判定していない。人が見ること（Req 7.3）。\n'
+	);
 
 	let conforming = 0;
 	for (const { id, frame, note } of results) {

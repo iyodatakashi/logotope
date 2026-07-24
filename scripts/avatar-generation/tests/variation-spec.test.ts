@@ -11,7 +11,9 @@ import {
 describe('髪型カタログ', () => {
 	it('全 (年齢帯 × 性別) バケットに1件以上の髪型がある（Req 2.1）', () => {
 		for (const ageBand of Object.keys(HAIR_CATALOG) as (keyof typeof HAIR_CATALOG)[]) {
-			for (const gender of Object.keys(HAIR_CATALOG[ageBand]) as (keyof (typeof HAIR_CATALOG)[typeof ageBand])[]) {
+			for (const gender of Object.keys(
+				HAIR_CATALOG[ageBand]
+			) as (keyof (typeof HAIR_CATALOG)[typeof ageBand])[]) {
 				expect(hairCatalogFor(ageBand, gender).length).toBeGreaterThan(0);
 			}
 		}
@@ -19,7 +21,9 @@ describe('髪型カタログ', () => {
 
 	it('各バケット内で髪型名が重複しない（見分けのつく別個体・Req 2.3）', () => {
 		for (const ageBand of Object.keys(HAIR_CATALOG) as (keyof typeof HAIR_CATALOG)[]) {
-			for (const gender of Object.keys(HAIR_CATALOG[ageBand]) as (keyof (typeof HAIR_CATALOG)[typeof ageBand])[]) {
+			for (const gender of Object.keys(
+				HAIR_CATALOG[ageBand]
+			) as (keyof (typeof HAIR_CATALOG)[typeof ageBand])[]) {
 				const styles = hairCatalogFor(ageBand, gender);
 				expect(new Set(styles).size).toBe(styles.length);
 			}
@@ -39,9 +43,7 @@ describe('serial ↔ 髪型 の対応（カタログ順に依存しない安定�
 
 	it('登録個体の髪型はすべて対象バケットのカタログに存在する', () => {
 		for (const individual of SERIAL_REGISTRY) {
-			expect(hairCatalogFor(individual.ageBand, individual.gender)).toContain(
-				individual.hairStyle
-			);
+			expect(hairCatalogFor(individual.ageBand, individual.gender)).toContain(individual.hairStyle);
 		}
 	});
 
@@ -57,9 +59,9 @@ describe('serial ↔ 髪型 の対応（カタログ順に依存しない安定�
 });
 
 describe('命名規則（Req 2.4）', () => {
-	it('全年齢帯に androgynous（中性的）のカタログがある', () => {
+	it('全年齢帯に neutral（中性的）のカタログがある', () => {
 		for (const ageBand of Object.keys(HAIR_CATALOG) as (keyof typeof HAIR_CATALOG)[]) {
-			expect(hairCatalogFor(ageBand, 'androgynous').length).toBeGreaterThan(0);
+			expect(hairCatalogFor(ageBand, 'neutral').length).toBeGreaterThan(0);
 		}
 	});
 

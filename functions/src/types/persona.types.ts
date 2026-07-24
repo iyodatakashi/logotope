@@ -11,7 +11,7 @@ export type PersonaGender =
 export type PersonaGenderPresentation =
 	| 'masculine' // 男性的
 	| 'feminine' // 女性的
-	| 'androgynous'; // 中性的（男女どちらとも判別しにくい外見）
+	| 'neutral'; // 中性的（男女どちらとも判別しにくい外見）
 
 export type Persona = {
 	id: string;
