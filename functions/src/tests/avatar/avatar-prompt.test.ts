@@ -45,10 +45,10 @@ describe('buildAvatarPrompt', () => {
 		);
 	});
 
-	it('服装はペルソナの実態（立場・国籍・関心事・背景）に合わせ、職業から機械的にスーツにしない', () => {
+	it('服装はペルソナの立場・実態に合わせ、一律にスーツにも一律にカジュアルにもしない', () => {
 		const prompt = buildAvatarPrompt(sample);
 		expect(prompt).toContain('ふさわしい');
-		expect(prompt).toContain('機械的にスーツにせず');
+		expect(prompt).toContain('一律に'); // 一律スーツも一律カジュアルもしない
 		expect(prompt).toContain(sample.specificRole);
 		expect(prompt).toContain(sample.nationality);
 		expect(prompt).toContain(sample.interests);
