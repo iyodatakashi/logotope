@@ -259,7 +259,7 @@ describe('evaluateEngagement', () => {
 		expect(result.awareness).toBeNull();
 	});
 
-	it('気づき検出の閾値（同意・相槌は気づきにしない）と、主判定と分節する旨がプロンプトに含まれる', async () => {
+	it('気づき検出の閾値（結論・立場が動いたときだけ・単なる再認識は除外）と、主判定と分節する旨がプロンプトに含まれる', async () => {
 		const aiMod = await import('ai');
 		const capturedArgs: unknown[] = [];
 		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
@@ -274,12 +274,11 @@ describe('evaluateEngagement', () => {
 
 		const userContent = (capturedArgs[0] as { messages: Array<{ content: string }> }).messages[0]
 			.content;
-		// 閾値：単なる同意・共感・言い換え・再確認は気づきにしない
-		expect(userContent).toContain('同意');
-		expect(userContent).toContain('共感');
-		expect(userContent).toContain('言い換え');
-		// 重複防止：既存の気づきは言い換え・別角度でも再記録しない
-		expect(userContent).toContain('別角度');
+		// 閾値：直前発言で結論・立場そのものが動いたときだけ気づきとする
+		expect(userContent).toContain('結論・立場');
+		// 単なる再認識（改めて／やはり／再確認／腹落ち）は結論が動いていないので除外する
+		expect(userContent).toContain('再確認');
+		expect(userContent).toMatch(/改めて|やはり/);
 		// 過剰検出を防ぐ既定（該当なし/ほとんどは null）。回数ノルマは設けない
 		expect(userContent).toMatch(/該当が無ければ null|ほとんどのターンは null/);
 		// score/mode の主判定を変えない
