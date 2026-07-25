@@ -145,6 +145,9 @@ dataconnect/
   - 例: `PersonaItem.svelte` → `.persona-item`、`PhasePanel.svelte` → `.phase-panel`
 - **`+page.svelte` / `+layout.svelte` が例外的にマークアップを持つ場合（→「routes は最小限のラッパーにする」参照）は、場所が分かるBlock名にする**。場所を表す接頭辞 + `-page` / `-layout` とする。
   - 例: `admin/+layout.svelte` → `.admin-layout`
+- **見た目のための修飾タグ（`<strong>` / `<b>` / `<em>` / `<i>` / `<u>` / `<small>` / `<mark>` など）を使わない**。リセットCSSでこれらの既定スタイルはリセットされており、視覚的な意味を持たない。強調・装飾はクラス（BEMのElement／Modifier）とCSSで表現する。
+  - 例: `<strong>重要</strong>` ではなく `<span class="notice__emphasis">重要</span>` のようにクラスで指定する。
+  - 見出し・段落・リストなど**文書構造を表すタグ（`<h1>`〜`<h6>` / `<p>` / `<ul>` / `<li>` など）は従来どおり使ってよい**。禁止するのは「見た目のためだけのインライン修飾タグ」。
 
 ## Import Organization
 
