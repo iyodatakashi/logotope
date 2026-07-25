@@ -484,6 +484,10 @@ export const generateImpression = async (
 			? `\n\n上の討論を踏まえつつ、${persona.name}として討論後のコメントを2〜4文で述べてください。討論の特定の発言、とりわけ最後の発言に反応するのではなく、上に挙げた「あなた自身の気づき」を軸に、自分の考えがどう動いたか・何が印象に残ったかを自分の言葉で述べること（討論全文は、その気づきを具体的に思い出すための材料として使ってよい）。「今日の話を聞いていて」「討論を通じて」「今回の議論で」のような振り返りの前置き・実況で始めないこと。前置きは付けず、いきなり感じたこと・考えの変化そのものから書き出す。`
 			: `\n\n上の討論を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。特定の発言、とりわけ最後の発言だけに反応せず、討論全体の中で実際に自分の考えに影響した点を選ぶこと。「今日の話を聞いていて」「討論を通じて」「今回の議論で」のような振り返りの前置き・実況で始めないこと。前置きは付けず、いきなり感じたこと・考えの変化そのものから書き出す。`;
 
+		// 文体の統一（重要）。討論での話し方と同じ口語の語り口に固定し、参照する気づきメモ（常体で記録）に
+		// 引きずられて「だ・である調」が混ざるのを防ぐ。
+		const styleNote = `\n\n【文体の統一】討論での${persona.name}自身の話し方と同じ口語の語り口で、最初から最後まで文体を統一して書くこと。「〜だ」「〜である」調・体言止め・断定の言い切りといった書き言葉を混ぜず、語り口を崩さない（参照する気づきメモが常体で書かれていても、その文体には引きずられない）。`;
+
 		const result = await generateObject({
 			model: sonnet,
 			system: buildPersonaSystemPrompt(persona, '', getBelief(persona)),
@@ -491,7 +495,7 @@ export const generateImpression = async (
 			messages: [
 				{
 					role: 'user',
-					content: `${transcriptSection}${awarenessSection}${instruction}`
+					content: `${transcriptSection}${awarenessSection}${instruction}${styleNote}`
 				}
 			]
 		});
