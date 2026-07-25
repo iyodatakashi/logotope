@@ -45,6 +45,10 @@
 						{article.intro}
 					{/if}
 
+					<div class="published-article-detail-page__disclaimer">
+						この討論は、実在の人物ではなく、AIが生成したペルソナによるものです。多様な立場をなるべく忠実に再現できるようリサーチに基づいて設計していますが、現実の意見や多様性を完全に反映するものではありません。
+					</div>
+
 					{#each article.chapters as chapter (chapter.index)}
 						<PublishedChapter {chapter} personas={article.personas} />
 					{/each}
@@ -124,6 +128,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 24px;
+	}
+	.published-article-detail-page__disclaimer {
+		padding: 16px;
+		background: var(--red-50-transparent);
+		border-radius: 16px;
+		color: var(--red-600);
 	}
 
 	/* 狭幅時は目次の固定を解除し単カラムにする（Req 10.1, 10.2）。 */
