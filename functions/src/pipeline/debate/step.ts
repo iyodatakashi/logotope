@@ -25,7 +25,8 @@ import {
 	initAgendaItems,
 	markIntroduced,
 	saveAgendaItemStatuses,
-	deleteAgendaItemStatuses
+	deleteAgendaItemStatuses,
+	getActiveAgendaItem
 } from './agenda.js';
 import { progressAgenda } from './intervention.js';
 import { updateSpeakerStats } from './debate-state.js';
@@ -100,12 +101,17 @@ const finalizeCommittedTurn = async ({
  * コミット済みターンへの末尾評価（反応の永続＋当該ターンの status='evaluating' 終了）を実行する。
  * best-effort：失敗しても討論は止めず、次ステップ/章末の自己修復で反応永続＋status 終了が回復する（3.5/3.7）。
  */
+/** 発言意欲・意図の判定に渡す「いま場に出ている論点」。未提示時は章タイトルを場のテーマとして用いる。 */
+const resolveActiveFocus = (state: DebateState, chapter: Chapter): string =>
+	getActiveAgendaItem(state) ?? chapter.title;
+
 const runEndEvaluation = async (params: {
 	topicId: string;
 	chapterId: string;
 	committedTurnId: string;
 	personas: Persona[];
 	chapterTurns: ReadonlyArray<DebateTurn>;
+	activeAgendaItem: string;
 	runId?: string;
 }): Promise<void> => {
 	try {
@@ -164,7 +170,8 @@ const executeFinalResponseTurn = async ({
 		topicId,
 		personaId: speakerSelection.personaId,
 		personas,
-		chapterTurns: state.turns.slice(chapterTurnStartInState)
+		chapterTurns: state.turns.slice(chapterTurnStartInState),
+		activeAgendaItem: resolveActiveFocus(state, chapter)
 	});
 	const reply = await generatePersonaTurn({
 		topicId,
@@ -187,6 +194,7 @@ const executeFinalResponseTurn = async ({
 		committedTurnId: reply.turnId,
 		personas,
 		chapterTurns: state.turns.slice(chapterTurnStartInState),
+		activeAgendaItem: resolveActiveFocus(state, chapter),
 		runId: state.runId
 	});
 	return { status: 'committed', quietStreak };
@@ -236,6 +244,7 @@ const executeTurn = async ({
 			committedTurnId: priorTurn.id,
 			personas,
 			chapterTurns: priorChapterTurns,
+			activeAgendaItem: resolveActiveFocus(state, chapter),
 			runId: state.runId
 		});
 	}
@@ -263,7 +272,8 @@ const executeTurn = async ({
 		chapterId,
 		personas,
 		state,
-		chapterTurns: getChapterTurns()
+		chapterTurns: getChapterTurns(),
+		activeAgendaItem: resolveActiveFocus(state, chapter)
 	});
 
 	// ファシリテーター介入を常時委譲する。末尾の指名状態（指名なし・ペルソナ間指名・ファシリテーター指名）に
@@ -306,6 +316,7 @@ const executeTurn = async ({
 		personaId: speakerSelection.personaId,
 		personas,
 		chapterTurns: getChapterTurns(),
+		activeAgendaItem: resolveActiveFocus(state, chapter),
 		engagements
 	});
 	const nextEndCount = decideQuietStreak(engagements, quietStreak);
@@ -331,6 +342,7 @@ const executeTurn = async ({
 		committedTurnId: reply.turnId,
 		personas,
 		chapterTurns: getChapterTurns(),
+		activeAgendaItem: resolveActiveFocus(state, chapter),
 		runId: state.runId
 	});
 	return { status: 'committed', quietStreak: nextEndCount };
@@ -392,6 +404,7 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 					committedTurnId: fac.id,
 					personas,
 					chapterTurns: state.turns.slice(chapterTurnStartInState),
+					activeAgendaItem: resolveActiveFocus(state, chapter),
 					runId: state.runId
 				});
 			}
@@ -416,6 +429,7 @@ export const performOpenStep = async (ctx: StepContext, payload: StepPayload): P
 						committedTurnId: fac.id,
 						personas,
 						chapterTurns: state.turns.slice(chapterTurnStartInState),
+						activeAgendaItem: resolveActiveFocus(state, chapter),
 						runId: state.runId
 					});
 				}
@@ -534,7 +548,7 @@ export const completeChapterStep = async (
 	ctx: StepContext,
 	payload: StepPayload
 ): Promise<boolean> => {
-	const { chapterDoc, personas, state } = ctx;
+	const { chapterDoc, chapter, personas, state } = ctx;
 	const { topicId } = payload;
 	// completed 確定前に、最終ターンの反応が未永続なら末尾評価する（evaluating を残さない・reuse で退化・3.3/3.7）
 	const finalTurn = chapterDoc.turns[chapterDoc.turns.length - 1];
@@ -545,6 +559,7 @@ export const completeChapterStep = async (
 			committedTurnId: finalTurn.id,
 			personas,
 			chapterTurns: chapterDoc.turns,
+			activeAgendaItem: resolveActiveFocus(state, chapter),
 			runId: state.runId
 		});
 	}

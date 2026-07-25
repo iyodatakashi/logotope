@@ -103,13 +103,15 @@ export const evaluateEngagements = async ({
 	chapterId,
 	personas,
 	state,
-	chapterTurns
+	chapterTurns,
+	activeAgendaItem
 }: {
 	topicId: string;
 	chapterId: string;
 	personas: Persona[];
 	state: DebateState;
 	chapterTurns: ReadonlyArray<DebateTurn>;
+	activeAgendaItem: string;
 }): Promise<Engagement[]> => {
 	// 直前話者は連続発言させないため評価対象から外す（必要なら後で個別フォールバック評価する）
 	const assessTargets = personas.filter((persona) => persona.id !== state.lastSpeakerId);
@@ -126,7 +128,13 @@ export const evaluateEngagements = async ({
 			const otherPersonaNames = personas
 				.filter((otherPersona) => otherPersona.id !== persona.id)
 				.map((otherPersona) => otherPersona.name);
-			return evaluateEngagement(persona, [...chapterTurns], otherPersonaNames, personas);
+			return evaluateEngagement(
+				persona,
+				[...chapterTurns],
+				otherPersonaNames,
+				personas,
+				activeAgendaItem
+			);
 		})
 	);
 	await saveEngagements({
@@ -192,6 +200,7 @@ export const evaluateReactionsForCommittedTurn = async ({
 	committedTurnId,
 	personas,
 	chapterTurns,
+	activeAgendaItem,
 	runId
 }: {
 	topicId: string;
@@ -199,6 +208,7 @@ export const evaluateReactionsForCommittedTurn = async ({
 	committedTurnId: string;
 	personas: Persona[];
 	chapterTurns: ReadonlyArray<DebateTurn>;
+	activeAgendaItem: string;
 	runId?: string;
 }): Promise<void> => {
 	const committedTurn = chapterTurns.find((turn) => turn.id === committedTurnId);
@@ -213,7 +223,13 @@ export const evaluateReactionsForCommittedTurn = async ({
 			const otherPersonaNames = personas
 				.filter((otherPersona) => otherPersona.id !== persona.id)
 				.map((otherPersona) => otherPersona.name);
-			return evaluateEngagement(persona, [...chapterTurns], otherPersonaNames, personas);
+			return evaluateEngagement(
+				persona,
+				[...chapterTurns],
+				otherPersonaNames,
+				personas,
+				activeAgendaItem
+			);
 		})
 	);
 	await saveEngagements({
@@ -239,12 +255,14 @@ export const evaluateEngagementWithFallback = async ({
 	personaId,
 	personas,
 	chapterTurns,
+	activeAgendaItem,
 	engagements = []
 }: {
 	topicId: string;
 	personaId: string;
 	personas: Persona[];
 	chapterTurns: ReadonlyArray<DebateTurn>;
+	activeAgendaItem: string;
 	engagements?: Engagement[];
 }): Promise<Engagement> => {
 	// 一括評価の結果に含まれていればそれを使う（再評価を避ける。気づきは evaluateEngagements で永続済み）
@@ -260,7 +278,8 @@ export const evaluateEngagementWithFallback = async ({
 		persona,
 		[...chapterTurns],
 		otherPersonaNames,
-		personas
+		personas,
+		activeAgendaItem
 	);
 	// フォールバック評価で新たに検出した気づきも話者選択の前に永続する
 	const turnId = chapterTurns[chapterTurns.length - 1]?.id ?? '';
