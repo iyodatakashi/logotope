@@ -56,6 +56,11 @@ describe('generatePersonas', () => {
 		expect(promptOf()).not.toContain('【確定した客観的事実（共通前提）】');
 	});
 
+	it('日本人名は姓と名の間に半角スペースを入れるルールをプロンプトに含める', async () => {
+		await generatePersonas('テーマ', STAKEHOLDERS, 't1');
+		expect(promptOf()).toContain('姓と名の間に半角スペース');
+	});
+
 	it('生成スキーマに llmType を含めない（Req 2.3）', async () => {
 		await generatePersonas('テーマ', STAKEHOLDERS, 't1');
 		const { schema } = mockGenerateObject.mock.calls[0][0] as {
