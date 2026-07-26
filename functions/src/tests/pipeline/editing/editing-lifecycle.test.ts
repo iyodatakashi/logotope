@@ -24,7 +24,7 @@ import {
 	isEditingActive,
 	finalizeEditingRun,
 	stopEditingRun,
-	finalizePendingEditorialElements
+	finalizePendingEditorials
 } from '../../../pipeline/editing/editing-lifecycle.js';
 
 const chapterPath = (chapterId: string) => `topics/t1/editedChapters/${chapterId}`;
@@ -63,9 +63,9 @@ describe('startEditingRun', () => {
 		});
 	});
 
-	it('統合保存 editorial/0（導入/締め/所感）を破棄し導入・締め＝生成待ち・所感空で初期化する（作り直しのため）', async () => {
+	it('統合保存 editorial/outputs（導入/締め/所感）を破棄し導入・締め＝生成待ち・所感空で初期化する（作り直しのため）', async () => {
 		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'stopped' });
-		holder.mock!.store.set('topics/t1/editorial/0', {
+		holder.mock!.store.set('topics/t1/editorial/outputs', {
 			intro: { status: 'finished', draft: '旧導入', final: '旧導入編集後' },
 			outro: { status: 'pending', draft: null, final: null },
 			impressions: { p1: { sortOrder: 0, status: 'finished', draft: '旧所感', final: '旧所感編集後' } }
@@ -73,7 +73,7 @@ describe('startEditingRun', () => {
 
 		await startEditingRun('t1');
 
-		expect(holder.mock!.store.get('topics/t1/editorial/0')).toEqual({
+		expect(holder.mock!.store.get('topics/t1/editorial/outputs')).toEqual({
 			intro: { status: 'pending', draft: null, final: null },
 			outro: { status: 'pending', draft: null, final: null },
 			impressions: {}
@@ -143,9 +143,9 @@ describe('finalizeEditingRun', () => {
 	});
 });
 
-const EDITORIAL_PATH = 'topics/t1/editorial/0';
+const EDITORIAL_PATH = 'topics/t1/editorial/outputs';
 
-describe('finalizePendingEditorialElements（終端スイープ）', () => {
+describe('finalizePendingEditorials（終端スイープ）', () => {
 	it('生成待ち／生成中／整え中の導入・締めを完了に確定する（既存内容を保持・無ければ空＝生成失敗）', async () => {
 		holder.mock!.store.set(EDITORIAL_PATH, {
 			intro: { status: 'pending', draft: null, final: null },
@@ -153,7 +153,7 @@ describe('finalizePendingEditorialElements（終端スイープ）', () => {
 			impressions: {}
 		});
 
-		await finalizePendingEditorialElements('t1');
+		await finalizePendingEditorials('t1');
 
 		const editorial = holder.mock!.store.get(EDITORIAL_PATH) as Record<string, unknown>;
 		expect(editorial.intro).toEqual({ status: 'finished', draft: null, final: null }); // 生成失敗
@@ -173,7 +173,7 @@ describe('finalizePendingEditorialElements（終端スイープ）', () => {
 			impressions: { p1: { sortOrder: 0, status: 'generating', draft: null, final: null } }
 		});
 
-		await finalizePendingEditorialElements('t1');
+		await finalizePendingEditorials('t1');
 
 		const editorial = holder.mock!.store.get(EDITORIAL_PATH) as {
 			impressions: Record<string, unknown>;
@@ -192,7 +192,7 @@ describe('finalizePendingEditorialElements（終端スイープ）', () => {
 		};
 		holder.mock!.store.set(EDITORIAL_PATH, structuredClone(finished));
 
-		await finalizePendingEditorialElements('t1');
+		await finalizePendingEditorials('t1');
 
 		expect(holder.mock!.store.get(EDITORIAL_PATH)).toEqual(finished);
 	});

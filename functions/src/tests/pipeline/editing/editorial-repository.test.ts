@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createFirestoreMock } from '../../helpers/firestore-mock.js';
 import type {
-	EditorialElementStatus,
+	EditorialStatus,
 	ImpressionForFirestore
 } from '../../../types/editorial.types.js';
 
@@ -27,11 +27,11 @@ import {
 	impressionWriter
 } from '../../../pipeline/editing/editorial-repository.js';
 
-const EDITORIAL_PATH = 'topics/t1/editorial/0';
+const EDITORIAL_PATH = 'topics/t1/editorial/outputs';
 
 const impression = (
 	sortOrder: number,
-	status: EditorialElementStatus,
+	status: EditorialStatus,
 	draft: string | null,
 	final: string | null
 ): ImpressionForFirestore => ({ sortOrder, status, draft, final });
@@ -137,20 +137,20 @@ describe('narrationWriter（段階書き込み: 生成中→整え中→完了�
 
 	it('begin は生成中にし内容を破棄する（再生成での旧内容破棄）', async () => {
 		await setIntro('t1', { status: 'finished', draft: '旧原本', final: '旧編集後' });
-		await narrationWriter('t1', 'intro').begin();
+		await narrationWriter('t1', 'intro').markEditorialGenerating();
 		expect((await readEditorial('t1')).intro).toEqual({ status: 'generating', draft: null, final: null });
 	});
 
 	it('toEditing は整え中にし原本のみ保存する（final は据え置き）', async () => {
 		const writer = narrationWriter('t1', 'intro');
-		await writer.begin();
-		await writer.toEditing('原本');
+		await writer.markEditorialGenerating();
+		await writer.markEditorialEditing('原本');
 		expect((await readEditorial('t1')).intro).toEqual({ status: 'editing', draft: '原本', final: null });
 	});
 
 	it('finish は完了で内容を確定する（編集済み/編集失敗/生成失敗）', async () => {
-		await narrationWriter('t1', 'intro').finish({ draft: '原本', final: '編集後' });
-		await narrationWriter('t1', 'outro').finish({ draft: null, final: null });
+		await narrationWriter('t1', 'intro').markEditorialFinished({ draft: '原本', final: '編集後' });
+		await narrationWriter('t1', 'outro').markEditorialFinished({ draft: null, final: null });
 		const editorial = await readEditorial('t1');
 		expect(editorial.intro).toEqual({ status: 'finished', draft: '原本', final: '編集後' });
 		expect(editorial.outro).toEqual({ status: 'finished', draft: null, final: null });
@@ -164,13 +164,13 @@ describe('impressionWriter（sortOrder を保った段階書き込み）', () =>
 
 	it('begin→toEditing→finish で sortOrder を保ったまま段階を書く', async () => {
 		const writer = impressionWriter('t1', 'p1', 3);
-		await writer.begin();
+		await writer.markEditorialGenerating();
 		expect((await readEditorial('t1')).impressions.p1).toEqual({ sortOrder: 3, status: 'generating', draft: null, final: null });
 
-		await writer.toEditing('原本');
+		await writer.markEditorialEditing('原本');
 		expect((await readEditorial('t1')).impressions.p1).toEqual({ sortOrder: 3, status: 'editing', draft: '原本', final: null });
 
-		await writer.finish({ draft: '原本', final: '編集後' });
+		await writer.markEditorialFinished({ draft: '原本', final: '編集後' });
 		expect((await readEditorial('t1')).impressions.p1).toEqual({ sortOrder: 3, status: 'finished', draft: '原本', final: '編集後' });
 	});
 });

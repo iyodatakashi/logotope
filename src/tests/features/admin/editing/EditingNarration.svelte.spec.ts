@@ -2,11 +2,11 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import EditingNarration from '$lib/features/admin/topic-detail/editing/EditingNarration.svelte';
-import type { EditorialElementStatus } from '$lib/models/editorial/editorial.types';
+import type { EditorialStatus } from '$lib/models/editorial/editorial.types';
 
 // 表示は要素自身の進捗ステータス＋内容だけで決まる（ラン全体の完了フラグに依存しない）。
 const makeProps = (
-	part: { status: EditorialElementStatus; draft: string | null; final: string | null },
+	part: { status: EditorialStatus; draft: string | null; final: string | null },
 	overrides: Record<string, unknown> = {}
 ) => ({
 	label: '導入',

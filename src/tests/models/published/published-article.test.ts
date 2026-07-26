@@ -38,7 +38,7 @@ const setup = (fixture: {
 }) => {
 	vi.mocked(getDoc).mockImplementation((ref: unknown) => {
 		const path = (ref as { path: string }).path;
-		const data = path.endsWith('/editorial/0') ? fixture.editorial : fixture.topic;
+		const data = path.endsWith('/editorial/outputs') ? fixture.editorial : fixture.topic;
 		return Promise.resolve(docSnap(data) as unknown as Awaited<ReturnType<typeof getDoc>>);
 	});
 	vi.mocked(getDocs).mockImplementation((ref: unknown) => {

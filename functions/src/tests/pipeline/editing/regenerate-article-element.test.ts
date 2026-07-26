@@ -23,7 +23,7 @@ vi.mock('../../../pipeline/editing/editorial-repository.js', () => ({
 	narrationWriter: h.narrationWriter,
 	impressionWriter: h.impressionWriter
 }));
-vi.mock('../../../pipeline/editing/element-builders.js', () => ({
+vi.mock('../../../pipeline/editing/editorial-builders.js', () => ({
 	buildImpressionPart: h.buildImpressionPart,
 	buildNarrationPart: h.buildNarrationPart,
 	buildIntroOutroInput: h.buildInput
@@ -39,11 +39,12 @@ import {
 	regenerateIntro,
 	regenerateOutro,
 	regenerateChapter
-} from '../../../pipeline/editing/regenerate-element.js';
+} from '../../../pipeline/editing/regenerate-article-element.js';
 
-// writer は段階書き込みハンドル。regenerate はどの要素の writer を build に渡すか（と失敗時の finish）だけを担う。
-const INTRO_WRITER = { finish: vi.fn() };
-const OUTRO_WRITER = { finish: vi.fn() };
+// writer は段階書き込みハンドル。regenerate は生成中への切替を前処理より前に出し、どの要素の writer を
+// build に渡すか（と失敗時の終端確定）を担う。
+const INTRO_WRITER = { markEditorialGenerating: vi.fn(), markEditorialFinished: vi.fn() };
+const OUTRO_WRITER = { markEditorialGenerating: vi.fn(), markEditorialFinished: vi.fn() };
 const IMPRESSION_WRITER = { tag: 'impression-writer' };
 
 beforeEach(() => {
@@ -106,18 +107,32 @@ describe('regenerateIntro / regenerateOutro', () => {
 		expect(h.buildNarrationPart).toHaveBeenCalledWith('outro', { digest: {}, topicContext: {} }, OUTRO_WRITER);
 	});
 
+	it('生成中への切替（markEditorialGenerating）を重い前処理（buildIntroOutroInput）より前に呼ぶ（R1.2/R4.2）', async () => {
+		await regenerateIntro('t1');
+		expect(INTRO_WRITER.markEditorialGenerating).toHaveBeenCalledTimes(1);
+		expect(INTRO_WRITER.markEditorialGenerating.mock.invocationCallOrder[0]).toBeLessThan(
+			h.buildInput.mock.invocationCallOrder[0]
+		);
+	});
+
+	it('build 部品には切替を委ねない（build 前に切替済み＝二重に切替を呼ばない）', async () => {
+		await regenerateIntro('t1');
+		// build 部品（buildNarrationPart）は切替を行わない契約なので、切替は regenerate 側の1回のみ。
+		expect(INTRO_WRITER.markEditorialGenerating).toHaveBeenCalledTimes(1);
+	});
+
 	it('ダイジェスト構築失敗は throw せず生成失敗（空）で確定する（build しない・旧内容は破棄）', async () => {
 		h.buildInput.mockResolvedValueOnce({ ok: false, error: { code: 'NOT_FOUND', message: 'no digest' } });
 		await expect(regenerateOutro('t1')).resolves.toBeUndefined();
 		expect(h.buildNarrationPart).not.toHaveBeenCalled();
-		expect(OUTRO_WRITER.finish).toHaveBeenCalledWith({ draft: null, final: null });
+		expect(OUTRO_WRITER.markEditorialFinished).toHaveBeenCalledWith({ draft: null, final: null });
 	});
 
 	it('intro もダイジェスト失敗時は生成失敗（空）で確定する', async () => {
 		h.buildInput.mockResolvedValueOnce({ ok: false, error: { code: 'NOT_FOUND', message: 'no digest' } });
 		await expect(regenerateIntro('t1')).resolves.toBeUndefined();
 		expect(h.buildNarrationPart).not.toHaveBeenCalled();
-		expect(INTRO_WRITER.finish).toHaveBeenCalledWith({ draft: null, final: null });
+		expect(INTRO_WRITER.markEditorialFinished).toHaveBeenCalledWith({ draft: null, final: null });
 	});
 });
 

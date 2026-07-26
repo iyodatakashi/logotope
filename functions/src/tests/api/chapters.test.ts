@@ -91,7 +91,7 @@ describe('generateChapters handler（サーバ権威の再生成）', () => {
 			chapterIndex: 0,
 			status: 'completed'
 		});
-		holder.mock!.store.set(`topics/${TOPIC_ID}/editorial/0`, {
+		holder.mock!.store.set(`topics/${TOPIC_ID}/editorial/outputs`, {
 			intro: { status: 'finished', draft: 'x', final: 'y' },
 			outro: { status: 'pending', draft: null, final: null },
 			impressions: {}
@@ -104,7 +104,7 @@ describe('generateChapters handler（サーバ権威の再生成）', () => {
 		expect(holder.mock!.store.has(`topics/${TOPIC_ID}/chapters/c1`)).toBe(false);
 		expect(holder.mock!.store.has(`topics/${TOPIC_ID}/chapterAnalysis/0`)).toBe(false);
 		expect(holder.mock!.store.has(`topics/${TOPIC_ID}/editedChapters/c1`)).toBe(false);
-		expect(holder.mock!.store.get(`topics/${TOPIC_ID}/editorial/0`)).toEqual({
+		expect(holder.mock!.store.get(`topics/${TOPIC_ID}/editorial/outputs`)).toEqual({
 			intro: { status: 'pending', draft: null, final: null },
 			outro: { status: 'pending', draft: null, final: null },
 			impressions: {}
@@ -134,7 +134,7 @@ describe('generateChapters handler（サーバ権威の再生成）', () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}/chapterAnalysis/0`, { issues: [] });
 		// 下流（delete）
 		holder.mock!.store.set(`topics/${TOPIC_ID}/editedChapters/c1`, { chapterIndex: 0 });
-		holder.mock!.store.set(`topics/${TOPIC_ID}/editorial/0`, {
+		holder.mock!.store.set(`topics/${TOPIC_ID}/editorial/outputs`, {
 			intro: { status: 'finished', draft: 'x', final: 'y' },
 			outro: { status: 'pending', draft: null, final: null },
 			impressions: {}
@@ -151,7 +151,7 @@ describe('generateChapters handler（サーバ権威の再生成）', () => {
 		expect(holder.mock!.store.has(`topics/${TOPIC_ID}/chapters/c1`)).toBe(false);
 		expect(holder.mock!.store.has(`topics/${TOPIC_ID}/chapterAnalysis/0`)).toBe(false);
 		expect(holder.mock!.store.has(`topics/${TOPIC_ID}/editedChapters/c1`)).toBe(false);
-		expect(holder.mock!.store.get(`topics/${TOPIC_ID}/editorial/0`)).toEqual({
+		expect(holder.mock!.store.get(`topics/${TOPIC_ID}/editorial/outputs`)).toEqual({
 			intro: { status: 'pending', draft: null, final: null },
 			outro: { status: 'pending', draft: null, final: null },
 			impressions: {}

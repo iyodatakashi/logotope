@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import type {
-	EditorialElementStatus,
+	EditorialStatus,
 	Narration,
 	ImpressionForFirestore
 } from '../../types/editorial.types.js';
 
 describe('editorial.types 記事要素の進捗ステータス', () => {
 	it('進捗ステータスは生成待ち／生成中／整え中／完了の4値を取る', () => {
-		const statuses: EditorialElementStatus[] = ['pending', 'generating', 'editing', 'finished'];
+		const statuses: EditorialStatus[] = ['pending', 'generating', 'editing', 'finished'];
 		expect(statuses).toHaveLength(4);
 	});
 

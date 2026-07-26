@@ -50,7 +50,7 @@ vi.mock('../../pipeline/editing/editing-lifecycle.js', () => ({
 	startEditingRun: mockStartRun,
 	stopEditingRun: mockStopRun
 }));
-vi.mock('../../pipeline/editing/regenerate-element.js', () => ({
+vi.mock('../../pipeline/editing/regenerate-article-element.js', () => ({
 	regenerateChapter: mockRegenChapter,
 	regenerateIntro: mockRegenIntro,
 	regenerateOutro: mockRegenOutro,
@@ -179,7 +179,7 @@ describe('regenerateArticleElement onCall（個別再生成の共通入口）', 
 	it('トピックが無ければ not-found', async () => {
 		mockDocGet.mockResolvedValueOnce({ exists: false, data: () => undefined });
 		await expect(
-			regenHandler(makeRequest({ topicId: 't1', element: { kind: 'intro' } }))
+			regenHandler(makeRequest({ topicId: 't1', articleElement: { kind: 'intro' } }))
 		).rejects.toMatchObject({ code: 'not-found' });
 	});
 
@@ -189,43 +189,43 @@ describe('regenerateArticleElement onCall（個別再生成の共通入口）', 
 			data: () => ({ phase: 'editing', phaseStatus: 'running' })
 		});
 		await expect(
-			regenHandler(makeRequest({ topicId: 't1', element: { kind: 'intro' } }))
+			regenHandler(makeRequest({ topicId: 't1', articleElement: { kind: 'intro' } }))
 		).rejects.toMatchObject({ code: 'failed-precondition' });
 		expect(mockRegenIntro).not.toHaveBeenCalled();
 	});
 
 	it('chapter 種別を regenerateChapter へ振り分け {topicId} を返す', async () => {
 		const result = await regenHandler(
-			makeRequest({ topicId: 't1', element: { kind: 'chapter', chapterId: 'c1' } })
+			makeRequest({ topicId: 't1', articleElement: { kind: 'chapter', chapterId: 'c1' } })
 		);
 		expect(mockRegenChapter).toHaveBeenCalledWith('t1', 'c1');
 		expect(result).toEqual({ topicId: 't1' });
 	});
 
 	it('intro / outro 種別を各コアへ振り分ける', async () => {
-		await regenHandler(makeRequest({ topicId: 't1', element: { kind: 'intro' } }));
+		await regenHandler(makeRequest({ topicId: 't1', articleElement: { kind: 'intro' } }));
 		expect(mockRegenIntro).toHaveBeenCalledWith('t1');
-		await regenHandler(makeRequest({ topicId: 't1', element: { kind: 'outro' } }));
+		await regenHandler(makeRequest({ topicId: 't1', articleElement: { kind: 'outro' } }));
 		expect(mockRegenOutro).toHaveBeenCalledWith('t1');
 	});
 
 	it('impression 種別を personaId 付きで regenerateImpression へ振り分ける', async () => {
 		await regenHandler(
-			makeRequest({ topicId: 't1', element: { kind: 'impression', personaId: 'p2' } })
+			makeRequest({ topicId: 't1', articleElement: { kind: 'impression', personaId: 'p2' } })
 		);
 		expect(mockRegenImpression).toHaveBeenCalledWith('t1', 'p2');
 	});
 
 	it('chapter で chapterId が無ければ invalid-argument', async () => {
 		await expect(
-			regenHandler(makeRequest({ topicId: 't1', element: { kind: 'chapter' } }))
+			regenHandler(makeRequest({ topicId: 't1', articleElement: { kind: 'chapter' } }))
 		).rejects.toMatchObject({ code: 'invalid-argument' });
 		expect(mockRegenChapter).not.toHaveBeenCalled();
 	});
 
 	it('impression で personaId が無ければ invalid-argument', async () => {
 		await expect(
-			regenHandler(makeRequest({ topicId: 't1', element: { kind: 'impression' } }))
+			regenHandler(makeRequest({ topicId: 't1', articleElement: { kind: 'impression' } }))
 		).rejects.toMatchObject({ code: 'invalid-argument' });
 		expect(mockRegenImpression).not.toHaveBeenCalled();
 	});
@@ -233,7 +233,7 @@ describe('regenerateArticleElement onCall（個別再生成の共通入口）', 
 	it('コア関数の失敗は internal に変換する', async () => {
 		mockRegenIntro.mockRejectedValueOnce(new Error('llm down'));
 		await expect(
-			regenHandler(makeRequest({ topicId: 't1', element: { kind: 'intro' } }))
+			regenHandler(makeRequest({ topicId: 't1', articleElement: { kind: 'intro' } }))
 		).rejects.toMatchObject({ code: 'internal' });
 	});
 });

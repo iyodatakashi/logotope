@@ -1,7 +1,7 @@
 import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
-import type { EditorialElementStatus } from '$lib/models/editorial/editorial.types';
+import type { EditorialStatus } from '$lib/models/editorial/editorial.types';
 
 // 話者ラベルは型に畳まず personaId から描画時に解決する（Turn と同じ責務境界・Req 3.1/3.4）。
 // personaMap は store から直接引くため、テストでも store をモックして注入する。
@@ -25,7 +25,7 @@ import EditingImpression from '$lib/features/admin/topic-detail/editing/EditingI
 
 // 所感は導入・締めと同一の状態別表示規則（進捗ステータス＋内容だけで決める・Req 6.2）。
 const makeProps = (
-	part: { status: EditorialElementStatus; draft: string | null; final: string | null },
+	part: { status: EditorialStatus; draft: string | null; final: string | null },
 	overrides: Record<string, unknown> = {}
 ) => ({
 	personaId: 'p1',

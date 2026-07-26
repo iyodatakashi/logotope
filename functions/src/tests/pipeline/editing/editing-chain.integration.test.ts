@@ -2,7 +2,7 @@
  * 編集チェーンとリセット整合の統合テスト（新チェーン: impressions → chapter → intro-outro）。
  * AI 層（generateObject / generateText）とタスク投入（enqueueEditingStep）のみモックし、
  * 編集パイプライン・討論リセット経路の本物を最小インメモリ Firestore 上で通しで動かす。
- * 記事要素は統合保存 editorial/0（導入/締め/所感）＋ editedChapters（本体）へ draft/final で揃う。
+ * 記事要素は統合保存 editorial/outputs（導入/締め/所感）＋ editedChapters（本体）へ draft/final で揃う。
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createFirestoreMock } from '../../helpers/firestore-mock.js';
@@ -37,7 +37,7 @@ const { mockBuildImpression, mockBuildNarration, mockBuildInput } = vi.hoisted((
 	mockBuildNarration: vi.fn(),
 	mockBuildInput: vi.fn()
 }));
-vi.mock('../../../pipeline/editing/element-builders.js', () => ({
+vi.mock('../../../pipeline/editing/editorial-builders.js', () => ({
 	buildImpressionPart: mockBuildImpression,
 	buildNarrationPart: mockBuildNarration,
 	buildIntroOutroInput: mockBuildInput
@@ -59,7 +59,7 @@ import { clearEditedArtifact } from '../../../pipeline/editing/edited-repository
 const mockGenerateObject = vi.mocked(generateObject);
 
 const editedChapterPath = (chapterId: string) => `topics/t1/editedChapters/${chapterId}`;
-const EDITORIAL_PATH = 'topics/t1/editorial/0';
+const EDITORIAL_PATH = 'topics/t1/editorial/outputs';
 
 const seedTopic = () => {
 	const mock = holder.mock!;
@@ -131,10 +131,10 @@ beforeEach(() => {
 	mockBuildInput.mockReset();
 	// 既定: 所感・導入/締めのビルダーは本物の writer 経由で完了確定する（段階書き込みを finish で代行）。
 	mockBuildImpression.mockImplementation(async (_persona, _turns, _personas, writer) => {
-		await writer.finish({ draft: '所感原本', final: '所感編集後' });
+		await writer.markEditorialFinished({ draft: '所感原本', final: '所感編集後' });
 	});
 	mockBuildNarration.mockImplementation(async (_kind, _input, writer) => {
-		await writer.finish({ draft: '整えテキスト', final: '整えテキスト' });
+		await writer.markEditorialFinished({ draft: '整えテキスト', final: '整えテキスト' });
 	});
 	mockBuildInput.mockResolvedValue({ ok: true, value: { digest: {}, topicContext: {} } });
 });

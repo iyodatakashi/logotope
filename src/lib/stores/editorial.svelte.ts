@@ -2,13 +2,13 @@ import { onSnapshot, doc } from 'firebase/firestore';
 import { db } from '$lib/firebase';
 import type {
 	EditorialForFirestore,
-	EditorialElementStatus,
+	EditorialStatus,
 	Narration,
 	ImpressionForFirestore,
 	Impression
 } from '$lib/models/editorial/editorial.types';
 
-// 統合保存 editorial/0（導入・締め・所感）を購読し、記事要素を進捗ステータス付きで公開する。
+// 統合保存 editorial/outputs（導入・締め・所感）を購読し、記事要素を進捗ステータス付きで公開する。
 // 導入/締め/所感を1ドキュメントに集約した唯一のストア（旧 intro/closing・所感の各ストアはこれに統合済み）。
 // ステータス欠落の既存データは完了（finished）として正規化し（過去の run で処理済みのため。成否は内容から算出）、
 // ドキュメント自体が無い場合の既定は生成待ち（pending）にする（Req 7.1, 7.2）。
@@ -16,7 +16,7 @@ export const createEditorialStore = (topicId: string) => {
 	const pending = (): Narration => ({ status: 'pending', draft: null, final: null });
 
 	// status 欠落は finished に backfill（既存ドキュメント要素は処理済みとみなす）。
-	const normalizeStatus = (status: EditorialElementStatus | undefined): EditorialElementStatus =>
+	const normalizeStatus = (status: EditorialStatus | undefined): EditorialStatus =>
 		status ?? 'finished';
 
 	const normalizeNarration = (part: Partial<Narration> | undefined): Narration =>
@@ -44,7 +44,7 @@ export const createEditorialStore = (topicId: string) => {
 	let unsubscribe: (() => void) | null = null;
 
 	const start = () => {
-		unsubscribe = onSnapshot(doc(db, 'topics', topicId, 'editorial', '0'), (snap) => {
+		unsubscribe = onSnapshot(doc(db, 'topics', topicId, 'editorial', 'outputs'), (snap) => {
 			if (!snap.exists()) {
 				// ドキュメント自体が無い＝未開始。生成待ちを既定にする。
 				intro = pending();

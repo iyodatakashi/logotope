@@ -109,7 +109,7 @@ const discardChaptersWithSideData = async (
 	await rollbackAwarenessesForRemovedTurns(topicId, removedTurnIds);
 	await deleteChapterEngagements(topicId, discardChapters);
 
-	// 原本（章のターン）が再生成されるため、編集成果物（editedChapters ＋ 統合保存 editorial/0）も破棄して
+	// 原本（章のターン）が再生成されるため、編集成果物（editedChapters ＋ 統合保存 editorial/outputs）も破棄して
 	// 原本との不整合を残さない（Req 5.6）。所感の原本も editorial に含まれるためここで一括破棄される。
 	await clearEditedArtifact(topicId);
 };

@@ -5,15 +5,16 @@ import type {
 	ImpressionForFirestore
 } from '../../types/editorial.types.js';
 
-// 導入・締め・所感を1つにまとめた統合ドキュメント editorial/0 の読み取りと部分上書き（blind write）。
+// 導入・締め・所感を1つにまとめた統合ドキュメント editorial/outputs の読み取りと部分上書き（blind write）。
 // 各 set は対象項目だけを書き、ドキュメント全体を読み直さず他要素を読み書きしない。
 // 別々の項目への更新は同時でも衝突しない（R6.2）。原本（討論生データ）は一切変更しない。
+// ダイジェストキャッシュ（editorial/digest）とは別ドキュメントに分離する（成果物のみ FE 購読対象）。
 
 const db = () => getFirestore();
 
-const editorialRef = (topicId: string) => db().doc(`topics/${topicId}/editorial/0`);
+const editorialRef = (topicId: string) => db().doc(`topics/${topicId}/editorial/outputs`);
 
-// 未着手の記事要素（生成待ち・内容空）。生成待ちと失敗は内容が同じ（空）でステータスのみで区別する。
+// 未着手の editorial（導入・締め・所感）（生成待ち・内容空）。生成待ちと失敗は内容が同じ（空）でステータスのみで区別する。
 const emptyNarration = (): Narration => ({ status: 'pending', draft: null, final: null });
 
 /** 統合ドキュメントを読み取る。欠落項目は生成待ち（status='pending'・内容空）/ impressions={} で補完して返す */
@@ -58,26 +59,26 @@ export const clearEditorial = async (topicId: string): Promise<void> => {
 	});
 };
 
-// 記事要素1つを「生成中 →（原本成功で）整え中 → 完了」で段階的に部分上書きするハンドル（blind write）。
+// editorial（導入・締め・所感）1つを「生成中 →（原本成功で）整え中 → 完了」で段階的に部分上書きするハンドル（blind write）。
 // build（一括生成・個別再生成）が生成の進行に合わせて呼ぶ。段階ごとに status を書くため FE が途中経過を出せる。
-export type ElementWriter = {
+export type EditorialWriter = {
 	// 生成開始: 生成中にし内容を破棄する（再生成では旧 draft/final を即時に消す）
-	begin: () => Promise<void>;
+	markEditorialGenerating: () => Promise<void>;
 	// 原本生成 成功: 整え中にし原本を保存する（final は未確定のまま）
-	toEditing: (draft: string) => Promise<void>;
+	markEditorialEditing: (draft: string) => Promise<void>;
 	// 処理完了: 内容を確定する（final あり＝編集済み / draft のみ＝編集失敗 / 空＝生成失敗）
-	finish: (content: { draft: string | null; final: string | null }) => Promise<void>;
+	markEditorialFinished: (content: { draft: string | null; final: string | null }) => Promise<void>;
 };
 
 /** 導入・締めの1要素への段階書き込みハンドル */
-export const narrationWriter = (topicId: string, kind: 'intro' | 'outro'): ElementWriter => {
+export const narrationWriter = (topicId: string, kind: 'intro' | 'outro'): EditorialWriter => {
 	const set = kind === 'intro' ? setIntro : setOutro;
 	return {
-		begin: () => set(topicId, { status: 'generating', draft: null, final: null }),
-		toEditing: async (draft) => {
+		markEditorialGenerating: () => set(topicId, { status: 'generating', draft: null, final: null }),
+		markEditorialEditing: async (draft) => {
 			await editorialRef(topicId).update({ [`${kind}.status`]: 'editing', [`${kind}.draft`]: draft });
 		},
-		finish: ({ draft, final }) => set(topicId, { status: 'finished', draft, final })
+		markEditorialFinished: ({ draft, final }) => set(topicId, { status: 'finished', draft, final })
 	};
 };
 
@@ -86,15 +87,15 @@ export const impressionWriter = (
 	topicId: string,
 	personaId: string,
 	sortOrder: number
-): ElementWriter => ({
-	begin: () =>
+): EditorialWriter => ({
+	markEditorialGenerating: () =>
 		setImpression(topicId, personaId, { sortOrder, status: 'generating', draft: null, final: null }),
-	toEditing: async (draft) => {
+	markEditorialEditing: async (draft) => {
 		await editorialRef(topicId).update({
 			[`impressions.${personaId}.status`]: 'editing',
 			[`impressions.${personaId}.draft`]: draft
 		});
 	},
-	finish: ({ draft, final }) =>
+	markEditorialFinished: ({ draft, final }) =>
 		setImpression(topicId, personaId, { sortOrder, status: 'finished', draft, final })
 });

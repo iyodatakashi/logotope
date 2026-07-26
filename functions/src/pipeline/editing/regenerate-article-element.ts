@@ -3,13 +3,14 @@ import { getPersonasByTopicId } from '../personas/personas.js';
 import { getDebateTurnsByTopicId } from '../debate/chapter.js';
 import { pipelineErrorMessage } from '../debate/utils.js';
 import { narrationWriter, impressionWriter } from './editorial-repository.js';
-import { buildImpressionPart, buildNarrationPart, buildIntroOutroInput } from './element-builders.js';
+import { buildImpressionPart, buildNarrationPart, buildIntroOutroInput } from './editorial-builders.js';
 import { readRawChapters, runChapterEditStep } from './editing-step.js';
 import { finalizeEditingRun } from './editing-lifecycle.js';
 
-// 記事要素1つを種別に応じて build（段階書き込み）で作り直すコア関数群。対象要素以外は変更しない。
-// build 開始時に既存内容を破棄して生成中にし（再生成の意図を即時反映・Req 5.1）、段階を経て完了で確定する。
-// 生成できれば編集済み／編集失敗、生成失敗なら空（生成失敗）で確定し旧内容は保持しない（Req 5.2, 5.3。専用の
+// ArticleElement（章／導入／締め／所感）1つを種別に応じて作り直すコア関数群。対象要素以外は変更しない。
+// 開始時に既存内容を破棄して生成中にし（再生成の意図を即時反映・Req 1.1, 1.2）、段階を経て完了で確定する。
+// 導入・締めは「生成中への切替」を重い前処理（ダイジェスト）より前に出す（呼び出し側の責務・Req 4.1, 4.2）。
+// 生成できれば編集済み／編集失敗、生成失敗なら空（生成失敗）で確定し旧内容は保持しない（専用の
 // regenerating 状態は作らず generating を再利用）。編集が確定済み（generated/stopped）は呼び出し側がゲートする。
 
 const db = () => getFirestore();
@@ -36,12 +37,15 @@ export const regenerateIntro = (topicId: string): Promise<void> => regenerateNar
 export const regenerateOutro = (topicId: string): Promise<void> => regenerateNarration(topicId, 'outro');
 
 /**
- * 導入・締め共通の再生成。ダイジェスト構築が失敗しても例外にせず、生成失敗（空）で確定する
- * （旧内容は破棄し status で可視化する・Req 5.1, 5.3。生成の成否は status＋内容で表れるため throw しない）。
- * 構築成功時は build が「生成中→整え中→完了」で段階書き込みし、成否を内容で確定する。
+ * 導入・締め共通の再生成。まず「生成中への切替（旧内容クリア）」を単一書き込み・非トランザクションで行い、
+ * 重い前処理（ダイジェスト入力構築）より前に生成中を即時反映する（Req 1.1, 1.2, 2.1, 2.2, 4.1, 4.2）。
+ * その後の前処理が失敗しても例外にせず、生成失敗（空）で終端に確定して「生成中」で固着させない（Req 3.1）。
+ * 構築成功時は build が「整え中→完了」で段階書き込みし、成否を内容で確定する（切替は済み前提）。
  */
 const regenerateNarration = async (topicId: string, kind: 'intro' | 'outro'): Promise<void> => {
 	const writer = narrationWriter(topicId, kind);
+	await writer.markEditorialGenerating(); // 生成中へ即時切替（旧内容クリア）を重い前処理より先に出す
+
 	const inputResult = await buildIntroOutroInput(topicId);
 	if (!inputResult.ok) {
 		console.warn('[regenerateNarration] digest build failed', {
@@ -49,7 +53,7 @@ const regenerateNarration = async (topicId: string, kind: 'intro' | 'outro'): Pr
 			kind,
 			error: pipelineErrorMessage(inputResult.error)
 		});
-		await writer.finish({ draft: null, final: null }); // 生成失敗で確定（旧内容は破棄）
+		await writer.markEditorialFinished({ draft: null, final: null }); // 生成失敗で終端に確定
 		return;
 	}
 	await buildNarrationPart(kind, inputResult.value, writer);

@@ -111,12 +111,12 @@ export const createTopicStates = (topicDoc: Topic) => {
 
 	// 未完成の記事要素（章／導入／締め／所感の1人）を種別ごとに個別再生成する共通入口。
 	// 編集確定後（generated/stopped）のみ受け付けられ、実行中はサーバ側で拒否される。
-	const regenerateArticleElement = async (element: ArticleElement): Promise<void> => {
+	const regenerateArticleElement = async (articleElement: ArticleElement): Promise<void> => {
 		const regenerateCallable = httpsCallable<
-			{ topicId: string; element: ArticleElement },
+			{ topicId: string; articleElement: ArticleElement },
 			{ topicId: string }
 		>(functions, 'regenerateArticleElement', { timeout: 300000 });
-		await regenerateCallable({ topicId: id, element });
+		await regenerateCallable({ topicId: id, articleElement });
 	};
 
 	// トピックを公開する。名前は publish だが、公開時点のペルソナ数を数え直して personaCount に焼き込む

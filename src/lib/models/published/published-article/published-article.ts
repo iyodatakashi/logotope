@@ -33,7 +33,7 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 	if (topic.published !== true || !topic.publishedAt) return null;
 
 	const [editorialSnap, editedChapterSnaps, chapterSnaps, personaSnaps] = await Promise.all([
-		getDoc(doc(publicDb, 'topics', topicId, 'editorial', '0')),
+		getDoc(doc(publicDb, 'topics', topicId, 'editorial', 'outputs')),
 		getDocs(
 			query(collection(publicDb, 'topics', topicId, 'editedChapters'), orderBy('chapterIndex'))
 		),

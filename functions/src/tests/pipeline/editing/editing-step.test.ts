@@ -20,10 +20,10 @@ vi.mock('firebase-admin/firestore', () => ({
 
 vi.mock('ai', () => ({ generateObject: vi.fn() }));
 vi.mock('../../../llm/models.js', () => ({ sonnet: 'mock-model' }));
-vi.mock('../../../pipeline/editing/element-builders.js', () => ({ buildImpressionPart: vi.fn() }));
+vi.mock('../../../pipeline/editing/editorial-builders.js', () => ({ buildImpressionPart: vi.fn() }));
 
 import { generateObject } from 'ai';
-import { buildImpressionPart } from '../../../pipeline/editing/element-builders.js';
+import { buildImpressionPart } from '../../../pipeline/editing/editorial-builders.js';
 import {
 	validateEditedChapter,
 	reinsertProtectedTurns,
@@ -304,14 +304,14 @@ describe('runImpressionsStep', () => {
 	});
 
 	const editorial = () =>
-		holder.mock!.store.get('topics/t1/editorial/0') as {
+		holder.mock!.store.get('topics/t1/editorial/outputs') as {
 			impressions?: Record<string, unknown>;
 		} | undefined;
 
 	// build（本物）は writer 経由で段階書き込みする。ここでは finish で完了確定を代行する。
 	const finishAs = (final: string | null) =>
 		mockBuildImpressionPart.mockImplementation(async (persona, _turns, _personas, writer) => {
-			await writer.finish({ draft: `${persona.id}原本`, final: final === null ? null : `${persona.id}編集後` });
+			await writer.markEditorialFinished({ draft: `${persona.id}原本`, final: final === null ? null : `${persona.id}編集後` });
 		});
 
 	it('承認済みペルソナごとに所感を統合保存へ部分上書きし、未承認は対象外にする', async () => {
@@ -329,7 +329,7 @@ describe('runImpressionsStep', () => {
 	it('生成失敗の参加者も完了（空＝生成失敗）で確定し、他参加者は揃う（Req 2.1, 2.2）', async () => {
 		mockBuildImpressionPart.mockImplementation(async (persona, _turns, _personas, writer) => {
 			// p2 は生成全滅 → 完了（空）で確定。他は編集済み。
-			await writer.finish(
+			await writer.markEditorialFinished(
 				persona.id === 'p2'
 					? { draft: null, final: null }
 					: { draft: `${persona.id}原本`, final: `${persona.id}編集後` }
@@ -345,7 +345,7 @@ describe('runImpressionsStep', () => {
 	});
 
 	it('既に原本のある参加者は二重生成しない（run 内リトライ保護・Req 5.2）', async () => {
-		holder.mock!.store.set('topics/t1/editorial/0', {
+		holder.mock!.store.set('topics/t1/editorial/outputs', {
 			intro: { status: 'pending', draft: null, final: null },
 			outro: { status: 'pending', draft: null, final: null },
 			impressions: { p1: { sortOrder: 0, status: 'finished', draft: '既存p1原本', final: '既存p1編集後' } }

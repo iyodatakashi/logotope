@@ -91,8 +91,8 @@
 
 	// 記事要素（導入・締め・所感・章）の個別再生成はサーバへ委譲するだけ。処理中のローディングは各 Section が
 	// 自持ちする（クリック→サーバが生成中を書くまでの遅延分。以降は要素の状態が引き継いで表示する）。
-	const regenerateArticleElement = (element: ArticleElement): Promise<void> => {
-		return currentTopicStore.topic?.regenerateArticleElement(element) ?? Promise.resolve();
+	const regenerateArticleElement = (articleElement: ArticleElement): Promise<void> => {
+		return currentTopicStore.topic?.regenerateArticleElement(articleElement) ?? Promise.resolve();
 	};
 
 	// 編集済み章: 編集後ターン（原本ターンを統合しうる）と、どこにも使われず削除された原本ターンを、原本順に1列へマージする。

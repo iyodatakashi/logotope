@@ -11,7 +11,7 @@ import {
 	regenerateIntro,
 	regenerateOutro,
 	regenerateImpression
-} from '../pipeline/editing/regenerate-element.js';
+} from '../pipeline/editing/regenerate-article-element.js';
 import { isDebateCompleted } from '../pipeline/debate/debate-lifecycle.js';
 import { requireAuth } from '../utils/auth.js';
 import type { EditingStepPayload } from '../pipeline/editing/enqueue-editing-step.js';
@@ -61,16 +61,19 @@ export const startEditing = onCall({ timeoutSeconds: 60 }, async (request) => {
 
 /**
  * 記事要素の個別再生成の共通入口（薄い呼び出し口）。認証・「編集実行中は受け付けない」拒否・
- * 種別ごとのコア関数への振り分け・失敗のエラー化だけを行う。ロジックはコア関数（regenerate-element）が持つ。
+ * 種別ごとのコア関数への振り分け・失敗のエラー化だけを行う。ロジックはコア関数（regenerate-article-element）が持つ。
  * 実行中（phase editing かつ phaseStatus running）は failed-precondition で拒否する（Req 4.7）。
  */
 export const regenerateArticleElement = onCall(
 	{ timeoutSeconds: 300, secrets: SECRETS },
 	async (request) => {
 		requireAuth(request);
-		const { topicId, element } = request.data as { topicId?: string; element?: ArticleElement };
-		if (!topicId?.trim() || !element?.kind) {
-			throw new HttpsError('invalid-argument', 'topicId and element are required');
+		const { topicId, articleElement } = request.data as {
+			topicId?: string;
+			articleElement?: ArticleElement;
+		};
+		if (!topicId?.trim() || !articleElement?.kind) {
+			throw new HttpsError('invalid-argument', 'topicId and articleElement are required');
 		}
 
 		try {
@@ -81,12 +84,12 @@ export const regenerateArticleElement = onCall(
 				throw new HttpsError('failed-precondition', 'Editing is running');
 			}
 
-			switch (element.kind) {
+			switch (articleElement.kind) {
 				case 'chapter':
-					if (!element.chapterId?.trim()) {
+					if (!articleElement.chapterId?.trim()) {
 						throw new HttpsError('invalid-argument', 'chapterId is required');
 					}
-					await regenerateChapter(topicId, element.chapterId);
+					await regenerateChapter(topicId, articleElement.chapterId);
 					break;
 				case 'intro':
 					await regenerateIntro(topicId);
@@ -95,18 +98,18 @@ export const regenerateArticleElement = onCall(
 					await regenerateOutro(topicId);
 					break;
 				case 'impression':
-					if (!element.personaId?.trim()) {
+					if (!articleElement.personaId?.trim()) {
 						throw new HttpsError('invalid-argument', 'personaId is required');
 					}
-					await regenerateImpression(topicId, element.personaId);
+					await regenerateImpression(topicId, articleElement.personaId);
 					break;
 				default:
-					throw new HttpsError('invalid-argument', 'unknown element kind');
+					throw new HttpsError('invalid-argument', 'unknown articleElement kind');
 			}
 
 			return { topicId };
 		} catch (err) {
-			console.error('[regenerateArticleElement] error', { topicId, element }, err);
+			console.error('[regenerateArticleElement] error', { topicId, articleElement }, err);
 			throw err instanceof HttpsError
 				? err
 				: new HttpsError('internal', err instanceof Error ? err.message : String(err));

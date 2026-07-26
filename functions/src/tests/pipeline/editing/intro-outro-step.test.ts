@@ -16,19 +16,19 @@ const { holder } = vi.hoisted(() => ({
 }));
 
 vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => holder.mock!.firestore }));
-vi.mock('../../../pipeline/editing/element-builders.js', () => ({
+vi.mock('../../../pipeline/editing/editorial-builders.js', () => ({
 	buildIntroOutroInput: mockBuildInput,
 	buildNarrationPart: mockBuildNarration
 }));
 vi.mock('../../../pipeline/editing/editing-lifecycle.js', () => ({
 	finalizeEditingRun: mockFinalize,
-	finalizePendingEditorialElements: mockSweep
+	finalizePendingEditorials: mockSweep
 }));
 
 import { createFirestoreMock } from '../../helpers/firestore-mock.js';
 import { runIntroOutroStep } from '../../../pipeline/editing/intro-outro-step.js';
 
-const EDITORIAL_PATH = 'topics/t1/editorial/0';
+const EDITORIAL_PATH = 'topics/t1/editorial/outputs';
 const base = () => ({
 	intro: { status: 'pending', draft: null, final: null },
 	outro: { status: 'pending', draft: null, final: null },
@@ -43,7 +43,7 @@ beforeEach(() => {
 	mockFinalize.mockResolvedValue('generated');
 	// build は writer 経由で段階書き込みする本物の責務。ここでは finish で完了確定を代行する。
 	mockBuildNarration.mockImplementation(async (kind: 'intro' | 'outro', _input, writer) => {
-		await writer.finish(
+		await writer.markEditorialFinished(
 			kind === 'intro'
 				? { draft: '導入原本', final: '導入編集後' }
 				: { draft: '締め原本', final: '締め編集後' }
@@ -64,16 +64,29 @@ describe('runIntroOutroStep', () => {
 		expect(result).toBe('generated');
 	});
 
-	it('ダイジェスト構築が失敗しても intro/outro を書かず、スイープ→finalize へ到達する（best-effort）', async () => {
+	it('ダイジェスト構築が失敗しても、生成中への切替は前処理より前に済ませ、原本生成はせずスイープ→finalize へ到達する（best-effort）', async () => {
 		mockBuildInput.mockResolvedValueOnce({ ok: false, error: { code: 'NOT_FOUND' } });
 
 		await runIntroOutroStep('t1', 'r1');
 
 		expect(mockBuildNarration).not.toHaveBeenCalled();
-		// 未生成のまま（未完了要素の確定は終端スイープの責務）
-		expect(editorial().intro).toEqual({ status: 'pending', draft: null, final: null });
+		// 切替はダイジェスト構築より前に済んでいる（生成中で表示される）。生成失敗への確定は終端スイープの責務。
+		expect(editorial().intro).toEqual({ status: 'generating', draft: null, final: null });
+		expect(editorial().outro).toEqual({ status: 'generating', draft: null, final: null });
 		expect(mockSweep).toHaveBeenCalledWith('t1');
 		expect(mockFinalize).toHaveBeenCalledWith('t1', 'r1');
+	});
+
+	it('生成中への切替（generating 書き込み）が buildIntroOutroInput より前に行われる（R1.2/R4.2）', async () => {
+		let statusAtDigestBuild: string | undefined;
+		mockBuildInput.mockImplementationOnce(async () => {
+			statusAtDigestBuild = editorial().intro.status;
+			return { ok: true, value: { digest: {}, topicContext: {} } };
+		});
+
+		await runIntroOutroStep('t1', 'r1');
+
+		expect(statusAtDigestBuild).toBe('generating');
 	});
 
 	it('既に原本のある要素は二重生成しない（run 内リトライ保護・Req 5.2）', async () => {

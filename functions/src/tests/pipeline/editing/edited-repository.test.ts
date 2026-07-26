@@ -21,7 +21,7 @@ import {
 } from '../../../pipeline/editing/edited-repository.js';
 
 const chapterPath = (chapterId: string) => `topics/t1/editedChapters/${chapterId}`;
-const EDITORIAL_PATH = 'topics/t1/editorial/0';
+const EDITORIAL_PATH = 'topics/t1/editorial/outputs';
 
 const makeChapter = (
 	chapterId: string,
@@ -87,7 +87,7 @@ describe('readEditedChapters', () => {
 });
 
 describe('clearEditedArtifact', () => {
-	it('全 editedChapters を削除し 統合保存 editorial/0 を初期化する', async () => {
+	it('全 editedChapters を削除し 統合保存 editorial/outputs を初期化する', async () => {
 		await writeEditedChapter('t1', 'c1', makeChapter('c1', 0));
 		await writeEditedChapter('t1', 'c2', makeChapter('c2', 1));
 		holder.mock!.store.set(EDITORIAL_PATH, {
@@ -117,5 +117,17 @@ describe('clearEditedArtifact', () => {
 			chapterIndex: 0,
 			turns: ['raw']
 		});
+	});
+
+	it('討論ダイジェストのキャッシュ（editorial/digest）も削除して無効化する（R5.3）', async () => {
+		holder.mock!.store.set('topics/t1/editorial/digest', {
+			topicTitle: 'テーマ',
+			chapters: [],
+			personas: []
+		});
+
+		await clearEditedArtifact('t1');
+
+		expect(holder.mock!.store.has('topics/t1/editorial/digest')).toBe(false);
 	});
 });
