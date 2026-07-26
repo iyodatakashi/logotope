@@ -43,6 +43,8 @@ Kiro-style Spec-Driven Development on an agentic SDLC
 - Human review required each phase; use `-y` only for intentional fast-track
 - Keep steering current and verify alignment with `/kiro:spec-status`
 - **使い捨てスクリプトを二度と書かない（プロジェクト全体・恒久ルール）。** 生成・検証・実験・「試しに動かす」コードを、その場で書いて `rm` する使い捨てにしない。必ずリポジトリに残る本物の実装（engine / prompt / image-client / verify 等）に組み込んでから動かし、消さない。検証ハーネスは本番と同一コード（共有エンジン）を呼ぶ。理由: 使い捨てはその場だけ解決してシステムに残らず、後で再現できない（＝先行 spec が採用手法を失った失敗そのもの／再現可能な実行コードとして残すのが絶対条件）。
+  - **趣旨の明確化:** 本ルールが禁じるのは「チャット内でその場限りに実行され、残らず・再利用性が全くない」こと。一時的・一度きりの処理そのものは禁止ではなく、**リポジトリにファイルとして保存すれば本ルールに反しない**（例: データ移行 backfill を `functions/src/scripts/` にコミットして残す）。「本番と同一エンジンを呼ぶ」厳格さは主に**検証ハーネス**（本番と乖離すると再現不能になる）に適用する。移行・backfill のような一過性処理は「保存・再現可能」であれば足り、過剰に躊躇しない。
+- **プロジェクト外の私的「メモリー」を使わない（恒久ルール）。** `~/.claude/` 配下の私専用の自動メモ／メモリはチーム非共有・リポジトリ外・不可視で、プロジェクトの記録として機能しない。**そこには保存しない。** 残すべき知識・規約・設計判断・経緯・決定は必ずリポジトリ内（CLAUDE.md / `.kiro/steering/` / 該当 spec のドキュメント）に書く。「記憶に反映しておきます」で完結させない。
 - Follow the user's instructions precisely, and within that scope act autonomously: gather the necessary context and complete the requested work end-to-end in this run, asking questions only when essential information is missing or the instructions are critically ambiguous.
 
 ## Steering Configuration
