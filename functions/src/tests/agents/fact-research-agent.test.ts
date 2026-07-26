@@ -77,7 +77,7 @@ describe('runFactResearch', () => {
 			structured([{ statement: '日本は決勝トーナメント1回戦で敗退した', sourceIndices: [1] }])
 		);
 
-		const result = await runFactResearch('2026年W杯の日本を振り返る', NOW);
+		const result = await runFactResearch('2026年W杯の日本を振り返る', '', NOW);
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -96,7 +96,7 @@ describe('runFactResearch', () => {
 			structured([{ statement: '事実', sourceIndices: [1] }])
 		);
 
-		const result = await runFactResearch('テーマ', NOW);
+		const result = await runFactResearch('テーマ', '', NOW);
 
 		expect(result.ok).toBe(true);
 		if (result.ok) expect(result.value.generatedAt).toEqual(NOW);
@@ -112,7 +112,7 @@ describe('runFactResearch', () => {
 			structured([{ statement: '事実', sourceIndices: [2] }])
 		);
 
-		const result = await runFactResearch('テーマ', NOW);
+		const result = await runFactResearch('テーマ', '', NOW);
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -124,7 +124,7 @@ describe('runFactResearch', () => {
 		setResolvedSources([]);
 		mockGenerateText.mockResolvedValueOnce(groundingResult([]));
 
-		const result = await runFactResearch('時事性のないテーマ', NOW);
+		const result = await runFactResearch('時事性のないテーマ', '', NOW);
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -139,7 +139,7 @@ describe('runFactResearch', () => {
 		mockGenerateText.mockResolvedValueOnce(groundingResult());
 		mockGenerateObject.mockResolvedValueOnce(structured([]));
 
-		await runFactResearch('テーマ', NOW);
+		await runFactResearch('テーマ', '', NOW);
 
 		const args = mockGenerateText.mock.calls[0][0] as { tools?: Record<string, unknown> };
 		expect(args.tools?.['google_search']).toBeDefined();
@@ -150,7 +150,7 @@ describe('runFactResearch', () => {
 		mockGenerateText.mockResolvedValueOnce(groundingResult());
 		mockGenerateObject.mockResolvedValueOnce(structured([]));
 
-		await runFactResearch('2026年W杯の日本を振り返る', NOW);
+		await runFactResearch('2026年W杯の日本を振り返る', '', NOW);
 
 		const prompt = (mockGenerateText.mock.calls[0][0] as { messages: Array<{ content: string }> })
 			.messages[0].content;
@@ -169,7 +169,7 @@ describe('runFactResearch', () => {
 			])
 		);
 
-		const result = await runFactResearch('テーマ', NOW);
+		const result = await runFactResearch('テーマ', '', NOW);
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -181,7 +181,7 @@ describe('runFactResearch', () => {
 	it('プロバイダ利用不可なら AI_API_ERROR（retryable:false）を返す', async () => {
 		mockGetGoogleProvider.mockReturnValueOnce(null);
 
-		const result = await runFactResearch('テーマ', NOW);
+		const result = await runFactResearch('テーマ', '', NOW);
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
@@ -193,7 +193,7 @@ describe('runFactResearch', () => {
 	it('grounding 失敗時は AI_API_ERROR（retryable:true）を返す', async () => {
 		mockGenerateText.mockRejectedValueOnce(new Error('grounding error'));
 
-		const result = await runFactResearch('テーマ', NOW);
+		const result = await runFactResearch('テーマ', '', NOW);
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
@@ -208,7 +208,7 @@ describe('runFactResearch', () => {
 			setResolvedSources([{ title: 'a', url: 'https://a.com' }]);
 			mockGenerateText.mockResolvedValueOnce(groundingResult());
 			mockGenerateObject.mockResolvedValueOnce(structured([]));
-			await runFactResearch('沖縄の基地問題を振り返る', NOW);
+			await runFactResearch('沖縄の基地問題を振り返る', '', NOW);
 			const groundingPrompt = (
 				mockGenerateText.mock.calls[0][0] as { messages: Array<{ content: string }> }
 			).messages[0].content;
@@ -262,7 +262,7 @@ describe('runFactResearch', () => {
 			setResolvedSources([{ title: 'a', url: 'https://a.com' }]);
 			mockGenerateText.mockResolvedValueOnce(groundingResult());
 			mockGenerateObject.mockResolvedValueOnce(structured([]));
-			await runFactResearch('北方領土の帰属を巡る問題', NOW);
+			await runFactResearch('北方領土の帰属を巡る問題', '', NOW);
 			const groundingPrompt = (
 				mockGenerateText.mock.calls[0][0] as { messages: Array<{ content: string }> }
 			).messages[0].content;
