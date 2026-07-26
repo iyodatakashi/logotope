@@ -10,11 +10,7 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
-import type {
-	PersonaForFirestore,
-	Persona,
-	PersonaForInterview
-} from '$lib/models/persona/persona.types';
+import type { PersonaForFirestore, Persona } from '$lib/models/persona/persona.types';
 
 const toPersona = (id: string, raw: PersonaForFirestore): Persona => ({
 	...raw,
@@ -147,29 +143,12 @@ export const createPersonasStore = (topicId: string) => {
 
 		// 取材結果の永続化（completed/error）はサーバ権威で行う。FE は結果を書かず onSnapshot で反映する。
 		// 呼び出しの reject は握りつぶさず呼び出し元へ伝播させ、fanout 側の失敗集約に委ねる。
+		// ペルソナ本体は送らない。サーバが personaId で Firestore から読む（自データの権威はサーバ）。
 		const fn = httpsCallable<
-			{
-				topicId: string;
-				personaId: string;
-				topicTitle: string;
-				persona: PersonaForInterview;
-			},
+			{ topicId: string; personaId: string; topicTitle: string },
 			Record<string, never>
 		>(functions, 'runInterview', { timeout: 310000 });
-		await fn({
-			topicId,
-			personaId,
-			topicTitle,
-			persona: {
-				name: persona.name,
-				age: persona.age,
-				occupation: persona.occupation,
-				stakeholderRole: persona.stakeholderRole,
-				specificRole: persona.specificRole ?? persona.stakeholderRole,
-				background: persona.background,
-				interests: persona.interests
-			}
-		});
+		await fn({ topicId, personaId, topicTitle });
 	};
 
 	return {

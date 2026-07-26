@@ -3,6 +3,7 @@ import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import { requireAuth } from '../utils/auth.js';
 import { runInterview as runInterviewAgent } from '../agents/interview-agent.js';
 import { getTopicContext } from '../pipeline/topics/topic-context.js';
+import { getPersonaById } from '../pipeline/personas/personas.js';
 import { confirmInterviewsGeneratedIfAllComplete } from '../pipeline/interviews/interview-completion.js';
 import type { Persona } from '../types/persona.types.js';
 
@@ -55,16 +56,18 @@ export const runInterviewCore = async (
 
 export const runInterview = onCall({ timeoutSeconds: 300, secrets: SECRETS }, async (request) => {
 	requireAuth(request);
-	const { topicId, personaId, topicTitle, persona } = request.data as {
+	const { topicId, personaId, topicTitle } = request.data as {
 		topicId: string;
 		personaId: string;
 		topicTitle: string;
-		persona: Persona;
 	};
 	if (!topicId?.trim()) throw new HttpsError('invalid-argument', 'topicId is required');
 	if (!personaId?.trim()) throw new HttpsError('invalid-argument', 'personaId is required');
 	if (!topicTitle?.trim()) throw new HttpsError('invalid-argument', 'topicTitle is required');
-	if (!persona?.name) throw new HttpsError('invalid-argument', 'persona is required');
+
+	// ペルソナは FE から受け取らず、サーバが id で Firestore から読む（自データの Single Source of Truth はサーバ）。
+	const persona = await getPersonaById(topicId, personaId);
+	if (!persona) throw new HttpsError('not-found', 'Persona not found');
 
 	try {
 		await runInterviewCore(topicId, personaId, topicTitle, persona);

@@ -100,13 +100,3 @@ export type Persona = Omit<
 	awarenesses?: Awareness[];
 	avatarGeneratedAt?: Date;
 };
-
-export type PersonaForInterview = {
-	name: string;
-	age: number;
-	occupation: string;
-	stakeholderRole: string;
-	specificRole: string;
-	background: string;
-	interests: string;
-};

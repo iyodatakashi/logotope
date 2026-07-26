@@ -75,7 +75,6 @@ const validData = (overrides: Record<string, unknown> = {}) => ({
 	topicId: TOPIC_ID,
 	personaId: PERSONA_ID,
 	topicTitle: TITLE,
-	persona: mockPersona,
 	...overrides
 });
 
@@ -90,7 +89,8 @@ const agentOutput = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	holder.mock = createFirestoreMock();
-	holder.mock.store.set(`topics/${TOPIC_ID}/personas/${PERSONA_ID}`, { sortOrder: 0 });
+	// ペルソナ本体はサーバが id で読むため、文書に基本フィールドを持たせておく。
+	holder.mock.store.set(`topics/${TOPIC_ID}/personas/${PERSONA_ID}`, { sortOrder: 0, ...mockPersona });
 	mockGetTopicContext.mockResolvedValue({});
 });
 
@@ -113,9 +113,10 @@ describe('runInterview handler', () => {
 		});
 	});
 
-	it('persona がない場合は invalid-argument エラーを投げる', async () => {
-		await expect(handler(makeRequest(validData({ persona: undefined })))).rejects.toMatchObject({
-			code: 'invalid-argument'
+	it('ペルソナ文書が存在しない場合は not-found エラーを投げる（サーバが id で読む）', async () => {
+		holder.mock!.store.delete(`topics/${TOPIC_ID}/personas/${PERSONA_ID}`);
+		await expect(handler(makeRequest(validData()))).rejects.toMatchObject({
+			code: 'not-found'
 		});
 	});
 
