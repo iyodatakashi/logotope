@@ -13,6 +13,10 @@
 </span>
 
 <style>
+	/* 原文の改行をそのまま反映する（非 diff 表示の convertToHtml と揃える）。 */
+	.diff-text {
+		white-space: pre-wrap;
+	}
 	ins {
 		background: #e6ffed;
 		color: #22863a;
