@@ -23,7 +23,7 @@ describe('DebateChapterIndex.svelte（章と論点の目次）', () => {
 		expect(page.getByText('論点B').elements()).toHaveLength(0);
 	});
 
-	it('進行中の章は agendaItemStatuses の進捗バッジ（未/着/済）を出す', async () => {
+	it('進行中の章は agendaItemStatuses の進捗を論点ごとに data-status で出す', async () => {
 		const running = chapter({
 			status: 'running',
 			agendaItemStatuses: [
@@ -32,7 +32,16 @@ describe('DebateChapterIndex.svelte（章と論点の目次）', () => {
 			]
 		});
 		render(DebateChapterIndex, { chapters: [running], currentChapter: running });
-		await expect.element(page.getByText('済')).toBeInTheDocument();
-		await expect.element(page.getByText('着')).toBeInTheDocument();
+
+		const statusOf = (point: string) =>
+			page
+				.getByText(point)
+				.element()
+				.closest('.debate-chapter-index__agenda-item')
+				?.getAttribute('data-status');
+
+		await expect.element(page.getByText('論点A')).toBeInTheDocument();
+		expect(statusOf('論点A')).toBe('addressed');
+		expect(statusOf('論点B')).toBe('introduced');
 	});
 });
