@@ -182,6 +182,16 @@ describe('editImpression', () => {
 		if (result.ok) expect(result.value).toBe('整えた所感');
 	});
 
+	it('空行（連続改行）は単一の改行へ畳む（表示で <br /> が重ならないように）', async () => {
+		generateObject.mockResolvedValueOnce(
+			makeObjectResult({ content: '前段の所感です。\n\n次の段落です。\n \n最後の段落です。' })
+		);
+		const { editImpression } = await import('../../agents/editor-agent.js');
+		const result = await editImpression('原本');
+		expect(result.ok).toBe(true);
+		if (result.ok) expect(result.value).toBe('前段の所感です。\n次の段落です。\n最後の段落です。');
+	});
+
 	it('空文字が返った場合は AI_API_ERROR を返す', async () => {
 		generateObject.mockResolvedValueOnce(makeObjectResult({ content: '   ' }));
 		const { editImpression } = await import('../../agents/editor-agent.js');

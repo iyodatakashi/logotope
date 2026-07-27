@@ -70,7 +70,8 @@ const editNarrationSystemPrompt = `${editingStance}
 以下は導入・締め・所感などの散文を編集するときのルールです。
 - 対象は単一の連続した散文ブロック1つです。発言の分割・話者の区別・ターンの概念はありません（章編集のような構造ルールは適用しません）。
 - 元の文章の要素は落とさず、読みやすく整えます。新しい情報や論評を加えず、長さを大きく変えないでください。
-- 前置き・見出し・区切り線などは付けず、整えた本文だけを content に入れてください。`;
+- 前置き・見出し・区切り線などは付けず、整えた本文だけを content に入れてください。
+- 段落や意味の切れ目で改行してよいが、空行（連続した改行）は入れない。区切りは必ず1つの改行にする。`;
 
 const editChapterSchema = z.object({
 	turns: z.array(
@@ -169,7 +170,8 @@ const editNarration = async (
 			]
 		});
 
-		const text = result.object.content.trim();
+		// 散文は単一改行区切り。空行（連続改行）は表示で <br /> が重なるため1つの改行へ畳む。
+		const text = result.object.content.trim().replace(/\n[ \t]*\n+/g, '\n');
 		if (!text) {
 			return {
 				ok: false,
