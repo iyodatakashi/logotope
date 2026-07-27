@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DebateDigest } from '../../types/debate-digest.types.js';
 import type { TopicContext } from '../../types/topic.types.js';
-import type { IntroClosingInput } from '../../agents/intro-closing-agent.js';
+import type { IntroOutroInput } from '../../agents/intro-outro-agent.js';
 
 vi.mock('ai', () => ({
 	generateText: vi.fn()
@@ -35,7 +35,7 @@ const mockTopicContext: TopicContext = {
 	sourceContents: ['参考資料本文']
 };
 
-const mockInput: IntroClosingInput = { digest: mockDigest, topicContext: mockTopicContext };
+const mockInput: IntroOutroInput = { digest: mockDigest, topicContext: mockTopicContext };
 
 describe('generateIntro / generateOutro', () => {
 	let generateText: ReturnType<typeof vi.fn>;
@@ -52,7 +52,7 @@ describe('generateIntro / generateOutro', () => {
 			text: 'この討論は、リモートワークをめぐる問いから始まる。'
 		});
 
-		const { generateIntro } = await import('../../agents/intro-closing-agent.js');
+		const { generateIntro } = await import('../../agents/intro-outro-agent.js');
 		const result = await generateIntro(mockInput);
 
 		expect(result.ok).toBe(true);
@@ -65,7 +65,7 @@ describe('generateIntro / generateOutro', () => {
 	it('generateOutro は非空の散文を返す', async () => {
 		generateText.mockResolvedValueOnce({ text: '論点は交わされ、問いはなお開かれたままである。' });
 
-		const { generateOutro } = await import('../../agents/intro-closing-agent.js');
+		const { generateOutro } = await import('../../agents/intro-outro-agent.js');
 		const result = await generateOutro(mockInput);
 
 		expect(result.ok).toBe(true);
@@ -81,7 +81,7 @@ describe('generateIntro / generateOutro', () => {
 			return { text: '導入文' };
 		});
 
-		const { generateIntro } = await import('../../agents/intro-closing-agent.js');
+		const { generateIntro } = await import('../../agents/intro-outro-agent.js');
 		await generateIntro(mockInput);
 
 		const callArgs = capturedArgs[0] as { system: string; messages: Array<{ content: string }> };
@@ -97,7 +97,7 @@ describe('generateIntro / generateOutro', () => {
 			return { text: '導入文' };
 		});
 
-		const { generateIntro } = await import('../../agents/intro-closing-agent.js');
+		const { generateIntro } = await import('../../agents/intro-outro-agent.js');
 		await generateIntro(mockInput);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
@@ -112,14 +112,14 @@ describe('generateIntro / generateOutro', () => {
 		expect(userContent).not.toContain('対面の価値も再認識');
 	});
 
-	it('クロージング入力は討論内容（章要約・立場・信念変化）を含み、結びを討論に接地させる', async () => {
+	it('アウトロ入力は討論内容（章要約・立場・信念変化）を含み、結びを討論に接地させる', async () => {
 		const capturedArgs: unknown[] = [];
 		generateText.mockImplementationOnce(async (args: unknown) => {
 			capturedArgs.push(args);
 			return { text: '結び' };
 		});
 
-		const { generateOutro } = await import('../../agents/intro-closing-agent.js');
+		const { generateOutro } = await import('../../agents/intro-outro-agent.js');
 		await generateOutro(mockInput);
 
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };
@@ -130,14 +130,14 @@ describe('generateIntro / generateOutro', () => {
 		expect(userContent).toContain('対面の価値も再認識');
 	});
 
-	it('イントロとクロージングで指示文が異なる', async () => {
+	it('イントロとアウトロで指示文が異なる', async () => {
 		const captured: string[] = [];
 		generateText.mockImplementation(async (args: unknown) => {
 			captured.push((args as { messages: Array<{ content: string }> }).messages[0].content);
 			return { text: '文章' };
 		});
 
-		const { generateIntro, generateOutro } = await import('../../agents/intro-closing-agent.js');
+		const { generateIntro, generateOutro } = await import('../../agents/intro-outro-agent.js');
 		await generateIntro(mockInput);
 		await generateOutro(mockInput);
 
@@ -149,7 +149,7 @@ describe('generateIntro / generateOutro', () => {
 	it('LLM 出力が空なら AI_API_ERROR を返す', async () => {
 		generateText.mockResolvedValueOnce({ text: '' });
 
-		const { generateIntro } = await import('../../agents/intro-closing-agent.js');
+		const { generateIntro } = await import('../../agents/intro-outro-agent.js');
 		const result = await generateIntro(mockInput);
 
 		expect(result.ok).toBe(false);
@@ -161,7 +161,7 @@ describe('generateIntro / generateOutro', () => {
 	it('LLM 呼び出しが失敗した場合は AI_API_ERROR を返す', async () => {
 		generateText.mockRejectedValueOnce(new Error('api down'));
 
-		const { generateOutro } = await import('../../agents/intro-closing-agent.js');
+		const { generateOutro } = await import('../../agents/intro-outro-agent.js');
 		const result = await generateOutro(mockInput);
 
 		expect(result.ok).toBe(false);

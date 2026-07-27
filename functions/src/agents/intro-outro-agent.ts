@@ -5,19 +5,19 @@ import type { Result, PipelineError } from '../types/common.types.js';
 import type { TopicContext } from '../types/topic.types.js';
 import type { DebateDigest } from '../types/debate-digest.types.js';
 
-// イントロ・クロージング生成エージェント。テーマ文脈＋討論の骨子（章タイトル・論点・参加者名）から、
-// イントロ（読む前の読者を惹きつけるフック）とクロージング（読了後の読者への短い結び）を独立生成する。
+// イントロ・アウトロ生成エージェント。テーマ文脈＋討論の骨子（章タイトル・論点・参加者名）から、
+// イントロ（読む前の読者を惹きつけるフック）とアウトロ（読了後の読者への短い結び）を独立生成する。
 // ネタバレ防止のため、章要約・各人の立場・信念変化は渡さない（先回りの要約・なぞり返しを構造的に防ぐ）。
 // 由来ターンID・構造検証は持たない。討論は読み取りのみ。書き込み・保存はステップ層の責務。
 
 const MAX_SOURCE_CHARS = 3_000;
 
-export interface IntroClosingInput {
+export interface IntroOutroInput {
 	digest: DebateDigest; // 圧縮済みの討論（全文は渡さない）
 	topicContext: TopicContext; // description / sourceContents / factBase
 }
 
-const introClosingSystemPrompt = `あなたは公開討論の司会者です。公開討論の導入（イントロ）と結び（クロージング）を、その場で聴衆に語りかける司会者の言葉として話します。以下の制約を絶対に守ってください。
+const introOutroSystemPrompt = `あなたは公開討論の司会者です。公開討論の導入（イントロ）と結び（アウトロ）を、その場で聴衆に語りかける司会者の言葉として話します。以下の制約を絶対に守ってください。
 
 【中立・非結論（厳守）】
 - 結論・優劣・勝敗・落としどころを出さない。どの立場が正しい/優れている/説得力があるとも書かない。
@@ -75,7 +75,7 @@ const formatDigestBrief = (digest: DebateDigest): string => {
 	return `【テーマ】${digest.topicTitle}\n\n【章と論点】\n${chapters}\n\n【参加者】${personas}`;
 };
 
-// クロージング用: 結びを実際の討論内容に接地させるため、章要約・各人の立場・信念変化まで渡す。
+// アウトロ用: 結びを実際の討論内容に接地させるため、章要約・各人の立場・信念変化まで渡す。
 // （順になぞり返さない・一つの問いに絞ることは指示側で制御する）
 const formatDigestFull = (digest: DebateDigest): string => {
 	const chapters = digest.chapters
@@ -113,14 +113,14 @@ const formatTopicContextSection = (topicContext: TopicContext): string => {
 };
 
 const generate = async (
-	input: IntroClosingInput,
+	input: IntroOutroInput,
 	instruction: string,
 	digestSection: string
 ): Promise<Result<string, PipelineError>> => {
 	try {
 		const result = await generateText({
 			model: sonnet,
-			system: introClosingSystemPrompt,
+			system: introOutroSystemPrompt,
 			messages: [
 				{
 					role: 'user',
@@ -135,7 +135,7 @@ const generate = async (
 				ok: false,
 				error: {
 					code: 'AI_API_ERROR',
-					message: 'intro-closing generation returned empty text',
+					message: 'intro-outro generation returned empty text',
 					retryable: true
 				}
 			};
@@ -147,14 +147,14 @@ const generate = async (
 	}
 };
 
-export const generateIntro = (input: IntroClosingInput): Promise<Result<string, PipelineError>> =>
+export const generateIntro = (input: IntroOutroInput): Promise<Result<string, PipelineError>> =>
 	generate(
 		input,
 		introInstruction,
 		`【討論の骨子（ネタバレ防止のため要約・立場は伏せています）】\n${formatDigestBrief(input.digest)}`
 	);
 
-export const generateOutro = (input: IntroClosingInput): Promise<Result<string, PipelineError>> =>
+export const generateOutro = (input: IntroOutroInput): Promise<Result<string, PipelineError>> =>
 	generate(
 		input,
 		outroInstruction,

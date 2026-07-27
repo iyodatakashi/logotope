@@ -9,7 +9,7 @@ import type {
 } from '$lib/models/editorial/editorial.types';
 
 // 統合保存 editorial/outputs（導入・締め・所感）を購読し、記事要素を進捗ステータス付きで公開する。
-// 導入/締め/所感を1ドキュメントに集約した唯一のストア（旧 intro/closing・所感の各ストアはこれに統合済み）。
+// 導入/締め/所感を1ドキュメントに集約した唯一のストア（旧 intro/outro・所感の各ストアはこれに統合済み）。
 // ステータス欠落の既存データは完了（finished）として正規化し（過去の run で処理済みのため。成否は内容から算出）、
 // ドキュメント自体が無い場合の既定は生成待ち（pending）にする（Req 7.1, 7.2）。
 export const createEditorialStore = (topicId: string) => {

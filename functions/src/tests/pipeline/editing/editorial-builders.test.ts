@@ -27,7 +27,7 @@ const {
 }));
 
 vi.mock('../../../agents/persona-agent.js', () => ({ generateImpression: mockGenerateImpression }));
-vi.mock('../../../agents/intro-closing-agent.js', () => ({
+vi.mock('../../../agents/intro-outro-agent.js', () => ({
 	generateIntro: mockGenerateIntro,
 	generateOutro: mockGenerateOutro
 }));

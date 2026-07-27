@@ -1,11 +1,11 @@
 import { generateImpression } from '../../agents/persona-agent.js';
-import { generateIntro, generateOutro } from '../../agents/intro-closing-agent.js';
+import { generateIntro, generateOutro } from '../../agents/intro-outro-agent.js';
 import { editImpression, editIntro, editOutro } from '../../agents/editor-agent.js';
 import { buildDebateDigest } from '../debate/debate-digest.js';
 import { readDigestCache, writeDigestCache } from './digest-cache-repository.js';
 import { getTopicContext } from '../topics/topic-context.js';
 import { pipelineErrorMessage } from '../debate/utils.js';
-import type { IntroClosingInput } from '../../agents/intro-closing-agent.js';
+import type { IntroOutroInput } from '../../agents/intro-outro-agent.js';
 import type { EditorialWriter } from './editorial-repository.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
@@ -71,7 +71,7 @@ export const buildImpressionPart = async (
  */
 export const buildNarrationPart = async (
 	kind: 'intro' | 'outro',
-	input: IntroClosingInput,
+	input: IntroOutroInput,
 	writer: EditorialWriter
 ): Promise<void> => {
 	const generate = kind === 'intro' ? generateIntro : generateOutro;
@@ -111,7 +111,7 @@ export const buildNarrationPart = async (
  */
 export const buildIntroOutroInput = async (
 	topicId: string
-): Promise<Result<IntroClosingInput, PipelineError>> => {
+): Promise<Result<IntroOutroInput, PipelineError>> => {
 	const digestResult = await resolveDebateDigest(topicId);
 	if (!digestResult.ok) return digestResult;
 	const topicContext = await getTopicContext(topicId);
