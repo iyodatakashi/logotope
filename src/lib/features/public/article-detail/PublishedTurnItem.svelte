@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
+	import PostItem from '$lib/sharedComponents/PostItem.svelte';
 	import PublishedAwarenessDialog from './PublishedAwarenessDialog.svelte';
 	import type { PublishedTurn } from '$lib/models/published/published-article/published-article.types';
 	import type { PersonaForDisplay } from '$lib/models/persona/persona.types';
@@ -21,52 +22,19 @@
 	let dialogRef: ReturnType<typeof PublishedAwarenessDialog> | undefined = $state();
 </script>
 
-<div class="published-turn-item" class:published-turn-item--facilitator={!persona}>
-	<div class="published-turn-item__avatar">
-		<PersonaAvatar {persona} />
-	</div>
-	<div class="published-turn-item__speaker">
-		<span class="published-turn-item__name">{persona?.name ?? FACILITATOR_NAME}</span>
-		{#if persona?.role}
-			<span class="published-turn-item__role">{persona.role}</span>
-		{/if}
-	</div>
-	<p class="published-turn-item__content">{@html convertToHtml(turn.content)}</p>
-	{#if awarenessCount > 0}
-		<Button
-			ariaLabel="気づき {awarenessCount} 件を見る"
-			icon="lightbulb"
-			rounded
-			size="small"
-			onclick={() => dialogRef?.open()}
-		>
-			{awarenessCount}
-		</Button>
-		<PublishedAwarenessDialog bind:this={dialogRef} awarenesses={turn.awarenesses} {personas} />
-	{/if}
-</div>
+<PostItem {persona} content={turn.content} />
 
-<style>
-	.published-turn-item {
-		display: grid;
-		grid-template-columns: auto 1fr;
-		grid-template-rows: auto auto auto;
-		grid-gap: 4px 16px;
-	}
-	.published-turn-item__avatar {
-		grid-row: 1/ 4;
-	}
-
-	.published-turn-item__speaker {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-	.published-turn-item__name {
-		font-size: var(--svelte-ui-font-size-lg);
-		font-weight: bold;
-	}
-	.published-turn-item__role {
-		color: var(--svelte-ui-text-color);
-	}
-</style>
+<!--
+{#if awarenessCount > 0}
+	<Button
+		ariaLabel="気づき {awarenessCount} 件を見る"
+		icon="lightbulb"
+		rounded
+		size="small"
+		onclick={() => dialogRef?.open()}
+	>
+		{awarenessCount}
+	</Button>
+	<PublishedAwarenessDialog bind:this={dialogRef} awarenesses={turn.awarenesses} {personas} />
+{/if}
+-->

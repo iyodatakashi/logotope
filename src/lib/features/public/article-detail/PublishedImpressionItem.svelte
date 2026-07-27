@@ -3,6 +3,7 @@
 	import type { PersonaForDisplay } from '$lib/models/persona/persona.types';
 	import { convertToHtml } from '$lib/utils/formatText';
 	import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
+	import PostItem from '$lib/sharedComponents/PostItem.svelte';
 	import PersonaAvatar from '$lib/sharedComponents/PersonaAvatar.svelte';
 
 	interface Props {
@@ -15,29 +16,4 @@
 	const persona = $derived(personas.get(impression.personaId));
 </script>
 
-<div class="published-impression-item">
-	<PersonaAvatar {persona} />
-	<div class="published-impression-item__speaker">
-		<span class="published-impression-item__name">{persona?.name ?? FACILITATOR_NAME}</span>
-		{#if persona?.role}
-			<span class="published-impression-item__role">{persona.role}</span>
-		{/if}
-	</div>
-	<p class="published-impression-item__content">{@html convertToHtml(impression.content)}</p>
-</div>
-
-<style>
-	.published-impression-item {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-	}
-	.published-impression-item__speaker {
-		display: flex;
-		align-items: baseline;
-		gap: 8px;
-	}
-	.published-impression-item__name {
-		font-weight: bold;
-	}
-</style>
+<PostItem {persona} content={impression.content} />
