@@ -19,7 +19,7 @@
 		const persona = turn.personaId ? personaMap.get(turn.personaId) : null;
 		return {
 			name: persona?.name ?? FACILITATOR_NAME,
-			role: persona?.specificRole ?? persona?.stakeholderRole ?? ''
+			role: persona?.role ?? ''
 		};
 	};
 
@@ -47,9 +47,9 @@
 					<div class="debate-chapter__speaker-name">
 						{pendingSpeaker?.name ?? FACILITATOR_NAME}
 					</div>
-					{#if pendingSpeaker?.specificRole ?? pendingSpeaker?.stakeholderRole}
+					{#if pendingSpeaker?.role}
 						<span class="debate-chapter__role">
-							({pendingSpeaker?.specificRole ?? pendingSpeaker?.stakeholderRole})
+							({pendingSpeaker.role})
 						</span>
 					{/if}
 					<span class="debate-chapter__pending-status">

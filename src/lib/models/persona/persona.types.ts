@@ -103,9 +103,11 @@ export type Persona = Omit<
 };
 
 // Admin・公開が共通で使う軽量な表示用ペルソナ型。発言アイテム（PersonaPostItem）などの描画に必要な
-// 最小フィールドのみを持つ。管理専用フィールド・nationality・topicId は含めない（描画に不要・payload 純度を保つ）。
+// 最小フィールドのみを持つ。管理専用フィールド・nationality は含めない（描画に不要・payload 純度を保つ）。
+// topicId/id/avatarGeneratedAt はアバター画像パス（topics/{topicId}/avatars/{id}）の構築に PersonaAvatar が使う。
 export type PersonaForDisplay = {
 	id: string;
+	topicId: string;
 	name: string;
 	// 必須。永続 role をそのまま持つ（?? stakeholderRole の導出はしない）。
 	role: string;
@@ -119,6 +121,7 @@ export type PersonaForDisplay = {
 // 公開側は builder が永続読み取りから同型を組む。
 export const toPersonaForDisplay = (persona: Persona): PersonaForDisplay => ({
 	id: persona.id,
+	topicId: persona.topicId,
 	name: persona.name,
 	role: persona.role,
 	colorKey: persona.colorKey,

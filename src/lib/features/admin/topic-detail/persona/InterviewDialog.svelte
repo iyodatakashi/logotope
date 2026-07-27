@@ -71,12 +71,6 @@
 					</div>
 				{/each}
 			</div>
-		{:else if interview?.researchSummary}
-			<div class="interview-item__section">
-				<p class="interview-item__section-label">リサーチ内容</p>
-				<!-- eslint-disable-next-line svelte/no-at-html-tags -- DOMPurifyでサニタイズ済み -->
-				<div class="interview-item__md-body">{@html md(interview.researchSummary)}</div>
-			</div>
 		{/if}
 		{#if belief}
 			<div class="interview-item__section">

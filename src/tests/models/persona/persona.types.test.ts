@@ -195,10 +195,11 @@ describe('toPersonaForDisplay - 表示用の軽量写像', () => {
 		beliefs: []
 	});
 
-	it('id/name/role/colorKey/avatarGeneratedAt のみを写す（役割は導出せず直参照）', () => {
+	it('id/topicId/name/role/colorKey/avatarGeneratedAt のみを写す（役割は導出せず直参照）', () => {
 		const display: PersonaForDisplay = toPersonaForDisplay(fullPersona());
 		expect(display).toEqual({
 			id: 'p1',
+			topicId: 't1',
 			name: '田中 太郎',
 			role: '医師',
 			colorKey: 'blue',
@@ -206,18 +207,20 @@ describe('toPersonaForDisplay - 表示用の軽量写像', () => {
 		});
 	});
 
-	it('管理専用フィールド・nationality・topicId を含めない（描画に不要な最小形）', () => {
+	it('管理専用フィールド・nationality を含めない（描画に不要な最小形）。topicId はアバターパス用に保持する', () => {
 		const display = toPersonaForDisplay(fullPersona());
 		expect(Object.keys(display).sort()).toEqual([
 			'avatarGeneratedAt',
 			'colorKey',
 			'id',
 			'name',
-			'role'
+			'role',
+			'topicId'
 		]);
 		expect('nationality' in display).toBe(false);
-		expect('topicId' in display).toBe(false);
 		expect('background' in display).toBe(false);
 		expect('stakeholderRole' in display).toBe(false);
+		// topicId はアバター画像パス構築に必要なため含める
+		expect(display.topicId).toBe('t1');
 	});
 });

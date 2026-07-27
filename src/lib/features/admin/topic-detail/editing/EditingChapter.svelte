@@ -43,7 +43,7 @@
 		const persona = turn.personaId ? personaMap.get(turn.personaId) : null;
 		return {
 			name: persona?.name ?? FACILITATOR_NAME,
-			role: persona?.specificRole ?? persona?.stakeholderRole ?? ''
+			role: persona?.role ?? ''
 		};
 	};
 

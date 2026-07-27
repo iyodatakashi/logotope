@@ -1,13 +1,11 @@
 <script lang="ts">
 	import PublishedTurnItem from './PublishedTurnItem.svelte';
-	import type {
-		PublishedChapter,
-		PublishedPersona
-	} from '$lib/models/published/published-article/published-article.types';
+	import type { PublishedChapter } from '$lib/models/published/published-article/published-article.types';
+	import type { PersonaForDisplay } from '$lib/models/persona/persona.types';
 
 	interface Props {
 		chapter: PublishedChapter;
-		personas: Map<string, PublishedPersona>;
+		personas: Map<string, PersonaForDisplay>;
 	}
 	let { chapter, personas }: Props = $props();
 </script>

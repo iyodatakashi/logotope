@@ -1,17 +1,15 @@
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
 	import PublishedAwarenessDialog from './PublishedAwarenessDialog.svelte';
-	import type {
-		PublishedPersona,
-		PublishedTurn
-	} from '$lib/models/published/published-article/published-article.types';
+	import type { PublishedTurn } from '$lib/models/published/published-article/published-article.types';
+	import type { PersonaForDisplay } from '$lib/models/persona/persona.types';
 	import { convertToHtml } from '$lib/utils/formatText';
 	import PersonaAvatar from '$lib/sharedComponents/PersonaAvatar.svelte';
 	import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
 	interface Props {
 		turn: PublishedTurn;
-		personas: Map<string, PublishedPersona>;
+		personas: Map<string, PersonaForDisplay>;
 	}
 	let { turn, personas }: Props = $props();
 

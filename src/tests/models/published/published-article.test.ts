@@ -295,3 +295,65 @@ describe('fetchPublishedArticle — 射影と join', () => {
 		expect(article?.chapters[0].turns[0]).not.toHaveProperty('factCheck');
 	});
 });
+
+describe('fetchPublishedArticle — personas を PersonaForDisplay へ写す（3.1）', () => {
+	beforeEach(() => vi.clearAllMocks());
+
+	it('role を直参照し（総称フォールバックなし）、topicId・外見を保持する', async () => {
+		setup({
+			topic: publishedTopic,
+			personas: [
+				{
+					id: 'p1',
+					data: {
+						name: 'Alice',
+						role: '救急医',
+						stakeholderRole: '医療従事者',
+						colorKey: 'blue',
+						avatarGeneratedAt: makeTimestamp(new Date(2026, 0, 2))
+					}
+				}
+			]
+		});
+		const article = await fetchPublishedArticle('t1');
+		// role は永続値を直参照し、stakeholderRole（総称）へは導出しない。topicId はアバターパス用に保持。
+		expect(article?.personas.get('p1')).toEqual({
+			id: 'p1',
+			topicId: 't1',
+			name: 'Alice',
+			role: '救急医',
+			colorKey: 'blue',
+			avatarGeneratedAt: new Date(2026, 0, 2)
+		});
+	});
+
+	it('role を直参照し、未移行（specificRole/総称のみ）へフォールバックしない（移行フォールバック撤去・5.3）', async () => {
+		setup({
+			topic: publishedTopic,
+			personas: [{ id: 'p1', data: { name: 'Alice', specificRole: '医師', stakeholderRole: '医療' } }]
+		});
+		const article = await fetchPublishedArticle('t1');
+		expect(article?.personas.get('p1')?.role).toBeUndefined();
+	});
+
+	it('管理専用フィールド（stakeholderRole・nationality 等）を公開表示型へ持ち込まない', async () => {
+		setup({
+			topic: publishedTopic,
+			personas: [
+				{
+					id: 'p1',
+					data: { name: 'Alice', role: '救急医', stakeholderRole: 'X', nationality: '日本' }
+				}
+			]
+		});
+		const article = await fetchPublishedArticle('t1');
+		expect(Object.keys(article?.personas.get('p1') ?? {}).sort()).toEqual([
+			'avatarGeneratedAt',
+			'colorKey',
+			'id',
+			'name',
+			'role',
+			'topicId'
+		]);
+	});
+});

@@ -1,15 +1,13 @@
 <script lang="ts">
-	import type {
-		PublishedImpression,
-		PublishedPersona
-	} from '$lib/models/published/published-article/published-article.types';
+	import type { PublishedImpression } from '$lib/models/published/published-article/published-article.types';
+	import type { PersonaForDisplay } from '$lib/models/persona/persona.types';
 	import { convertToHtml } from '$lib/utils/formatText';
 	import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 	import PersonaAvatar from '$lib/sharedComponents/PersonaAvatar.svelte';
 
 	interface Props {
 		impression: PublishedImpression;
-		personas: Map<string, PublishedPersona>;
+		personas: Map<string, PersonaForDisplay>;
 	}
 	let { impression, personas }: Props = $props();
 

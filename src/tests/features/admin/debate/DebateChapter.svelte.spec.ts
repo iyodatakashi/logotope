@@ -62,7 +62,7 @@ const chapter = (overrides: Partial<Chapter> = {}): Chapter =>
 	}) as Chapter;
 
 const setStore = (overrides: Partial<typeof holder> = {}) => {
-	holder.personaMap = overrides.personaMap ?? new Map([['p1', persona({ id: 'p1', name: '田中', specificRole: '医師' })]]);
+	holder.personaMap = overrides.personaMap ?? new Map([['p1', persona({ id: 'p1', name: '田中', role: '医師' })]]);
 	holder.engagementsMap = overrides.engagementsMap ?? new Map();
 	holder.awarenessesByTurn = overrides.awarenessesByTurn ?? new Map();
 };

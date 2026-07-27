@@ -92,7 +92,7 @@ const makePersona = (over: Record<string, unknown>) => ({
 	age: 40,
 	occupation: '職',
 	stakeholderRole: '役',
-	specificRole: '役',
+	role: '役',
 	background: '背景',
 	interests: '関心',
 	selected: true,

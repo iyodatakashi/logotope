@@ -20,7 +20,7 @@
 		{ key: 'changePotential', label: '変化の可能性' }
 	];
 
-	const role = $derived(persona.specificRole ?? persona.stakeholderRole);
+	const role = $derived(persona.role);
 	const interview = $derived(persona.interview);
 	const sources = $derived(interview?.sources ?? []);
 	const belief = $derived(persona.beliefs[0]?.content ?? '');
@@ -115,12 +115,6 @@
 							</ul>
 						</div>
 					{/each}
-				</div>
-			{:else if interview?.researchSummary}
-				<div class="interview-item__section">
-					<p class="interview-item__section-label">リサーチ内容</p>
-					<!-- eslint-disable-next-line svelte/no-at-html-tags -- DOMPurifyでサニタイズ済み -->
-					<div class="interview-item__md-body">{@html md(interview.researchSummary)}</div>
 				</div>
 			{/if}
 			<div class="interview-item__section">

@@ -18,7 +18,7 @@
 	// 話者ラベルは personaId から描画時に解決する（型には畳まない・Req 3.1）。引き当て表は storeから直接読む。
 	const persona = $derived(currentTopicStore.personasStore.personaMap.get(personaId));
 	const name = $derived(persona?.name ?? FACILITATOR_NAME);
-	const role = $derived(persona?.specificRole ?? persona?.stakeholderRole ?? '');
+	const role = $derived(persona?.role ?? '');
 
 	// クリック→サーバが生成中を書くまでの遅延分の楽観ローディング（二重実行防止）。
 	// 書き込み後は status（スケルトン）が引き継ぐため、この要素にローカルで閉じてよい。

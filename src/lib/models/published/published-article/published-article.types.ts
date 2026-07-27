@@ -4,16 +4,8 @@
 // 話者は名前・肩書を各要素へ焼き込まず personaId で参照し、描画時に personas から解決する
 // （管理側 personasStore.personaMap と同じ「id で保持し描画時に解決」）。
 
-// 話者ペルソナ。記事あたり1回だけ personas に持ち、発言・気づき・所感からは id で参照する。
-export type PublishedPersona = {
-	id: string;
-	topicId: string;
-	name: string;
-	role: string; // specificRole ?? stakeholderRole
-	// 外見。欠落は未設定を意味し、表示側（PersonaAvatar）が既定へ縮退させる。
-	colorKey?: string;
-	avatarGeneratedAt?: Date;
-};
+// 話者ペルソナは Admin・公開共通の表示型 PersonaForDisplay に統合した（公開専用の PublishedPersona は廃止）。
+import type { PersonaForDisplay } from '$lib/models/persona/persona.types';
 
 // 気づき。ターンの由来から集約する。誰の気づきかは personaId で参照する。
 export type PublishedAwareness = {
@@ -52,7 +44,7 @@ export type PublishedArticle = {
 	publishedAt: Date;
 	intro: PublishedNarration | null; // 内容が無ければ null（非表示）
 	outro: PublishedNarration | null;
-	personas: Map<string, PublishedPersona>; // id → ペルソナ。話者解決の単一の情報源
+	personas: Map<string, PersonaForDisplay>; // id → ペルソナ。話者解決の単一の情報源
 	chapters: PublishedChapter[];
 	impressions: PublishedImpression[];
 };

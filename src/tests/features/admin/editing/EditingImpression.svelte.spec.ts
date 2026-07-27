@@ -6,7 +6,7 @@ import type { EditorialStatus } from '$lib/models/editorial/editorial.types';
 // 話者ラベルは型に畳まず personaId から描画時に解決する（Turn と同じ責務境界・Req 3.1/3.4）。
 // personaMap は store から直接引くため、テストでも store をモックして注入する。
 const { personaMap } = vi.hoisted(() => ({
-	personaMap: new Map<string, unknown>([['p1', { id: 'p1', name: '田中', specificRole: '住民' }]])
+	personaMap: new Map<string, unknown>([['p1', { id: 'p1', name: '田中', role: '住民' }]])
 }));
 
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({

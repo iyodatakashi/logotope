@@ -136,7 +136,7 @@ describe('EditingChapter.svelte', () => {
 
 	it('話者名は型に持たず personaMap から描画時に解決する', async () => {
 		setStore({
-			personaMap: new Map([['p1', persona({ id: 'p1', name: '田中', specificRole: '住民' })]])
+			personaMap: new Map([['p1', persona({ id: 'p1', name: '田中', role: '住民' })]])
 		});
 		render(EditingChapter, makeProps({ turns: [turn({ personaId: 'p1' })] }));
 		await expect.element(page.getByText('田中')).toBeInTheDocument();

@@ -5,8 +5,7 @@ import type {
 	PublishedChapter,
 	PublishedTurn,
 	PublishedAwareness,
-	PublishedImpression,
-	PublishedPersona
+	PublishedImpression
 } from './published-article.types';
 import type { TopicForFirestore } from '$lib/models/topic/topic.types';
 import type { EditorialForFirestore, Narration } from '$lib/models/editorial/editorial.types';
@@ -15,7 +14,7 @@ import type {
 	ChapterForFirestore,
 	EditedChapterForFirestore
 } from '$lib/models/chapter/chapter.types';
-import type { PersonaForFirestore } from '$lib/models/persona/persona.types';
+import type { PersonaForFirestore, PersonaForDisplay } from '$lib/models/persona/persona.types';
 
 // 公開済み単一討論を publicDb で読み、読み物 PublishedArticle へ射影/join する。
 // 読み取り入力は Admin 永続型（*ForFirestore）を参照し、必要フィールドだけを射影する。
@@ -41,8 +40,9 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 		getDocs(query(collection(publicDb, 'topics', topicId, 'personas'), orderBy('sortOrder')))
 	]);
 
-	// ペルソナは記事あたり1回だけ id キーで持ち、発言・気づき・所感からは id で参照する。
-	const personas = new Map<string, PublishedPersona>(
+	// ペルソナは記事あたり1回だけ id キーで持ち、発言・気づき・所感からは id で参照する。表示型 PersonaForDisplay へ写す。
+	// role は永続値を直参照する（総称 stakeholderRole や旧 specificRole への導出・フォールバックは持たない・恒久排除）。
+	const personas = new Map<string, PersonaForDisplay>(
 		personaSnaps.docs.map((snap) => {
 			const persona = snap.data() as PersonaForFirestore;
 			return [
@@ -51,7 +51,7 @@ export const fetchPublishedArticle = async (topicId: string): Promise<PublishedA
 					id: snap.id,
 					topicId,
 					name: persona.name,
-					role: persona.specificRole ?? persona.stakeholderRole ?? '',
+					role: persona.role,
 					colorKey: persona.colorKey,
 					avatarGeneratedAt: persona.avatarGeneratedAt?.toDate()
 				}
