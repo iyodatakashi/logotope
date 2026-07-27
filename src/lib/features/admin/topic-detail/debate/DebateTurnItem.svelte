@@ -31,42 +31,58 @@
 	const persona = $derived(currentTopicStore.personasStore.getPersonaForDisplay(turn.personaId));
 </script>
 
-<PostItem {persona} content={turn.content}>
-	{#snippet addition()}
-		{#if turn.speechMode}
-			<span class="debate-turn-item__speech-mode" data-mode={turn.speechMode}>
-				{turn.speechMode}{#if turn.engagementScore}({turn.engagementScore}){/if}
-			</span>
-		{/if}
-		{#if turn.fromQueue}
-			<span class="debate-turn-item__from-queue">[キュー]</span>
-		{/if}
-		{#if targetPersona}
-			<p class="debate-turn-item__nominated">次の指名: {targetPersona.name}</p>
-		{/if}
-		{#if turn.status === 'evaluating'}
-			<EngagementListSkeleton speakerPersonaId={turn.personaId} />
-		{:else}
-			<EngagementList turnId={turn.id} selectedPersonaId={nextPersonaId} />
+<div class="debate-turn-item">
+	<PostItem {persona} content={turn.content}>
+		{#snippet addition()}
+			<div class="debate-turn-item__addition">
+				{#if turn.speechMode}
+					<span class="debate-turn-item__speech-mode" data-mode={turn.speechMode}>
+						{turn.speechMode}{#if turn.engagementScore}({turn.engagementScore}){/if}
+					</span>
+				{/if}
+				{#if turn.fromQueue}
+					<span class="debate-turn-item__from-queue">[キュー]</span>
+				{/if}
+				{#if targetPersona}
+					<p class="debate-turn-item__nominated">次の指名: {targetPersona.name}</p>
+				{/if}
+				{#if turn.status === 'evaluating'}
+					<EngagementListSkeleton speakerPersonaId={turn.personaId} />
+				{:else}
+					<EngagementList turnId={turn.id} selectedPersonaId={nextPersonaId} />
 
-			{#if awarenesses.length > 0}
-				<ul class="debate-turn-item__awarenesses">
-					{#each awarenesses as aw, awIdx (awIdx)}
-						<li>
-							<span class="debate-turn-item__awareness-persona-name">
-								{currentTopicStore.personasStore.getPersona(aw.personaId)?.name ?? ''}:
-							</span>
-							{aw.content}
-						</li>
-					{/each}
-				</ul>
-			{/if}
-		{/if}
-	{/snippet}
-</PostItem>
+					{#if awarenesses.length > 0}
+						<ul class="debate-turn-item__awarenesses">
+							{#each awarenesses as aw, awIdx (awIdx)}
+								<li>
+									<span class="debate-turn-item__awareness-persona-name">
+										{currentTopicStore.personasStore.getPersona(aw.personaId)?.name ?? ''}:
+									</span>
+									{aw.content}
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				{/if}
+			</div>
+		{/snippet}
+	</PostItem>
+</div>
 
 <style>
+	.debate-turn-item {
+		padding: 16px;
+		background: var(--white);
+		border: solid 1px var(--svelte-ui-border-weak-color);
+		border-radius: 4px;
+	}
+	.debate-turn-item__addition {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+	}
 	.debate-turn-item__speech-mode {
+		width: fit-content;
 		font-size: var(--svelte-ui-font-size-sm);
 		padding: 1px 5px;
 		border-radius: 3px;
