@@ -4,7 +4,7 @@
 	import EngagementList from './EngagementList.svelte';
 	import EngagementListSkeleton from './EngagementListSkeleton.svelte';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
-	import PersonaAvatar from '$lib/sharedComponents/PersonaAvatar.svelte';
+	import PostItem from '$lib/sharedComponents/PostItem.svelte';
 
 	let {
 		turn,
@@ -26,22 +26,13 @@
 		nextPersonaId: string | null | undefined; // このターンの後に選ばれた次の話者
 	} = $props();
 
-	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
-
 	// 外見は公開記事と同じ部品に解決させる。話者をペルソナに解決できない場合は既定で描画される。
-	const persona = $derived(turn.personaId ? personaMap.get(turn.personaId) : null);
+	// PostItem は表示型 PersonaForDisplay を受け取るため、写像は store の解決メソッドに委ねる。
+	const persona = $derived(currentTopicStore.personasStore.getPersonaForDisplay(turn.personaId));
 </script>
 
-<div
-	class="debate-turn-item"
-	class:debate-turn-item--facilitator={turn.speakerType === 'facilitator'}
->
-	<div class="debate-turn-item__speaker">
-		<PersonaAvatar {persona} />
-		<div class="debate-turn-item__speaker-name">{speaker.name}</div>
-		{#if speaker.role}
-			<span class="debate-turn-item__role">（{speaker.role}）</span>
-		{/if}
+<PostItem {persona} content={turn.content}>
+	{#snippet addition()}
 		{#if turn.speechMode}
 			<span class="debate-turn-item__speech-mode" data-mode={turn.speechMode}>
 				{turn.speechMode}{#if turn.engagementScore}({turn.engagementScore}){/if}
@@ -50,54 +41,31 @@
 		{#if turn.fromQueue}
 			<span class="debate-turn-item__from-queue">[キュー]</span>
 		{/if}
-	</div>
-	<p class="debate-turn-item__content">{turn.content}</p>
-	{#if targetPersona}
-		<p class="debate-turn-item__nominated">次の指名: {targetPersona.name}</p>
-	{/if}
-	{#if turn.status === 'evaluating'}
-		<EngagementListSkeleton speakerPersonaId={turn.personaId} />
-	{:else}
-		<EngagementList turnId={turn.id} selectedPersonaId={nextPersonaId} />
-
-		{#if awarenesses.length > 0}
-			<ul class="debate-turn-item__awarenesses">
-				{#each awarenesses as aw, awIdx (awIdx)}
-					<li>
-						<span class="debate-turn-item__awareness-persona-name">
-							{personaMap.get(aw.personaId)?.name ?? ''}:
-						</span>
-						{aw.content}
-					</li>
-				{/each}
-			</ul>
+		{#if targetPersona}
+			<p class="debate-turn-item__nominated">次の指名: {targetPersona.name}</p>
 		{/if}
-	{/if}
-</div>
+		{#if turn.status === 'evaluating'}
+			<EngagementListSkeleton speakerPersonaId={turn.personaId} />
+		{:else}
+			<EngagementList turnId={turn.id} selectedPersonaId={nextPersonaId} />
+
+			{#if awarenesses.length > 0}
+				<ul class="debate-turn-item__awarenesses">
+					{#each awarenesses as aw, awIdx (awIdx)}
+						<li>
+							<span class="debate-turn-item__awareness-persona-name">
+								{currentTopicStore.personasStore.getPersona(aw.personaId)?.name ?? ''}:
+							</span>
+							{aw.content}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		{/if}
+	{/snippet}
+</PostItem>
 
 <style>
-	.debate-turn-item {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		padding: 16px;
-		background: var(--white);
-		border: solid 1px var(--svelte-ui-border-weak-color);
-		border-radius: 4px;
-	}
-	.debate-turn-item.debate-turn-item--facilitator {
-		padding-top: 8px;
-		border-top: solid 8px var(--primary-500);
-		background: var(--primary-100);
-	}
-	.debate-turn-item__speaker {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-	.debate-turn-item__speaker-name {
-		font-weight: bold;
-	}
 	.debate-turn-item__speech-mode {
 		font-size: var(--svelte-ui-font-size-sm);
 		padding: 1px 5px;

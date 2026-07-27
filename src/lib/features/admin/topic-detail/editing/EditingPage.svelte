@@ -183,7 +183,7 @@
 	const isEditingFinished = $derived(logicalState === 'generated' || logicalState === 'stopped');
 
 	// 原本章順に、章別の編集状態と表示ターン（TurnForEditing）を組み立てる（本体＝body）。
-	// name/role・差分・気づきは畳まず、EditingChapter が store（personaMap・getAwarenessesByTurn）・原本ターンから描画時に解決する。
+	// name/role・差分・気づきは畳まず、EditingChapter が store（getPersona・getAwarenessesByTurn）・原本ターンから描画時に解決する。
 	const displayChapters = $derived.by(() => {
 		const store = currentTopicStore.editedChaptersStore;
 		return currentTopicStore.chaptersStore.chapters.map((chapter) => {
@@ -210,7 +210,7 @@
 	});
 
 	// 所感（impressions）。承認済みペルソナ単位に personaId と所感オブジェクト(part)を組み立てる。
-	// 話者名/役割は畳まず、EditingImpression が personaMap から描画時に解決する（Req 3.1/3.4）。
+	// 話者名/役割は畳まず、EditingImpression が store の getPersona で描画時に解決する（Req 3.1/3.4）。
 	// エントリの無いペルソナは生成待ち（pending）として扱い、進捗ステータスで表示を決める（Req 6.2）。
 	// 表示分岐（スケルトン／編集済み／編集失敗／生成失敗）は ImpressionSection 内が part.status＋内容から決める。
 	const displayImpressions = $derived.by(() => {

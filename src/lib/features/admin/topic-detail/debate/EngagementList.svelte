@@ -9,16 +9,15 @@
 	let { turnId, selectedPersonaId = null }: Props = $props();
 
 	// 話者名・このターンの各ペルソナの発言意欲は、いずれも storeから直接引く。
-	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
 	const engagements = $derived(currentTopicStore.engagementsStore.engagementsMap.get(turnId) ?? []);
 
 	// 現在のペルソナを起点にループし、各ペルソナのこのターンでの発言意欲を引く。
 	// engagements 文書を起点にしないことで、古いペルソナidの残骸は原理的に表示されない。
-	// 話者名は型に畳まず personaId 参照のまま保持し、描画時に personaMap で解決する（Req 3.1）。
+	// 話者名は型に畳まず personaId 参照のまま保持し、描画時に store の解決メソッドで解決する（Req 3.1）。
 	const items = $derived(
-		[...personaMap].flatMap(([personaId]) => {
-			const entry = engagements.find((engagement) => engagement.personaId === personaId);
-			return entry ? [{ personaId, mode: entry.mode, score: entry.score }] : [];
+		currentTopicStore.personasStore.personas.flatMap((persona) => {
+			const entry = engagements.find((engagement) => engagement.personaId === persona.id);
+			return entry ? [{ personaId: persona.id, mode: entry.mode, score: entry.score }] : [];
 		})
 	);
 </script>
@@ -32,7 +31,7 @@
 				data-mode={item.mode}
 				class:engagement-list__engagement--selected={selected}
 			>
-				{personaMap.get(item.personaId)?.name ?? ''}: {item.mode}({item.score})
+				{currentTopicStore.personasStore.getPersona(item.personaId)?.name ?? ''}: {item.mode}({item.score})
 			</span>
 		{/each}
 	</div>

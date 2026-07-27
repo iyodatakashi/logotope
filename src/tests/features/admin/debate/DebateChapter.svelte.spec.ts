@@ -20,9 +20,13 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get personasStore() {
 			return {
-				get personaMap() {
-					return holder.personaMap;
+				get personas() {
+					return [...holder.personaMap].map(([id, value]) => ({ ...(value as object), id }));
 				},
+				getPersona: (id: string | null | undefined) =>
+					id ? holder.personaMap.get(id) : undefined,
+				getPersonaForDisplay: (id: string | null | undefined) =>
+					id ? holder.personaMap.get(id) : undefined,
 				getAwarenessesByTurn: (turnId: string) => holder.awarenessesByTurn.get(turnId) ?? []
 			};
 		},
@@ -75,11 +79,11 @@ describe('DebateChapter.svelte', () => {
 		await expect.element(page.getByText('発言本文')).toBeInTheDocument();
 	});
 
-	it('話者名・役割は型に畳まず personaMap から描画時に解決する', async () => {
+	it('話者名・役割は型に畳まず store の解決メソッドから描画時に解決する', async () => {
 		setStore();
 		render(DebateChapter, { chapter: chapter() });
 		await expect.element(page.getByText('田中')).toBeInTheDocument();
-		await expect.element(page.getByText('(医師)')).toBeInTheDocument();
+		await expect.element(page.getByText('医師')).toBeInTheDocument();
 	});
 
 	it('指名先（targetPersonaId）を「次の指名」として personaMap から解決して出す', async () => {
@@ -93,12 +97,12 @@ describe('DebateChapter.svelte', () => {
 		await expect.element(page.getByText(/次の指名: 鈴木/)).toBeInTheDocument();
 	});
 
-	it('気づきは由来ターンidで引き、話者名は personaMap で解決する', async () => {
+	it('気づきは由来ターンidで引き、話者名は store の解決メソッドで解決する', async () => {
 		setStore({
 			awarenessesByTurn: new Map([['t1', [{ personaId: 'p1', content: '視点が変わった' }]]])
 		});
 		render(DebateChapter, { chapter: chapter() });
-		await expect.element(page.getByText('💡 田中: 視点が変わった')).toBeInTheDocument();
+		await expect.element(page.getByText('田中: 視点が変わった')).toBeInTheDocument();
 	});
 
 	it('エンゲージメントを EngagementList 経由で表示する', async () => {
@@ -128,7 +132,7 @@ describe('DebateChapter.svelte', () => {
 			})
 		});
 		await expect.element(page.getByText('鈴木')).toBeInTheDocument();
-		await expect.element(page.getByText('発言を生成中…')).toBeInTheDocument();
+		await expect.element(page.getByText('発言を生成中')).toBeInTheDocument();
 	});
 
 	it('personaId なしの pendingTurn は「ファシリテーター」としてスケルトンを出す', async () => {
@@ -139,7 +143,7 @@ describe('DebateChapter.svelte', () => {
 			})
 		});
 		await expect.element(page.getByText(FACILITATOR_NAME)).toBeInTheDocument();
-		await expect.element(page.getByText('発言を生成中…')).toBeInTheDocument();
+		await expect.element(page.getByText('発言を生成中')).toBeInTheDocument();
 	});
 
 	it('確定ターンが評価中（status=evaluating）で気づき未検出なら反応スケルトンを出す', async () => {

@@ -9,9 +9,10 @@
 	let { speakerPersonaId = null }: Props = $props();
 
 	// 評価中は engagements が未永続のため、反応する人数（＝話者以外の全ペルソナ）から枠数を算出する。
-	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
 	const reactorIds = $derived(
-		[...personaMap.keys()].filter((personaId) => personaId !== speakerPersonaId)
+		currentTopicStore.personasStore.personas
+			.map((persona) => persona.id)
+			.filter((personaId) => personaId !== speakerPersonaId)
 	);
 </script>
 

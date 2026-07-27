@@ -13,9 +13,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get personasStore() {
 			return {
-				get personaMap() {
-					return personaMap;
-				}
+				getPersona: (id: string | null | undefined) => (id ? personaMap.get(id) : undefined)
 			};
 		}
 	}

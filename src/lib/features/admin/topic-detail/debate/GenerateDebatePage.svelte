@@ -101,7 +101,7 @@
 	});
 
 	// 章ごとにターンを DebateChapter へ渡す。話者名/役割・指名先・engagements・気づきは型に畳まず、
-	// 各コンポーネントが store（personaMap・engagementsMap・getAwarenessesByTurn）や id 参照から描画時に解決する。
+	// 各コンポーネントが store（getPersona・engagementsMap・getAwarenessesByTurn）や id 参照から描画時に解決する。
 	const hasTurns = $derived(
 		currentTopicStore.chaptersStore.chapters.some(
 			(chapter) => chapter.turns.length > 0 || chapter.pendingTurn

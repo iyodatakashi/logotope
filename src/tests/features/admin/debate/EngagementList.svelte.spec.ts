@@ -6,7 +6,7 @@ import type { EngagementHistoryEntryWithPersona } from '$lib/models/engagement/e
 // personaMap・engagementsMap は各コンポーネントが store から直接引くため、テストでも store をモックして注入する。
 const { holder } = vi.hoisted(() => ({
 	holder: {
-		personaMap: new Map<string, { name: string }>(),
+		personaMap: new Map<string, { id: string; name: string }>(),
 		engagementsMap: new Map<string, unknown[]>()
 	}
 }));
@@ -15,9 +15,11 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get personasStore() {
 			return {
-				get personaMap() {
-					return holder.personaMap;
-				}
+				get personas() {
+					return [...holder.personaMap.values()];
+				},
+				getPersona: (id: string | null | undefined) =>
+					id ? holder.personaMap.get(id) : undefined
 			};
 		},
 		get engagementsStore() {
@@ -40,17 +42,17 @@ const entry = (
 ): EngagementHistoryEntryWithPersona => ({ personaId, turnId: 't1', mode, score });
 
 describe('EngagementList.svelte', () => {
-	it('話者名は entry に畳まず personaMap から描画時に解決して「name: mode(score)」で出す', async () => {
-		holder.personaMap = new Map([['p1', { name: '田中' }]]);
+	it('話者名は entry に畳まず store の解決メソッドで描画時に解決して「name: mode(score)」で出す', async () => {
+		holder.personaMap = new Map([['p1', { id: 'p1', name: '田中' }]]);
 		holder.engagementsMap = new Map([['t1', [entry('p1', 'opinion', 4)]]]);
 		render(EngagementList, { turnId: 't1' });
 		await expect.element(page.getByText('田中: opinion(4)')).toBeInTheDocument();
 	});
 
-	it('personaMap を起点にループし、entry の無いペルソナは出さない（古い personaId の残骸を出さない）', async () => {
+	it('personas を起点にループし、entry の無いペルソナは出さない（古い personaId の残骸を出さない）', async () => {
 		holder.personaMap = new Map([
-			['p1', { name: '田中' }],
-			['p2', { name: '佐藤' }]
+			['p1', { id: 'p1', name: '田中' }],
+			['p2', { id: 'p2', name: '佐藤' }]
 		]);
 		holder.engagementsMap = new Map([['t1', [entry('p1', 'fact', 2)]]]);
 		render(EngagementList, { turnId: 't1' });
@@ -59,7 +61,7 @@ describe('EngagementList.svelte', () => {
 	});
 
 	it('選択中ペルソナには選択スタイル（--selected クラス）を付す', async () => {
-		holder.personaMap = new Map([['p1', { name: '田中' }]]);
+		holder.personaMap = new Map([['p1', { id: 'p1', name: '田中' }]]);
 		holder.engagementsMap = new Map([['t1', [entry('p1', 'opinion', 3)]]]);
 		render(EngagementList, { turnId: 't1', selectedPersonaId: 'p1' });
 		await expect

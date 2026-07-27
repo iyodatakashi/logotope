@@ -11,12 +11,9 @@
 	}
 	let { chapter }: Props = $props();
 
-	// 話者名/役割・指名先・気づき話者名を描画時に解決するための引き当て表は storeから直接読む。
-	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
-
-	// 話者ラベルは Turn と同じく personaId から描画時に解決する（型には畳まない）。
+	// 話者ラベルは Turn と同じく personaId から描画時に store の解決メソッドで引く（型には畳まない）。
 	const speakerLabel = (turn: Turn) => {
-		const persona = turn.personaId ? personaMap.get(turn.personaId) : null;
+		const persona = currentTopicStore.personasStore.getPersona(turn.personaId);
 		return {
 			name: persona?.name ?? FACILITATOR_NAME,
 			role: persona?.role ?? ''
@@ -33,15 +30,15 @@
 	<div class="debate-chapter__turns">
 		{#each chapter.turns as turn, i (turn.id)}
 			{@const speaker = speakerLabel(turn)}
-			{@const targetPersona = turn.targetPersonaId ? personaMap.get(turn.targetPersonaId) : null}
+			{@const targetPersona = currentTopicStore.personasStore.getPersona(turn.targetPersonaId)}
 			{@const awarenesses = currentTopicStore.personasStore.getAwarenessesByTurn(turn.id)}
 			{@const nextPersonaId = chapter.turns[i + 1]?.personaId ?? chapter.pendingTurn?.personaId}
 			<DebateTurnItem {turn} {speaker} {targetPersona} {awarenesses} {nextPersonaId} />
 		{/each}
 		{#if chapter.pendingTurn}
-			{@const pendingSpeaker = chapter.pendingTurn.personaId
-				? personaMap.get(chapter.pendingTurn.personaId)
-				: null}
+			{@const pendingSpeaker = currentTopicStore.personasStore.getPersona(
+				chapter.pendingTurn.personaId
+			)}
 			<div class="debate-chapter__turn debate-chapter__turn--pending">
 				<div class="debate-chapter__speaker">
 					<div class="debate-chapter__speaker-name">

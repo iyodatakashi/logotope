@@ -2,7 +2,7 @@
 // 境界で cast して参照する（published-article.ts）。このファイルは公開出力の型と型ガードのみに保つ。
 //
 // 話者は名前・肩書を各要素へ焼き込まず personaId で参照し、描画時に personas から解決する
-// （管理側 personasStore.personaMap と同じ「id で保持し描画時に解決」）。
+// （管理側 personasStore.getPersona と同じ「id で保持し描画時に解決」）。
 
 // 話者ペルソナは Admin・公開共通の表示型 PersonaForDisplay に統合した（公開専用の PublishedPersona は廃止）。
 import type { PersonaForDisplay } from '$lib/models/persona/persona.types';

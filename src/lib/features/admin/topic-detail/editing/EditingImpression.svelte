@@ -15,8 +15,8 @@
 	}
 	let { personaId, part, showDiff, onRegenerate, editable = true }: Props = $props();
 
-	// 話者ラベルは personaId から描画時に解決する（型には畳まない・Req 3.1）。引き当て表は storeから直接読む。
-	const persona = $derived(currentTopicStore.personasStore.personaMap.get(personaId));
+	// 話者ラベルは personaId から描画時に store の解決メソッドで引く（型には畳まない・Req 3.1）。
+	const persona = $derived(currentTopicStore.personasStore.getPersona(personaId));
 	const name = $derived(persona?.name ?? FACILITATOR_NAME);
 	const role = $derived(persona?.role ?? '');
 

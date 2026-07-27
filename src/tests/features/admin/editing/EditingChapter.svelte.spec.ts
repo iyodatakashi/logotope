@@ -17,9 +17,8 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get personasStore() {
 			return {
-				get personaMap() {
-					return holder.personaMap;
-				},
+				getPersona: (id: string | null | undefined) =>
+					id ? holder.personaMap.get(id) : undefined,
 				getAwarenessesByTurn: (turnId: string) => holder.awarenessesByTurn.get(turnId) ?? []
 			};
 		}
@@ -134,12 +133,12 @@ describe('EditingChapter.svelte', () => {
 		await expect.element(page.getByText('カキク')).toBeInTheDocument();
 	});
 
-	it('話者名は型に持たず personaMap から描画時に解決する', async () => {
+	it('話者名は型に持たず store の解決メソッドから描画時に解決する', async () => {
 		setStore({
 			personaMap: new Map([['p1', persona({ id: 'p1', name: '田中', role: '住民' })]])
 		});
 		render(EditingChapter, makeProps({ turns: [turn({ personaId: 'p1' })] }));
 		await expect.element(page.getByText('田中')).toBeInTheDocument();
-		await expect.element(page.getByText('(住民)')).toBeInTheDocument();
+		await expect.element(page.getByText('（住民）')).toBeInTheDocument();
 	});
 });

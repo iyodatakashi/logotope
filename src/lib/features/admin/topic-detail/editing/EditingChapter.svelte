@@ -30,17 +30,14 @@
 		editable = true
 	}: Props = $props();
 
-	// 話者名/役割を描画時に id から解決するための引き当て表は storeから直接読む（Turn と同じ責務境界）。
-	const personaMap = $derived(currentTopicStore.personasStore.personaMap);
-
 	const statusLabel = (s: EditedChapterDisplayStatus): string =>
 		s === 'completed' ? '編集済み' : s === 'failed' ? '原本表示（失敗）' : '未編集';
 
 	const contentById = $derived(new Map(sourceTurns.map((turn) => [turn.id, turn.content])));
 
-	// 話者ラベルは Turn と同じく描画時に personaId から解決する（型には畳まない）。
+	// 話者ラベルは Turn と同じく描画時に personaId から store の解決メソッドで引く（型には畳まない）。
 	const speakerLabel = (turn: TurnForEditing) => {
-		const persona = turn.personaId ? personaMap.get(turn.personaId) : null;
+		const persona = currentTopicStore.personasStore.getPersona(turn.personaId);
 		return {
 			name: persona?.name ?? FACILITATOR_NAME,
 			role: persona?.role ?? ''
@@ -131,7 +128,10 @@
 					{#if awarenesses.length > 0}
 						<ul class="editing-chapter__awarenesses">
 							{#each awarenesses as awareness, i (i)}
-								<li>💡 {personaMap.get(awareness.personaId)?.name ?? ''}: {awareness.content}</li>
+								<li>
+								💡 {currentTopicStore.personasStore.getPersona(awareness.personaId)?.name ?? ''}:
+								{awareness.content}
+							</li>
 							{/each}
 						</ul>
 					{/if}

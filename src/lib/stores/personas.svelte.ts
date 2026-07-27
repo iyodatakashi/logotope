@@ -10,7 +10,12 @@ import {
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from '$lib/firebase';
-import type { PersonaForFirestore, Persona } from '$lib/models/persona/persona.types';
+import {
+	toPersonaForDisplay,
+	type PersonaForFirestore,
+	type Persona,
+	type PersonaForDisplay
+} from '$lib/models/persona/persona.types';
 
 const toPersona = (id: string, raw: PersonaForFirestore): Persona => ({
 	...raw,
@@ -35,10 +40,22 @@ export const createPersonasStore = (topicId: string) => {
 	let unsubscribe: (() => void) | null = null;
 
 	// 話者名/役割・指名先などを描画時に id から解決するための Map。各画面での重複導出を避ける。
+	// Map 自体は公開せず、getPersona / getPersonaForDisplay 経由でのみ解決させる（描画側は id 参照のまま持つ）。
 	const personaMap = $derived(new Map(personas.map((persona) => [persona.id, persona])));
 
+	// id からランタイム Persona を引く（ファシリテーター等で id が無い場合は undefined）。
+	const getPersona = (id: string | null | undefined): Persona | undefined =>
+		id ? personaMap.get(id) : undefined;
+
+	// id から表示用 PersonaForDisplay を引く。PostItem/PersonaAvatar など表示部品にはこれを渡す。
+	// ランタイム Persona → 表示型の写像は唯一の入口 toPersonaForDisplay に集約する（各画面で導出しない）。
+	const getPersonaForDisplay = (id: string | null | undefined): PersonaForDisplay | undefined => {
+		const persona = getPersona(id);
+		return persona ? toPersonaForDisplay(persona) : undefined;
+	};
+
 	// 気づきはペルソナ側に持たれているため、原本ターン id 起点に転置して逆引きできるようにする（triggeredByTurnId で紐づく）。
-	// 話者名は畳まず personaId 参照のまま保持し、描画時に personaMap で解決する。
+	// 話者名は畳まず personaId 参照のまま保持し、描画時に getPersona で解決する。
 	const awarenessesByTurn = $derived.by(() => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const map = new Map<string, { personaId: string; content: string }[]>();
@@ -161,9 +178,8 @@ export const createPersonasStore = (topicId: string) => {
 		get personas() {
 			return personas;
 		},
-		get personaMap() {
-			return personaMap;
-		},
+		getPersona,
+		getPersonaForDisplay,
 		getAwarenessesByTurn,
 		get isLoaded() {
 			return isLoaded;
