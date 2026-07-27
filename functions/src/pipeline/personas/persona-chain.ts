@@ -120,11 +120,7 @@ const runInterviewStage = async (topicId: string, personaId: string): Promise<vo
 	const snap = await db().doc(`topics/${topicId}/personas/${personaId}`).get();
 	if (!snap.exists) throw new Error(`persona ${personaId} not found`);
 	const data = snap.data() as Persona;
-	const persona: Persona = {
-		...data,
-		id: personaId,
-		specificRole: data.specificRole ?? data.stakeholderRole
-	};
+	const persona: Persona = { ...data, id: personaId };
 	const topicTitle = await readTopicTitle(topicId);
 	await runInterviewCore(topicId, personaId, topicTitle, persona);
 };

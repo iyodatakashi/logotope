@@ -66,7 +66,7 @@ const mockPersona = {
 	age: 40,
 	occupation: '会社員',
 	stakeholderRole: '一般',
-	specificRole: '会社員',
+	role: '会社員',
 	background: '東京在住',
 	interests: 'テクノロジー'
 };

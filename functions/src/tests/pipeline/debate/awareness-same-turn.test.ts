@@ -43,7 +43,7 @@ const makePersona = (id: string, name: string, over: Partial<Persona> = {}): Per
 	age: 40,
 	occupation: '会社員',
 	stakeholderRole: '市民',
-	specificRole: '市民',
+	role: '市民',
 	background: '背景',
 	interests: '関心',
 	nationality: '日本',

@@ -21,13 +21,13 @@
 		currentTopicStore.personasStore.setSelected(persona.id, selected);
 
 	// 名前・年齢・肩書き・プロフィールのインライン編集を即保存する（取材は再実行しない）。
-	// specificRole が未設定のペルソナでは undefined を書かない（Firestore が undefined を拒否するため）。
+	// 空・空白のみの役割は store 側で保存対象から除外する（総称へ自動置換せず、空欄は空欄のまま扱う）。
 	const saveProfile = () => {
 		currentTopicStore.personasStore.updatePersona(persona.id, {
 			name: persona.name,
 			age: persona.age,
 			background: persona.background,
-			...(persona.specificRole !== undefined ? { specificRole: persona.specificRole } : {})
+			role: persona.role
 		});
 	};
 
@@ -103,11 +103,11 @@
 			inline
 			fullWidth
 			focusStyle="background"
-			bind:value={persona.specificRole}
+			bind:value={persona.role}
 			onchange={saveProfile}
 			disabled={!editable}
 			ariaLabel="肩書き"
-			placeholder={persona.stakeholderRole}
+			placeholder="具体的な立場・肩書き（必須）"
 		/>
 	</div>
 

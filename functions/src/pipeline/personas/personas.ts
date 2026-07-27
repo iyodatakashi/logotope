@@ -1,28 +1,25 @@
 import { getFirestore } from 'firebase-admin/firestore';
-import type { Persona } from '../../types/persona.types.js';
+import type { Persona, PersonaForFirestore } from '../../types/persona.types.js';
 
 const db = () => getFirestore();
 
-// Firestore のペルソナ文書をランタイム Persona へ写す（specificRole の既定補完、interview オブジェクトの
-// interviewRecord への平坦化）。単体読み取りと全件読み取りで同じ写像を使う。
-type PersonaDoc = Omit<Persona, 'specificRole' | 'interviewRecord'> & {
-	specificRole?: string;
-	interview?: { interviewRecord: string };
+// Firestore のペルソナ永続形（PersonaForFirestore）をランタイム Persona へ写す（interview オブジェクトの
+// interviewRecord への平坦化）。単体読み取りと全件読み取りで同じ写像を使う。role は直参照し総称フォールバックを持たない。
+const toPersona = (id: string, data: PersonaForFirestore): Persona => {
+	const { interview, ...rest } = data;
+	return {
+		...rest,
+		id,
+		interviewRecord: interview?.interviewRecord
+	};
 };
-
-const toPersona = (id: string, data: PersonaDoc): Persona => ({
-	...data,
-	id,
-	specificRole: data.specificRole ?? data.stakeholderRole,
-	interviewRecord: data.interview?.interviewRecord
-});
 
 export const getPersonasByTopicId = async (topicId: string): Promise<Persona[]> => {
 	const snap = await db()
 		.collection(`topics/${topicId}/personas`)
 		.orderBy('sortOrder', 'asc')
 		.get();
-	return snap.docs.map((docSnap) => toPersona(docSnap.id, docSnap.data() as PersonaDoc));
+	return snap.docs.map((docSnap) => toPersona(docSnap.id, docSnap.data() as PersonaForFirestore));
 };
 
 /** 単一ペルソナを id で読む。未存在なら null（サーバ権威で自データを読むための単体リーダー）。 */
@@ -32,7 +29,7 @@ export const getPersonaById = async (
 ): Promise<Persona | null> => {
 	const snap = await db().doc(`topics/${topicId}/personas/${personaId}`).get();
 	if (!snap.exists) return null;
-	return toPersona(snap.id, snap.data() as PersonaDoc);
+	return toPersona(snap.id, snap.data() as PersonaForFirestore);
 };
 
 /**

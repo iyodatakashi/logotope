@@ -36,7 +36,7 @@ const basePersona = (over: Partial<Persona> = {}): Persona => ({
 	age: 40,
 	occupation: '会社員',
 	stakeholderRole: '市民',
-	specificRole: '市民',
+	role: '市民',
 	background: '',
 	interests: '',
 	nationality: '',

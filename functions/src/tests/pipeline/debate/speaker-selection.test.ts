@@ -42,7 +42,7 @@ const makePersonas = (ids: string[]): Persona[] =>
 		age: 30,
 		occupation: '会社員',
 		stakeholderRole: '市民',
-		specificRole: '市民',
+		role: '市民',
 		background: '',
 		interests: '',
 		nationality: '日本',

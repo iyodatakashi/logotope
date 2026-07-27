@@ -52,7 +52,7 @@ const estimateAuthorityLevel = (stakeholderRole: string): AuthorityLevel => {
 
 export const buildSpeechStyleGuide = (persona: Persona & { gender?: string }): string => {
 	const expLevel = estimateExperienceLevel(persona.age, persona.occupation);
-	const authLevel = estimateAuthorityLevel(persona.specificRole || persona.stakeholderRole);
+	const authLevel = estimateAuthorityLevel(persona.role);
 	const lines: string[] = [];
 
 	lines.push(
@@ -128,7 +128,7 @@ ${styleGuide}
 - 名前: ${persona.name}
 - 年齢: ${persona.age}歳
 - 職業: ${persona.occupation}
-- 立場: ${persona.specificRole || persona.stakeholderRole}
+- 立場: ${persona.role}
 - 背景: ${persona.background}
 - 関心事: ${persona.interests}
 

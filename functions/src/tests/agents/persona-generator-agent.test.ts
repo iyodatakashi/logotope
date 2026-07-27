@@ -1,89 +1,63 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mockGenerateObject = vi.hoisted(() => vi.fn());
+const { mockGenerateObject } = vi.hoisted(() => ({
+	mockGenerateObject: vi.fn()
+}));
 
-vi.mock('ai', () => ({ generateObject: mockGenerateObject }));
-vi.mock('../../llm/models.js', () => ({ getPipelineModel: vi.fn(() => 'mock-model') }));
+vi.mock('ai', () => ({
+	generateObject: mockGenerateObject
+}));
 
-import { generatePersonas } from '../../agents/persona-generator-agent.js';
+vi.mock('../../llm/models.js', () => ({
+	getPipelineModel: vi.fn(() => 'mock-model')
+}));
+
+import { generatePersonas, personasSchema } from '../../agents/persona-generator-agent.js';
 import type { Stakeholder } from '../../types/stakeholder.types.js';
-import type { TopicContext } from '../../types/topic.types.js';
 
-const STAKEHOLDERS: Stakeholder[] = [
-	{
-		id: 'sid-a',
-		role: '医師',
-		reason: 'r',
-		mainInterests: [],
-		minorityLevel: 'low',
-		engagementLevel: 'high'
-	}
-];
-
-const promptOf = () =>
-	(mockGenerateObject.mock.calls[0][0] as { messages: Array<{ content: string }> }).messages[0]
-		.content;
-
-const factContext = (statement: string): TopicContext => ({
-	factBase: {
-		facts: [{ statement, sources: [] }],
-		generatedAt: new Date('2026-07-03T00:00:00Z')
-	}
+const validPersonaObject = (role: string) => ({
+	sourceTag: 'S1',
+	stakeholderRole: '市民',
+	role,
+	name: '田中 太郎',
+	nationality: '日本',
+	age: 40,
+	occupation: '会社員',
+	background: '背景',
+	interests: '関心',
+	engagementLevel: 'high' as const,
+	gender: 'male' as const,
+	genderPresentation: 'masculine' as const
 });
 
-beforeEach(() => {
-	vi.clearAllMocks();
-	mockGenerateObject.mockResolvedValue({ object: { personas: [] } });
+describe('personasSchema - 役割の非空保証', () => {
+	it('role が空文字のペルソナを弾く', () => {
+		const result = personasSchema(1).safeParse({ personas: [validPersonaObject('')] });
+		expect(result.success).toBe(false);
+	});
+
+	it('role が非空のペルソナを受理する', () => {
+		const result = personasSchema(1).safeParse({ personas: [validPersonaObject('救急医')] });
+		expect(result.success).toBe(true);
+	});
 });
 
-describe('generatePersonas', () => {
-	it('承認済み事実基盤があればプロンプトに共通前提として反映する', async () => {
-		await generatePersonas('テーマ', STAKEHOLDERS, 't1', factContext('確定事実X'));
-		const prompt = promptOf();
-		expect(prompt).toContain('【確定した客観的事実（共通前提）】');
-		expect(prompt).toContain('確定事実X');
+describe('generatePersonas - プロンプトの空禁止指示', () => {
+	const stakeholders: Stakeholder[] = [
+		{ id: 's1', role: '市民', engagementLevel: 'medium' } as Stakeholder
+	];
+
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mockGenerateObject.mockResolvedValue({ object: { personas: [] } });
 	});
 
-	it('事実基盤が空のときはテーマ・ステークホルダー情報のみで従来どおり動作する', async () => {
-		await generatePersonas('テーマ', STAKEHOLDERS, 't1', {
-			factBase: { facts: [], generatedAt: new Date() }
-		});
-		expect(promptOf()).not.toContain('【確定した客観的事実（共通前提）】');
-	});
+	it('プロンプトに「役割を空で返さない」旨を含み、role を用いる（specificRole を残さない）', async () => {
+		await generatePersonas('AIと社会', stakeholders, 'topic1');
 
-	it('topicContext 未指定でも従来どおり動作する', async () => {
-		await generatePersonas('テーマ', STAKEHOLDERS, 't1');
-		expect(promptOf()).not.toContain('【確定した客観的事実（共通前提）】');
-	});
-
-	it('日本人名は姓と名の間に半角スペースを入れるルールをプロンプトに含める', async () => {
-		await generatePersonas('テーマ', STAKEHOLDERS, 't1');
-		expect(promptOf()).toContain('姓と名の間に半角スペース');
-	});
-
-	it('生成スキーマに llmType を含めない（Req 2.3）', async () => {
-		await generatePersonas('テーマ', STAKEHOLDERS, 't1');
-		const { schema } = mockGenerateObject.mock.calls[0][0] as {
-			schema: { shape: { personas: { element: { shape: Record<string, unknown> } } } };
-		};
-		expect('llmType' in schema.shape.personas.element.shape).toBe(false);
-	});
-
-	it('立場リストへエコー用タグを付し、スキーマに sourceTag を含める', async () => {
-		await generatePersonas('テーマ', STAKEHOLDERS, 't1');
-		expect(promptOf()).toContain('S1: 医師');
-		const { schema } = mockGenerateObject.mock.calls[0][0] as {
-			schema: { shape: { personas: { element: { shape: Record<string, unknown> } } } };
-		};
-		expect('sourceTag' in schema.shape.personas.element.shape).toBe(true);
-	});
-
-	it('生成結果に sourceTag を透過的に載せて返す', async () => {
-		mockGenerateObject.mockResolvedValueOnce({
-			object: { personas: [{ sourceTag: 'S1', stakeholderRole: '医師', name: '太郎' }] }
-		});
-		const result = await generatePersonas('テーマ', STAKEHOLDERS, 't1');
-		expect(result.ok).toBe(true);
-		if (result.ok) expect(result.value.personas[0].sourceTag).toBe('S1');
+		const content = mockGenerateObject.mock.calls[0][0].messages[0].content as string;
+		expect(content).toContain('空文字で返さない');
+		expect(content).toContain('- role …');
+		expect(content).not.toContain('specificRole');
 	});
 });

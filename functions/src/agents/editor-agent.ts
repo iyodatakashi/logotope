@@ -101,7 +101,7 @@ const formatTurnsWithIds = (
 			if (turn.personaId) {
 				const persona = personas.find((candidate) => candidate.id === turn.personaId);
 				const name = persona ? persona.name : `Persona(${turn.personaId})`;
-				const role = persona ? persona.specificRole || persona.stakeholderRole : '';
+				const role = persona ? persona.role : '';
 				return `${mark}[ID:${turn.id}][${name}(${role})(personaId:${turn.personaId})]: ${turn.content}`;
 			}
 			return `${mark}[ID:${turn.id}][ファシリテーター]: ${turn.content}`;

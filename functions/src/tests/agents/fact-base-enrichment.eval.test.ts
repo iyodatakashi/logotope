@@ -76,7 +76,7 @@ const makePersona = (over: Partial<Persona>): Persona => ({
 	age: 45,
 	occupation: '会社員',
 	stakeholderRole: '一般市民',
-	specificRole: '一般市民',
+	role: '一般市民',
 	background: '',
 	interests: '',
 	nationality: '日本',
@@ -166,7 +166,7 @@ describe.skipIf(!ENABLED)('取材の挙動（interview-agent）', () => {
 				age: 52,
 				occupation: '牧師',
 				stakeholderRole: '宗教指導者',
-				specificRole: '福音派の牧師',
+				role: '福音派の牧師',
 				background: '聖書を字義通りに解釈する福音派教会で育ち、現在は地域教会を率いる',
 				interests: '聖書解釈、信仰教育'
 			},
@@ -180,7 +180,7 @@ describe.skipIf(!ENABLED)('取材の挙動（interview-agent）', () => {
 				age: 38,
 				occupation: '自営業',
 				stakeholderRole: 'ワクチン懐疑派',
-				specificRole: 'ワクチン接種に強い不信を持つ市民',
+				role: 'ワクチン接種に強い不信を持つ市民',
 				background: 'SNSで反ワクチン情報に多く触れ、行政や製薬会社への不信が強い',
 				interests: '健康、代替医療'
 			},
@@ -250,7 +250,7 @@ describe.skipIf(!TURN_ENABLED)('討論ターンの層②優先（persona-agent�
 	const persona = makePersona({
 		name: 'デイビッド',
 		occupation: '牧師',
-		specificRole: '福音派の牧師',
+		role: '福音派の牧師',
 		beliefs: [
 			{
 				id: 'b1',

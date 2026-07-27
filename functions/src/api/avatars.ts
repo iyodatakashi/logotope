@@ -45,7 +45,7 @@ export const runAvatarCore = async (topicId: string, personaId: string): Promise
 			age: persona.age,
 			genderPresentation: persona.genderPresentation,
 			occupation: persona.occupation ?? '',
-			specificRole: persona.specificRole || persona.stakeholderRole || persona.occupation || '',
+			specificRole: persona.role,
 			nationality: persona.nationality ?? '',
 			background: persona.background ?? '',
 			interests: persona.interests ?? ''

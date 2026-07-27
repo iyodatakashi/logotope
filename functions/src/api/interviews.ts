@@ -5,7 +5,7 @@ import { runInterview as runInterviewAgent } from '../agents/interview-agent.js'
 import { getTopicContext } from '../pipeline/topics/topic-context.js';
 import { getPersonaById } from '../pipeline/personas/personas.js';
 import { confirmInterviewsGeneratedIfAllComplete } from '../pipeline/interviews/interview-completion.js';
-import type { Persona } from '../types/persona.types.js';
+import type { Persona, InterviewForFirestore } from '../types/persona.types.js';
 
 const db = () => getFirestore();
 
@@ -39,15 +39,17 @@ export const runInterviewCore = async (
 	}
 
 	// 取材結果はサーバが当該ペルソナ文書へ永続化する（結果の Single Source of Truth は Firestore）。
+	// 書き込みは永続形 InterviewForFirestore で型付けする（オブジェクトリテラル直書きを解消）。
+	const interview: InterviewForFirestore = {
+		draftBelief: result.value.draftBelief,
+		verificationReport: result.value.verificationReport,
+		interviewRecord: result.value.interviewRecord,
+		sources: result.value.sources,
+		status: 'completed',
+		completedAt: Timestamp.now()
+	};
 	await personaRef.update({
-		interview: {
-			draftBelief: result.value.draftBelief,
-			verificationReport: result.value.verificationReport,
-			interviewRecord: result.value.interviewRecord,
-			sources: result.value.sources,
-			status: 'completed',
-			completedAt: Timestamp.now()
-		},
+		interview,
 		beliefs: [{ version: 0, content: result.value.belief, createdAt: Timestamp.now() }]
 	});
 	// 自ペルソナの completed 永続化後に全件完了をサーバ側で判定し、全件完了なら generated を確定する。

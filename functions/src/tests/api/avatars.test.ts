@@ -59,7 +59,7 @@ const seedPersona = (extra: Record<string, unknown> = {}) =>
 	holder.mock!.store.set(personaPath, {
 		age: 42,
 		occupation: '医師',
-		specificRole: '救急医',
+		role: '救急医',
 		nationality: '日本',
 		background: '地方の総合病院に勤務。',
 		interests: 'ランニング',

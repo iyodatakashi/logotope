@@ -10,19 +10,14 @@ import type { DebateTurn } from '../../types/turn.types.js';
 import type { Persona, AwarenessForFirestore } from '../../types/persona.types.js';
 import type { FactBase } from '../../types/factBase.types.js';
 
-const makePersona = (
-	id: string,
-	name: string,
-	specificRole: string,
-	stakeholderRole = ''
-): Persona => ({
+const makePersona = (id: string, name: string, role: string, stakeholderRole = ''): Persona => ({
 	id,
 	topicId: 'topic1',
 	name,
 	age: 35,
 	occupation: '会社員',
 	stakeholderRole,
-	specificRole,
+	role,
 	background: '背景',
 	interests: '関心',
 	nationality: '日本',
@@ -62,10 +57,10 @@ describe('formatTurns', () => {
 		expect(formatTurns(turns, personas)).toBe('[田中太郎(医師)(ID:p1)]: 賛成です。');
 	});
 
-	it('specificRole が空の場合は stakeholderRole を使用する', () => {
+	it('role が空でも stakeholderRole で自動置換せず、空欄のまま表示する（総称フォールバック廃止）', () => {
 		const turns = [makePersonaTurn('p1', '発言内容')];
 		const personas = [makePersona('p1', '田中', '', '市民')];
-		expect(formatTurns(turns, personas)).toBe('[田中(市民)(ID:p1)]: 発言内容');
+		expect(formatTurns(turns, personas)).toBe('[田中()(ID:p1)]: 発言内容');
 	});
 
 	it('personaId が personas に存在しない場合は Persona(id) にフォールバックする', () => {

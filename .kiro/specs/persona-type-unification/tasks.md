@@ -1,0 +1,89 @@
+# Implementation Plan
+
+> 実装は functions 変更後に手動デプロイが必要（Claude はデプロイしない）。移行は「一時フォールバック込みでデプロイ → backfill → 検証 → フォールバック撤去」の順序を守る。FE↔functions の永続型は手動ミラーのため、型の変更（1.1・1.2）は整合を保って行う。
+
+- [x] 1. 型定義の再構成（永続形ミラー・ランタイム派生・共通表示型）
+- [x] 1.1 functions のペルソナ永続型を再構成する
+  - 永続形 `PersonaForFirestore`（`interview` オブジェクト・`nationality`・`role` 必須）を新設し、ランタイム `Persona` をそこから派生（`interviewRecord` 平坦化・Date 変換を明示）させる。
+  - interview の永続サブ型（`InterviewForFirestore`・`DraftBelief`・`SearchSource`・`SearchResult`）を型レイヤーへ集約し、interview 生成・grounding は集約先を参照する（重複定義の解消・依存方向の是正）。
+  - 具体的立場フィールドを `specificRole` から `role`（必須）へ改名する。
+  - 観測可能な完了: functions の型チェックが green で、`PersonaForFirestore` と派生 `Persona` が `role` 必須・interview 永続型付きで定義される。
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.3, 5.1, 5.2_
+  - _Boundary: functions ペルソナ型_
+- [x] 1.2 FE のペルソナ型を functions とミラーし共通表示型を新設する
+  - 永続形 `PersonaForFirestore` に `nationality` を追加し `specificRole` を `role`（必須）へ改名、`InterviewForFirestore` から永続されない `researchSummary` を削除し、ランタイム `Persona` を追随させる（functions と構造一致）。
+  - 共通の軽量表示型 `PersonaForDisplay`（`id`・`name`・`role`・任意の `colorKey`・`avatarGeneratedAt`）と、`Persona` から写す変換を新設する。管理専用フィールド・`nationality`・`topicId` は含めない。
+  - 観測可能な完了: FE の型チェックが green で、`PersonaForDisplay` と変換が定義され、永続形が functions と一致する。
+  - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2, 4.4, 5.1, 5.2, 6.1_
+  - _Boundary: FE ペルソナ型・表示型_
+  - _Depends: 1.1_
+
+- [x] 2. 役割の非空保証（入口検証）と functions/admin のリネーム追随
+- [x] 2.1 (P) 生成で役割の非空を保証する
+  - ペルソナ生成のスキーマを空文字を弾く形にし、プロンプトに「役割を空で返さない」指示を追加する。生成側の `specificRole` 参照を `role` に追随させる。
+  - 観測可能な完了: 生成スキーマが空の役割を弾き、プロンプトに空禁止の指示が入る（スキーマ・文言のテストが green）。役割の総称による自動置換は行わない。
+  - _Requirements: 5.3, 5.5_
+  - _Boundary: functions 生成_
+  - _Depends: 1.1_
+- [x] 2.2 (P) functions の役割参照とアバター・取材の永続を role に追随させる
+  - 読み取り写像・討論/所感/取材/アバター経路の `specificRole` 参照を `role` に置換し、取材結果の書き込みを永続 `InterviewForFirestore` 型で行う（リテラル直書きを解消）。読み取りは `role` 直参照とし総称フォールバックを持たない。
+  - 観測可能な完了: functions の型チェックが green で、`AvatarSpec` 内部フィールドを除き `specificRole` 参照が残らない。
+  - _Requirements: 1.4, 5.1, 5.6_
+  - _Boundary: functions ペルソナ消費側_
+  - _Depends: 1.1_
+- [x] 2.3 (P) admin 編集で空役割の保存をブロックする
+  - 役割の空文字・空白のみの保存を弾き（総称へ自動置換しない・空欄は空欄のまま扱う）、総称で埋まると誤解させる placeholder を見直す。admin 側の `specificRole` 参照を `role` に追随させる。
+  - 観測可能な完了: admin で空・空白の役割を保存しようとしても永続されない（テストが green）。
+  - _Requirements: 5.4, 5.6, 5.7_
+  - _Boundary: FE admin ペルソナ編集_
+  - _Depends: 1.2_
+
+- [x] 3. 公開・共通表示への統合
+- [x] 3.1 (P) 公開記事を共通表示型へ移行する
+  - 公開専用の話者ペルソナ型を廃止して `PersonaForDisplay` に置き換え、公開記事の組み立てを役割の直参照で行い（総称導出なし）、公開の各表示要素の参照を更新する。id 保持・描画時解決の方針は維持する。
+  - 観測可能な完了: 公開記事が `PersonaForDisplay` で話者・役割・アバターを表示し、旧公開ペルソナ型と重いランタイム `Persona` を公開ビューへ持ち込まない。
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 5.6, 7.3_
+  - _Boundary: FE 公開記事_
+  - _Depends: 1.2_
+- [x] 3.2 (P) admin 表示の役割即席導出を廃し表示型に寄せる
+  - 討論・編集・所感・取材の各表示で `specificRole ?? stakeholderRole` の即席導出を廃して役割を直参照にし、取材表示の `researchSummary` 分岐を削除する。
+  - 観測可能な完了: admin の話者・役割表示が役割の直参照になり、総称導出と `researchSummary` 参照が残らない。
+  - _Requirements: 1.2, 5.6_
+  - _Boundary: FE admin 表示_
+  - _Depends: 1.2_
+- [x] 3.3 共通発言アイテムコンポーネントを完成させる
+  - 発言アイテムコンポーネントの入力を `PersonaForDisplay` にして、Admin・公開の双方から同一コンポーネントで発言（名前・役割・アバター）を描画できるようにする（保留解除）。欠落し得る外見フィールドは既定へ縮退する。
+  - 観測可能な完了: Admin・公開いずれの `PersonaForDisplay` でも発言アイテムが描画され、`role` 参照の型エラーが解消する。
+  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
+  - _Boundary: FE 共通コンポーネント_
+  - _Depends: 1.2, 3.1_
+
+- [x] 4. 既存データ移行と移行期間の安全策
+- [x] 4.1 役割フィールドの backfill 移行を実装する
+  - 全ペルソナの旧具体的立場を `role` へ移し、欠落・空のものに限り一度だけ総称で穴埋めする冪等な backfill を、リポジトリに残す形（既に `role` があればスキップ・再実行安全）で実装する。旧フィールドは削除しない。
+  - 観測可能な完了: backfill 実行で全ペルソナに非空の `role` が付与され、再実行しても二重変換しない単体テストが green。
+  - _Requirements: 8.1, 8.2_
+  - _Boundary: functions scripts_
+  - _Depends: 1.1_
+- [x] 4.2 移行期間の一時読み取りフォールバックを入れる
+  - 読み取り写像（functions 側の変換・公開記事の組み立て）に、`role` 欠落時のみ旧フィールド／総称を読む一時フォールバックを単一箇所で入れ、backfill 前デプロイでも役割表示を失わないようにする。
+  - 観測可能な完了: 役割未移行のペルソナでも役割が表示される（テストが green）。フォールバックは移行専用の単一箇所に限る。
+  - _Requirements: 7.1, 8.3_
+  - _Boundary: functions read 写像・FE 公開組み立て_
+  - _Depends: 2.2, 3.1_
+
+- [x] 5. 検証と後始末
+- [x] 5.1 型整合とリネーム完了を検証する
+  - functions・FE の型チェックが green で、`AvatarSpec` 内部を除き `specificRole` 参照ゼロ、`researchSummary` 参照ゼロ、旧公開ペルソナ型・場当たり派生型の参照ゼロを確認する。
+  - 観測可能な完了: 上記の残存参照ゼロと型チェック green。見える振る舞い（表示される名前・役割・アバター）に回帰がない。
+  - _Requirements: 1.2, 5.1, 6.2, 7.1, 7.2_
+- [x] 5.2 単体・コンポーネントテストを追加する
+  - 表示型変換が管理専用フィールドを含めないこと、公開組み立てが役割を直参照すること、生成スキーマが空役割を弾くこと、admin が空役割保存をブロックすること、共通発言アイテムが Admin・公開双方で描画されることを検証する。
+  - 観測可能な完了: これらのテストが green。
+  - _Requirements: 3.4, 4.1, 4.2, 5.3, 5.4_
+  - _Depends: 2.1, 2.3, 3.1, 3.3_
+- [x] 5.3 移行完了後に一時フォールバックを撤去する
+  - 本番 backfill 完了・検証後に、4.2 で入れた一時読み取りフォールバックを撤去し、役割を直参照のみに統一する（導出の恒久排除を確定）。
+  - 観測可能な完了: 一時フォールバックが除去され、読み取り経路に総称導出が一切残らない。
+  - _Requirements: 5.6, 8.3_
+  - _Depends: 4.1, 4.2_

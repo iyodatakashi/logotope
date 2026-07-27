@@ -1,14 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { Timestamp } from 'firebase/firestore';
-import type {
-	BeliefForFirestore,
-	Belief,
-	AwarenessForFirestore,
-	Awareness,
-	InterviewForFirestore,
-	Interview,
-	PersonaForFirestore,
-	Persona
+import {
+	toPersonaForDisplay,
+	type BeliefForFirestore,
+	type Belief,
+	type AwarenessForFirestore,
+	type Awareness,
+	type InterviewForFirestore,
+	type Interview,
+	type PersonaForFirestore,
+	type Persona,
+	type PersonaForDisplay
 } from '$lib/models/persona/persona.types';
 
 describe('persona.types - Firestore 型とアプリ型', () => {
@@ -74,18 +76,31 @@ describe('persona.types - Firestore 型とアプリ型', () => {
 		expect(interview.completedAt).toBeInstanceOf(Date);
 	});
 
-	it('PersonaForFirestore は beliefs/awarenesses を ForFirestore 型で持つ', () => {
+	it('InterviewForFirestore は researchSummary を持たない（functions が永続しない幽霊フィールドを削除）', () => {
+		const interview: InterviewForFirestore = {
+			status: 'completed',
+			// @ts-expect-error researchSummary は永続形から削除された
+			researchSummary: '要約'
+		};
+		expect(interview.status).toBe('completed');
+	});
+
+	it('PersonaForFirestore は role 必須・nationality を持ち、beliefs/awarenesses を ForFirestore 型で持つ', () => {
 		const persona: PersonaForFirestore = {
 			id: 'p1',
 			topicId: 't1',
 			stakeholderRole: '市民',
 			stakeholderId: 'sid-1',
-			specificRole: undefined,
-			name: '田中太郎',
+			role: '医師',
+			name: '田中 太郎',
 			age: 40,
 			occupation: '会社員',
 			background: '背景',
 			interests: '関心',
+			nationality: '日本',
+			gender: 'male',
+			genderPresentation: 'masculine',
+			colorKey: 'blue',
 			selected: true,
 			sortOrder: 0,
 			beliefs: [
@@ -107,22 +122,28 @@ describe('persona.types - Firestore 型とアプリ型', () => {
 				}
 			]
 		};
+		expect(persona.role).toBe('医師');
+		expect(persona.nationality).toBe('日本');
 		expect(persona.beliefs[0].createdAt).toBeInstanceOf(Timestamp);
 		expect(persona.awarenesses?.[0].createdAt).toBeInstanceOf(Timestamp);
 	});
 
-	it('Persona は beliefs/awarenesses をアプリ型（createdAt: Date）で持つ', () => {
+	it('Persona は role 必須・nationality を持ち、beliefs/awarenesses をアプリ型（createdAt: Date）で持つ', () => {
 		const persona: Persona = {
 			id: 'p1',
 			topicId: 't1',
 			stakeholderRole: '市民',
 			stakeholderId: 'sid-1',
-			specificRole: undefined,
-			name: '田中太郎',
+			role: '医師',
+			name: '田中 太郎',
 			age: 40,
 			occupation: '会社員',
 			background: '背景',
 			interests: '関心',
+			nationality: '日本',
+			gender: 'male',
+			genderPresentation: 'masculine',
+			colorKey: 'blue',
 			selected: true,
 			sortOrder: 0,
 			beliefs: [
@@ -144,7 +165,59 @@ describe('persona.types - Firestore 型とアプリ型', () => {
 				}
 			]
 		};
+		expect(persona.role).toBe('医師');
+		expect(persona.nationality).toBe('日本');
 		expect(persona.beliefs[0].createdAt).toBeInstanceOf(Date);
 		expect(persona.awarenesses?.[0].createdAt).toBeInstanceOf(Date);
+	});
+});
+
+describe('toPersonaForDisplay - 表示用の軽量写像', () => {
+	const fullPersona = (): Persona => ({
+		id: 'p1',
+		topicId: 't1',
+		stakeholderRole: '市民',
+		stakeholderId: 'sid-1',
+		role: '医師',
+		name: '田中 太郎',
+		age: 40,
+		occupation: '会社員',
+		background: '背景',
+		interests: '関心',
+		nationality: '日本',
+		engagementLevel: 'high',
+		gender: 'male',
+		genderPresentation: 'masculine',
+		colorKey: 'blue',
+		avatarGeneratedAt: new Date('2026-01-01T00:00:00Z'),
+		selected: true,
+		sortOrder: 0,
+		beliefs: []
+	});
+
+	it('id/name/role/colorKey/avatarGeneratedAt のみを写す（役割は導出せず直参照）', () => {
+		const display: PersonaForDisplay = toPersonaForDisplay(fullPersona());
+		expect(display).toEqual({
+			id: 'p1',
+			name: '田中 太郎',
+			role: '医師',
+			colorKey: 'blue',
+			avatarGeneratedAt: new Date('2026-01-01T00:00:00Z')
+		});
+	});
+
+	it('管理専用フィールド・nationality・topicId を含めない（描画に不要な最小形）', () => {
+		const display = toPersonaForDisplay(fullPersona());
+		expect(Object.keys(display).sort()).toEqual([
+			'avatarGeneratedAt',
+			'colorKey',
+			'id',
+			'name',
+			'role'
+		]);
+		expect('nationality' in display).toBe(false);
+		expect('topicId' in display).toBe(false);
+		expect('background' in display).toBe(false);
+		expect('stakeholderRole' in display).toBe(false);
 	});
 });

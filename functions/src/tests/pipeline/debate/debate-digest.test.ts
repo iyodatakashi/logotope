@@ -43,7 +43,7 @@ const makePersona = (id: string, name: string, selected: boolean): Persona => ({
 	age: 40,
 	occupation: '職業',
 	stakeholderRole: '一般',
-	specificRole: '役割',
+	role: '役割',
 	background: '',
 	interests: '',
 	nationality: '日本',

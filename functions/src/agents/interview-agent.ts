@@ -2,28 +2,13 @@ import { generateText, generateObject } from 'ai';
 import { z } from 'zod';
 import { getPipelineModel, getGoogleProvider } from '../llm/models.js';
 import { PIPELINE_MODELS } from '../constants/ai.constants.js';
-import {
-	extractSources,
-	resolveSourceUrls,
-	type GroundingMetadata,
-	type SearchSource
-} from '../search/grounding.js';
+import { extractSources, resolveSourceUrls, type GroundingMetadata } from '../search/grounding.js';
 import { formatFactBaseSection } from '../utils/prompt-formatters.js';
-import type { Persona } from '../types/persona.types.js';
+import type { Persona, DraftBelief, SearchSource } from '../types/persona.types.js';
 import type { TopicContext } from '../types/topic.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 
 const MAX_SOURCE_CHARS = 3_000;
-
-export type DraftBelief = {
-	stanceAndGrounds: string;
-	coreClaims: string;
-	concerns: string;
-	values: string;
-	compromisePoints: string;
-	changePotential: string;
-	perceivedFacts?: string; // 立場から見た事実（層②のドラフト・非破壊加算）
-};
 
 export type InterviewOutput = {
 	draftBelief: DraftBelief;
@@ -104,7 +89,7 @@ const generateDraftBelief = async (
 氏名: ${persona.name}
 年齢: ${persona.age}歳
 職業: ${persona.occupation}
-立場: ${persona.specificRole}
+立場: ${persona.role}
 背景: ${persona.background}
 関心事: ${persona.interests}
 
@@ -246,7 +231,7 @@ const generateFinalBelief = async (
 			messages: [
 				{
 					role: 'user',
-					content: `テーマ「${topicTitle}」について、ペルソナ「${persona.name}」（${persona.age}歳、${persona.occupation}、${persona.specificRole}）の最終的な信念ドキュメントと取材記録をゼロから生成してください。
+					content: `テーマ「${topicTitle}」について、ペルソナ「${persona.name}」（${persona.age}歳、${persona.occupation}、${persona.role}）の最終的な信念ドキュメントと取材記録をゼロから生成してください。
 
 【材料（下記の検証レポート）の扱い（最重要）】
 - 信念は、下記の検証レポートを材料としてゼロから構築する。特定のドラフト文面を下敷きにしてなぞってはならない（ドラフトは既に破棄されている）。
@@ -272,7 +257,7 @@ ${verificationReport}
 氏名: ${persona.name}
 年齢: ${persona.age}歳
 職業: ${persona.occupation}
-立場: ${persona.specificRole}
+立場: ${persona.role}
 背景: ${persona.background}
 関心事: ${persona.interests}
 

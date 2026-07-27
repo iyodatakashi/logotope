@@ -47,7 +47,7 @@ const mockPersona: Persona = {
 	age: 40,
 	occupation: '会社員',
 	stakeholderRole: '一般市民',
-	specificRole: '会社員',
+	role: '会社員',
 	background: 'テスト背景',
 	interests: 'テスト関心事',
 	nationality: '日本',

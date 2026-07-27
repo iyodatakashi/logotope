@@ -84,11 +84,17 @@ export const createPersonasStore = (topicId: string) => {
 		patch: Partial<
 			Pick<
 				PersonaForFirestore,
-				'name' | 'specificRole' | 'age' | 'background' | 'gender' | 'genderPresentation'
+				'name' | 'role' | 'age' | 'background' | 'gender' | 'genderPresentation'
 			>
 		>
 	): Promise<void> => {
-		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), patch);
+		// 空・空白のみの役割は保存しない（総称へ自動置換せず、空欄は空欄のまま扱う）。既存 role を上書きしない。
+		const sanitized = { ...patch };
+		if ('role' in sanitized && (sanitized.role === undefined || sanitized.role.trim() === '')) {
+			delete sanitized.role;
+		}
+		if (Object.keys(sanitized).length === 0) return;
+		await updateDoc(doc(db, 'topics', topicId, 'personas', personaId), sanitized);
 	};
 
 	// ペルソナ単位の再取材。単一ペルソナのみを取材し、他ペルソナの結果に影響しない（成否問わず常時可能）。

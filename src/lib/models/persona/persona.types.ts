@@ -39,7 +39,6 @@ export type DraftBelief = {
 };
 
 export type InterviewForFirestore = {
-	researchSummary?: string;
 	draftBelief?: DraftBelief;
 	verificationReport?: string;
 	interviewRecord?: string;
@@ -70,12 +69,14 @@ export type PersonaForFirestore = {
 	stakeholderRole: string;
 	// 由来ステークホルダーの安定 id。永続時に必ず付与される。
 	stakeholderId: string;
-	specificRole?: string;
+	// 具体的立場（旧 specificRole）。必須・非空。非空は書き込み入口の検証で保証する（総称で自動置換しない）。
+	role: string;
 	name: string;
 	age: number;
 	occupation: string;
 	background: string;
 	interests: string;
+	nationality: string;
 	engagementLevel?: EngagementLevel;
 	gender: PersonaGender;
 	genderPresentation: PersonaGenderPresentation;
@@ -100,3 +101,26 @@ export type Persona = Omit<
 	awarenesses?: Awareness[];
 	avatarGeneratedAt?: Date;
 };
+
+// Admin・公開が共通で使う軽量な表示用ペルソナ型。発言アイテム（PersonaPostItem）などの描画に必要な
+// 最小フィールドのみを持つ。管理専用フィールド・nationality・topicId は含めない（描画に不要・payload 純度を保つ）。
+export type PersonaForDisplay = {
+	id: string;
+	name: string;
+	// 必須。永続 role をそのまま持つ（?? stakeholderRole の導出はしない）。
+	role: string;
+	// 外見。欠落は未設定を意味し、表示側（PersonaAvatar）が既定へ縮退させる。
+	colorKey?: string;
+	// アバター画像の生成時刻。存在フラグ兼キャッシュバスター。
+	avatarGeneratedAt?: Date;
+};
+
+// ランタイム Persona から表示に必要な最小フィールドのみを抽出する（唯一の Admin 側写像入口・導出なし）。
+// 公開側は builder が永続読み取りから同型を組む。
+export const toPersonaForDisplay = (persona: Persona): PersonaForDisplay => ({
+	id: persona.id,
+	name: persona.name,
+	role: persona.role,
+	colorKey: persona.colorKey,
+	avatarGeneratedAt: persona.avatarGeneratedAt
+});

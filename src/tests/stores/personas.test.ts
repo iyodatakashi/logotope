@@ -242,6 +242,27 @@ describe('createPersonasStore', () => {
 		expect(personaWrites[0][1]).toEqual({ interview: { status: 'in_progress' }, beliefs: [] });
 	});
 
+	it('updatePersona は非空の role を永続する', async () => {
+		const store = createPersonasStore('t1');
+		await store.updatePersona('p1', { name: '田中', role: '救急医' });
+		expect(updateDoc).toHaveBeenCalledWith(
+			{ path: 'topics/t1/personas/p1' },
+			{ name: '田中', role: '救急医' }
+		);
+	});
+
+	it('updatePersona は空白のみの role を保存対象から除外し、他フィールドは保存する（総称へ自動置換しない）', async () => {
+		const store = createPersonasStore('t1');
+		await store.updatePersona('p1', { name: '田中', role: '   ' });
+		expect(updateDoc).toHaveBeenCalledWith({ path: 'topics/t1/personas/p1' }, { name: '田中' });
+	});
+
+	it('updatePersona は空 role だけの patch では何も書き込まない（空欄は空欄のまま）', async () => {
+		const store = createPersonasStore('t1');
+		await store.updatePersona('p1', { role: '' });
+		expect(updateDoc).not.toHaveBeenCalled();
+	});
+
 	it('runInterview は callable の reject を呼び出し元へ伝播する', async () => {
 		const mockFn = vi.fn().mockRejectedValue(new Error('callable failed'));
 		vi.mocked(httpsCallable).mockReturnValue(mockFn as unknown as ReturnType<typeof httpsCallable>);

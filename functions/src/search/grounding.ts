@@ -4,8 +4,9 @@ export type GroundingMetadata = NonNullable<
 	GoogleGenerativeAIProviderMetadata['groundingMetadata']
 >;
 
-export type SearchResult = { title: string; url: string };
-export type SearchSource = { query: string; summary: string; results: SearchResult[] };
+// 検索結果の型は型レイヤー（persona.types）へ集約済み。ここでは再利用のため参照し、既存の import 元（fact-check 系）を壊さないよう再エクスポートする。
+import type { SearchResult, SearchSource } from '../types/persona.types.js';
+export type { SearchResult, SearchSource };
 
 export const extractSources = (
 	groundingMetadata: GroundingMetadata,

@@ -44,7 +44,7 @@ export const formatPersonas = (personas: Persona[]): string => {
 	return personas
 		.map(
 			(persona) =>
-				`- ID: ${persona.id}, 名前: ${persona.name}, 立場: ${persona.specificRole || persona.stakeholderRole}`
+				`- ID: ${persona.id}, 名前: ${persona.name}, 立場: ${persona.role}`
 		)
 		.join('\n');
 };
@@ -58,7 +58,7 @@ export const formatTurns = (
 			if (turn.personaId) {
 				const persona = personas.find((candidate) => candidate.id === turn.personaId);
 				const name = persona ? persona.name : `Persona(${turn.personaId})`;
-				const role = persona ? persona.specificRole || persona.stakeholderRole : '';
+				const role = persona ? persona.role : '';
 				return `[${name}(${role})(ID:${turn.personaId})]: ${turn.content}`;
 			}
 			return `[ファシリテーター()]: ${turn.content}`;

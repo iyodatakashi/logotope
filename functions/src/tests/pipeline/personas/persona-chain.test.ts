@@ -175,6 +175,7 @@ describe('advancePersonaChain — interview 段', () => {
 		seedRunning();
 		holder.mock!.store.set(`topics/${TOPIC_ID}/personas/p1`, {
 			name: '太郎',
+			role: '救急医',
 			stakeholderRole: '医師'
 		});
 
@@ -190,8 +191,8 @@ describe('advancePersonaChain — interview 段', () => {
 		expect(topicId).toBe(TOPIC_ID);
 		expect(personaId).toBe('p1');
 		expect(topicTitle).toBe('AIと社会');
-		// specificRole 未設定は stakeholderRole でフォールバック
-		expect(persona.specificRole).toBe('医師');
+		// role を直参照する（stakeholderRole への総称フォールバックは持たない）
+		expect(persona.role).toBe('救急医');
 		expect(mockEnqueuePersonaStep).not.toHaveBeenCalled();
 	});
 
