@@ -22,19 +22,19 @@
 	let dialogRef: ReturnType<typeof PublishedAwarenessDialog> | undefined = $state();
 </script>
 
-<PostItem {persona} content={turn.content} />
+<PostItem {persona} content={turn.content} addition={awarenessCount > 0 ? addition : undefined} />
 
-<!--
-{#if awarenessCount > 0}
-	<Button
-		ariaLabel="気づき {awarenessCount} 件を見る"
-		icon="lightbulb"
-		rounded
-		size="small"
-		onclick={() => dialogRef?.open()}
-	>
-		{awarenessCount}
-	</Button>
-	<PublishedAwarenessDialog bind:this={dialogRef} awarenesses={turn.awarenesses} {personas} />
-{/if}
--->
+{#snippet addition()}
+	{#if awarenessCount > 0}
+		<Button
+			ariaLabel="気づき {awarenessCount} 件を見る"
+			icon="lightbulb"
+			rounded
+			size="small"
+			onclick={() => dialogRef?.open()}
+		>
+			{awarenessCount}
+		</Button>
+		<PublishedAwarenessDialog bind:this={dialogRef} awarenesses={turn.awarenesses} {personas} />
+	{/if}
+{/snippet}
