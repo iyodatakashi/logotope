@@ -115,7 +115,7 @@
 	.published-article-detail-page__impressions-section {
 		display: flex;
 		flex-direction: column;
-		gap: 24px;
+		gap: 16px;
 		padding: 24px;
 		background: var(--base-50);
 		border-radius: 16px;
@@ -127,7 +127,7 @@
 	.published-article-detail-page__impressions {
 		display: flex;
 		flex-direction: column;
-		gap: 24px;
+		gap: 32px;
 	}
 	.published-article-detail-page__disclaimer {
 		padding: 16px;

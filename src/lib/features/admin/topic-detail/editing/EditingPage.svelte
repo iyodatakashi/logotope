@@ -6,7 +6,7 @@
 	import type { PhaseSlug } from '$lib/models/phase/phase.types';
 	import AdminTopicDetailTemplate from '$lib/features/admin/topic-detail/AdminTopicDetailTemplate.svelte';
 	import EditingNarration from './EditingNarration.svelte';
-	import EditingImpression from './EditingImpression.svelte';
+	import EditingImpressionItem from './EditingImpressionItem.svelte';
 	import EditingChapter from './EditingChapter.svelte';
 	import type { Chapter, EditedChapter } from '$lib/models/chapter/chapter.types';
 	import type { TurnForEditing } from '$lib/models/turn/turn.types';
@@ -190,8 +190,9 @@
 			const status = store.getDisplayStatus(chapter.id);
 			const failureReason =
 				status === 'failed' ? (store.getEditedChapter(chapter.id)?.failureReason ?? null) : null;
-			// 未完成（編集後の無い）章のうち、原本ターンがある章だけ個別再生成できる。
-			const canRegenerate = status !== 'completed' && chapter.turns.length > 0;
+			// 原本ターンがある章は状態に関わらず個別再生成できる。completed でも
+			// 内容が不適切（placeholder 等の degenerate 出力）な場合に作り直せるようにする。
+			const canRegenerate = chapter.turns.length > 0;
 			const turns =
 				status === 'completed'
 					? buildEditedTurns(chapter, store.getEditedChapter(chapter.id))
@@ -329,11 +330,11 @@
 
 					<!-- 所感（impressions）＝締めの後。参加者ごとの締めの所感。 -->
 					{#if displayImpressions.length}
-						<section class="editing-page__impressions">
-							<h3 class="editing-page__impressions-label">所感</h3>
-							<div class="editing-page__impressions-list">
+						<section class="editing-page__impressions-section">
+							<h2 class="editing-page__impressions-title">討論を終えて〜参加者の所感</h2>
+							<div class="editing-page__impressions">
 								{#each displayImpressions as impression (impression.personaId)}
-									<EditingImpression
+									<EditingImpressionItem
 										personaId={impression.personaId}
 										part={impression.part}
 										{showDiff}
@@ -409,22 +410,21 @@
 	.editing-page__chapters {
 		display: flex;
 		flex-direction: column;
-		gap: 24px;
+		gap: 32px;
+	}
+	.editing-page__impressions-section {
+		display: flex;
+		flex-direction: column;
+		gap: 16px;
+		padding: 24px;
+		background: var(--base-50-transparent);
+		border-radius: 16px;
+	}
+	.editing-page__impressions-title {
+		font-size: var(--svelte-ui-font-size-xl);
+		font-weight: bold;
 	}
 	.editing-page__impressions {
-		margin-top: 24px;
-		padding: 16px;
-		border-left: 4px solid #00838f;
-		background: #f0fafb;
-		border-radius: 3px;
-	}
-	.editing-page__impressions-label {
-		margin: 0 0 12px;
-		font-size: 0.8rem;
-		font-weight: 700;
-		color: #00838f;
-	}
-	.editing-page__impressions-list {
 		display: flex;
 		flex-direction: column;
 		gap: 8px;

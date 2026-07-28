@@ -60,7 +60,7 @@
 				variant="outlined"
 				onclick={handleRegenerate}
 				loading={regenerating}
-				disabled={!editable}>再生成</Button
+				disabled={!editable}>再編集</Button
 			>
 		{/if}
 	</header>
@@ -72,11 +72,16 @@
 </section>
 
 <style>
+	.editing-chapter {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+
 	.editing-chapter__header {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		margin-bottom: 8px;
 	}
 	.editing-chapter__title {
 		font-size: 1.5rem;

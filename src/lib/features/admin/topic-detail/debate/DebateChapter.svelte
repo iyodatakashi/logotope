@@ -43,6 +43,6 @@
 	.debate-chapter__turns {
 		display: flex;
 		flex-direction: column;
-		gap: 16px;
+		gap: 8px;
 	}
 </style>

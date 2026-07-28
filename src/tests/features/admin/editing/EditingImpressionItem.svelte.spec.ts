@@ -2,6 +2,7 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import type { EditorialStatus } from '$lib/models/editorial/editorial.types';
+import PostItem from '$lib/sharedComponents/PostItem.svelte';
 
 // 話者ラベルは型に畳まず personaId から描画時に解決する（Turn と同じ責務境界・Req 3.1/3.4）。
 // personaMap は store から直接引くため、テストでも store をモックして注入する。
@@ -19,7 +20,7 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	}
 }));
 
-import EditingImpression from '$lib/features/admin/topic-detail/editing/EditingImpression.svelte';
+import EditingImpression from '$lib/features/admin/topic-detail/editing/EditingImpressionItem.svelte';
 
 // 所感は導入・締めと同一の状態別表示規則（進捗ステータス＋内容だけで決める・Req 6.2）。
 const makeProps = (
@@ -39,7 +40,7 @@ describe('EditingImpression.svelte（状態駆動表示）', () => {
 	it('話者名・役割は personaId から personaMap で描画時に解決する', async () => {
 		render(EditingImpression, makeProps({ status: 'generating', draft: null, final: null }));
 		await expect.element(page.getByText('田中')).toBeInTheDocument();
-		await expect.element(page.getByText('(住民)')).toBeInTheDocument();
+		await expect.element(page.getByText('住民')).toBeInTheDocument();
 	});
 
 	it('pending（未生成ペルソナ）: スケルトンのみ・段階ラベルも再生成も出さない', async () => {
@@ -56,7 +57,10 @@ describe('EditingImpression.svelte（状態駆動表示）', () => {
 	});
 
 	it('編集済み（final あり）: 編集後本文を表示し再生成あり', async () => {
-		render(EditingImpression, makeProps({ status: 'finished', draft: '原本', final: '所感編集後' }));
+		render(
+			EditingImpression,
+			makeProps({ status: 'finished', draft: '原本', final: '所感編集後' })
+		);
 		await expect.element(page.getByText('所感編集後')).toBeInTheDocument();
 		await expect.element(regenerate()).toBeInTheDocument();
 	});

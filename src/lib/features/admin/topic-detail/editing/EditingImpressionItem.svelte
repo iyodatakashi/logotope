@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button, Skeleton } from '@14ch/svelte-ui';
 	import DiffText from '$lib/sharedComponents/DiffText.svelte';
+	import PostItem from '$lib/sharedComponents/PostItem.svelte';
 	import { computeInlineDiff } from '$lib/utils/inlineDiff';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import type { Narration } from '$lib/models/editorial/editorial.types';
@@ -41,83 +42,77 @@
 	const outcome = $derived(
 		part.final != null ? 'edited' : part.draft != null ? 'draft_only' : 'gen_failed'
 	);
-	const content = $derived(part.final ?? part.draft ?? '');
 	const diff = $derived(
 		part.final != null && part.draft != null ? computeInlineDiff(part.draft, part.final) : null
 	);
 </script>
 
-<div class="editing-impression">
-	<div class="editing-impression__speaker">
-		<div class="editing-impression__speaker-name">{name}</div>
-		{#if role}<span class="editing-impression__role">({role})</span>{/if}
-		{#if inProgress}
-			{#if stageLabel}<span class="editing-impression__stage-label">{stageLabel}</span>{/if}
-		{:else if outcome === 'draft_only'}
-			<span class="editing-impression__element-status" data-status="draft_only">編集失敗</span>
-		{:else if outcome === 'gen_failed'}
-			<span class="editing-impression__element-status" data-status="gen_failed">生成失敗</span>
-		{/if}
-	</div>
-	{#if inProgress}
-		<Skeleton patterns={[{ type: 'text', lines: 2 }]} />
-	{:else if outcome !== 'gen_failed'}
-		{#if showDiff && diff}
-			<p class="editing-impression__content"><DiffText segments={diff} /></p>
-		{:else}
-			<p class="editing-impression__content">{content}</p>
-		{/if}
-	{/if}
-	{#if !inProgress}
-		<div class="editing-impression__regenerate">
-			<Button
-				variant="outlined"
-				onclick={handleRegenerate}
-				loading={regenerating}
-				disabled={!editable}>再生成</Button
-			>
-		</div>
-	{/if}
+<div class="editing-impression-item">
+	<PostItem {persona}>
+		{#snippet content()}
+			{#if inProgress}
+				<Skeleton patterns={[{ type: 'text', lines: 2 }]} />
+			{:else if outcome !== 'gen_failed'}
+				{#if showDiff && diff}
+					<p class="editing-impression-item__content"><DiffText segments={diff} /></p>
+				{:else}
+					<p class="editing-impression-item__content">{part.final ?? part.draft ?? ''}</p>
+				{/if}
+			{/if}
+			{#if !inProgress}
+				<div class="editing-impression-item__regenerate">
+					<Button
+						variant="outlined"
+						onclick={handleRegenerate}
+						loading={regenerating}
+						disabled={!editable}>再生成</Button
+					>
+				</div>
+			{/if}
+		{/snippet}
+
+		{#snippet badge()}
+			{#if inProgress}
+				{#if stageLabel}<span class="editing-impression-item__stage-label">{stageLabel}</span>{/if}
+			{:else if outcome === 'draft_only'}
+				<span class="editing-impression-item__element-status" data-status="draft_only"
+					>編集失敗</span
+				>
+			{:else if outcome === 'gen_failed'}
+				<span class="editing-impression-item__element-status" data-status="gen_failed"
+					>生成失敗</span
+				>
+			{/if}
+		{/snippet}
+	</PostItem>
 </div>
 
 <style>
-	.editing-impression {
-		padding: 12px;
-		border-left: 4px solid #e0e0e0;
-		background: #fff;
+	.editing-impression-item {
+		padding: 16px;
+		background: var(--white);
+		border: solid 1px var(--svelte-ui-border-weak-color);
+		border-radius: 4px;
 	}
-	.editing-impression__speaker {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 4px;
-	}
-	.editing-impression__speaker-name {
-		font-weight: bold;
-	}
-	.editing-impression__role {
-		font-size: var(--svelte-ui-font-size-sm);
-		color: #757575;
-	}
-	.editing-impression__stage-label {
+	.editing-impression-item__stage-label {
 		font-size: var(--svelte-ui-font-size-sm);
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #ede7f6;
 		color: #5e35b1;
 	}
-	.editing-impression__element-status {
+	.editing-impression-item__element-status {
 		font-size: var(--svelte-ui-font-size-sm);
 		padding: 1px 6px;
 		border-radius: 3px;
 		background: #ffebee;
 		color: #c62828;
 	}
-	.editing-impression__element-status[data-status='draft_only'] {
+	.editing-impression-item__element-status[data-status='draft_only'] {
 		background: #fff8e1;
 		color: #f57f17;
 	}
-	.editing-impression__regenerate {
+	.editing-impression-item__regenerate {
 		margin-top: 8px;
 	}
 </style>
