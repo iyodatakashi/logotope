@@ -22,14 +22,26 @@ const { spies, state } = vi.hoisted(() => ({
 const { goto } = vi.hoisted(() => ({ goto: vi.fn() }));
 vi.mock('$app/navigation', () => ({ goto }));
 
+vi.mock('$lib/stores/auth.svelte.js', () => ({
+	authStore: {
+		logout: vi.fn(),
+		user: { uid: 'test-user' },
+		isLoggedIn: true
+	}
+}));
+
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get topic() {
 			return {
 				id: 't1',
+				title: 'テストテーマ',
+				phase: 'publish',
+				phaseStatus: 'not_started',
 				get published() {
 					return state.published;
 				},
+				save: vi.fn(),
 				publishDebate: spies.publishDebate,
 				unpublishDebate: spies.unpublishDebate
 			};

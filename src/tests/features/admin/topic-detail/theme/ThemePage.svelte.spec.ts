@@ -11,6 +11,14 @@ const { mockSave, mockApproveTheme, mockFetchSourceContents, mockGoto } = vi.hoi
 
 vi.mock('$app/navigation', () => ({ goto: mockGoto }));
 
+vi.mock('$lib/stores/auth.svelte.js', () => ({
+	authStore: {
+		logout: vi.fn(),
+		user: { uid: 'test-user' },
+		isLoggedIn: true
+	}
+}));
+
 let phase = 'theme';
 let sourceUrls: string[] = [];
 let published = false;
@@ -47,7 +55,7 @@ describe('ThemePage.svelte', () => {
 	it('テーマ設定中はタイトル・詳細説明・参考URLを編集でき、前進導線（次に進む）を表示する', async () => {
 		render(ThemePage);
 
-		await expect.element(page.getByLabelText('タイトル')).toHaveValue('テストテーマ');
+		await expect.element(page.getByPlaceholder('討論テーマのタイトルを入力してください（200文字以内）')).toHaveValue('テストテーマ');
 		await expect.element(page.getByLabelText('詳細説明')).toHaveValue('背景');
 		await expect.element(page.getByRole('button', { name: 'URLを追加' })).toBeInTheDocument();
 		await expect.element(page.getByRole('button', { name: '次に進む' })).toBeInTheDocument();
@@ -95,11 +103,11 @@ describe('ThemePage.svelte', () => {
 		sourceUrls = ['https://example.com'];
 		render(ThemePage);
 
-		await expect.element(page.getByLabelText('タイトル')).toBeDisabled();
+		await expect.element(page.getByPlaceholder('討論テーマのタイトルを入力してください（200文字以内）')).toBeDisabled();
 		await expect.element(page.getByLabelText('詳細説明')).toBeDisabled();
 		await expect.element(page.getByRole('button', { name: 'URLを追加' })).toBeDisabled();
 		// 閲覧・前進は可能（次に進むは無効化しない）。
-		await expect.element(page.getByLabelText('タイトル')).toHaveValue('テストテーマ');
+		await expect.element(page.getByPlaceholder('討論テーマのタイトルを入力してください（200文字以内）')).toHaveValue('テストテーマ');
 		await expect.element(page.getByRole('button', { name: '次に進む' })).not.toBeDisabled();
 	});
 
@@ -107,7 +115,7 @@ describe('ThemePage.svelte', () => {
 		phase = 'fact-research';
 		render(ThemePage);
 
-		await expect.element(page.getByLabelText('タイトル')).toHaveValue('テストテーマ');
+		await expect.element(page.getByPlaceholder('討論テーマのタイトルを入力してください（200文字以内）')).toHaveValue('テストテーマ');
 
 		await page.getByRole('button', { name: '次に進む' }).click();
 		expect(mockApproveTheme).not.toHaveBeenCalled();

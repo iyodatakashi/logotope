@@ -13,7 +13,6 @@ vi.mock('firebase/firestore', () => ({
 
 import { getDoc, getDocs } from 'firebase/firestore';
 import { fetchPublishedArticle } from '$lib/models/published/published-article/published-article';
-import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
 type Data = Record<string, unknown>;
 type CollDoc = { id: string; data: Data };
@@ -239,35 +238,31 @@ describe('fetchPublishedArticle — 射影と join', () => {
 		expect(article?.chapters.map((c) => c.index)).toEqual([0, 1]);
 	});
 
-	it('話者を解決する（persona は name/role、facilitator はラベル）', async () => {
+	it('話者は personaId で参照し、facilitator は null（名前解決は personas に委ねる）', async () => {
 		setup(fullFixture);
 		const article = await fetchPublishedArticle('t1');
-		const persona = article?.chapters[0].turns[0];
-		expect(persona).toMatchObject({
-			speakerType: 'persona',
-			speakerName: 'Alice',
-			speakerRole: 'RoleA'
-		});
-		const facilitator = article?.chapters[1].turns[1];
-		expect(facilitator).toMatchObject({
-			speakerType: 'facilitator',
-			speakerName: FACILITATOR_NAME,
-			speakerRole: ''
-		});
+		// persona ターンは personaId を保持し、名前は article.personas 側で解決する
+		expect(article?.chapters[0].turns[0]).toMatchObject({ id: 'e1', personaId: 'p1' });
+		expect(article?.personas.get('p1')?.name).toBe('Alice');
+		// facilitator は解決できない話者として personaId=null（描画時にラベルへ縮退）
+		expect(article?.chapters[1].turns[1]).toMatchObject({ id: 't4', personaId: null });
 	});
 
-	it('specificRole が無い persona は stakeholderRole を役割にする', async () => {
+	it('原本章の persona ターンも personaId で参照する（役割の総称フォールバックは持たない）', async () => {
 		setup(fullFixture);
 		const article = await fetchPublishedArticle('t1');
-		expect(article?.chapters[1].turns[0]).toMatchObject({ speakerName: 'Bob', speakerRole: 'SB' });
+		expect(article?.chapters[1].turns[0]).toMatchObject({ id: 't3', personaId: 'p2' });
+		expect(article?.personas.get('p2')?.name).toBe('Bob');
+		// stakeholderRole からの役割導出は行わない（role は永続値の直参照のみ）
+		expect(article?.personas.get('p2')?.role).toBeUndefined();
 	});
 
 	it('編集後発言は複数 sourceTurnIds の気づきを集約する', async () => {
 		setup(fullFixture);
 		const article = await fetchPublishedArticle('t1');
 		expect(article?.chapters[0].turns[0].awarenesses).toEqual([
-			{ personaName: 'Alice', content: 'aw-t1' },
-			{ personaName: 'Bob', content: 'aw-t2' }
+			{ personaId: 'p1', content: 'aw-t1' },
+			{ personaId: 'p2', content: 'aw-t2' }
 		]);
 	});
 
@@ -283,8 +278,8 @@ describe('fetchPublishedArticle — 射影と join', () => {
 		setup(fullFixture);
 		const article = await fetchPublishedArticle('t1');
 		expect(article?.impressions).toEqual([
-			{ personaId: 'p1', speakerName: 'Alice', speakerRole: 'RoleA', content: 'imp1-draft' },
-			{ personaId: 'p2', speakerName: 'Bob', speakerRole: 'SB', content: 'imp2-final' }
+			{ personaId: 'p1', content: 'imp1-draft' },
+			{ personaId: 'p2', content: 'imp2-final' }
 		]);
 	});
 

@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import type { EditedChapterDisplayStatus } from '$lib/models/chapter/chapter.types';
 import type { Turn, TurnForEditing } from '$lib/models/turn/turn.types';
-import type { Persona } from '$lib/models/persona/persona.types';
+import { toPersonaForDisplay, type Persona } from '$lib/models/persona/persona.types';
 
 // personaMap・気づきは各コンポーネントが store から直接引くため、テストでも store をモックして注入する。
 const { holder } = vi.hoisted(() => ({
@@ -19,6 +19,10 @@ vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 			return {
 				getPersona: (id: string | null | undefined) =>
 					id ? holder.personaMap.get(id) : undefined,
+				getPersonaForDisplay: (id: string | null | undefined) => {
+					const persona = id ? holder.personaMap.get(id) : undefined;
+					return persona ? toPersonaForDisplay(persona as Persona) : undefined;
+				},
 				getAwarenessesByTurn: (turnId: string) => holder.awarenessesByTurn.get(turnId) ?? []
 			};
 		}
@@ -57,7 +61,7 @@ const setStore = (overrides: Partial<typeof holder> = {}) => {
 	holder.awarenessesByTurn = overrides.awarenessesByTurn ?? new Map();
 };
 
-const regenerate = () => page.getByRole('button', { name: '再生成' });
+const regenerate = () => page.getByRole('button', { name: '再編集' });
 
 describe('EditingChapter.svelte', () => {
 	it('章タイトルとステータスラベル（編集済み/原本表示（失敗）/未編集）を出す', async () => {
@@ -105,23 +109,33 @@ describe('EditingChapter.svelte', () => {
 		await expect.element(button).toBeEnabled();
 	});
 
-	it('削除ターンは差分表示オン時のみ「発言ごと削除」で出す', async () => {
+	it('削除ターンは差分表示オン時のみ「発言ごと削除」ラベルで出し、削除本文は表示しない', async () => {
 		setStore();
 		const removed = turn({ id: 'r1', content: '削除された発言', removed: true });
 		render(EditingChapter, makeProps({ turns: [removed], showDiff: true }));
 		await expect.element(page.getByText('発言ごと削除')).toBeInTheDocument();
-		await expect.element(page.getByText('削除された発言')).toBeInTheDocument();
+		// 削除ターンはラベルのみで、原本本文は描画しない
+		expect(page.getByText('削除された発言').elements()).toHaveLength(0);
 	});
 
-	it('気づきは型に畳まず、由来原本id（sourceTurnIds）で store から参照し話者名は personaMap で解決する', async () => {
-		// 編集後（連結）ターン: 行の id は新id、気づきは由来原本id で引き、話者名は personaId から描画時解決する
-		const merged = turn({ id: 'edited-1', sourceTurnIds: ['src-a', 'src-b'] });
+	it('編集後（連結）ターンは話者名を型に畳まず personaId から描画時解決する（気づきは編集ビューでは非表示）', async () => {
+		// 編集後（連結）ターン: 行の id は新id、話者名は personaId から描画時解決する。
+		// 気づきは store から参照するが編集ビューには描画しない（討論ビュー専用）。
+		const merged = turn({
+			id: 'edited-1',
+			personaId: 'p-sato',
+			sourceTurnIds: ['src-a', 'src-b'],
+			content: '連結後の発言'
+		});
 		setStore({
 			awarenessesByTurn: new Map([['src-b', [{ personaId: 'p-sato', content: '視点が変わった' }]]]),
 			personaMap: new Map([['p-sato', persona({ id: 'p-sato', name: '佐藤' })]])
 		});
 		render(EditingChapter, makeProps({ turns: [merged] }));
-		await expect.element(page.getByText('💡 佐藤: 視点が変わった')).toBeInTheDocument();
+		await expect.element(page.getByText('佐藤')).toBeInTheDocument();
+		await expect.element(page.getByText('連結後の発言')).toBeInTheDocument();
+		// 気づきは編集ビューでは描画しない
+		expect(page.getByText('視点が変わった').elements()).toHaveLength(0);
 	});
 
 	it('差分は型に持たず、描画時に原本テキスト（sourceTurns）と編集後を比較して算出する', async () => {
@@ -139,6 +153,6 @@ describe('EditingChapter.svelte', () => {
 		});
 		render(EditingChapter, makeProps({ turns: [turn({ personaId: 'p1' })] }));
 		await expect.element(page.getByText('田中')).toBeInTheDocument();
-		await expect.element(page.getByText('（住民）')).toBeInTheDocument();
+		await expect.element(page.getByText('住民')).toBeInTheDocument();
 	});
 });

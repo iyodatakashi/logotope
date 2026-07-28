@@ -32,6 +32,10 @@ const { goto, spies, state } = vi.hoisted(() => ({
 
 vi.mock('$app/navigation', () => ({ goto }));
 
+vi.mock('$lib/stores/auth.svelte.js', () => ({
+	authStore: { logout: vi.fn(), user: { uid: 'test-user' }, isLoggedIn: true }
+}));
+
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {
 		get topic() {

@@ -3,7 +3,11 @@ import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
 vi.mock('$lib/stores/auth.svelte.js', () => ({
-	authStore: { logout: vi.fn() }
+	authStore: {
+		logout: vi.fn(),
+		user: { uid: 'test-user' },
+		isLoggedIn: true
+	}
 }));
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
