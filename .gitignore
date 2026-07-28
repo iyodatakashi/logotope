@@ -26,6 +26,7 @@ test-results
 .emulator-data
 
 # Firebase
+.firebase/
 firebase-debug.log
 firestore-debug.log
 src/avatar/edit/
