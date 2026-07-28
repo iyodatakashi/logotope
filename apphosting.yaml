@@ -4,3 +4,32 @@ runConfig:
   concurrency: 80
   minInstances: 0
   maxInstances: 10
+
+# Firebase Web SDK config. These are public client identifiers (embedded in the
+# browser bundle), so plain values are fine. Vite inlines them at build time,
+# hence BUILD availability.
+env:
+  - variable: VITE_FIREBASE_API_KEY
+    value: "AIzaSyAKqMNxvpSSEVPNxtr9-uNkmByzdnUKxd4"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_AUTH_DOMAIN
+    value: "logotope14.firebaseapp.com"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_PROJECT_ID
+    value: "logotope14"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_STORAGE_BUCKET
+    value: "logotope14.firebasestorage.app"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_MESSAGING_SENDER_ID
+    value: "233351764077"
+    availability:
+      - BUILD
+  - variable: VITE_FIREBASE_APP_ID
+    value: "1:233351764077:web:ef97e8b9399adb90eac764"
+    availability:
+      - BUILD

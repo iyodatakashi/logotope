@@ -1,5 +1,6 @@
 {
-  "projects": {
-    "default": "logotope14"
-  }
+	"projects": {
+		"default": "logotope14",
+		"prod": "logotope14"
+	}
 }
