@@ -1,11 +1,8 @@
 <script lang="ts">
 	import { Button } from '@14ch/svelte-ui';
-	import DiffText from '$lib/sharedComponents/DiffText.svelte';
-	import { computeInlineDiff } from '$lib/utils/inlineDiff';
-	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import EditingTurnItem from './EditingTurnItem.svelte';
 	import type { EditedChapterDisplayStatus } from '$lib/models/chapter/chapter.types';
 	import type { Turn, TurnForEditing } from '$lib/models/turn/turn.types';
-	import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
 
 	interface Props {
 		title: string;
@@ -33,27 +30,8 @@
 	const statusLabel = (s: EditedChapterDisplayStatus): string =>
 		s === 'completed' ? '編集済み' : s === 'failed' ? '原本表示（失敗）' : '未編集';
 
+	// 差分の由来原本テキスト参照。各ターンの描画は EditingTurnItem に委ね、章はこの参照表だけ渡す。
 	const contentById = $derived(new Map(sourceTurns.map((turn) => [turn.id, turn.content])));
-
-	// 話者ラベルは Turn と同じく描画時に personaId から store の解決メソッドで引く（型には畳まない）。
-	const speakerLabel = (turn: TurnForEditing) => {
-		const persona = currentTopicStore.personasStore.getPersona(turn.personaId);
-		return {
-			name: persona?.name ?? FACILITATOR_NAME,
-			role: persona?.role ?? ''
-		};
-	};
-
-	// 由来原本テキスト（sourceTurnIds 順に結合）↔ 編集後の差分を描画時に算出する（型には持たせない）。
-	const diffOf = (turn: TurnForEditing) =>
-		computeInlineDiff(
-			turn.sourceTurnIds.map((id) => contentById.get(id) ?? '').join(''),
-			turn.content
-		);
-
-	// 行の由来原本id群から気づきを引く（編集後は連結元、原本/削除は自id）。store から直接引く。
-	const awarenessesOf = (turn: TurnForEditing) =>
-		turn.sourceTurnIds.flatMap((id) => currentTopicStore.personasStore.getAwarenessesByTurn(id));
 
 	// クリック→サーバ書き込みまでの楽観ローディング（二重実行防止）。導入・締め・所感と同じ自持ち方式。
 	let regenerating = $state(false);
@@ -88,55 +66,7 @@
 	</header>
 	<div class="editing-chapter__turns">
 		{#each turns as turn (turn.id)}
-			{#if turn.removed}
-				{#if showDiff}
-					{@const speaker = speakerLabel(turn)}
-					<div
-						class="editing-chapter__turn editing-chapter__turn--removed"
-						class:editing-chapter__turn--facilitator={turn.speakerType === 'facilitator'}
-					>
-						<div class="editing-chapter__speaker">
-							<div class="editing-chapter__speaker-name">{speaker.name}</div>
-							{#if speaker.role}<span class="editing-chapter__role">({speaker.role})</span>{/if}
-							<span class="editing-chapter__removed-label">発言ごと削除</span>
-						</div>
-						<p class="editing-chapter__content"><del>{turn.content}</del></p>
-					</div>
-				{/if}
-			{:else}
-				{@const speaker = speakerLabel(turn)}
-				{@const awarenesses = awarenessesOf(turn)}
-				{@const diff = showDiff && status === 'completed' ? diffOf(turn) : null}
-				<div
-					class="editing-chapter__turn"
-					class:editing-chapter__turn--facilitator={turn.speakerType === 'facilitator'}
-				>
-					<div class="editing-chapter__speaker">
-						<div class="editing-chapter__speaker-name">{speaker.name}</div>
-						{#if speaker.role}<span class="editing-chapter__role">（{speaker.role}）</span>{/if}
-						{#if turn.speechMode}
-							<span class="editing-chapter__speech-mode" data-mode={turn.speechMode}
-								>{turn.speechMode}</span
-							>
-						{/if}
-					</div>
-					{#if diff}
-						<p class="editing-chapter__content"><DiffText segments={diff} /></p>
-					{:else}
-						<p class="editing-chapter__content">{turn.content}</p>
-					{/if}
-					{#if awarenesses.length > 0}
-						<ul class="editing-chapter__awarenesses">
-							{#each awarenesses as awareness, i (i)}
-								<li>
-								💡 {currentTopicStore.personasStore.getPersona(awareness.personaId)?.name ?? ''}:
-								{awareness.content}
-							</li>
-							{/each}
-						</ul>
-					{/if}
-				</div>
-			{/if}
+			<EditingTurnItem {turn} {status} {showDiff} {contentById} />
 		{/each}
 	</div>
 </section>
@@ -175,55 +105,5 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
-	}
-	.editing-chapter__turn {
-		padding: 12px;
-		border-left: 4px solid #e0e0e0;
-	}
-	.editing-chapter__turn.editing-chapter__turn--facilitator {
-		border-left-color: #1565c0;
-		background: #f8f9ff;
-	}
-	.editing-chapter__turn.editing-chapter__turn--removed {
-		border-left-color: #e57373;
-		background: #fff5f5;
-	}
-	.editing-chapter__turn.editing-chapter__turn--removed .editing-chapter__content del {
-		color: #b31d28;
-		text-decoration: line-through;
-	}
-	.editing-chapter__removed-label {
-		font-size: var(--svelte-ui-font-size-sm);
-		margin-left: 6px;
-		color: #fff;
-		background: #c62828;
-		padding: 1px 5px;
-		border-radius: 3px;
-	}
-	.editing-chapter__speaker {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 4px;
-	}
-	.editing-chapter__speaker-name {
-		font-weight: bold;
-	}
-	.editing-chapter__role {
-		font-size: var(--svelte-ui-font-size-sm);
-		color: var(--svelte-ui-text-subtle-color);
-	}
-	.editing-chapter__speech-mode {
-		font-size: var(--svelte-ui-font-size-sm);
-		color: var(--svelte-ui-text-subtle-color);
-		background: #eee;
-		padding: 1px 5px;
-		border-radius: 3px;
-	}
-	.editing-chapter__awarenesses {
-		margin-top: 8px;
-		font-size: var(--svelte-ui-font-size-sm);
-		color: var(--svelte-ui-text-subtle-color);
-		padding: 0;
 	}
 </style>

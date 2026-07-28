@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { convertToHtml } from '$lib/utils/formatText';
 	import type { PersonaForDisplay } from '$lib/models/persona/persona.types';
 	import PersonaAvatar from '$lib/sharedComponents/PersonaAvatar.svelte';
 	import type { Snippet } from 'svelte';
@@ -10,11 +9,13 @@
 	let {
 		persona,
 		content,
-		addition
+		addition,
+		badge
 	}: {
 		persona?: PersonaForDisplay;
-		content: string;
+		content: Snippet;
 		addition?: Snippet;
+		badge?: Snippet;
 	} = $props();
 </script>
 
@@ -22,30 +23,40 @@
 	<div class="post-item__avatar">
 		<PersonaAvatar {persona} />
 	</div>
-	<div class="post-item__speaker">
-		<span class="post-item__name">{persona?.name ?? FACILITATOR_NAME}</span>
-		{#if persona?.role}
-			<span class="post-item__role">{persona.role}</span>
+	<div class="post-item__main">
+		<div class="post-item__speaker">
+			<span class="post-item__name">{persona?.name ?? FACILITATOR_NAME}</span>
+			{#if persona?.role}
+				<span class="post-item__role">{persona.role}</span>
+			{/if}
+		</div>
+		<div class="post-item__badge">
+			{#if badge}
+				{@render badge()}
+			{/if}
+		</div>
+		<div class="post-item__content">
+			{@render content()}
+		</div>
+		{#if addition}
+			<div class="post-item__addition">
+				{@render addition()}
+			</div>
 		{/if}
 	</div>
-	<p class="post-item__content">{@html convertToHtml(content)}</p>
-	{#if addition}
-		<div class="post-item__addition">
-			{@render addition()}
-		</div>
-	{/if}
 </div>
 
 <style>
 	.post-item {
 		display: grid;
 		grid-template-columns: auto 1fr;
-		grid-gap: 4px 16px;
+		grid-gap: 8px 16px;
 	}
-	.post-item__avatar {
-		grid-row: 1/ 4;
+	.post-item__main {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		grid-gap: 8px;
 	}
-
 	.post-item__speaker {
 		display: flex;
 		align-items: center;
@@ -58,7 +69,10 @@
 	.post-item__role {
 		color: var(--svelte-ui-text-color);
 	}
+	.post-item__content {
+		grid-column: 1 / 3;
+	}
 	.post-item__addition {
-		grid-column: 2 / 3;
+		grid-column: 1 / 3;
 	}
 </style>

@@ -22,7 +22,11 @@
 	let dialogRef: ReturnType<typeof PublishedAwarenessDialog> | undefined = $state();
 </script>
 
-<PostItem {persona} content={turn.content} addition={awarenessCount > 0 ? addition : undefined} />
+<PostItem {persona} addition={awarenessCount > 0 ? addition : undefined}>
+	{#snippet content()}
+		{@html convertToHtml(turn.content)}
+	{/snippet}
+</PostItem>
 
 {#snippet addition()}
 	{#if awarenessCount > 0}

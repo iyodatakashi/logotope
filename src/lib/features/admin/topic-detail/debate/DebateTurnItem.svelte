@@ -5,19 +5,16 @@
 	import EngagementListSkeleton from './EngagementListSkeleton.svelte';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
 	import PostItem from '$lib/sharedComponents/PostItem.svelte';
+	import { convertToHtml } from '@14ch/svelte-ui';
 
 	let {
 		turn,
-		speaker,
 		targetPersona,
 		awarenesses,
 		nextPersonaId
 	}: {
 		turn: Turn;
-		speaker: {
-			name: string;
-			role: string;
-		};
+
 		targetPersona: Persona | null | undefined;
 		awarenesses: {
 			personaId: string;
@@ -32,7 +29,10 @@
 </script>
 
 <div class="debate-turn-item">
-	<PostItem {persona} content={turn.content}>
+	<PostItem {persona}>
+		{#snippet content()}
+			{@html convertToHtml(turn.content)}
+		{/snippet}
 		{#snippet addition()}
 			<div class="debate-turn-item__addition">
 				{#if turn.speechMode}

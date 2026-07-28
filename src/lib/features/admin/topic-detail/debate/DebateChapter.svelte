@@ -1,24 +1,15 @@
 <script lang="ts">
 	import { Skeleton } from '@14ch/svelte-ui';
 	import DebateTurnItem from './DebateTurnItem.svelte';
-	import type { Turn } from '$lib/models/turn/turn.types';
-	import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
+	import PostItem from '$lib/sharedComponents/PostItem.svelte';
 	import type { Chapter, PendingTurn } from '$lib/models/chapter/chapter.types';
 	import { currentTopicStore } from '$lib/stores/currentTopic.svelte';
+	import PendingTurnSkeleton from './PendingTurnSkeleton.svelte';
 
 	interface Props {
 		chapter: Chapter; // この章（タイトル・確定ターン列・生成中ターンを含む）
 	}
 	let { chapter }: Props = $props();
-
-	// 話者ラベルは Turn と同じく personaId から描画時に store の解決メソッドで引く（型には畳まない）。
-	const speakerLabel = (turn: Turn) => {
-		const persona = currentTopicStore.personasStore.getPersona(turn.personaId);
-		return {
-			name: persona?.name ?? FACILITATOR_NAME,
-			role: persona?.role ?? ''
-		};
-	};
 
 	// 生成中ターンの段階ラベル（generating: 本文生成中 / fact-checking: 検証中）。
 	const pendingStatusLabel = (status: PendingTurn['status']) =>
@@ -29,32 +20,16 @@
 	<h3 class="debate-chapter__title">{chapter.title}</h3>
 	<div class="debate-chapter__turns">
 		{#each chapter.turns as turn, i (turn.id)}
-			{@const speaker = speakerLabel(turn)}
 			{@const targetPersona = currentTopicStore.personasStore.getPersona(turn.targetPersonaId)}
 			{@const awarenesses = currentTopicStore.personasStore.getAwarenessesByTurn(turn.id)}
 			{@const nextPersonaId = chapter.turns[i + 1]?.personaId ?? chapter.pendingTurn?.personaId}
-			<DebateTurnItem {turn} {speaker} {targetPersona} {awarenesses} {nextPersonaId} />
+			<DebateTurnItem {turn} {targetPersona} {awarenesses} {nextPersonaId} />
 		{/each}
 		{#if chapter.pendingTurn}
-			{@const pendingSpeaker = currentTopicStore.personasStore.getPersona(
+			{@const persona = currentTopicStore.personasStore.getPersonaForDisplay(
 				chapter.pendingTurn.personaId
 			)}
-			<div class="debate-chapter__turn debate-chapter__turn--pending">
-				<div class="debate-chapter__speaker">
-					<div class="debate-chapter__speaker-name">
-						{pendingSpeaker?.name ?? FACILITATOR_NAME}
-					</div>
-					{#if pendingSpeaker?.role}
-						<span class="debate-chapter__role">
-							({pendingSpeaker.role})
-						</span>
-					{/if}
-					<span class="debate-chapter__pending-status">
-						{pendingStatusLabel(chapter.pendingTurn.status)}
-					</span>
-				</div>
-				<Skeleton patterns={[{ type: 'text', lines: 3 }]} />
-			</div>
+			<PendingTurnSkeleton {persona} status={pendingStatusLabel(chapter.pendingTurn.status)} />
 		{/if}
 	</div>
 </section>
@@ -69,25 +44,5 @@
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
-	}
-	.debate-chapter__turn {
-		padding: 16px;
-		background: var(--white);
-		border-radius: 4px;
-	}
-	.debate-chapter__speaker {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		margin-bottom: 4px;
-	}
-	.debate-chapter__speaker-name {
-		font-weight: bold;
-	}
-	.debate-chapter__turn--pending {
-		opacity: 0.85;
-	}
-	.debate-chapter__pending-status {
-		font-size: var(--svelte-ui-font-size-sm);
 	}
 </style>
