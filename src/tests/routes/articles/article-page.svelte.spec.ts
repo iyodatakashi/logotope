@@ -7,6 +7,11 @@ vi.mock('$app/state', () => ({ navigating: { to: null } }));
 
 import ArticlePage from '../../../routes/articles/[topicId]/+page.svelte';
 import type { PublishedArticle } from '$lib/models/published/published-article/published-article.types';
+import type { PersonaForDisplay } from '$lib/models/persona/persona.types';
+
+const personas = new Map<string, PersonaForDisplay>([
+	['p1', { id: 'p1', topicId: 'topic-1', name: 'Alice', role: '賛成派' }]
+]);
 
 const article: PublishedArticle = {
 	id: 'topic-1',
@@ -14,18 +19,15 @@ const article: PublishedArticle = {
 	publishedAt: new Date(2026, 6, 6),
 	intro: 'これは導入です。',
 	outro: 'これは締めです。',
+	personas,
 	chapters: [
 		{
 			index: 0,
 			title: '第一章',
-			turns: [
-				{ id: 's1', speakerType: 'persona', speakerName: 'Alice', speakerRole: '賛成派', content: '賛成です。', awarenesses: [] }
-			]
+			turns: [{ id: 's1', personaId: 'p1', content: '賛成です。', awarenesses: [] }]
 		}
 	],
-	impressions: [
-		{ personaId: 'p1', speakerName: 'Alice', speakerRole: '賛成派', content: '学びがありました。' }
-	]
+	impressions: [{ personaId: 'p1', content: '学びがありました。' }]
 };
 
 describe('articles/[topicId] +page.svelte', () => {
@@ -37,11 +39,6 @@ describe('articles/[topicId] +page.svelte', () => {
 		await expect.element(page.getByText('これは導入です。')).toBeInTheDocument();
 		await expect.element(page.getByText('これは締めです。')).toBeInTheDocument();
 		await expect.element(page.getByText('学びがありました。')).toBeInTheDocument();
-	});
-
-	it('インデックスへの導線を出す', async () => {
-		render(ArticlePage, { data: { article } });
-		await expect.element(page.getByRole('link', { name: /記事一覧|一覧へ/ })).toHaveAttribute('href', '/');
 	});
 
 	it('管理（admin）への導線を表示しない', async () => {

@@ -23,6 +23,7 @@ const article: PublishedArticle = {
 	publishedAt: new Date(2026, 0, 1),
 	intro: null,
 	outro: null,
+	personas: new Map(),
 	chapters: [],
 	impressions: []
 };
