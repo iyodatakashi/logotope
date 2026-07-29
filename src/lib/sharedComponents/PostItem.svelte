@@ -24,7 +24,7 @@
 		<PersonaAvatar {persona} />
 	</div>
 	<div class="post-item__main">
-		<div class="post-item__speaker">
+		<div class="post-item__header">
 			<span class="post-item__name">{persona?.name ?? FACILITATOR_NAME}</span>
 			{#if persona?.role}
 				<span class="post-item__role">{persona.role}</span>
@@ -56,10 +56,11 @@
 		display: grid;
 		grid-template-columns: 1fr auto;
 		grid-gap: 8px;
+		align-items: baseline;
 	}
-	.post-item__speaker {
+	.post-item__header {
 		display: flex;
-		align-items: center;
+		align-items: baseline;
 		gap: 8px;
 	}
 	.post-item__name {
