@@ -73,7 +73,8 @@
 		scroll-margin-block: 30dvh;
 
 		/* 円と内側の要素をまとめて一体で変倍する（直径とフォントサイズを個別に算出しない） */
-		animation: published-article-list-item-scale linear both;
+		/* 直線的な変倍だと通り過ぎ方が硬いので、各区間にイーズインアウトを掛ける */
+		animation: published-article-list-item-scale ease-in-out both;
 		animation-timeline: view();
 		animation-range: cover 0% cover 100%;
 	}
