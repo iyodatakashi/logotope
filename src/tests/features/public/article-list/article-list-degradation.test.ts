@@ -67,6 +67,43 @@ describe('演出の縮退', () => {
 	});
 });
 
+describe('被写界深度の表現', () => {
+	const KEYFRAMES = blockAfter(
+		readSource('PublishedArticleListItem.svelte'),
+		'@keyframes published-article-list-item-scale'
+	);
+
+	/** そのプロパティが宣言されているキーフレームのオフセット */
+	const offsetsDeclaring = (property: string) =>
+		Array.from(KEYFRAMES.matchAll(/(\d+)%\s*\{([^}]*)\}/g))
+			.filter(([, , body]) => new RegExp(`(?:^|[^\\w-])${property}\\s*:`).test(body))
+			.map(([, offset]) => Number(offset));
+
+	it('透過とぼかしが同じ閾値で切り替わる', () => {
+		expect(offsetsDeclaring('opacity')).toEqual(offsetsDeclaring('filter'));
+	});
+
+	it('閾値の内側では透過もぼかしも掛からない', () => {
+		const plateau = Array.from(KEYFRAMES.matchAll(/(\d+)%\s*\{([^}]*)\}/g)).filter(
+			([, offset]) => Number(offset) > 0 && Number(offset) < 100
+		);
+		const sharp = plateau.filter(([, , body]) => /opacity:\s*1/.test(body));
+
+		// 頂点の 1 点ではなく、閾値どうしに挟まれた区間が不透明・ぼかしなしになる
+		expect(sharp).toHaveLength(2);
+		for (const [, , body] of sharp) {
+			expect(body).toMatch(/filter:\s*blur\(0\)/);
+		}
+	});
+
+	it('遠くにいる円はぼかす', () => {
+		for (const offset of ['0%', '100%']) {
+			const frame = KEYFRAMES.match(new RegExp(`${offset}\\s*\\{([^}]*)\\}`));
+			expect(frame?.[1]).toMatch(/filter:\s*blur\((?!0\))/);
+		}
+	});
+});
+
 describe('到達性', () => {
 	it('フォーカスの輪郭を消さない', () => {
 		const offending = ALL_SOURCES.filter(({ source }) =>

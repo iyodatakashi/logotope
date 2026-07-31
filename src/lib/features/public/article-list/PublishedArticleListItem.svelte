@@ -88,16 +88,29 @@
 		0% {
 			scale: 0.4;
 			opacity: 0;
+			filter: blur(8px);
 			z-index: 0;
+		}
+		/*
+		 * 閾値。ここから内側は前面にいるものとして扱い、透過とぼかしを掛けない。
+		 * 透過とぼかしで同じオフセットを使うので、はっきり見え始める位置が一致する。
+		 */
+		40% {
+			opacity: 1;
+			filter: blur(0);
 		}
 		50% {
 			scale: 1;
-			opacity: 1;
 			z-index: 100;
+		}
+		60% {
+			opacity: 1;
+			filter: blur(0);
 		}
 		100% {
 			scale: 0.4;
 			opacity: 0;
+			filter: blur(8px);
 			z-index: 0;
 		}
 	}
