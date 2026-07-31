@@ -1,8 +1,15 @@
 <script lang="ts">
 	import { navigating } from '$app/state';
+	import { prefersReducedMotion } from 'svelte/motion';
+	import PublishedArticleListIntro from '$lib/features/public/article-list/PublishedArticleListIntro.svelte';
 	import PublishedArticleListItem from '$lib/features/public/article-list/PublishedArticleListItem.svelte';
+	import {
+		HUE_ORIGIN_DEGREES,
+		buildPaletteVariables,
+		hueForScroll,
+		quantizeHue
+	} from '$lib/features/public/article-list/article-list-palette';
 	import type { PublishedTopic } from '$lib/models/published/published-topic/published-topic.types';
-	import PublicTemplate from '$lib/features/public/PublicTemplate.svelte';
 
 	interface Props {
 		data: {
@@ -12,6 +19,26 @@
 	}
 
 	let { data }: Props = $props();
+
+	// スクロールするのは文書ではなく記事の領域。グローバルスタイルが html/body を
+	// position: fixed / overflow: hidden で固定しているため、この領域が唯一のスクローラになる。
+	let scrolledDistance = $state(0);
+	let scrollerHeight = $state(0);
+
+	// 色相はスクロール量とスクローラの高さだけで決まる。レイアウトの測定を伴わない。
+	// サーバでは両方 0 のままなので起点の色相になる。
+	const steppedHue = $derived(quantizeHue(hueForScroll(scrolledDistance, scrollerHeight)));
+
+	// 動きの抑制が設定されている場合は色相を動かさず、起点の色相で固定する
+	const appliedHue = $derived(prefersReducedMotion.current ? HUE_ORIGIN_DEGREES : steppedHue);
+
+	// 量子化した色相が変わったときだけパレットを作り直す（スクロールイベントごとには再生成しない）。
+	// JS が書くのは離散的な色で、連続的な見えは参照側プロパティの transition が担う。
+	const paletteStyle = $derived(
+		Object.entries(buildPaletteVariables(appliedHue))
+			.map(([name, value]) => `${name}: ${value}`)
+			.join('; ')
+	);
 </script>
 
 <svelte:head>
@@ -24,8 +51,16 @@
 	/>
 </svelte:head>
 
-<PublicTemplate>
-	<main class="published-article-list-page">
+<main class="published-article-list-page" style={paletteStyle}>
+	<div class="published-article-list-page__intro">
+		<PublishedArticleListIntro />
+	</div>
+
+	<div
+		class="published-article-list-page__articles"
+		onscroll={(event) => (scrolledDistance = event.currentTarget.scrollTop)}
+		bind:clientHeight={scrollerHeight}
+	>
 		{#if navigating.to}
 			<p class="published-article-list-page__status">読み込み中...</p>
 		{:else if data.loadError}
@@ -36,28 +71,68 @@
 			<p class="published-article-list-page__status">公開された討論はまだありません。</p>
 		{:else}
 			<ul class="published-article-list-page__list">
-				{#each data.topics as topic (topic.id)}
-					<li>
-						<PublishedArticleListItem {topic} />
-					</li>
+				{#each data.topics as topic, index (topic.id)}
+					<PublishedArticleListItem {topic} {index} />
 				{/each}
 			</ul>
 		{/if}
-	</main>
-</PublicTemplate>
+	</div>
+</main>
 
 <style>
 	.published-article-list-page {
-		max-width: 720px;
-		margin: 0 auto;
-		padding: 32px 16px;
+		display: grid;
+		grid-template-columns: 24rem 1fr;
+		block-size: 100dvh;
+		/*
+		 * 色はスクロールに応じて JS がこの要素へ書き込むパレットの段から取る
+		 * （--published-article-list-50 … 950 / article-list-palette.ts）。
+		 */
+		background-color: var(--published-article-list-900);
+		transition: background-color 600ms;
 	}
-	.published-article-list-page__list {
-		list-style: none;
-		padding: 0;
-		margin: 0;
+
+	/* 紹介領域は記事の領域と別のグリッドトラックなので、スクロールで流れ去らない */
+	.published-article-list-page__intro {
 		display: flex;
 		flex-direction: column;
-		gap: 12px;
+		justify-content: center;
+		padding: 3rem;
+	}
+
+	/* 文書ではなくここがスクロールする。円の間隔もこの領域の幅から決まる（cqi の基準） */
+	.published-article-list-page__articles {
+		position: relative;
+		overflow-y: auto;
+		min-block-size: 0;
+		container-type: inline-size;
+	}
+
+	.published-article-list-page__list {
+		list-style: none;
+		margin: 0;
+		padding-inline: 0;
+		/*
+		 * 一覧の前後の余白は演出上の必須要素。これが無いと先頭と末尾の円だけが
+		 * スクローラの中央（標準サイズ）まで到達できない。
+		 */
+		padding-block: calc(50dvh - 20rem / 2);
+	}
+
+	.published-article-list-page__status {
+		color: var(--published-article-list-50);
+		transition: color 600ms;
+	}
+
+	/* 狭い縦長画面では単一カラムに切り替え、紹介領域を圧縮して記事の領域に画面の大半を割り当てる */
+	@media (max-width: 768px) {
+		.published-article-list-page {
+			grid-template-columns: 1fr;
+			grid-template-rows: auto 1fr;
+		}
+
+		.published-article-list-page__intro {
+			justify-content: flex-start;
+		}
 	}
 </style>
