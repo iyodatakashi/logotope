@@ -70,7 +70,7 @@ describe('演出の縮退', () => {
 describe('被写界深度の表現', () => {
 	const KEYFRAMES = blockAfter(
 		readSource('PublishedArticleListItem.svelte'),
-		'@keyframes published-article-list-item-scale'
+		'@keyframes published-article-list-item-depth'
 	);
 
 	/** そのプロパティが宣言されているキーフレームのオフセット */

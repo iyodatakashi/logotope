@@ -135,7 +135,7 @@ describe('PublishedArticleListItem.svelte', () => {
 		render(PublishedArticleListItem, { topic, index: 0 });
 
 		const style = getComputedStyle(linkOf());
-		expect(style.animationName).toContain('published-article-list-item-scale');
+		expect(style.animationName).toContain('published-article-list-item-depth');
 		expect(style.getPropertyValue('animation-timeline')).not.toBe('auto');
 	});
 

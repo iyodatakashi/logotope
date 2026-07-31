@@ -32,6 +32,8 @@
 	 */
 	.published-article-list-item {
 		block-size: max(calc(20rem / 3), calc(20rem - min(100cqi * 0.3, calc((100cqi - 20rem) / 2))));
+		/* 円の奥行きを一覧の perspective で投影するため、3D の空間を引き継ぐ */
+		transform-style: preserve-3d;
 	}
 
 	.published-article-list-item__link {
@@ -74,19 +76,22 @@
 
 		/* 円と内側の要素をまとめて一体で変倍する（直径とフォントサイズを個別に算出しない） */
 		/* 直線的な変倍だと通り過ぎ方が硬いので、各区間にイーズインアウトを掛ける */
-		animation: published-article-list-item-scale ease-in-out both;
+		animation: published-article-list-item-depth ease-in-out both;
 		animation-timeline: view();
 		animation-range: cover 0% cover 100%;
 	}
 
 	/*
-	 * 下部で縮小 → 画面中央で標準 → 上部で再び縮小して消える。
-	 * z-index を同じキーフレームで動かし、大きい円ほど前面に来るようにする
+	 * 奥から手前へ、そして再び奥へ。大きさを直接指定せず奥行きだけを動かし、
+	 * 縮小と「消失点へ寄る」動きを一覧の perspective に投影させる。
+	 * 投影倍率は P / (P + |Z|) なので、P = 2000px・|Z| = 1200px で両端が 0.625 倍になる。
+	 *
+	 * z-index も同じキーフレームで動かし、大きい円ほど前面に来るようにする
 	 * （別々に持つと大きさと重なり順が食い違う）。
 	 */
-	@keyframes published-article-list-item-scale {
+	@keyframes published-article-list-item-depth {
 		0% {
-			scale: 0.4;
+			translate: 0 0 -1200px;
 			opacity: 0;
 			filter: blur(8px);
 			z-index: 0;
@@ -99,16 +104,26 @@
 			opacity: 1;
 			filter: blur(0);
 		}
+		/*
+		 * 中央寄りは奥行きの伸びを抑える。投影倍率は P / (P + |Z|) で、Z が 0 に近いほど
+		 * 倍率の変化が急なため、ここを直線で結ぶと少し動いただけで急速に遠ざかって見える。
+		 */
+		25% {
+			translate: 0 0 -300px;
+		}
 		50% {
-			scale: 1;
+			translate: 0 0 0;
 			z-index: 100;
+		}
+		75% {
+			translate: 0 0 -300px;
 		}
 		60% {
 			opacity: 1;
 			filter: blur(0);
 		}
 		100% {
-			scale: 0.4;
+			translate: 0 0 -1200px;
 			opacity: 0;
 			filter: blur(8px);
 			z-index: 0;

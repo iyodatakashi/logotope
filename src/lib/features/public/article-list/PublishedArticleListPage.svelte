@@ -100,18 +100,28 @@
 		padding: 3rem;
 	}
 
-	/* 文書ではなくここがスクロールする。円の間隔もこの領域の幅から決まる（cqi の基準） */
+	/*
+	 * 文書ではなくここがスクロールする。円の間隔もこの領域の幅から決まる（cqi の基準）。
+	 * 消失点をこの領域の中央に置き、奥へ行った円が小さくなると同時に中央へ寄るようにする。
+	 */
 	.published-article-list-page__articles {
 		position: relative;
 		overflow-y: auto;
 		min-block-size: 0;
 		container-type: inline-size;
+		/*
+		 * 投影倍率は 1 / (1 + |Z| / perspective) で、この値と translateZ の比だけで決まる。
+		 * 小さくするほど広角（遠ざかりが強い）になる。
+		 */
+		perspective: 2000px;
 	}
 
 	.published-article-list-page__list {
 		list-style: none;
 		margin: 0;
 		padding-inline: 0;
+		/* 円の奥行きを上の perspective で投影するため、3D の空間を子へ引き継ぐ */
+		transform-style: preserve-3d;
 		/*
 		 * 一覧の前後の余白は演出上の必須要素。これが無いと先頭と末尾の円だけが
 		 * スクローラの中央（標準サイズ）まで到達できない。
