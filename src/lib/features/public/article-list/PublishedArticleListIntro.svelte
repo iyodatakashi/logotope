@@ -9,7 +9,7 @@
 	.published-article-list-intro {
 		display: flex;
 		flex-direction: column;
-		color: var(--published-article-list-50);
+		color: var(--white);
 		/* 色の移行はブラウザに委ねる（フレームごとの色計算を自前で行わない） */
 		transition: color 600ms;
 	}

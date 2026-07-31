@@ -88,7 +88,7 @@
 		 * 色はスクロールに応じて JS がこの要素へ書き込むパレットの段から取る
 		 * （--published-article-list-50 … 950 / article-list-palette.ts）。
 		 */
-		background-color: var(--published-article-list-900);
+		background-color: var(--published-article-list-500);
 		transition: background-color 600ms;
 	}
 
@@ -120,7 +120,7 @@
 	}
 
 	.published-article-list-page__status {
-		color: var(--published-article-list-50);
+		color: var(--white);
 		transition: color 600ms;
 	}
 

@@ -16,7 +16,7 @@
 <li class="published-article-list-item" style:--published-article-list-item-index={index}>
 	<a href="/articles/{topic.id}" class="published-article-list-item__link">
 		<span class="published-article-list-item__kind">AI討論</span>
-		<h2 class="published-article-list-item__title">{topic.title}</h2>
+		<h2 class="published-article-list-item__title" lang="ja">{topic.title}</h2>
 		<span class="published-article-list-item__published-at">{formattedDate}</span>
 	</a>
 </li>
@@ -48,7 +48,7 @@
 		border-radius: 50%;
 		padding: 2.5rem;
 		gap: 0.5rem;
-		background-color: var(--published-article-list-50);
+		background-color: var(--white);
 		color: var(--published-article-list-900);
 		/* 行の中央を基準位置にする */
 		margin-inline: auto;
@@ -117,6 +117,7 @@
 		-webkit-box-orient: vertical;
 		-webkit-line-clamp: 3;
 		line-clamp: 3;
+		word-break: auto-phrase;
 		overflow: hidden;
 	}
 
