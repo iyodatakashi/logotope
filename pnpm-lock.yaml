@@ -15,8 +15,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@14ch/svelte-ui':
-        specifier: ^0.0.57
-        version: 0.0.57(svelte@5.55.1)
+        specifier: ^0.0.58
+        version: 0.0.58(svelte@5.55.1)
       dayjs:
         specifier: ^1.11.21
         version: 1.11.21
@@ -114,8 +114,8 @@ packages:
   '@14ch/color-palette-generator@1.0.2':
     resolution: {integrity: sha512-FRgQf4brHLdHqKpq/9aQ9NgTj1KdayC//oqagPmVQjjsd6h4CaDy402mSejoLzfFD/YWjWItULt6X21oOVFvEw==}
 
-  '@14ch/svelte-ui@0.0.57':
-    resolution: {integrity: sha512-2o70FuFAdtVIK/HGFBM2NszusU3Jo3fa+HPYI8lYd96nWp4UJwiOrJMh932Mwk+qn+lTCenq9mFy3UkjE3jZWA==}
+  '@14ch/svelte-ui@0.0.58':
+    resolution: {integrity: sha512-krnj4dihbEFvG0i4ZfEhHrdmZZhNt7dKD0srvdyanfm+ZqqYdhM7iJcZ7nsA7ZoFUVXlw2kQT2jHHlOmmueQbA==}
     peerDependencies:
       svelte: ^5.0.0
 
@@ -2093,7 +2093,7 @@ snapshots:
     dependencies:
       culori: 4.0.2
 
-  '@14ch/svelte-ui@0.0.57(svelte@5.55.1)':
+  '@14ch/svelte-ui@0.0.58(svelte@5.55.1)':
     dependencies:
       dayjs: 1.11.21
       dompurify: 3.4.11
