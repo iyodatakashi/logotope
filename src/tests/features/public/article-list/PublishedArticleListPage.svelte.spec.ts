@@ -93,10 +93,9 @@ describe('PublishedArticleListPage.svelte', () => {
 		}
 	});
 
-	it('背景・円の面・円の中のテキスト・ロゴの色をすべて同じパレットから取る', () => {
+	it('スクロールで変わる色はパレットの段から取る', () => {
 		render(PublishedArticleListPage, { data: { topics, loadError: false } });
 
-		const palette = buildPaletteVariables(HUE_ORIGIN_DEGREES);
 		const colorOf = (selector: string, property: 'background-color' | 'color') =>
 			getComputedStyle(document.querySelector(selector) as HTMLElement).getPropertyValue(property);
 
@@ -104,10 +103,8 @@ describe('PublishedArticleListPage.svelte', () => {
 		expect(colorOf('.published-article-list-page', 'background-color')).not.toBe(
 			'rgba(0, 0, 0, 0)'
 		);
-		expect(colorOf('.published-article-list-item__link', 'background-color')).not.toBe(
-			'rgba(0, 0, 0, 0)'
-		);
-		expect(Object.keys(palette)).toHaveLength(11);
+		expect(colorOf('.published-article-list-item__title', 'color')).not.toBe('rgba(0, 0, 0, 0)');
+		expect(Object.keys(buildPaletteVariables(HUE_ORIGIN_DEGREES))).toHaveLength(11);
 	});
 
 	it('色を実際に適用する要素に移行アニメーションを掛ける', () => {

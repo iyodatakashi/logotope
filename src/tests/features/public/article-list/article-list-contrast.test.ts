@@ -7,8 +7,8 @@ import {
 
 /**
  * 配色の可読性の実測。
- * 役割 → 段の割り当てはページのデザイン値ブロックが唯一の情報源なので、そこから読み取る。
- * 割り当てを変えるとこのテストがそのまま新しい配色を測る。
+ * どの色を使うかはコンポーネントの CSS が唯一の情報源なので、そこから読み取る。
+ * 参照先を変えるとこのテストがそのまま新しい配色を測る。
  */
 const readSource = (fileName: string) =>
 	readFileSync(`src/lib/features/public/article-list/${fileName}`, 'utf8');
@@ -28,14 +28,32 @@ const blockAfter = (source: string, header: string) => {
 	throw new Error(`閉じていない: ${header}`);
 };
 
-/** その宣言が参照しているパレットの段を読む（段の割り当てはコンポーネント側が唯一の情報源） */
-const levelOf = (block: string, property: 'background-color' | 'color') => {
+/** 共有トークンの実際の色（スクロールで変わらない固定色） */
+const SHARED_TOKENS: Record<string, string> = Object.fromEntries(
+	Array.from(
+		readFileSync('src/lib/assets/styles/variables.scss', 'utf8').matchAll(
+			/(--[\w-]+):\s*(#[0-9a-fA-F]{6})\s*;/g
+		),
+		(matched) => [matched[1], matched[2]]
+	)
+);
+
+/**
+ * その宣言が実際に使う色を、色相ごとに解決する関数を返す。
+ * パレットの段ならスクロールで変わり、共有トークンなら固定色になる。
+ */
+const colorOf = (block: string, property: 'background-color' | 'color') => {
 	// `color` が `background-color` の一部に一致しないよう、直前が単語構成文字でないことを要求する
-	const matched = block.match(
-		new RegExp(`(?:^|[^\\w-])${property}\\s*:\\s*var\\(--published-article-list-(\\d+)\\)`)
-	);
-	if (!matched) throw new Error(`${property} の段が読めない`);
-	return Number(matched[1]);
+	const matched = block.match(new RegExp(`(?:^|[^\\w-])${property}\\s*:\\s*var\\((--[\\w-]+)\\)`));
+	if (!matched) throw new Error(`${property} の参照先が読めない`);
+
+	const name = matched[1];
+	const level = name.match(/^--published-article-list-(\d+)$/);
+	if (level) return (palette: Readonly<Record<number, string>>) => palette[Number(level[1])];
+
+	const fixed = SHARED_TOKENS[name];
+	if (!fixed) throw new Error(`色が解決できない: ${name}`);
+	return () => fixed;
 };
 
 const ITEM = readSource('PublishedArticleListItem.svelte');
@@ -75,19 +93,19 @@ const contrastRatio = (foreground: string, background: string): number => {
 const TEXT_PAIRS = [
 	{
 		name: '円の中のテキスト',
-		foreground: levelOf(CIRCLE, 'color'),
-		background: levelOf(CIRCLE, 'background-color')
+		foreground: colorOf(CIRCLE, 'color'),
+		background: colorOf(CIRCLE, 'background-color')
 	},
 	{
 		name: '種別ラベル・公開日',
-		foreground: levelOf(KIND, 'color'),
-		background: levelOf(CIRCLE, 'background-color')
-	},
-	{
-		name: 'ロゴ・概要文',
-		foreground: levelOf(INTRO_ROOT, 'color'),
-		background: levelOf(PAGE_ROOT, 'background-color')
+		foreground: colorOf(KIND, 'color'),
+		background: colorOf(CIRCLE, 'background-color')
 	}
+	/*
+	 * ロゴ・概要文（紹介領域の白文字 × ページ背景）はユーザーの判断で対象外。
+	 * 背景がパレットの中間の段なので、白文字ではどの色相でも 4.5:1 に届かない。
+	 * 背景の段か文字色を変えたときは、ここを戻して実測する価値がある。
+	 */
 ];
 
 /** WCAG AA（通常サイズのテキスト） */
@@ -95,12 +113,9 @@ const MINIMUM_CONTRAST_RATIO = 4.5;
 
 describe('配色の可読性', () => {
 	it.each(TEXT_PAIRS)('どの色相でも $name の可読性が保たれる', ({ foreground, background }) => {
-		const foregroundLevel = foreground;
-		const backgroundLevel = background;
-
 		const worst = SAMPLED_HUES.map((hue) => {
 			const palette = buildPaletteHex(hue);
-			return { hue, ratio: contrastRatio(palette[foregroundLevel], palette[backgroundLevel]) };
+			return { hue, ratio: contrastRatio(foreground(palette), background(palette)) };
 		}).reduce((lowest, current) => (current.ratio < lowest.ratio ? current : lowest));
 
 		expect(
