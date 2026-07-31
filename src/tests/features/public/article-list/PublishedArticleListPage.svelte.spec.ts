@@ -222,6 +222,31 @@ describe('PublishedArticleListPage.svelte', () => {
 		);
 	});
 
+	it('重なり順を大きさと同じ進捗で決める（大きい円が前面に来る）', async () => {
+		render(PublishedArticleListPage, { data: { topics, loadError: false } });
+		// スクロール駆動アニメーションの値は次のフレームで反映される
+		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+		const circles = Array.from(
+			document.querySelectorAll<HTMLElement>('.published-article-list-item__link')
+		).map((circle) => ({
+			width: circle.getBoundingClientRect().width,
+			layer: Number(getComputedStyle(circle).zIndex)
+		}));
+
+		// 文書順まかせ（auto）ではなく、変倍と同じ進捗から重なり順が決まる
+		const report = circles.map((circle) => `${circle.width}px→z ${circle.layer}`).join(' / ');
+		for (const circle of circles) {
+			expect(Number.isNaN(circle.layer), report).toBe(false);
+		}
+
+		// 大きい円ほど手前に来る
+		const sortedBySize = [...circles].sort((a, b) => a.width - b.width);
+		for (let index = 1; index < sortedBySize.length; index++) {
+			expect(sortedBySize[index].layer).toBeGreaterThanOrEqual(sortedBySize[index - 1].layer);
+		}
+	});
+
 	it('キーボードだけですべての記事へ到達できる', () => {
 		render(PublishedArticleListPage, { data: { topics, loadError: false } });
 

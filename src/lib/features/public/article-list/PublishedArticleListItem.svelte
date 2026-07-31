@@ -78,19 +78,26 @@
 		animation-range: cover 0% cover 100%;
 	}
 
-	/* 下部で縮小 → 画面中央で標準 → 上部で再び縮小して消える */
+	/*
+	 * 下部で縮小 → 画面中央で標準 → 上部で再び縮小して消える。
+	 * z-index を同じキーフレームで動かし、大きい円ほど前面に来るようにする
+	 * （別々に持つと大きさと重なり順が食い違う）。
+	 */
 	@keyframes published-article-list-item-scale {
 		0% {
 			scale: 0.4;
 			opacity: 0;
+			z-index: 0;
 		}
 		50% {
 			scale: 1;
 			opacity: 1;
+			z-index: 100;
 		}
 		100% {
 			scale: 0.4;
 			opacity: 0;
+			z-index: 0;
 		}
 	}
 
