@@ -57,13 +57,9 @@ const colorOf = (block: string, property: 'background-color' | 'color') => {
 };
 
 const ITEM = readSource('PublishedArticleListItem.svelte');
-const INTRO = readSource('PublishedArticleListIntro.svelte');
-const PAGE = readSource('PublishedArticleListPage.svelte');
 
 const CIRCLE = blockAfter(ITEM, '.published-article-list-item__link {');
 const KIND = blockAfter(ITEM, '.published-article-list-item__kind {');
-const INTRO_ROOT = blockAfter(INTRO, '.published-article-list-intro {');
-const PAGE_ROOT = blockAfter(PAGE, '.published-article-list-page {');
 
 /** 色相のサンプリング間隔（度）。色相環を一定間隔で巡って測る。 */
 const HUE_SAMPLE_STEP_DEGREES = 15;
@@ -104,7 +100,11 @@ const TEXT_PAIRS = [
 	/*
 	 * ロゴ・概要文（紹介領域の白文字 × ページ背景）はユーザーの判断で対象外。
 	 * 背景がパレットの中間の段なので、白文字ではどの色相でも 4.5:1 に届かない。
-	 * 背景の段か文字色を変えたときは、ここを戻して実測する価値がある。
+	 * 背景の段か文字色を変えたときは、次を足して実測する価値がある。
+	 *   const INTRO = readSource('PublishedArticleListIntro.svelte');
+	 *   const PAGE = readSource('PublishedArticleListPage.svelte');
+	 *   foreground: colorOf(blockAfter(INTRO, '.published-article-list-intro {'), 'color')
+	 *   background: colorOf(blockAfter(PAGE, '.published-article-list-page {'), 'background-color')
 	 */
 ];
 
