@@ -15,8 +15,10 @@
 	}
 
 	.published-article-list-intro__logo {
-		font-size: 2.5rem;
+		font-size: 2rem;
+		font-weight: 600;
 		line-height: 1.2;
+		letter-spacing: 0.05rem;
 		margin: 0;
 	}
 

@@ -82,7 +82,7 @@
 <style>
 	.published-article-list-page {
 		display: grid;
-		grid-template-columns: 24rem 1fr;
+		grid-template-columns: auto 1fr;
 		block-size: 100dvh;
 		/*
 		 * 色はスクロールに応じて JS がこの要素へ書き込むパレットの段から取る
@@ -96,8 +96,9 @@
 	.published-article-list-page__intro {
 		display: flex;
 		flex-direction: column;
-		justify-content: center;
-		padding: 3rem;
+		justify-content: start;
+		width: 240px;
+		padding: 24px;
 	}
 
 	/*
