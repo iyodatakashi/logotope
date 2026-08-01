@@ -197,6 +197,46 @@ describe('PublishedArticleListPage.svelte', () => {
 		expect(wide.offset / narrow.offset, report).toBeCloseTo(wide.areaWidth / narrow.areaWidth, 1);
 	});
 
+	it('先頭の円がスクローラの中央まで到達できる', async () => {
+		render(PublishedArticleListPage, { data: { topics, loadError: false } });
+
+		const articles = articlesOf() as HTMLElement;
+		articles.scrollTop = 0;
+		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+		const first = (
+			document.querySelector('.published-article-list-item__link') as HTMLElement
+		).getBoundingClientRect();
+		const area = articles.getBoundingClientRect();
+		const gap = first.top + first.height / 2 - (area.top + area.height / 2);
+
+		expect(Math.abs(gap), `中央から ${gap}px ずれている`).toBeLessThan(2);
+	});
+
+	it('末尾の円がスクローラの中央まで到達できる', async () => {
+		render(PublishedArticleListPage, { data: { topics, loadError: false } });
+
+		const articles = articlesOf() as HTMLElement;
+		articles.scrollTop = articles.scrollHeight;
+		await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+		const circles = document.querySelectorAll<HTMLElement>('.published-article-list-item__link');
+		const last = circles[circles.length - 1].getBoundingClientRect();
+		const area = articles.getBoundingClientRect();
+		const gap = last.top + last.height / 2 - (area.top + area.height / 2);
+		document.body.style.inlineSize = '';
+
+		const list = document.querySelector('.published-article-list-page__list') as HTMLElement;
+		const lastItem = document.querySelector(
+			'.published-article-list-item:last-child'
+		) as HTMLElement;
+		const listStyle = getComputedStyle(list);
+		const report = `ずれ ${gap} / 領域高 ${area.height} / innerHeight ${window.innerHeight} / padTop ${listStyle.paddingBlockStart} / padBottom ${listStyle.paddingBlockEnd} / slot ${getComputedStyle(lastItem).blockSize} / margin ${getComputedStyle(lastItem).marginBlockEnd}`;
+
+		// 中央に届かない（余白不足）ことも、行き過ぎる（余白過剰）ことも検知する
+		expect(Math.abs(gap), report).toBeLessThan(2);
+	});
+
 	it('記事の領域のスクロール量に応じてパレットを作り直す', async () => {
 		render(PublishedArticleListPage, { data: { topics, loadError: false } });
 

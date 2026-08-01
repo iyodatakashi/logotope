@@ -108,7 +108,8 @@
 		position: relative;
 		overflow-y: auto;
 		min-block-size: 0;
-		container-type: inline-size;
+		/* 円の間隔と一覧の前後の余白を、この領域自身の幅・高さから決める（cqi / cqb の基準） */
+		container-type: size;
 		/*
 		 * 投影倍率は 1 / (1 + |Z| / perspective) で、この値と translateZ の比だけで決まる。
 		 * 小さくするほど広角（遠ざかりが強い）になる。
@@ -125,8 +126,10 @@
 		/*
 		 * 一覧の前後の余白は演出上の必須要素。これが無いと先頭と末尾の円だけが
 		 * スクローラの中央（標準サイズ）まで到達できない。
+		 * 画面高ではなくスクローラ自身の高さ（cqb）が基準。狭い縦長画面では
+		 * 紹介領域のぶんスクローラが画面より低くなるため、画面高で取ると余りすぎる。
 		 */
-		padding-block: calc(50dvh - 20rem / 2);
+		padding-block: calc(50cqb - 20rem / 2);
 	}
 
 	.published-article-list-page__status {

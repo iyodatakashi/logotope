@@ -36,6 +36,15 @@
 		transform-style: preserve-3d;
 	}
 
+	/*
+	 * 円は行より下へはみ出すので、末尾だけそのぶんの余地を足す。
+	 * これが無いと末尾の円だけスクローラの中央（標準サイズ）まで到達できない。
+	 * はみ出し量 = 直径 − スロット高 = min(直径の 2/3, ずらし幅)。
+	 */
+	.published-article-list-item:last-child {
+		margin-block-end: min(calc(20rem * 2 / 3), 100cqi * 0.3, calc((100cqi - 20rem) / 2));
+	}
+
 	.published-article-list-item__link {
 		display: flex;
 		flex-direction: column;
