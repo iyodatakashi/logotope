@@ -246,6 +246,22 @@ describe('composeHair — 加齢（髪色・生え際/毛量）', () => {
 		}
 	});
 
+	it('生え際が無い毛量（生え際後退・著しい薄毛）に前髪あり・マッシュは出ない', () => {
+		for (const { g, p } of ALL_CASES) {
+			for (const c of samples(g, p, 500)) {
+				if (c.density !== '生え際後退' && c.density !== '著しい薄毛') continue;
+				if (c.styling !== 'down') continue;
+				expect(c.bangs).toBe('前髪なし（額出し）');
+				expect(startsWith(c.silhouette, 'マッシュ')).toBe(false);
+			}
+		}
+	});
+
+	it('生え際が残る毛量では前髪ありが出る（絞り込みで潰れていない）', () => {
+		const cs = samples('elder', 'masculine', 2000).filter((c) => c.density === 'ふさふさ');
+		expect(cs.some((c) => c.bangs && c.bangs !== '前髪なし（額出し）')).toBe(true);
+	});
+
 	it('著しい薄毛は短い髪（VS/S）でだけ出る', () => {
 		for (const { g, p } of ALL_CASES) {
 			for (const c of samples(g, p, 400)) {

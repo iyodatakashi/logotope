@@ -53,11 +53,16 @@ type Styling = 'down' | 'tied';
  */
 type Weight = Partial<Record<Presentation, number>>;
 
-/** 髪型の選択肢の共通形。lengths＝その選択肢が視覚的に成立する長さ（ハード検証）。 */
+/**
+ * 髪型の選択肢の共通形。lengths＝その選択肢が視覚的に成立する長さ（ハード検証）。
+ * needsHairline＝額に毛が垂れることを前提とする肢。生え際が後退・消失した毛量（Density.noHairline）とは
+ * 両立しないので除外する（許すと「禿げているのに前髪だけある」矛盾した指示になる）。
+ */
 interface Option {
 	name: string;
 	lengths: readonly Length[];
 	w?: Weight;
+	needsHairline?: boolean;
 }
 
 // Step 1: 長さの重み。
@@ -81,19 +86,22 @@ const STYLING_WEIGHT: Record<Styling, Weight> = {
 
 // Step 3A: 前髪（おろし時）。触覚とカーテンバングは長い前髪を顔まわりに垂らすため B 以上でのみ成立
 // （ベリーショート/ショートに付けると「短いのに長い前髪」で矛盾し、短髪が出なくなる）。
+const NO_BANGS = '前髪なし（額出し）';
 const BANGS: readonly Option[] = [
-	{ name: '前髪なし（額出し）', lengths: LENGTHS, w: { masculine: 1.5 } },
-	{ name: 'パッツン（直線的な前髪）', lengths: LENGTHS, w: { feminine: 1.5 } },
+	{ name: NO_BANGS, lengths: LENGTHS, w: { masculine: 1.5 } },
+	{ name: 'パッツン（直線的な前髪）', lengths: LENGTHS, w: { feminine: 1.5 }, needsHairline: true },
 	{
 		name: 'シースルー/カーテンバング',
 		lengths: ['B', 'M', 'SL', 'L'],
-		w: { feminine: 1.5, neutral: 1.5 }
+		w: { feminine: 1.5, neutral: 1.5 },
+		needsHairline: true
 	},
-	{ name: '流し前髪（サイドへ流す）', lengths: LENGTHS, w: { masculine: 1.5 } },
+	{ name: '流し前髪（サイドへ流す）', lengths: LENGTHS, w: { masculine: 1.5 }, needsHairline: true },
 	{
 		name: '触覚（顔まわりに長い束）',
 		lengths: ['B', 'M', 'SL', 'L'],
-		w: { feminine: 1.5, masculine: 0.5 }
+		w: { feminine: 1.5, masculine: 0.5 },
+		needsHairline: true
 	}
 ];
 
@@ -103,7 +111,13 @@ interface Silhouette extends Option {
 }
 const SILHOUETTES: readonly Silhouette[] = [
 	{ name: 'クリーン（タイト・一枚岩）', lengths: LENGTHS, w: { masculine: 1.5 } },
-	{ name: 'マッシュ（丸みシルエット）', lengths: ['S', 'B', 'M'], w: { masculine: 1.5 } },
+	// マッシュは額を覆う丸い前髪が形の定義そのものなので、生え際が後退した毛量とは両立しない。
+	{
+		name: 'マッシュ（丸みシルエット）',
+		lengths: ['S', 'B', 'M'],
+		w: { masculine: 1.5 },
+		needsHairline: true
+	},
 	{
 		name: 'ウルフ（段差レイヤー・毛先はね）',
 		lengths: ['S', 'B', 'M', 'SL', 'L'],
@@ -171,8 +185,8 @@ const LENGTH_FACTOR: ReadonlyArray<{ name: string; length: Length; factor: numbe
 // 前髪・質感など加齢で自然に変わる要素に限る。
 const AGE_FACTOR: ReadonlyArray<{ name: string; generation: Generation; factor: number }> = [
 	// 若年: 前髪ありを増やす（前髪なし＝額出しを減らす）
-	{ name: '前髪なし（額出し）', generation: 'child', factor: 0.5 },
-	{ name: '前髪なし（額出し）', generation: 'young', factor: 0.5 },
+	{ name: NO_BANGS, generation: 'child', factor: 0.5 },
+	{ name: NO_BANGS, generation: 'young', factor: 0.5 },
 	// 若年: ウェーブ・全体巻きを減らしストレート寄りに（波・パーマは中年以降の印象）
 	{ name: 'ゆるウェーブ', generation: 'child', factor: 0.4 },
 	{ name: 'ゆるウェーブ', generation: 'young', factor: 0.4 },
@@ -264,6 +278,8 @@ interface Density {
 	desc: string | null;
 	lengths: readonly Length[];
 	w: Record<Presentation, GenWeight>;
+	/** 生え際が後退・消失していて額に毛が無い。needsHairline の肢（前髪あり・マッシュ）を除外する。 */
+	noHairline?: boolean;
 }
 const DENSITIES: readonly Density[] = [
 	{
@@ -290,7 +306,8 @@ const DENSITIES: readonly Density[] = [
 		name: '生え際後退',
 		desc: '生え際が後退している',
 		lengths: LENGTHS,
-		w: { masculine: { middle: 0.25, senior: 0.9, elder: 1.1 }, feminine: {}, neutral: { senior: 0.25, elder: 0.4 } }
+		w: { masculine: { middle: 0.25, senior: 0.9, elder: 1.1 }, feminine: {}, neutral: { senior: 0.25, elder: 0.4 } },
+		noHairline: true
 	},
 	{
 		name: '頭頂部の薄毛',
@@ -302,12 +319,20 @@ const DENSITIES: readonly Density[] = [
 		name: '著しい薄毛',
 		desc: 'かなり薄毛で地肌が目立つ（サイドと後頭部にわずかに残る程度）',
 		lengths: ['VS', 'S'],
-		w: { masculine: { senior: 0.3, elder: 0.8 }, feminine: {}, neutral: { elder: 0.2 } }
+		w: { masculine: { senior: 0.3, elder: 0.8 }, feminine: {}, neutral: { elder: 0.2 } },
+		noHairline: true
 	}
 ];
 
 const descOf = (arr: readonly { name: string; desc: string | null }[], name: string): string | null =>
 	arr.find((x) => x.name === name)?.desc ?? null;
+
+/**
+ * その毛量と両立する肢か（ハード制約）。生え際が無い毛量に前髪あり・マッシュを許すと
+ * 「禿げているのに前髪だけある」矛盾になるため除外する。
+ */
+const fitsDensity = (opt: Option, density: string): boolean =>
+	!opt.needsHairline || !DENSITIES.find((d) => d.name === density)?.noHairline;
 
 /** 組み立てた髪型の構造。おろしなら bangs/silhouette(/texture)、まとめなら tie を持つ。 */
 export interface HairChoice {
@@ -346,11 +371,11 @@ export const composeHair = (generation: Generation, presentation: Presentation):
 	}
 
 	const bangs = weightedPick(
-		BANGS.filter((b) => validAt(b, length)),
+		BANGS.filter((b) => validAt(b, length) && fitsDensity(b, density)),
 		(b) => optionWeight(b, length, generation, presentation)
 	);
 	const silhouette = weightedPick(
-		SILHOUETTES.filter((s) => validAt(s, length)),
+		SILHOUETTES.filter((s) => validAt(s, length) && fitsDensity(s, density)),
 		(s) => optionWeight(s, length, generation, presentation)
 	);
 	const choice: HairChoice = {
