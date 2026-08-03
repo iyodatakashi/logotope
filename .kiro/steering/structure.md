@@ -54,7 +54,8 @@ functions/src/
 │   └── persona-agent.ts
 ├── constants/
 │   ├── ai.constants.ts
-│   └── debate.constants.ts
+│   ├── debate.constants.ts
+│   └── writing-style.constants.ts  # 文体（口語／散文／内部メモ）の単一定義元
 ├── llm/
 │   └── models.ts
 ├── pipeline/                   # AI生成パイプライン（ドメイン別サブディレクトリ）

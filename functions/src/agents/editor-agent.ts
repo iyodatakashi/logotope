@@ -2,6 +2,7 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import { sonnet } from '../llm/models.js';
 import { formatPersonas } from '../utils/prompt-formatters.js';
+import { SPOKEN_STYLE, NARRATIVE_STYLE } from '../constants/writing-style.constants.js';
 import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
@@ -46,7 +47,7 @@ const editingStance = `あなたは討論の書き起こしを、読み物とし
 
 【表記ルールの適用範囲】
 - 適用するのは字づかい・符号・数字の表記だけ。記者ハンドブックの用語の言い換え・語彙の統制は適用しない（発言の中身を変えることになるため）。
-- 話し言葉であることは崩さない。「だ・である」調に直さず、問いかけの「？」も残す。
+- 話し言葉であることは崩さない（${SPOKEN_STYLE}）。原文の問いかけの「？」も残す。
 
 その人らしい話し方は、口癖や言い回しを丸ごと残すことではなく、書き直した後も「その人が言いそう」に読めれば足りる。上記以外に守るべき制約はない。編集は原文と同じ言語で行う。`;
 
@@ -84,8 +85,8 @@ const editNarrationSystemPrompt = `${editingStance}
 以下は導入・締め・所感などの散文を編集するときのルールです。
 
 【文体（厳守。上の表記ルールより優先する）】
-- 文末は「です・ます」調に統一する。導入・締め・所感のいずれも同じ扱いとする。
-- 原文に「〜だ」「〜である」「〜だろう」調・体言止め・断定の言い切りが混じっていたら、すべて「です・ます」調に直す。原文の文体に合わせない。
+- ${NARRATIVE_STYLE}導入・締め・所感のいずれも同じ扱いとする。
+- 原文の文体には合わせない。原文に「です・ます」調でない文が混じっていたら、すべて「です・ます」調に直す。
 - 直すのは文末の調子だけで、主張・事実・語りの中身とその人らしさは変えない。問いかけの「？」はそのまま残す。
 
 【その他のルール】

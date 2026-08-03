@@ -1,6 +1,7 @@
 import { generateText } from 'ai';
 import { sonnet } from '../llm/models.js';
 import { formatFactBaseSection } from '../utils/prompt-formatters.js';
+import { NARRATIVE_STYLE } from '../constants/writing-style.constants.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 import type { TopicContext } from '../types/topic.types.js';
 import type { DebateDigest } from '../types/debate-digest.types.js';
@@ -32,7 +33,7 @@ const introOutroSystemPrompt = `あなたは公開討論の司会者です。公
 - ト書き・演出描写を一切書かない。「（会場の空気が静まるのを待ってから）」「（静かに語り始める）」のように、動作・間・口調・表情・聴衆の反応などを括弧書きで描く演出（ト書き）は出力しない。出力は司会者が実際に口にする言葉そのものだけとし、地の文の情景描写や状況説明を混ぜない。
 
 【文体】
-- 司会者が聴衆へ落ち着いて語りかける、です・ます調の散文（である調・体言止め・断定の言い切りは使わない）。
+- 司会者が聴衆へ落ち着いて語りかける、${NARRATIVE_STYLE}
 - 見出し・箇条書きは使わない。討論と同じ言語で書く。`;
 
 const introInstruction = `これは公開討論の冒頭で、司会者がこれから始まる討論へ聴衆を引き込む導入の言葉です。この先を見たいと思わせるのが唯一の目的です。

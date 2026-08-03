@@ -14,6 +14,7 @@ import type { PersonaReply, ImpressionResult, Engagement } from '../types/debate
 import type { DebateTurn, TurnGenerationContext } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
 import { FACILITATOR_NAME } from '../constants/debate.constants.js';
+import { SPOKEN_STYLE, NOTE_STYLE } from '../constants/writing-style.constants.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 
 type ExperienceLevel = 'young' | 'mid' | 'veteran';
@@ -55,9 +56,7 @@ export const buildSpeechStyleGuide = (persona: Persona & { gender?: string }): s
 	const authLevel = estimateAuthorityLevel(persona.role);
 	const lines: string[] = [];
 
-	lines.push(
-		'これは口語の対話であり、書き言葉（「〜だ」「〜である」「〜ではない」調）は使わない。'
-	);
+	lines.push(`これは口語の対話です。${SPOKEN_STYLE}`);
 
 	if (expLevel === 'young') {
 		lines.push(
@@ -398,7 +397,7 @@ export const evaluateEngagement = async (
 			? `\n\n【いま場で話されている論点】${activeAgendaItem}\nいま参加者はこの論点について話しています。あなたの発言意欲（score）と発言意図（intentSummary）は、この論点に対して自分が付け加えられること（別の角度・経験・疑問・事実）があるかで決めてください。論点と関係の薄い、自分がただ言いたいだけの話には高い score を付けないこと。question / opinion の intentSummary は「この論点について何を言いたいか／誰にどの発言のどこを聞きたいか」で書くこと。`
 			: '';
 		// score/mode の主判定とは分節した、付随的な気づき検出タスク（低干渉・厳格な閾値・簡潔にしてコスト抑制）
-		const awarenessDetectionNote = `\n\n---\n【気づき検出】score/mode の評価とは別に行い、この検出は score/mode の判定を変えない。気づきの発生源は提示会話の最後の1発言（末尾＝直前の発言）のみ。それ以前の発言は直前発言を理解するための文脈であり、発生源にはしない。\n【awareness の出力】awareness は、直前発言によってあなたの結論・立場そのものが以前と別の場所に動いたとき（これまで退けていた点を受け入れた／自分の主張を取り下げ・限定した／立場を変える新しい論点を採り入れた等）だけ、オブジェクトとして出力する。それ以外はすべて null（ほとんどのターンは null）。自己点検：content が「改めて〜」「やはり〜」「再確認した」「深く理解した／腹落ちした」で自然に書けるものは、結論が動いておらず再認識なので null。\n【出力する場合の形式】content は一文。文体は常体（「〜した。」「〜だ。」調）で書き、敬体（です・ます調）は混ぜない。reception=直前発言（他者）で気づいた／self=直前発言を聞いて自分の中で新たに生じた。reception のとき sourceTurnId に反応した発言の番号（各行頭の [N]。通常は末尾＝直前発言）を記す。self は sourceTurnId を null にしてよい。`;
+		const awarenessDetectionNote = `\n\n---\n【気づき検出】score/mode の評価とは別に行い、この検出は score/mode の判定を変えない。気づきの発生源は提示会話の最後の1発言（末尾＝直前の発言）のみ。それ以前の発言は直前発言を理解するための文脈であり、発生源にはしない。\n【awareness の出力】awareness は、直前発言によってあなたの結論・立場そのものが以前と別の場所に動いたとき（これまで退けていた点を受け入れた／自分の主張を取り下げ・限定した／立場を変える新しい論点を採り入れた等）だけ、オブジェクトとして出力する。それ以外はすべて null（ほとんどのターンは null）。自己点検：content が「改めて〜」「やはり〜」「再確認した」「深く理解した／腹落ちした」で自然に書けるものは、結論が動いておらず再認識なので null。\n【出力する場合の形式】content は一文。文体は${NOTE_STYLE}reception=直前発言（他者）で気づいた／self=直前発言を聞いて自分の中で新たに生じた。reception のとき sourceTurnId に反応した発言の番号（各行頭の [N]。通常は末尾＝直前発言）を記す。self は sourceTurnId を null にしてよい。`;
 		const system = buildPersonaSystemPrompt(
 			persona,
 			persona.interviewRecord ?? '',
@@ -485,9 +484,9 @@ export const generateImpression = async (
 			? `\n\n上の討論を踏まえつつ、${persona.name}として討論後のコメントを2〜4文で述べてください。討論の特定の発言、とりわけ最後の発言に反応するのではなく、上に挙げた「あなた自身の気づき」を軸に、自分の考えがどう動いたか・何が印象に残ったかを自分の言葉で述べること（討論全文は、その気づきを具体的に思い出すための材料として使ってよい）。「今日の話を聞いていて」「討論を通じて」「今回の議論で」のような振り返りの前置き・実況で始めないこと。前置きは付けず、いきなり感じたこと・考えの変化そのものから書き出す。`
 			: `\n\n上の討論を踏まえて、${persona.name}として討論後のコメントを2〜4文で述べてください。他の参加者の意見を聞いてどう感じたか、印象に残った意見、自分の考えの変化を含めてください。特定の発言、とりわけ最後の発言だけに反応せず、討論全体の中で実際に自分の考えに影響した点を選ぶこと。「今日の話を聞いていて」「討論を通じて」「今回の議論で」のような振り返りの前置き・実況で始めないこと。前置きは付けず、いきなり感じたこと・考えの変化そのものから書き出す。`;
 
-		// 文体の統一（重要）。討論での話し方と同じ口語の語り口に固定し、参照する気づきメモ（常体で記録）に
-		// 引きずられて「だ・である調」が混ざるのを防ぐ。
-		const styleNote = `\n\n【文体の統一】討論での${persona.name}自身の話し方と同じ口語の語り口で、最初から最後まで文体を統一して書くこと。「〜だ」「〜である」調・体言止め・断定の言い切りといった書き言葉を混ぜず、語り口を崩さない（参照する気づきメモが常体で書かれていても、その文体には引きずられない）。`;
+		// 文体の統一（重要）。討論での話し方と同じ口語の語り口に固定し、参照する気づきメモ（NOTE_STYLE の常体で記録）に
+		// 引きずられて書き言葉が混ざるのを防ぐ。記事に載る文体（NARRATIVE_STYLE）への変換は編集工程が行う。
+		const styleNote = `\n\n【文体の統一】討論での${persona.name}自身の話し方と同じ語り口で、最初から最後まで文体を統一して書くこと。${SPOKEN_STYLE}語り口を崩さない（参照する気づきメモが常体で書かれていても、その文体には引きずられない）。`;
 
 		const result = await generateObject({
 			model: sonnet,
