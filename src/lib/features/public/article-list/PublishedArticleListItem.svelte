@@ -22,27 +22,31 @@
 </li>
 
 <style>
-	/*
-	 * 行。幅は記事リスト領域いっぱいで、この要素自体は動かさない（動かすのは中の円だけ）。
-	 * 持つのはレイアウト上のスロット高だけで、直径より小さく取ったぶんだけ円が重なる。
-	 *
-	 * 横が詰まったぶん縦を伸ばす:
-	 * ・直径 ÷ 3（列数）: 同じ列に戻る円どうしの下限。横のずれが 0 なので縦だけで担保する
-	 * ・直径 − ずらし幅: 隣どうしの下限。横に離れたぶんは縦を詰めてよい
-	 */
-	.published-article-list-item {
-		block-size: max(calc(20rem / 3), calc(20rem - min(100cqi * 0.3, calc((100cqi - 20rem) / 2))));
-		/* 円の奥行きを一覧の perspective で投影するため、3D の空間を引き継ぐ */
-		transform-style: preserve-3d;
+	/* 進行度。入口で -1、中央で 0、出口で +1。数値として登録することでアニメーションできる */
+	@property --published-article-list-item-travel {
+		syntax: '<number>';
+		inherits: false;
+		initial-value: 0;
 	}
 
 	/*
-	 * 円は行より下へはみ出すので、末尾だけそのぶんの余地を足す。
-	 * これが無いと末尾の円だけスクローラの中央（標準サイズ）まで到達できない。
-	 * はみ出し量 = 直径 − スロット高 = min(直径の 2/3, ずらし幅)。
+	 * 行。幅は記事リスト領域いっぱいで、この要素自体は動かさない（動かすのは中の円だけ）。
+	 * 高さは円の直径と同じにする。こうすると行の中心と円の中心が一致し、円が画面の上にいるときと
+	 * 下にいるときで進行度が対称になる（透過やぼかしの掛かり方がずれない）。
 	 */
-	.published-article-list-item:last-child {
-		margin-block-end: min(calc(20rem * 2 / 3), 100cqi * 0.3, calc((100cqi - 20rem) / 2));
+	.published-article-list-item {
+		block-size: 20rem;
+	}
+
+	/*
+	 * 2 個目以降を上へ詰めて円を重ねる。詰める量は横のずらし幅に合わせる
+	 * （横に離れているぶんは縦を詰めてよい）。ただし直径の 2/3 までとし、
+	 * 同じ列に戻る円どうし（3 個おき）が重なり切らないようにする。
+	 */
+	.published-article-list-item:not(:first-child) {
+		margin-block-start: calc(
+			min(calc(20rem * 2 / 3), 100cqi * 0.3, calc((100cqi - 20rem) / 2)) * -1
+		);
 	}
 
 	.published-article-list-item__link {
@@ -84,23 +88,52 @@
 		scroll-margin-block: 30dvh;
 
 		/* 円と内側の要素をまとめて一体で変倍する（直径とフォントサイズを個別に算出しない） */
-		/* 直線的な変倍だと通り過ぎ方が硬いので、各区間にイーズインアウトを掛ける */
-		animation: published-article-list-item-depth ease-in-out both;
+		/*
+		 * 奥行きのカーブの急さ。大きいほど、中央から離れたときに急激に小さくなる。
+		 * これ 1 つで遠ざかり方が決まる。
+		 */
+		--published-article-list-item-recession: 0.5;
+
+		/*
+		 * 縮小率 = 1 / (1 + 係数 × 進行度²)。
+		 * 進行度はスクロールに対して線形なので、カーブの形はこの式だけが決める。
+		 *
+		 * 絶対値ではなく 2 乗を使うのは、中央を滑らかにつなぐため。|進行度| だと中央で傾きが
+		 * 折り返して角ができ、大きさの変化が一瞬で反転して見える。2 乗なら中央で傾きがゼロに
+		 * なり、そこを頂点として滑らかに折り返す。
+		 */
+		--published-article-list-item-shrink: calc(
+			1 /
+				(
+					1 + var(--published-article-list-item-recession) *
+						var(--published-article-list-item-travel) * var(--published-article-list-item-travel)
+				)
+		);
+
+		scale: var(--published-article-list-item-shrink);
+		/* 縮んだぶんだけ中央へ寄せる（消失点へ向かう動き） */
+		translate: 0
+			calc(
+				var(--published-article-list-item-travel) * (50cqb + 10rem) *
+					(1 - var(--published-article-list-item-shrink))
+			);
+
+		animation: published-article-list-item-depth linear both;
 		animation-timeline: view();
 		animation-range: cover 0% cover 100%;
 	}
 
 	/*
-	 * 奥から手前へ、そして再び奥へ。大きさを直接指定せず奥行きだけを動かし、
-	 * 縮小と「消失点へ寄る」動きを一覧の perspective に投影させる。
-	 * 投影倍率は P / (P + |Z|) なので、P = 2000px・|Z| = 1200px で両端が 0.625 倍になる。
+	 * 進行度を入口 -1 から出口 +1 へ線形に動かすだけ。大きさと寄せ量は上の式が決める。
+	 * 3D 変換（preserve-3d + translateZ）は要素とその子孫の当たり判定を失わせ、円が
+	 * クリックできなくなるため使わない（検証: /dev/perspective-hit-test）。
 	 *
 	 * z-index も同じキーフレームで動かし、大きい円ほど前面に来るようにする
 	 * （別々に持つと大きさと重なり順が食い違う）。
 	 */
 	@keyframes published-article-list-item-depth {
 		0% {
-			translate: 0 0 -1200px;
+			--published-article-list-item-travel: -1;
 			opacity: 0;
 			filter: blur(8px);
 			z-index: 0;
@@ -113,26 +146,16 @@
 			opacity: 1;
 			filter: blur(0);
 		}
-		/*
-		 * 中央寄りは奥行きの伸びを抑える。投影倍率は P / (P + |Z|) で、Z が 0 に近いほど
-		 * 倍率の変化が急なため、ここを直線で結ぶと少し動いただけで急速に遠ざかって見える。
-		 */
-		25% {
-			translate: 0 0 -300px;
-		}
 		50% {
-			translate: 0 0 0;
+			--published-article-list-item-travel: 0;
 			z-index: 100;
-		}
-		75% {
-			translate: 0 0 -300px;
 		}
 		60% {
 			opacity: 1;
 			filter: blur(0);
 		}
 		100% {
-			translate: 0 0 -1200px;
+			--published-article-list-item-travel: 1;
 			opacity: 0;
 			filter: blur(8px);
 			z-index: 0;

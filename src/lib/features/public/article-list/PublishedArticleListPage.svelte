@@ -111,19 +111,12 @@
 		min-block-size: 0;
 		/* 円の間隔と一覧の前後の余白を、この領域自身の幅・高さから決める（cqi / cqb の基準） */
 		container-type: size;
-		/*
-		 * 投影倍率は 1 / (1 + |Z| / perspective) で、この値と translateZ の比だけで決まる。
-		 * 小さくするほど広角（遠ざかりが強い）になる。
-		 */
-		perspective: 2000px;
 	}
 
 	.published-article-list-page__list {
 		list-style: none;
 		margin: 0;
 		padding-inline: 0;
-		/* 円の奥行きを上の perspective で投影するため、3D の空間を子へ引き継ぐ */
-		transform-style: preserve-3d;
 		/*
 		 * 一覧の前後の余白は演出上の必須要素。これが無いと先頭と末尾の円だけが
 		 * スクローラの中央（標準サイズ）まで到達できない。
