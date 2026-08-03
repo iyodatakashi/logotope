@@ -52,6 +52,7 @@ const editChapterSystemPrompt = `${editingStance}
 - 内容が重複しても固有の情報を含む発言は、簡潔化しつつ発言として保持する。
 - 発言の除外により同一話者の発言が連続する場合、それらを1つの自然な発言に連結し、その turn の sourceTurnIds に由来する原本ターンIDをすべて列挙する。
 - 言葉足らずで何を指すか分かりにくい発言は、括弧（　）で言葉を補って読み手に伝わるようにする。ただし補うのは、話し手が言おうとした内容の復元（省略された主語・目的語、指示語「それ・あれ」が指す先、前提となっている固有名詞や文脈）に限る。話し手が述べていない新しい主張・意見・事実・評価を括弧内に足してはならない。無いと意味が取りにくい箇所だけにとどめる。
+- この章のどこにも、また先行章の論点にも出ていない話題を、すでに場で共有された前提であるかのように持ち出している発言は、初めて持ち出す言い方に直す。「〜の話ですが」「言われてみると」のような、先行するやり取りを指す枠組みを外し、その人自身の経験・考えとして切り出すこと。存在しない先行発言を括弧で補って辻褄を合わせてはならない。外すのは既出扱いの枠だけで、話している中身・主張・結論は変えない。
 
 【保護対象ターン（[🔒除外禁止] の印が付いた発言）】
 - この印の付いた発言は、短くても・相槌や薄い同意に見えても・冗長に見えても除外しない。上の「除外してよい」よりこの規則が優先する。
@@ -112,13 +113,25 @@ const formatTurnsWithIds = (
 export const editChapter = async (
 	chapter: { title: string; agenda: string[]; turns: DebateTurn[] },
 	personas: ReadonlyArray<Persona>,
-	protectedTurnIds: ReadonlySet<string>
+	protectedTurnIds: ReadonlySet<string>,
+	priorChapters: ReadonlyArray<{ title: string; agenda: string[] }> = []
 ): Promise<Result<EditedTurnDraft[], PipelineError>> => {
 	try {
 		const pointsSection =
 			chapter.agenda.length > 0
 				? `\n\nこの章の論点:\n${chapter.agenda.map((point) => `- ${point}`).join('\n')}`
 				: '';
+		// 既出扱いの誤判定を防ぐための材料。先行章で実際に扱われた話題を「この章に無い＝初出」と
+		// 誤って書き換えないよう、タイトルと論点だけを渡す（発言本文は渡さない）。
+		const priorChaptersSection =
+			priorChapters.length > 0
+				? `\n\n先行章で扱われた話題（読み手はここまでを読んでいる。ここに出ている話題は既出として参照してよい）:\n${priorChapters
+						.map(
+							(priorChapter) =>
+								`- ${priorChapter.title}${priorChapter.agenda.length > 0 ? `（論点: ${priorChapter.agenda.join(' / ')}）` : ''}`
+						)
+						.join('\n')}`
+				: '\n\n先行章で扱われた話題: なし（この章が最初の章）';
 		const protectedSection =
 			protectedTurnIds.size > 0
 				? `\n\n【保護対象ターンID（除外禁止・必ず由来として残す）】\n${Array.from(protectedTurnIds).join(', ')}`
@@ -131,7 +144,7 @@ export const editChapter = async (
 			messages: [
 				{
 					role: 'user',
-					content: `章「${chapter.title}」の発言を編集者観点でリライトしてください。各編集後ターンには、由来する原本ターンID（[ID:...]）を sourceTurnIds に列挙してください。${pointsSection}\n\n参加者:\n${formatPersonas([...personas])}${protectedSection}\n\n【原本ターン（時系列順）。[🔒除外禁止] の付いた発言は編集してよいが除外は不可】\n${formatTurnsWithIds(chapter.turns, personas, protectedTurnIds)}`
+					content: `章「${chapter.title}」の発言を編集者観点でリライトしてください。各編集後ターンには、由来する原本ターンID（[ID:...]）を sourceTurnIds に列挙してください。${pointsSection}${priorChaptersSection}\n\n参加者:\n${formatPersonas([...personas])}${protectedSection}\n\n【原本ターン（時系列順）。[🔒除外禁止] の付いた発言は編集してよいが除外は不可】\n${formatTurnsWithIds(chapter.turns, personas, protectedTurnIds)}`
 				}
 			]
 		});

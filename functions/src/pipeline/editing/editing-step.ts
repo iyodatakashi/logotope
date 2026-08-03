@@ -256,7 +256,10 @@ export const runChapterEditStep = async (
 	const result = await editChapter(
 		{ title: chapter.title, agenda: chapter.agenda, turns: chapter.turns },
 		personas,
-		protectedTurnIds
+		protectedTurnIds,
+		chapters
+			.slice(0, chapterIndex)
+			.map((prior) => ({ title: prior.title, agenda: prior.agenda }))
 	);
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 
