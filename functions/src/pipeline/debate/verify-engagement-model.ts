@@ -2,7 +2,8 @@
 // 「安くする案」を実データで採否判定する。比較できるのは2種類（--compare）:
 //   model  … モデルを差し替える（既定の Sonnet 5 ↔ Haiku 4.5）※検証済み: 不採用
 //   layout … 気づきセクションの置き場所を差し替える（inline ↔ cached-prefix）※検証済み: 採用
-//   rubric … 判定基準もキャッシュ側へ出すか（cached-prefix ↔ cached-rubric）
+//   rubric … 判定基準もキャッシュ側へ出すか（cached-prefix ↔ cached-rubric）※検証済み: 不採用
+//   ids    … 会話の各行に (ID:...) を出すか（ID付き ↔ ID無し）
 //
 // **本番と同じ evaluateEngagement を呼ぶ**（検証と本番で経路を分けない）。変数は上のどちらか一方だけで、
 // プロンプト・スキーマ・後処理（score クランプ・mode 解決・気づきの発生源ガード）は本番のものが走る。
@@ -87,7 +88,7 @@ type EvaluationCase = {
 type TrialLabel = 'baseline' | 'baseline-repeat' | 'candidate';
 
 /** 比較モード。変数を1つに絞るため、モデルか配置のどちらか一方だけを差し替える */
-type CompareMode = 'model' | 'layout' | 'rubric';
+type CompareMode = 'model' | 'layout' | 'rubric' | 'ids';
 
 const TRIAL_LABELS = [
 	'baseline',
@@ -99,6 +100,7 @@ type VariantSpec = {
 	name: string;
 	model?: LanguageModel;
 	promptLayout?: EngagementPromptLayout;
+	includePersonaIds?: boolean;
 	pricing: keyof typeof PRICING_USD_PER_MTOK;
 };
 
@@ -124,6 +126,13 @@ const VARIANTS: Record<CompareMode, Record<TrialLabel, VariantSpec>> = {
 			pricing: 'sonnet'
 		},
 		candidate: { name: 'cached-rubric', promptLayout: 'cached-rubric', pricing: 'sonnet' }
+	},
+	// 会話の各行の `(ID:...)` を落とすか。意欲評価はペルソナ ID を出力しないので使われないはずだが、
+	// 気づきの sourceTurnId に序数でなく ID を書かせる紛れになっていないかを、破棄件数の差で見る。
+	ids: {
+		baseline: { name: 'ID付き', includePersonaIds: true, pricing: 'sonnet' },
+		'baseline-repeat': { name: 'ID付き(2回目)', includePersonaIds: true, pricing: 'sonnet' },
+		candidate: { name: 'ID無し', includePersonaIds: false, pricing: 'sonnet' }
 	}
 };
 
@@ -132,6 +141,7 @@ type Trial = {
 	engagement: Engagement;
 	usage: EngagementUsage;
 	prompt?: EngagementPromptParts; // 内訳の集計用。生成に失敗すると undefined
+	sourceMismatchDrops: number;
 	elapsedMs: number;
 	// evaluateEngagement は例外を握って score 1 / none を返すため、失敗を「不一致」と誤読しないよう
 	// 計測コールバックが呼ばれたか＝生成が成立したかで判別する。
@@ -157,7 +167,8 @@ const main = async (): Promise<void> => {
 	const awarenessRatio = Number(readArg('--awareness-ratio') ?? AWARENESS_CASE_RATIO);
 	const compareMode = (readArg('--compare') ?? 'model') as CompareMode;
 	const variants = VARIANTS[compareMode];
-	if (!variants) throw new Error(`--compare は model / layout / rubric のいずれか: ${compareMode}`);
+	if (!variants)
+		throw new Error(`--compare は model / layout / rubric / ids のいずれか: ${compareMode}`);
 
 	const [personas, chapters] = await Promise.all([
 		getPersonasByTopicId(topicId),
@@ -344,6 +355,8 @@ const runTrial = async (
 ): Promise<Trial> => {
 	let usage: EngagementUsage | undefined;
 	let prompt: EngagementPromptParts | undefined;
+	// 気づきを検出できていたのに序数の突合で捨てた件数（ID 表記の紛れを疑うための実測）
+	let sourceMismatchDrops = 0;
 	const startedAt = Date.now();
 	const engagement = await evaluateEngagement(
 		evaluationCase.persona,
@@ -355,6 +368,12 @@ const runTrial = async (
 			// 指定のない側は本番の既定（sonnet / inline 配置）をそのまま使う
 			...(variant.model && { model: variant.model }),
 			...(variant.promptLayout && { promptLayout: variant.promptLayout }),
+			...(variant.includePersonaIds !== undefined && {
+				includePersonaIds: variant.includePersonaIds
+			}),
+			onAwarenessDropped: (reason) => {
+				if (reason === 'source-mismatch') sourceMismatchDrops += 1;
+			},
 			onUsage: (measured) => {
 				usage = measured;
 			},
@@ -373,6 +392,7 @@ const runTrial = async (
 			outputTokens: 0
 		},
 		prompt,
+		sourceMismatchDrops,
 		elapsedMs: Date.now() - startedAt,
 		failed: usage === undefined
 	};
@@ -486,9 +506,14 @@ const printReport = (allResults: CaseResult[], variants: Record<TrialLabel, Vari
 	for (const label of TRIAL_LABELS) {
 		const detected = results.filter((result) => result.trials[label].engagement.awareness);
 		const recall = positives.filter((result) => result.trials[label].engagement.awareness).length;
+		const dropped = results.reduce(
+			(total, result) => total + result.trials[label].sourceMismatchDrops,
+			0
+		);
 		console.log(
 			`${variants[label].name.padEnd(14)} 検出 ${detected.length}/${results.length} 件` +
-				`（本番で気づきが出た ${positives.length} 地点のうち ${recall} 件で再検出）`
+				`（本番で気づきが出た ${positives.length} 地点のうち ${recall} 件で再検出、` +
+				`序数の不一致で破棄 ${dropped} 件）`
 		);
 	}
 
