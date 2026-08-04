@@ -1,5 +1,5 @@
 import { generateText, generateObject, jsonSchema, Output, stepCountIs } from 'ai';
-import type { SystemModelMessage } from 'ai';
+import type { SystemModelMessage, UserModelMessage, LanguageModel } from 'ai';
 import { z } from 'zod';
 import { sonnet } from '../llm/models.js';
 import { isSearchAvailable, executeSearch } from '../search/search-service.js';
@@ -366,12 +366,64 @@ const engagementSchema = z.object({
 		.nullable()
 });
 
+/** 意欲評価1回の実測トークン。モデル比較・コスト実測でのみ使う（本番経路は受け取らない）。 */
+export type EngagementUsage = {
+	inputTokens: number; // キャッシュ読み出し分を含まない、都度課金される入力
+	cachedInputTokens: number; // プロンプトキャッシュから読めた入力
+	cacheCreationInputTokens: number; // キャッシュ書き込み（初回のみ発生）
+	outputTokens: number;
+};
+
+/**
+ * 意欲評価のプロンプト構成。何を削ればどれだけ安くなるかを測るために、可変部を切り分けて渡す。
+ * 固定の指示文は「userContent の長さ − 可変部の合計」で求まる（プロンプト本文には手を入れない）。
+ */
+export type EngagementPromptParts = {
+	systemPrompt: string;
+	cachedPrefix: string; // ユーザーメッセージのうちキャッシュ対象に回した部分（配置による）
+	userContent: string; // 毎回課金される残り
+	numberedConversation: string; // 直近8発言
+	ownTurnsSection: string; // 自分の直近5発言
+	otherPersonasNote: string; // 参加者一覧
+	awarenessSection: string; // 蓄積された気づき（討論後半ほど膨らむ）
+	agendaAnchor: string; // いま場に出ている論点
+};
+
+/**
+ * 気づきセクションの置き場所。
+ * - `cached-prefix`: 既定。会話より前に出し、独立したキャッシュ区切りを打つ。気づきはターンごとには
+ *   変わらず稀に1件増えるだけなので、増えた回だけ書き直しで済み、他の回は 1/10 単価で読める。
+ * - `inline`: 旧配置。会話の後ろに置くため、可変部より後ろでキャッシュに載らない。
+ *   `verify-engagement-model.ts --compare layout` の比較基準として残している（本番では使わない）。
+ *
+ * - `cached-rubric`: **検証済み・不採用**。上に加えて score/mode の判定基準（923字）もキャッシュ側へ
+ *   出す案。単価は 9% 下がるが、キューに積む/章を続ける判定の一致率がノイズ床（96.7%）を下回る 90% まで
+ *   落ちる（判定基準に含まれる「同意だけなら score を下げる」等が、生成直前にあることで効いていた）。
+ *
+ * 採否は 2026-08 の A/B（各30地点）による。`cached-prefix` は閾値判定・mode・intentSummary が同一か
+ * ノイズ床より良く、気づきの検出数も同一条件の揺れの範囲内。判断根拠は steering の project-knowledge.md。
+ */
+export type EngagementPromptLayout = 'inline' | 'cached-prefix' | 'cached-rubric';
+
+/**
+ * 意欲評価の差し替え口。モデル比較のために「モデルだけ」を変数にするための引数で、
+ * プロンプト・スキーマ・後処理は本番と完全に同一のものが走る（検証と本番で経路を分けない）。
+ * 本番の呼び出し側は渡さず、既定の sonnet・計測なしで動く。
+ */
+type EvaluateEngagementOptions = {
+	model?: LanguageModel;
+	promptLayout?: EngagementPromptLayout;
+	onUsage?: (usage: EngagementUsage) => void;
+	onPrompt?: (parts: EngagementPromptParts) => void;
+};
+
 export const evaluateEngagement = async (
 	persona: Persona,
 	turns: DebateTurn[],
 	otherPersonaNames: string[] = [],
 	personas: ReadonlyArray<Persona> = [],
-	activeAgendaItem = ''
+	activeAgendaItem = '',
+	options: EvaluateEngagementOptions = {}
 ): Promise<Engagement> => {
 	try {
 		const recentTurns = turns.slice(-8);
@@ -392,6 +444,9 @@ export const evaluateEngagement = async (
 			otherPersonaNames.length > 0 ? `\n他の参加者: ${otherPersonaNames.join('、')}` : '';
 		// 既存の気づきを傾聴の入力（文脈）としても読む（聞く→気づく→話すの連続性）
 		const awarenessSection = formatAwarenessSection(persona.awarenesses);
+		// cached-prefix 配置では会話より前へ出すため、本文側からは外す
+		const layout: EngagementPromptLayout = options.promptLayout ?? 'cached-prefix';
+		const inlineAwareness = layout === 'inline' ? awarenessSection : '';
 		// いま場に出ている論点。発言意欲・意図はこの論点に対して付け加えられることを基準に決める（他者への迎合抑制とは別軸）。
 		const agendaAnchor = activeAgendaItem
 			? `\n\n【いま場で話されている論点】${activeAgendaItem}\nいま参加者はこの論点について話しています。あなたの発言意欲（score）と発言意図（intentSummary）は、この論点に対して自分が付け加えられること（別の角度・経験・疑問・事実）があるかで決めてください。論点と関係の薄い、自分がただ言いたいだけの話には高い score を付けないこと。question / opinion の intentSummary は「この論点について何を言いたいか／誰にどの発言のどこを聞きたいか」で書くこと。`
@@ -403,17 +458,68 @@ export const evaluateEngagement = async (
 			persona.interviewRecord ?? '',
 			getBelief(persona)
 		);
+		// 会話・気づき・論点までの「データ側」。毎ターン変わるので都度課金される。
+		const conversationSection = `現在の会話（各行頭の [N] は発言の番号。末尾が直前の発言）:\n\n${numberedConversation}${ownTurnsSection}${otherPersonasNote}${inlineAwareness}${agendaAnchor}`;
+		// score/mode の判定基準。毎回まったく同じ参照表で、recency を必要としない＝キャッシュ側に置ける。
+		const scoringRubric = `\n\n${persona.name}として、発言意欲（score）と発言形式（mode）を評価してください。\n\nまず上の会話を読んで、いまの論点について、他の参加者の発言の中に「もっと聞きたい」「それは本当に？」「自分の経験では違う」「なぜそう思うのか確認したい」と感じるものがないか振り返ってください。そういう相手がいれば mode は question です（intentSummary に「誰の・どの発言について・何を聞きたいか」を書く）。\n\n次に、いまの論点について紹介すべき事実・データがあれば fact。それ以外は opinion。付け加えることがなければ score 1（none）。\n\nscore は mode ごとの基準で選んでください。\n\n【opinion / fact のスコア基準】\n- 1: 付け加えることがない\n- 2: 同意・補足程度（自分の角度はほぼない）\n- 3: 話したいことはあるが急かすほどでない\n- 4: 自分の立場・経験から別の角度を出せる\n- 5: 今すぐ言わないと議論が進まない\n\n【question のスコア基準】\n- 1: 特に聞きたいことはない\n- 2: 少し引っかかる程度\n- 3: 聞いてみたいが急かすほどでない\n- 4: 相手の発言や立場に引っかかりがあり、素直に聞いてみたい\n- 5: 今この人に確認しないと議論が進まない\n\n発言意欲は「いまの論点が自分の生活・立場・実感にどれだけ関わるか」と「その論点に自分が付け加えられることがあるか」で決まります。いまの論点と関係が薄い、または自分の言いたいこと（信念そのものの繰り返し）を論点と無関係に述べたいだけなら score を下げてください。すでに同じ主張を述べており新たに付け加えることがなければ score 1 を選んでください。\n\n重要：前の発言に「そうですね」と同意するだけで終わる発言しか浮かばないなら score を下げてください（同意を表明したいだけ → score 2 以下）。高い score は「いまの論点に対して、自分にしかない別の角度・疑問・経験を加えたい」ときに使います。`;
+		// 気づき検出は生成直前に置く（発生源を末尾の1発言に限定する指示と自己点検が効かなくなるため動かさない）。
+		const userContent =
+			layout === 'cached-rubric'
+				? `${conversationSection}${awarenessDetectionNote}`
+				: `${conversationSection}${scoringRubric}${awarenessDetectionNote}`;
+		// キャッシュ側へ回すパートを、安定している順に並べる。判定基準（不変）→ 気づき（稀に増える）→
+		// 会話（毎ターン変わる）。後ろのものが変わっても前のキャッシュは生き残る。
+		// 空のパートは作らない（気づきがまだ無い序盤は区切りを打たない）。
+		const cachedParts = [
+			...(layout === 'cached-rubric' ? [scoringRubric] : []),
+			...(layout !== 'inline' && awarenessSection ? [awarenessSection] : [])
+		];
+
+		// 何を削ればいくら安くなるかの内訳（固定の指示文は userContent の長さから可変部を引いて求める）
+		options.onPrompt?.({
+			systemPrompt: system,
+			userContent,
+			numberedConversation,
+			ownTurnsSection,
+			otherPersonasNote,
+			awarenessSection,
+			agendaAnchor,
+			cachedPrefix: cachedParts.join('')
+		});
+
+		const userMessage: UserModelMessage =
+			cachedParts.length > 0
+				? {
+						role: 'user',
+						content: [
+							...cachedParts.map((text) => ({
+								type: 'text' as const,
+								text,
+								providerOptions: PERSONA_CACHE_PROVIDER_OPTIONS
+							})),
+							{ type: 'text' as const, text: userContent }
+						]
+					}
+				: { role: 'user', content: userContent };
+
 		const result = await generateObject({
-			model: sonnet,
+			model: options.model ?? sonnet,
 			system: buildPersonaSystem(system),
 			schema: engagementSchema,
-			messages: [
-				{
-					role: 'user',
-					content: `現在の会話（各行頭の [N] は発言の番号。末尾が直前の発言）:\n\n${numberedConversation}${ownTurnsSection}${otherPersonasNote}${awarenessSection}${agendaAnchor}\n\n${persona.name}として、発言意欲（score）と発言形式（mode）を評価してください。\n\nまず上の会話を読んで、いまの論点について、他の参加者の発言の中に「もっと聞きたい」「それは本当に？」「自分の経験では違う」「なぜそう思うのか確認したい」と感じるものがないか振り返ってください。そういう相手がいれば mode は question です（intentSummary に「誰の・どの発言について・何を聞きたいか」を書く）。\n\n次に、いまの論点について紹介すべき事実・データがあれば fact。それ以外は opinion。付け加えることがなければ score 1（none）。\n\nscore は mode ごとの基準で選んでください。\n\n【opinion / fact のスコア基準】\n- 1: 付け加えることがない\n- 2: 同意・補足程度（自分の角度はほぼない）\n- 3: 話したいことはあるが急かすほどでない\n- 4: 自分の立場・経験から別の角度を出せる\n- 5: 今すぐ言わないと議論が進まない\n\n【question のスコア基準】\n- 1: 特に聞きたいことはない\n- 2: 少し引っかかる程度\n- 3: 聞いてみたいが急かすほどでない\n- 4: 相手の発言や立場に引っかかりがあり、素直に聞いてみたい\n- 5: 今この人に確認しないと議論が進まない\n\n発言意欲は「いまの論点が自分の生活・立場・実感にどれだけ関わるか」と「その論点に自分が付け加えられることがあるか」で決まります。いまの論点と関係が薄い、または自分の言いたいこと（信念そのものの繰り返し）を論点と無関係に述べたいだけなら score を下げてください。すでに同じ主張を述べており新たに付け加えることがなければ score 1 を選んでください。\n\n重要：前の発言に「そうですね」と同意するだけで終わる発言しか浮かばないなら score を下げてください（同意を表明したいだけ → score 2 以下）。高い score は「いまの論点に対して、自分にしかない別の角度・疑問・経験を加えたい」ときに使います。${awarenessDetectionNote}`
-				}
-			]
+			messages: [userMessage]
 		});
+
+		// 単価が3段（都度入力・キャッシュ読み・キャッシュ書き）に分かれるため、合算値ではなく内訳で受け取る。
+		// 計測を頼まれたときだけ触る（本番経路は usage を読まない）。
+		if (options.onUsage) {
+			const inputDetails = result.usage.inputTokenDetails;
+			options.onUsage({
+				inputTokens: inputDetails.noCacheTokens ?? 0,
+				cachedInputTokens: inputDetails.cacheReadTokens ?? 0,
+				cacheCreationInputTokens: inputDetails.cacheWriteTokens ?? 0,
+				outputTokens: result.usage.outputTokens ?? 0
+			});
+		}
 
 		const { score, mode, intentSummary, awareness } = result.object;
 		const clampedScore = Math.max(1, Math.min(5, Math.round(score)));

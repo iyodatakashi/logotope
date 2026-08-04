@@ -131,6 +131,65 @@ describe('evaluateEngagement', () => {
 		expect(userContent).toContain('鈴木次郎');
 	});
 
+	// 気づきは会話より前に置いて独立したキャッシュ区切りを打つ（cached-prefix 配置）。会話の後ろへ
+	// 戻すとプレフィックス一致が崩れてキャッシュに載らず、1回あたりの入力単価が跳ね上がる。
+	it('気づきを持つペルソナでは、気づき節を cacheControl 付きの独立パートとして会話より前に置く', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return { object: { score: 3, mode: 'opinion', intentSummary: null } } as never;
+		});
+
+		const personaWithAwareness: Persona = {
+			...mockPersona,
+			awarenesses: [
+				{
+					id: 'a1',
+					kind: 'reception',
+					content: '佐藤の指摘に一理あると受け止めた',
+					sourcePersonaId: 'p2',
+					triggeredByTurnId: 't1',
+					createdAt: 'TS' as never
+				}
+			]
+		};
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		await evaluateEngagement(personaWithAwareness, mockTurns, ['佐藤花子']);
+
+		const callArgs = capturedArgs[0] as {
+			messages: Array<{
+				role: string;
+				content: Array<{ type: string; text: string; providerOptions?: unknown }>;
+			}>;
+		};
+		const parts = callArgs.messages[0].content;
+		expect(parts).toHaveLength(2);
+		expect(parts[0].text).toContain('佐藤の指摘に一理あると受け止めた');
+		expect(parts[0].providerOptions).toEqual({
+			anthropic: { cacheControl: { type: 'ephemeral' } }
+		});
+		// 本文側には気づきを重複させない（二重課金・二重提示の防止）
+		expect(parts[1].text).not.toContain('佐藤の指摘に一理あると受け止めた');
+		expect(parts[1].text).toContain('現在の会話');
+	});
+
+	it('気づきがまだ無いペルソナでは、キャッシュ区切りを打たず単一の本文で呼ぶ', async () => {
+		const aiMod = await import('ai');
+		const capturedArgs: unknown[] = [];
+		vi.mocked(aiMod.generateObject).mockImplementationOnce(async (args: unknown) => {
+			capturedArgs.push(args);
+			return { object: { score: 3, mode: 'opinion', intentSummary: null } } as never;
+		});
+
+		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
+		await evaluateEngagement({ ...mockPersona, awarenesses: [] }, mockTurns, ['佐藤花子']);
+
+		const callArgs = capturedArgs[0] as { messages: Array<{ content: unknown }> };
+		expect(typeof callArgs.messages[0].content).toBe('string');
+	});
+
 	it('evaluateEngagement が formatTurns に personas を渡す', async () => {
 		const formatMod = await import('../../utils/prompt-formatters.js');
 		const aiMod = await import('ai');
@@ -1258,7 +1317,9 @@ describe('プロンプトキャッシュ配置（Task 1.1）', () => {
 		});
 
 		const { evaluateEngagement } = await import('../../agents/persona-agent.js');
-		await evaluateEngagement({ ...mockPersona, llmType: 'gemini' } as Persona, mockTurns, ['佐藤花子']);
+		await evaluateEngagement({ ...mockPersona, llmType: 'gemini' } as Persona, mockTurns, [
+			'佐藤花子'
+		]);
 
 		expectCachedSystem(capturedArgs[0] as { system: unknown }, '田中太郎');
 	});
@@ -1272,7 +1333,11 @@ describe('プロンプトキャッシュ配置（Task 1.1）', () => {
 		});
 
 		const { generateTurn } = await import('../../agents/persona-agent.js');
-		await generateTurn({ ...mockPersona, llmType: 'gpt' } as Persona, makeContext(), makeEngagement());
+		await generateTurn(
+			{ ...mockPersona, llmType: 'gpt' } as Persona,
+			makeContext(),
+			makeEngagement()
+		);
 
 		expectCachedSystem(capturedArgs[0] as { system: unknown }, '田中太郎');
 	});
