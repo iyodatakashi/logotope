@@ -6,6 +6,7 @@ import { SPOKEN_STYLE, NARRATIVE_STYLE } from '../constants/writing-style.consta
 import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
+import { llmTask } from '../llm/usage-recorder.js';
 
 // 編集者エージェント: 章の原本ターン列を編集者観点でリライトし、由来ターンID付きの編集後ターン列を構造化出力する。
 // 生ディベートは読み取りのみ。書き込み・保存・検証はパイプライン側の責務。
@@ -131,93 +132,100 @@ const formatTurnsWithIds = (
 		})
 		.join('\n');
 
-export const editChapter = async (
-	chapter: { title: string; agenda: string[]; turns: DebateTurn[] },
-	personas: ReadonlyArray<Persona>,
-	protectedTurnIds: ReadonlySet<string>,
-	priorChapters: ReadonlyArray<{ title: string; agenda: string[] }> = []
-): Promise<Result<EditedTurnDraft[], PipelineError>> => {
-	try {
-		const pointsSection =
-			chapter.agenda.length > 0
-				? `\n\nこの章の論点:\n${chapter.agenda.map((point) => `- ${point}`).join('\n')}`
-				: '';
-		// 既出扱いの誤判定を防ぐための材料。先行章で実際に扱われた話題を「この章に無い＝初出」と
-		// 誤って書き換えないよう、タイトルと論点だけを渡す（発言本文は渡さない）。
-		const priorChaptersSection =
-			priorChapters.length > 0
-				? `\n\n先行章で扱われた話題（読み手はここまでを読んでいる。ここに出ている話題は既出として参照してよい）:\n${priorChapters
-						.map(
-							(priorChapter) =>
-								`- ${priorChapter.title}${priorChapter.agenda.length > 0 ? `（論点: ${priorChapter.agenda.join(' / ')}）` : ''}`
-						)
-						.join('\n')}`
-				: '\n\n先行章で扱われた話題: なし（この章が最初の章）';
-		const protectedSection =
-			protectedTurnIds.size > 0
-				? `\n\n【保護対象ターンID（除外禁止・必ず由来として残す）】\n${Array.from(protectedTurnIds).join(', ')}`
-				: '\n\n【保護対象ターンID】なし';
+export const editChapter = llmTask(
+	'chapter-editing',
+	async (
+		chapter: { title: string; agenda: string[]; turns: DebateTurn[] },
+		personas: ReadonlyArray<Persona>,
+		protectedTurnIds: ReadonlySet<string>,
+		priorChapters: ReadonlyArray<{ title: string; agenda: string[] }> = []
+	): Promise<Result<EditedTurnDraft[], PipelineError>> => {
+		try {
+			const pointsSection =
+				chapter.agenda.length > 0
+					? `\n\nこの章の論点:\n${chapter.agenda.map((point) => `- ${point}`).join('\n')}`
+					: '';
+			// 既出扱いの誤判定を防ぐための材料。先行章で実際に扱われた話題を「この章に無い＝初出」と
+			// 誤って書き換えないよう、タイトルと論点だけを渡す（発言本文は渡さない）。
+			const priorChaptersSection =
+				priorChapters.length > 0
+					? `\n\n先行章で扱われた話題（読み手はここまでを読んでいる。ここに出ている話題は既出として参照してよい）:\n${priorChapters
+							.map(
+								(priorChapter) =>
+									`- ${priorChapter.title}${priorChapter.agenda.length > 0 ? `（論点: ${priorChapter.agenda.join(' / ')}）` : ''}`
+							)
+							.join('\n')}`
+					: '\n\n先行章で扱われた話題: なし（この章が最初の章）';
+			const protectedSection =
+				protectedTurnIds.size > 0
+					? `\n\n【保護対象ターンID（除外禁止・必ず由来として残す）】\n${Array.from(protectedTurnIds).join(', ')}`
+					: '\n\n【保護対象ターンID】なし';
 
-		const result = await generateObject({
-			model: sonnet,
-			system: editChapterSystemPrompt,
-			schema: editChapterSchema,
-			messages: [
-				{
-					role: 'user',
-					content: `章「${chapter.title}」の発言を編集者観点でリライトしてください。各編集後ターンには、由来する原本ターンID（[ID:...]）を sourceTurnIds に列挙してください。${pointsSection}${priorChaptersSection}\n\n参加者:\n${formatPersonas([...personas])}${protectedSection}\n\n【原本ターン（時系列順）。[🔒除外禁止] の付いた発言は編集してよいが除外は不可】\n${formatTurnsWithIds(chapter.turns, personas, protectedTurnIds)}`
-				}
-			]
-		});
+			const result = await generateObject({
+				model: sonnet,
+				system: editChapterSystemPrompt,
+				schema: editChapterSchema,
+				messages: [
+					{
+						role: 'user',
+						content: `章「${chapter.title}」の発言を編集者観点でリライトしてください。各編集後ターンには、由来する原本ターンID（[ID:...]）を sourceTurnIds に列挙してください。${pointsSection}${priorChaptersSection}\n\n参加者:\n${formatPersonas([...personas])}${protectedSection}\n\n【原本ターン（時系列順）。[🔒除外禁止] の付いた発言は編集してよいが除外は不可】\n${formatTurnsWithIds(chapter.turns, personas, protectedTurnIds)}`
+					}
+				]
+			});
 
-		const value: EditedTurnDraft[] = result.object.turns.map((turn) => ({
-			sourceTurnIds: turn.sourceTurnIds,
-			speakerType: turn.speakerType,
-			personaId: turn.personaId ?? undefined,
-			content: turn.content,
-			speechMode: turn.speechMode ?? undefined
-		}));
-		return { ok: true, value };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+			const value: EditedTurnDraft[] = result.object.turns.map((turn) => ({
+				sourceTurnIds: turn.sourceTurnIds,
+				speakerType: turn.speakerType,
+				personaId: turn.personaId ?? undefined,
+				content: turn.content,
+				speechMode: turn.speechMode ?? undefined
+			}));
+			return { ok: true, value };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+		}
 	}
-};
+);
 
 // 導入・締め・所感の原本テキストを、章と同系の editorial 整えで編集後テキストにする。
 // 単一の散文ブロックを意味・主張・事実を変えずに読みやすくリライトするのみ（新情報・論評を足さない）。
 // 章編集と違い「要素の除外（ドロップ）」はしない。整えた本文を必ず返す（空なら失敗として扱う）。
-const editNarration = async (
-	label: string,
-	draft: string
-): Promise<Result<string, PipelineError>> => {
-	try {
-		const result = await generateObject({
-			model: sonnet,
-			system: editNarrationSystemPrompt,
-			schema: editNarrationSchema,
-			messages: [
-				{
-					role: 'user',
-					content: `次の${label}の文章を、意味を変えずに読みやすく整えてください。\n\n【${label}】\n${draft}`
-				}
-			]
-		});
+const editNarration = llmTask(
+	'narration-editing',
+	async (label: string, draft: string): Promise<Result<string, PipelineError>> => {
+		try {
+			const result = await generateObject({
+				model: sonnet,
+				system: editNarrationSystemPrompt,
+				schema: editNarrationSchema,
+				messages: [
+					{
+						role: 'user',
+						content: `次の${label}の文章を、意味を変えずに読みやすく整えてください。\n\n【${label}】\n${draft}`
+					}
+				]
+			});
 
-		// 散文は単一改行区切り。空行（連続改行）は表示で <br /> が重なるため1つの改行へ畳む。
-		const text = result.object.content.trim().replace(/\n[ \t]*\n+/g, '\n');
-		if (!text) {
-			return {
-				ok: false,
-				error: { code: 'AI_API_ERROR', message: 'narration edit returned empty text', retryable: true }
-			};
+			// 散文は単一改行区切り。空行（連続改行）は表示で <br /> が重なるため1つの改行へ畳む。
+			const text = result.object.content.trim().replace(/\n[ \t]*\n+/g, '\n');
+			if (!text) {
+				return {
+					ok: false,
+					error: {
+						code: 'AI_API_ERROR',
+						message: 'narration edit returned empty text',
+						retryable: true
+					}
+				};
+			}
+			return { ok: true, value: text };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 		}
-		return { ok: true, value: text };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 	}
-};
+);
 
 export const editIntro = (draft: string): Promise<Result<string, PipelineError>> =>
 	editNarration('導入', draft);

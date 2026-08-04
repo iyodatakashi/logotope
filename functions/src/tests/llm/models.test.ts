@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+// 使用量記録の middleware で包むため、モデルらしい形（provider / modelId）を返す必要がある
 const { mockGoogleModelFn } = vi.hoisted(() => ({
-	mockGoogleModelFn: vi.fn()
+	mockGoogleModelFn: vi.fn((modelId: string) => ({
+		specificationVersion: 'v3',
+		provider: 'google',
+		modelId
+	}))
 }));
 
 vi.mock('@ai-sdk/anthropic', () => ({

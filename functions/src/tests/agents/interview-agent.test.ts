@@ -26,6 +26,7 @@ const { mockGetGoogleProvider, mockGoogleProvider, mockGoogleSearch } = vi.hoist
 });
 
 vi.mock('../../llm/models.js', () => ({
+	withUsageRecording: <T>(model: T): T => model,
 	getPipelineModel: vi.fn(() => 'mock-model'),
 	getGoogleProvider: mockGetGoogleProvider
 }));

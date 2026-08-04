@@ -4,6 +4,7 @@ import { formatTurns } from '../utils/prompt-formatters.js';
 import type { DebateTurn } from '../types/turn.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
+import { llmTask } from '../llm/usage-recorder.js';
 
 // 討論ダイジェスト用の章要約エージェント。1章分の会話を、意味・立場・帰属を保ったまま
 // 中立に圧縮した散文へ要約する。結論・優劣・特定立場の支持/否定は含めない（消費者中立）。
@@ -23,43 +24,46 @@ const summarizeChapterSystemPrompt = `あなたは討論の記録を要約する
 - 特定の導入・結びの語り口を先取りしない。中立な要約に徹する。
 - 原文と同じ言語で書く。`;
 
-export const summarizeChapter = async (input: {
-	title: string;
-	agenda: string[];
-	turns: ReadonlyArray<DebateTurn>;
-	personas: ReadonlyArray<Persona>;
-}): Promise<Result<string, PipelineError>> => {
-	try {
-		const pointsSection =
-			input.agenda.length > 0
-				? `\n\nこの章の論点:\n${input.agenda.map((point) => `- ${point}`).join('\n')}`
-				: '';
+export const summarizeChapter = llmTask(
+	'digest',
+	async (input: {
+		title: string;
+		agenda: string[];
+		turns: ReadonlyArray<DebateTurn>;
+		personas: ReadonlyArray<Persona>;
+	}): Promise<Result<string, PipelineError>> => {
+		try {
+			const pointsSection =
+				input.agenda.length > 0
+					? `\n\nこの章の論点:\n${input.agenda.map((point) => `- ${point}`).join('\n')}`
+					: '';
 
-		const result = await generateText({
-			model: sonnet,
-			system: summarizeChapterSystemPrompt,
-			messages: [
-				{
-					role: 'user',
-					content: `章「${input.title}」の会話を、意味・立場・帰属を保ったまま中立に圧縮した散文へ要約してください。結論・優劣・特定立場の支持や否定は含めないでください。${pointsSection}\n\n【会話（時系列順）】\n${formatTurns(input.turns, input.personas)}`
-				}
-			]
-		});
+			const result = await generateText({
+				model: sonnet,
+				system: summarizeChapterSystemPrompt,
+				messages: [
+					{
+						role: 'user',
+						content: `章「${input.title}」の会話を、意味・立場・帰属を保ったまま中立に圧縮した散文へ要約してください。結論・優劣・特定立場の支持や否定は含めないでください。${pointsSection}\n\n【会話（時系列順）】\n${formatTurns(input.turns, input.personas)}`
+					}
+				]
+			});
 
-		const summary = result.text.trim();
-		if (!summary) {
-			return {
-				ok: false,
-				error: {
-					code: 'AI_API_ERROR',
-					message: 'summarizeChapter returned empty text',
-					retryable: true
-				}
-			};
+			const summary = result.text.trim();
+			if (!summary) {
+				return {
+					ok: false,
+					error: {
+						code: 'AI_API_ERROR',
+						message: 'summarizeChapter returned empty text',
+						retryable: true
+					}
+				};
+			}
+			return { ok: true, value: summary };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 		}
-		return { ok: true, value: summary };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 	}
-};
+);

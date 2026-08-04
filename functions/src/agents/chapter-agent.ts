@@ -8,6 +8,7 @@ import type { Chapter, Issue, IssueGroup } from '../types/chapter.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 import type { TopicContext } from '../types/topic.types.js';
+import { llmTask } from '../llm/usage-recorder.js';
 
 const buildTopicContextSection = (topicContext?: TopicContext): string => {
 	if (!topicContext) return '';
@@ -364,84 +365,87 @@ export type ChapterProgress =
 	| { step: 'issues_scored'; issues: Issue[] }
 	| { step: 'issues_grouped'; issueGroups: IssueGroup[] };
 
-export const generateChapters = async (
-	topicTitle: string,
-	personas: Persona[],
-	topicContext?: TopicContext,
-	onProgress?: (progress: ChapterProgress) => void | Promise<void>
-): Promise<Result<Chapter[], PipelineError>> => {
-	try {
-		const contextSection = buildTopicContextSection(topicContext);
-		const [generalIssuesResult, personaIssuesResult] = await Promise.all([
-			generateObject({
-				model: sonnet,
-				system: buildNeutralitySystemPrompt(),
-				schema: issuesSchema,
-				messages: [
-					{
-						role: 'user',
-						content: `テーマ「${topicTitle}」について、専門知識を持たない一般の人々が最初に感じる素朴な疑問や関心事を5〜7件列挙してください。\n\nテーマの方向性が示されている場合は、その方向性に沿った切り口に絞ってください。末尾に【確定した客観的事実（共通前提）】が示されている場合は、その事実の中身を踏まえて論点を具体化してください。日常の感覚で「自分にも関係ある」「なんとなく気になる」と思える切り口にし、固有名詞（特定の企業・人名・政策名）や専門用語は避け、金額や事例などの事実も平易な言葉に噛み砕いて表現してください。各切り口を1〜2文で記述してください。${contextSection}`
-					}
-				]
-			}),
-			generateObject({
-				model: sonnet,
-				system: buildNeutralitySystemPrompt(),
-				schema: issuesSchema,
-				messages: [
-					{
-						role: 'user',
-						content: `テーマ「${topicTitle}」について、以下の参加者それぞれの立場・専門性・利害関係から生まれる具体的な論点や関心事を5〜8件列挙してください。\n\nテーマの方向性が示されている場合は、その方向性の範囲内で論点を生成してください。\n\n参加者:\n${formatPersonas(personas)}\n\n各参加者が自身の立場・専門性・利害から強い関心や懸念を持つ側面を取り上げてください。末尾に【確定した客観的事実（共通前提）】が示されている場合は、その事実を踏まえて論点を具体化してください。各切り口を1〜2文で記述してください。${contextSection}`
-					}
-				]
-			})
-		]);
+export const generateChapters = llmTask(
+	'chapters',
+	async (
+		topicTitle: string,
+		personas: Persona[],
+		topicContext?: TopicContext,
+		onProgress?: (progress: ChapterProgress) => void | Promise<void>
+	): Promise<Result<Chapter[], PipelineError>> => {
+		try {
+			const contextSection = buildTopicContextSection(topicContext);
+			const [generalIssuesResult, personaIssuesResult] = await Promise.all([
+				generateObject({
+					model: sonnet,
+					system: buildNeutralitySystemPrompt(),
+					schema: issuesSchema,
+					messages: [
+						{
+							role: 'user',
+							content: `テーマ「${topicTitle}」について、専門知識を持たない一般の人々が最初に感じる素朴な疑問や関心事を5〜7件列挙してください。\n\nテーマの方向性が示されている場合は、その方向性に沿った切り口に絞ってください。末尾に【確定した客観的事実（共通前提）】が示されている場合は、その事実の中身を踏まえて論点を具体化してください。日常の感覚で「自分にも関係ある」「なんとなく気になる」と思える切り口にし、固有名詞（特定の企業・人名・政策名）や専門用語は避け、金額や事例などの事実も平易な言葉に噛み砕いて表現してください。各切り口を1〜2文で記述してください。${contextSection}`
+						}
+					]
+				}),
+				generateObject({
+					model: sonnet,
+					system: buildNeutralitySystemPrompt(),
+					schema: issuesSchema,
+					messages: [
+						{
+							role: 'user',
+							content: `テーマ「${topicTitle}」について、以下の参加者それぞれの立場・専門性・利害関係から生まれる具体的な論点や関心事を5〜8件列挙してください。\n\nテーマの方向性が示されている場合は、その方向性の範囲内で論点を生成してください。\n\n参加者:\n${formatPersonas(personas)}\n\n各参加者が自身の立場・専門性・利害から強い関心や懸念を持つ側面を取り上げてください。末尾に【確定した客観的事実（共通前提）】が示されている場合は、その事実を踏まえて論点を具体化してください。各切り口を1〜2文で記述してください。${contextSection}`
+						}
+					]
+				})
+			]);
 
-		const issues: Issue[] = [
-			...generalIssuesResult.object.issues.map((text) => ({
-				id: nanoid(),
-				text,
-				source: 'general' as const
-			})),
-			...personaIssuesResult.object.issues.map((text) => ({
-				id: nanoid(),
-				text,
-				source: 'persona' as const
-			}))
-		];
+			const issues: Issue[] = [
+				...generalIssuesResult.object.issues.map((text) => ({
+					id: nanoid(),
+					text,
+					source: 'general' as const
+				})),
+				...personaIssuesResult.object.issues.map((text) => ({
+					id: nanoid(),
+					text,
+					source: 'persona' as const
+				}))
+			];
 
-		await onProgress?.({ step: 'issues_generated', issues });
+			await onProgress?.({ step: 'issues_generated', issues });
 
-		const scoredIssues = await scoreIssues(topicTitle, issues, topicContext);
-		const dedupedIssues = await dedupeIssues(topicTitle, scoredIssues, topicContext);
-		const selectedIssues = selectIssues(dedupedIssues);
+			const scoredIssues = await scoreIssues(topicTitle, issues, topicContext);
+			const dedupedIssues = await dedupeIssues(topicTitle, scoredIssues, topicContext);
+			const selectedIssues = selectIssues(dedupedIssues);
 
-		const issuesWithSelection: Issue[] = scoredIssues.map((issue) => ({
-			...issue,
-			selected: selectedIssues.includes(issue)
-		}));
+			const issuesWithSelection: Issue[] = scoredIssues.map((issue) => ({
+				...issue,
+				selected: selectedIssues.includes(issue)
+			}));
 
-		await onProgress?.({ step: 'issues_scored', issues: issuesWithSelection });
+			await onProgress?.({ step: 'issues_scored', issues: issuesWithSelection });
 
-		const issueGroups = await groupIssues(topicTitle, issuesWithSelection, topicContext);
+			const issueGroups = await groupIssues(topicTitle, issuesWithSelection, topicContext);
 
-		await onProgress?.({ step: 'issues_grouped', issueGroups });
+			await onProgress?.({ step: 'issues_grouped', issueGroups });
 
-		const chapters = await buildChapters(
-			topicTitle,
-			issueGroups,
-			issuesWithSelection,
-			topicContext
-		);
-		const sortedChapters = sortChaptersByGeneralIssueCount(
-			chapters,
-			issueGroups,
-			issuesWithSelection
-		);
+			const chapters = await buildChapters(
+				topicTitle,
+				issueGroups,
+				issuesWithSelection,
+				topicContext
+			);
+			const sortedChapters = sortChaptersByGeneralIssueCount(
+				chapters,
+				issueGroups,
+				issuesWithSelection
+			);
 
-		return { ok: true, value: sortedChapters };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+			return { ok: true, value: sortedChapters };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
+		}
 	}
-};
+);

@@ -1,12 +1,13 @@
 import { generateText, generateObject } from 'ai';
 import { z } from 'zod';
-import { getPipelineModel, getGoogleProvider } from '../llm/models.js';
+import { getPipelineModel, getGoogleProvider, withUsageRecording } from '../llm/models.js';
 import { PIPELINE_MODELS } from '../constants/ai.constants.js';
 import { extractSources, resolveSourceUrls, type GroundingMetadata } from '../search/grounding.js';
 import { formatFactBaseSection } from '../utils/prompt-formatters.js';
 import type { Persona, DraftBelief, SearchSource } from '../types/persona.types.js';
 import type { TopicContext } from '../types/topic.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
+import { llmTask } from '../llm/usage-recorder.js';
 
 const MAX_SOURCE_CHARS = 3_000;
 
@@ -33,41 +34,44 @@ const finalBeliefSchema = z.object({
 	interviewRecord: z.string()
 });
 
-export const runInterview = async (
-	topicTitle: string,
-	persona: Persona,
-	topicContext?: TopicContext
-): Promise<Result<InterviewOutput, PipelineError>> => {
-	const draftResult = await generateDraftBelief(topicTitle, persona, topicContext);
-	if (!draftResult.ok) return draftResult;
+export const runInterview = llmTask(
+	'interview',
+	async (
+		topicTitle: string,
+		persona: Persona,
+		topicContext?: TopicContext
+	): Promise<Result<InterviewOutput, PipelineError>> => {
+		const draftResult = await generateDraftBelief(topicTitle, persona, topicContext);
+		if (!draftResult.ok) return draftResult;
 
-	const verifyResult = await verifyWithGrounding(
-		topicTitle,
-		persona,
-		draftResult.value,
-		topicContext
-	);
-	if (!verifyResult.ok) return verifyResult;
+		const verifyResult = await verifyWithGrounding(
+			topicTitle,
+			persona,
+			draftResult.value,
+			topicContext
+		);
+		if (!verifyResult.ok) return verifyResult;
 
-	const finalResult = await generateFinalBelief(
-		topicTitle,
-		persona,
-		verifyResult.value.verificationReport,
-		topicContext
-	);
-	if (!finalResult.ok) return finalResult;
+		const finalResult = await generateFinalBelief(
+			topicTitle,
+			persona,
+			verifyResult.value.verificationReport,
+			topicContext
+		);
+		if (!finalResult.ok) return finalResult;
 
-	return {
-		ok: true,
-		value: {
-			draftBelief: draftResult.value,
-			verificationReport: verifyResult.value.verificationReport,
-			interviewRecord: finalResult.value.interviewRecord,
-			belief: finalResult.value.belief,
-			sources: verifyResult.value.sources
-		}
-	};
-};
+		return {
+			ok: true,
+			value: {
+				draftBelief: draftResult.value,
+				verificationReport: verifyResult.value.verificationReport,
+				interviewRecord: finalResult.value.interviewRecord,
+				belief: finalResult.value.belief,
+				sources: verifyResult.value.sources
+			}
+		};
+	}
+);
 
 const generateDraftBelief = async (
 	topicTitle: string,
@@ -136,7 +140,7 @@ const verifyWithGrounding = async (
 
 	try {
 		const result = await generateText({
-			model: google(PIPELINE_MODELS.personaInterview),
+			model: withUsageRecording(google(PIPELINE_MODELS.personaInterview)),
 			tools: {
 				google_search: google.tools.googleSearch({})
 			},

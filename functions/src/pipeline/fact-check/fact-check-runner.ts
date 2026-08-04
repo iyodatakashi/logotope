@@ -1,7 +1,7 @@
 import { generateText, generateObject } from 'ai';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
-import { getPipelineModel, getGoogleProvider } from '../../llm/models.js';
+import { getPipelineModel, getGoogleProvider, withUsageRecording } from '../../llm/models.js';
 import { PIPELINE_MODELS } from '../../constants/ai.constants.js';
 import {
 	extractSources,
@@ -13,6 +13,7 @@ import { judgeCorrectionWorthiness } from './fact-check-judge.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { FactCheckFinding, FactCheckContext } from '../../types/fact-check.types.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
+import { llmTask } from '../../llm/usage-recorder.js';
 
 const findingSchema = z.object({
 	claim: z.string(),
@@ -130,122 +131,127 @@ ${sourceList}
  * インライン補正（ドラフト検証）から呼ばれる。
  * `logId` はログ識別用（turnId 採番前のインライン経路では persona.id・章 id などを渡す）。
  */
-export const checkContent = async (
-	input: {
-		content: string;
-		speechMode?: DebateTurn['speechMode'];
-		speakerType: 'persona' | 'facilitator';
-		logId?: string;
-	},
-	context?: FactCheckContext
-): Promise<Result<FactCheckFinding[], PipelineError>> => {
-	const { content, speechMode, speakerType, logId } = input;
-	const google = getGoogleProvider();
-	if (!google) {
-		return {
-			ok: false,
-			error: { code: 'AI_API_ERROR', message: 'GEMINI_API_KEY is not set', retryable: false }
-		};
-	}
+export const checkContent = llmTask(
+	'fact-check',
+	async (
+		input: {
+			content: string;
+			speechMode?: DebateTurn['speechMode'];
+			speakerType: 'persona' | 'facilitator';
+			logId?: string;
+		},
+		context?: FactCheckContext
+	): Promise<Result<FactCheckFinding[], PipelineError>> => {
+		const { content, speechMode, speakerType, logId } = input;
+		const google = getGoogleProvider();
+		if (!google) {
+			return {
+				ok: false,
+				error: { code: 'AI_API_ERROR', message: 'GEMINI_API_KEY is not set', retryable: false }
+			};
+		}
 
-	try {
-		// Phase0 断定ゲート: 発言から断定された事実主張のみを抽出し、部分文字列照合で
-		// ハルシネーション抽出を破棄する（grounding なし）。
-		let assertedClaims: string[];
 		try {
-			const gate = await generateObject({
-				model: getPipelineModel('factCheckAssertionGate'),
-				schema: assertionGateSchema,
+			// Phase0 断定ゲート: 発言から断定された事実主張のみを抽出し、部分文字列照合で
+			// ハルシネーション抽出を破棄する（grounding なし）。
+			let assertedClaims: string[];
+			try {
+				const gate = await generateObject({
+					model: getPipelineModel('factCheckAssertionGate'),
+					schema: assertionGateSchema,
+					messages: [
+						{
+							role: 'user',
+							content: buildAssertionGatePrompt(content, context, speechMode)
+						}
+					]
+				});
+				assertedClaims = gate.object.assertedClaims
+					.map((assertedClaim) => assertedClaim.claim)
+					.filter((claim) => content.includes(claim));
+			} catch (gateErr) {
+				// 断定ゲートの失敗・スキーマ不整合は見逃し回避を優先し、全文を従来どおり検証に回す（フェイルオープン・3.6）
+				console.error(
+					'[checkContent] assertion gate failed; falling back to full verification',
+					{ turnId: logId },
+					gateErr
+				);
+				assertedClaims = [content];
+			}
+			// 非断定のみ（問い・前提・仮定・代弁）の発言は grounding 検索にも掛けず、指摘なしで終える（7.1）
+			if (assertedClaims.length === 0) {
+				console.info('[factCheckGate] no asserted claim', { turnId: logId });
+				return { ok: true, value: [] };
+			}
+
+			const phase1 = await generateText({
+				model: withUsageRecording(google(PIPELINE_MODELS.factCheckGrounding)),
+				tools: { google_search: google.tools.googleSearch({}) },
+				messages: [
+					{ role: 'user', content: buildPhase1Prompt(assertedClaims, context, speechMode) }
+				]
+			});
+
+			const googleMeta = phase1.providerMetadata?.['google'] as
+				| { groundingMetadata?: GroundingMetadata }
+				| undefined;
+			const groundingMetadata = googleMeta?.groundingMetadata;
+			const rawSources = groundingMetadata
+				? extractSources(groundingMetadata, phase1.text.slice(0, 500))
+				: [];
+			const resolved = await resolveSourceUrls(rawSources);
+			const numberedSources = resolved[0]?.results ?? [];
+
+			const phase2 = await generateObject({
+				model: getPipelineModel('factCheckStructuring'),
+				schema: phase2Schema,
 				messages: [
 					{
 						role: 'user',
-						content: buildAssertionGatePrompt(content, context, speechMode)
+						content: buildPhase2Prompt(content, phase1.text, numberedSources, context)
 					}
 				]
 			});
-			assertedClaims = gate.object.assertedClaims
-				.map((assertedClaim) => assertedClaim.claim)
-				.filter((claim) => content.includes(claim));
-		} catch (gateErr) {
-			// 断定ゲートの失敗・スキーマ不整合は見逃し回避を優先し、全文を従来どおり検証に回す（フェイルオープン・3.6）
-			console.error(
-				'[checkContent] assertion gate failed; falling back to full verification',
-				{ turnId: logId },
-				gateErr
-			);
-			assertedClaims = [content];
-		}
-		// 非断定のみ（問い・前提・仮定・代弁）の発言は grounding 検索にも掛けず、指摘なしで終える（7.1）
-		if (assertedClaims.length === 0) {
-			console.info('[factCheckGate] no asserted claim', { turnId: logId });
-			return { ok: true, value: [] };
-		}
 
-		const phase1 = await generateText({
-			model: google(PIPELINE_MODELS.factCheckGrounding),
-			tools: { google_search: google.tools.googleSearch({}) },
-			messages: [{ role: 'user', content: buildPhase1Prompt(assertedClaims, context, speechMode) }]
-		});
-
-		const googleMeta = phase1.providerMetadata?.['google'] as
-			| { groundingMetadata?: GroundingMetadata }
-			| undefined;
-		const groundingMetadata = googleMeta?.groundingMetadata;
-		const rawSources = groundingMetadata
-			? extractSources(groundingMetadata, phase1.text.slice(0, 500))
-			: [];
-		const resolved = await resolveSourceUrls(rawSources);
-		const numberedSources = resolved[0]?.results ?? [];
-
-		const phase2 = await generateObject({
-			model: getPipelineModel('factCheckStructuring'),
-			schema: phase2Schema,
-			messages: [
-				{
-					role: 'user',
-					content: buildPhase2Prompt(content, phase1.text, numberedSources, context)
-				}
-			]
-		});
-
-		const findings: FactCheckFinding[] = [];
-		phase2.object.findings.forEach((finding) => {
-			// claim は当該発言本文の部分文字列であることを照合（ハルシネーション引用を破棄）
-			if (!content.includes(finding.claim)) return;
-			const sources = finding.sourceIndices
-				.map((sourceIndex) => numberedSources[sourceIndex - 1])
-				.filter((source): source is SearchResult => !!source);
-			// 出典が得られない主張は検証不能とする（3.4, 3.6）
-			const verdict = sources.length === 0 ? 'unverifiable' : finding.verdict;
-			findings.push({
-				id: nanoid(),
-				turnId: '', // 呼び出し元が束縛する
-				speakerType,
-				claim: finding.claim,
-				verdict,
-				correction: finding.correction,
-				reason: finding.reason,
-				sources
+			const findings: FactCheckFinding[] = [];
+			phase2.object.findings.forEach((finding) => {
+				// claim は当該発言本文の部分文字列であることを照合（ハルシネーション引用を破棄）
+				if (!content.includes(finding.claim)) return;
+				const sources = finding.sourceIndices
+					.map((sourceIndex) => numberedSources[sourceIndex - 1])
+					.filter((source): source is SearchResult => !!source);
+				// 出典が得られない主張は検証不能とする（3.4, 3.6）
+				const verdict = sources.length === 0 ? 'unverifiable' : finding.verdict;
+				findings.push({
+					id: nanoid(),
+					turnId: '', // 呼び出し元が束縛する
+					speakerType,
+					claim: finding.claim,
+					verdict,
+					correction: finding.correction,
+					reason: finding.reason,
+					sources
+				});
 			});
-		});
 
-		// 修正適否ジャッジ（共通フィルタ）: 修正すべき finding のみ残す。
-		// finding 0 件、または文脈なしのときは判定を起動せずそのまま返す（1.3）。
-		if (findings.length > 0 && context) {
-			const { kept } = await judgeCorrectionWorthiness(content, findings, context);
-			return { ok: true, value: kept };
-		}
-
-		return { ok: true, value: findings };
-	} catch (err) {
-		console.error('[checkContent] error', { turnId: logId }, err);
-		return {
-			ok: false,
-			error: {
-				code: 'AI_API_ERROR',
-				message: err instanceof Error ? err.message : String(err),
-				retryable: true
+			// 修正適否ジャッジ（共通フィルタ）: 修正すべき finding のみ残す。
+			// finding 0 件、または文脈なしのときは判定を起動せずそのまま返す（1.3）。
+			if (findings.length > 0 && context) {
+				const { kept } = await judgeCorrectionWorthiness(content, findings, context);
+				return { ok: true, value: kept };
 			}
-		};
+
+			return { ok: true, value: findings };
+		} catch (err) {
+			console.error('[checkContent] error', { turnId: logId }, err);
+			return {
+				ok: false,
+				error: {
+					code: 'AI_API_ERROR',
+					message: err instanceof Error ? err.message : String(err),
+					retryable: true
+				}
+			};
+		}
 	}
-};
+);

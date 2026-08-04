@@ -1,6 +1,6 @@
 import { generateText, generateObject } from 'ai';
 import { z } from 'zod';
-import { getPipelineModel, getGoogleProvider } from '../llm/models.js';
+import { getPipelineModel, getGoogleProvider, withUsageRecording } from '../llm/models.js';
 import { PIPELINE_MODELS } from '../constants/ai.constants.js';
 import {
 	extractSources,
@@ -11,6 +11,7 @@ import {
 import { formatJapaneseDate } from '../utils/prompt-formatters.js';
 import type { FactBase, FactItem } from '../types/factBase.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
+import { llmTask } from '../llm/usage-recorder.js';
 
 const factSchema = z.object({
 	statement: z
@@ -97,80 +98,89 @@ ${sourceList}
  * 既存の出典抽出・リダイレクト解決を経て出典付きに構造化する。grounding が事実を返さない／
  * 時事性が無い場合は捏造せず空の事実基盤（facts: []）を返す（成功扱い・R1.5/1.6）。
  */
-export const runFactResearch = async (
-	title: string,
-	description: string,
-	now: Date
-): Promise<Result<FactBase, PipelineError>> => {
-	const google = getGoogleProvider();
-	if (!google) {
-		return {
-			ok: false,
-			error: { code: 'AI_API_ERROR', message: 'GEMINI_API_KEY is not set', retryable: false }
-		};
-	}
-
-	try {
-		const grounding = await generateText({
-			model: google(PIPELINE_MODELS.factResearch),
-			tools: { google_search: google.tools.googleSearch({}) },
-			messages: [{ role: 'user', content: buildGroundingPrompt(title, description, now) }]
-		});
-
-		const googleMeta = grounding.providerMetadata?.['google'] as
-			| { groundingMetadata?: GroundingMetadata }
-			| undefined;
-		const groundingMetadata = googleMeta?.groundingMetadata;
-		const rawSources = groundingMetadata
-			? extractSources(groundingMetadata, grounding.text.slice(0, 500))
-			: [];
-		const resolved = await resolveSourceUrls(rawSources);
-		const numberedSources = resolved[0]?.results ?? [];
-
-		// grounding が事実を返さない（出典0件）＝時事性なし。捏造せず空の事実基盤に縮退する（R1.5/1.6）。
-		if (numberedSources.length === 0) {
-			return { ok: true, value: { facts: [], generatedAt: now } };
+export const runFactResearch = llmTask(
+	'fact-research',
+	async (
+		title: string,
+		description: string,
+		now: Date
+	): Promise<Result<FactBase, PipelineError>> => {
+		const google = getGoogleProvider();
+		if (!google) {
+			return {
+				ok: false,
+				error: { code: 'AI_API_ERROR', message: 'GEMINI_API_KEY is not set', retryable: false }
+			};
 		}
 
-		const structuring = await generateObject({
-			model: getPipelineModel('factResearch'),
-			schema: structuringSchema,
-			messages: [
-				{
-					role: 'user',
-					content: buildStructuringPrompt(title, description, now, grounding.text, numberedSources)
-				}
-			]
-		});
-
-		const facts: FactItem[] = structuring.object.facts
-			.filter((fact) => fact.statement.trim().length > 0)
-			.map((fact) => {
-				const sources = fact.sourceIndices
-					.map((sourceIndex) => numberedSources[sourceIndex - 1])
-					.filter((source): source is SearchResult => !!source);
-				return { statement: fact.statement, sources };
+		try {
+			const grounding = await generateText({
+				model: withUsageRecording(google(PIPELINE_MODELS.factResearch)),
+				tools: { google_search: google.tools.googleSearch({}) },
+				messages: [{ role: 'user', content: buildGroundingPrompt(title, description, now) }]
 			});
 
-		// 情報量の天井診断: Phase1 レポート長・出典数に対し、Phase2 が何件・平均何文字の事実へ
-		// 蒸留したか。事実が薄い場合、Phase1 レポートが短い（天井低）のか Phase2 が圧縮したのかを切り分ける。
-		const avgLen = facts.length
-			? Math.round(facts.reduce((sum, fact) => sum + fact.statement.length, 0) / facts.length)
-			: 0;
-		console.info(
-			`[runFactResearch] groundingChars=${grounding.text.length} sources=${numberedSources.length} facts=${facts.length} avgStatementChars=${avgLen}`
-		);
+			const googleMeta = grounding.providerMetadata?.['google'] as
+				| { groundingMetadata?: GroundingMetadata }
+				| undefined;
+			const groundingMetadata = googleMeta?.groundingMetadata;
+			const rawSources = groundingMetadata
+				? extractSources(groundingMetadata, grounding.text.slice(0, 500))
+				: [];
+			const resolved = await resolveSourceUrls(rawSources);
+			const numberedSources = resolved[0]?.results ?? [];
 
-		return { ok: true, value: { facts, generatedAt: now } };
-	} catch (err) {
-		console.error('[runFactResearch] error', err);
-		return {
-			ok: false,
-			error: {
-				code: 'AI_API_ERROR',
-				message: err instanceof Error ? err.message : String(err),
-				retryable: true
+			// grounding が事実を返さない（出典0件）＝時事性なし。捏造せず空の事実基盤に縮退する（R1.5/1.6）。
+			if (numberedSources.length === 0) {
+				return { ok: true, value: { facts: [], generatedAt: now } };
 			}
-		};
+
+			const structuring = await generateObject({
+				model: getPipelineModel('factResearch'),
+				schema: structuringSchema,
+				messages: [
+					{
+						role: 'user',
+						content: buildStructuringPrompt(
+							title,
+							description,
+							now,
+							grounding.text,
+							numberedSources
+						)
+					}
+				]
+			});
+
+			const facts: FactItem[] = structuring.object.facts
+				.filter((fact) => fact.statement.trim().length > 0)
+				.map((fact) => {
+					const sources = fact.sourceIndices
+						.map((sourceIndex) => numberedSources[sourceIndex - 1])
+						.filter((source): source is SearchResult => !!source);
+					return { statement: fact.statement, sources };
+				});
+
+			// 情報量の天井診断: Phase1 レポート長・出典数に対し、Phase2 が何件・平均何文字の事実へ
+			// 蒸留したか。事実が薄い場合、Phase1 レポートが短い（天井低）のか Phase2 が圧縮したのかを切り分ける。
+			const avgLen = facts.length
+				? Math.round(facts.reduce((sum, fact) => sum + fact.statement.length, 0) / facts.length)
+				: 0;
+			console.info(
+				`[runFactResearch] groundingChars=${grounding.text.length} sources=${numberedSources.length} facts=${facts.length} avgStatementChars=${avgLen}`
+			);
+
+			return { ok: true, value: { facts, generatedAt: now } };
+		} catch (err) {
+			console.error('[runFactResearch] error', err);
+			return {
+				ok: false,
+				error: {
+					code: 'AI_API_ERROR',
+					message: err instanceof Error ? err.message : String(err),
+					retryable: true
+				}
+			};
+		}
 	}
-};
+);

@@ -5,6 +5,7 @@ import { NARRATIVE_STYLE } from '../constants/writing-style.constants.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 import type { TopicContext } from '../types/topic.types.js';
 import type { DebateDigest } from '../types/debate-digest.types.js';
+import { llmTask } from '../llm/usage-recorder.js';
 
 // イントロ・アウトロ生成エージェント。テーマ文脈＋討論の骨子（章タイトル・論点・参加者名）から、
 // イントロ（読む前の読者を惹きつけるフック）とアウトロ（読了後の読者への短い結び）を独立生成する。
@@ -66,9 +67,7 @@ const outroInstruction = `これは公開討論の最後に、司会者が聴衆
 const formatDigestBrief = (digest: DebateDigest): string => {
 	const chapters = digest.chapters
 		.map((chapter, i) => {
-			const points = chapter.agenda.length
-				? `\n  論点: ${chapter.agenda.join(' / ')}`
-				: '';
+			const points = chapter.agenda.length ? `\n  論点: ${chapter.agenda.join(' / ')}` : '';
 			return `第${i + 1}章「${chapter.title}」${points}`;
 		})
 		.join('\n');
@@ -81,9 +80,7 @@ const formatDigestBrief = (digest: DebateDigest): string => {
 const formatDigestFull = (digest: DebateDigest): string => {
 	const chapters = digest.chapters
 		.map((chapter, i) => {
-			const points = chapter.agenda.length
-				? `\n  論点: ${chapter.agenda.join(' / ')}`
-				: '';
+			const points = chapter.agenda.length ? `\n  論点: ${chapter.agenda.join(' / ')}` : '';
 			return `第${i + 1}章「${chapter.title}」${points}\n  ${chapter.summary}`;
 		})
 		.join('\n\n');
@@ -113,40 +110,43 @@ const formatTopicContextSection = (topicContext: TopicContext): string => {
 	return parts.join('\n');
 };
 
-const generate = async (
-	input: IntroOutroInput,
-	instruction: string,
-	digestSection: string
-): Promise<Result<string, PipelineError>> => {
-	try {
-		const result = await generateText({
-			model: sonnet,
-			system: introOutroSystemPrompt,
-			messages: [
-				{
-					role: 'user',
-					content: `${instruction}${formatTopicContextSection(input.topicContext)}\n\n${digestSection}`
-				}
-			]
-		});
+const generate = llmTask(
+	'intro-outro',
+	async (
+		input: IntroOutroInput,
+		instruction: string,
+		digestSection: string
+	): Promise<Result<string, PipelineError>> => {
+		try {
+			const result = await generateText({
+				model: sonnet,
+				system: introOutroSystemPrompt,
+				messages: [
+					{
+						role: 'user',
+						content: `${instruction}${formatTopicContextSection(input.topicContext)}\n\n${digestSection}`
+					}
+				]
+			});
 
-		const text = result.text.trim();
-		if (!text) {
-			return {
-				ok: false,
-				error: {
-					code: 'AI_API_ERROR',
-					message: 'intro-outro generation returned empty text',
-					retryable: true
-				}
-			};
+			const text = result.text.trim();
+			if (!text) {
+				return {
+					ok: false,
+					error: {
+						code: 'AI_API_ERROR',
+						message: 'intro-outro generation returned empty text',
+						retryable: true
+					}
+				};
+			}
+			return { ok: true, value: text };
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 		}
-		return { ok: true, value: text };
-	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
-		return { ok: false, error: { code: 'AI_API_ERROR', message, retryable: true } };
 	}
-};
+);
 
 export const generateIntro = (input: IntroOutroInput): Promise<Result<string, PipelineError>> =>
 	generate(
