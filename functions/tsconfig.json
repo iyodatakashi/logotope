@@ -18,6 +18,7 @@
 		"src/scripts/build-avatar-seeds.ts",
 		"src/avatar/verify-avatar-generation.ts",
 		"src/avatar/verify-hair-distribution.ts",
-		"src/scripts/verify-avatar-sidebyside.ts"
+		"src/scripts/verify-avatar-sidebyside.ts",
+		"src/pipeline/debate/verify-engagement-model.ts"
 	]
 }

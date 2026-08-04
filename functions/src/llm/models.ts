@@ -19,6 +19,11 @@ export const sonnet: LanguageModel = wrapLanguageModel({
 	})
 });
 
+// 意欲評価・気づき検出のコスト比較対象（検証の結果 不採用。本番経路では使わない）。
+// thinking は 4.5 系では budget_tokens 指定時のみ働くため、無効化の middleware を挟まず素で解決する
+// （sonnet 側の thinking 無効と実効の挙動は揃う）。verify-engagement-model.ts が model 差し替えで比較する。
+export const haiku: LanguageModel = anthropic(AI_MODELS.HAIKU);
+
 export const getGoogleProvider = (): ReturnType<typeof createGoogleGenerativeAI> | null => {
 	const apiKey = process.env.GEMINI_API_KEY;
 	if (!apiKey) return null;

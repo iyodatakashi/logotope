@@ -1,6 +1,9 @@
 export const AI_MODELS = {
 	OPUS: 'claude-opus-4-8',
-	SONNET: 'claude-sonnet-5'
+	SONNET: 'claude-sonnet-5',
+	// 本番未使用。意欲評価・気づき検出の格下げ候補として検証し、不採用にした比較対象として残す
+	// （verify-engagement-model.ts の再実行用。判断根拠は steering の project-knowledge.md）。
+	HAIKU: 'claude-haiku-4-5'
 } as const;
 
 export const PIPELINE_MODELS = {

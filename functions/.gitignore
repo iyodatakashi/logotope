@@ -9,3 +9,5 @@ node_modules/
 *.local
 
 src/avatar/verify/
+
+src/pipeline/debate/verify/
