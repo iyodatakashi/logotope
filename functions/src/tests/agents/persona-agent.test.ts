@@ -201,7 +201,11 @@ describe('evaluateEngagement', () => {
 		const personas = [mockPersona];
 		await evaluateEngagement(mockPersona, mockTurns, [], personas);
 
-		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(expect.any(Array), personas);
+		// 意欲評価はペルソナ ID を出力しないので、会話整形でも ID を出さない
+		// （毎行26字の無駄に加え、気づきの sourceTurnId に序数でなく ID を書かせる紛れになる）
+		expect(vi.mocked(formatMod.formatTurns)).toHaveBeenCalledWith(expect.any(Array), personas, {
+			includePersonaIds: false
+		});
 	});
 
 	it('傾聴で気づき（reception）を検出した場合、sourceTurnId（序数）から話者を導出して返す', async () => {

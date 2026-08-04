@@ -413,8 +413,13 @@ export type EngagementPromptLayout = 'inline' | 'cached-prefix' | 'cached-rubric
 type EvaluateEngagementOptions = {
 	model?: LanguageModel;
 	promptLayout?: EngagementPromptLayout;
+	// 会話の各行に `(ID:...)` を出すか。意欲評価はペルソナ ID を出力しないので既定は付けない。
+	// A/B の比較基準として旧挙動（true）を選べるようにしている。
+	includePersonaIds?: boolean;
 	onUsage?: (usage: EngagementUsage) => void;
 	onPrompt?: (parts: EngagementPromptParts) => void;
+	// 気づきを検出したのに sourceTurnId が直前発言の序数と噛み合わず破棄した件数を数えるための口
+	onAwarenessDropped?: (reason: 'source-mismatch' | 'listener-is-speaker' | 'empty-content') => void;
 };
 
 export const evaluateEngagement = async (
@@ -427,18 +432,21 @@ export const evaluateEngagement = async (
 ): Promise<Engagement> => {
 	try {
 		const recentTurns = turns.slice(-8);
+		// この呼び出しはペルソナ ID を出力しない（返すのは score/mode/intentSummary/awareness だけ）。
+		// 各行の `(ID:...)` は使われないうえ、序数を書かせたい sourceTurnId の紛れになるため落とす。
+		const turnFormat = { includePersonaIds: options.includePersonaIds ?? false };
 		// 傾聴側の会話提示にだけ発言単位のローカル序数（[N]）を付す。末尾＝直前の発言＝気づきの発生源。
 		// 発話生成と共有する formatTurns は変更せず、ここで各発言に番号を前置し、序数→発言の対応はコードで解決する。
 		const numberedConversation =
 			recentTurns.length > 0
 				? recentTurns
-						.map((turn, index) => `[${index + 1}] ${formatTurns([turn], personas)}`)
+						.map((turn, index) => `[${index + 1}] ${formatTurns([turn], personas, turnFormat)}`)
 						.join('\n')
-				: formatTurns(recentTurns, personas);
+				: formatTurns(recentTurns, personas, turnFormat);
 		const ownTurns = turns.filter((turn) => turn.personaId === persona.id).slice(-5);
 		const ownTurnsSection =
 			ownTurns.length > 0
-				? `\nあなた（${persona.name}）のこれまでの発言:\n${formatTurns(ownTurns, personas)}\n`
+				? `\nあなた（${persona.name}）のこれまでの発言:\n${formatTurns(ownTurns, personas, turnFormat)}\n`
 				: '';
 		const otherPersonasNote =
 			otherPersonaNames.length > 0 ? `\n他の参加者: ${otherPersonaNames.join('、')}` : '';
@@ -538,11 +546,28 @@ export const evaluateEngagement = async (
 		// reception は sourceTurnId が直前発言と一致するときのみ採用し、話者を直前発言から導出する。
 		// 不一致（直前より前・同一話者の過去発言を含む）は drop（null）。self は sourcePersonaId=null で維持する。
 		const resolvedAwareness = (() => {
-			if (!awareness || !awareness.content.trim() || lastSpeakerIsSelf) return null;
+			if (!awareness) return null;
+			if (!awareness.content.trim()) {
+				options.onAwarenessDropped?.('empty-content');
+				return null;
+			}
+			if (lastSpeakerIsSelf) {
+				options.onAwarenessDropped?.('listener-is-speaker');
+				return null;
+			}
 			if (awareness.kind === 'self') {
 				return { kind: 'self' as const, content: awareness.content, sourcePersonaId: null };
 			}
-			if (!sourceIsLastTurn(awareness.sourceTurnId)) return null;
+			if (!sourceIsLastTurn(awareness.sourceTurnId)) {
+				// 検出できていたのに序数の突合で落ちた分。黙って消すと気づきの取りこぼしに気づけない。
+				options.onAwarenessDropped?.('source-mismatch');
+				console.warn('[awareness] sourceTurnId が直前発言の序数と一致せず破棄', {
+					personaId: persona.id,
+					sourceTurnId: awareness.sourceTurnId,
+					expectedOrdinal: recentTurns.length
+				});
+				return null;
+			}
 			return {
 				kind: 'reception' as const,
 				content: awareness.content,

@@ -49,9 +49,15 @@ export const formatPersonas = (personas: Persona[]): string => {
 		.join('\n');
 };
 
+/**
+ * `includePersonaIds`: 各行に `(ID:...)` を付けるか。既定は付ける（発言生成が targetPersonaId を返すため）。
+ * ペルソナ ID を出力しない呼び出し（意欲評価）は false にする。1行あたり26字を毎回送らずに済むうえ、
+ * 気づきの `sourceTurnId` に序数ではなく ID を書かせてしまう紛れも防げる。
+ */
 export const formatTurns = (
 	turns: ReadonlyArray<DebateTurn>,
-	personas: ReadonlyArray<Persona>
+	personas: ReadonlyArray<Persona>,
+	{ includePersonaIds = true }: { includePersonaIds?: boolean } = {}
 ): string => {
 	return turns
 		.map((turn) => {
@@ -59,7 +65,8 @@ export const formatTurns = (
 				const persona = personas.find((candidate) => candidate.id === turn.personaId);
 				const name = persona ? persona.name : `Persona(${turn.personaId})`;
 				const role = persona ? persona.role : '';
-				return `[${name}(${role})(ID:${turn.personaId})]: ${turn.content}`;
+				const idNote = includePersonaIds ? `(ID:${turn.personaId})` : '';
+				return `[${name}(${role})${idNote}]: ${turn.content}`;
 			}
 			return `[ファシリテーター()]: ${turn.content}`;
 		})
