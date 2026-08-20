@@ -5,7 +5,11 @@ const { mockGenerateText, mockModelFactory } = vi.hoisted(() => ({
 	mockModelFactory: vi.fn((id: string) => ({ _modelId: id }))
 }));
 
-vi.mock('ai', () => ({ generateText: mockGenerateText }));
+// 使用量記録の middleware で包むため、wrapLanguageModel も要る（記録は素通しなので恒等でよい）
+vi.mock('ai', () => ({
+	generateText: mockGenerateText,
+	wrapLanguageModel: ({ model }: { model: unknown }) => model
+}));
 vi.mock('@ai-sdk/google', () => ({
 	createGoogleGenerativeAI: vi.fn(() => mockModelFactory)
 }));
@@ -16,7 +20,9 @@ import { AVATAR_IMAGE_MODEL } from '../../constants/ai.constants';
 const imageResult = (bytes: number[]) => ({
 	files: [{ mediaType: 'image/png', uint8Array: new Uint8Array(bytes) }]
 });
-const noImageResult = () => ({ files: [{ mediaType: 'text/plain', uint8Array: new Uint8Array() }] });
+const noImageResult = () => ({
+	files: [{ mediaType: 'text/plain', uint8Array: new Uint8Array() }]
+});
 
 const savedKey = process.env.GEMINI_API_KEY;
 
@@ -51,9 +57,7 @@ describe('generateImage', () => {
 	});
 
 	it('画像未返却はリトライし、後続で返れば成功する', async () => {
-		mockGenerateText
-			.mockResolvedValueOnce(noImageResult())
-			.mockResolvedValueOnce(imageResult([5]));
+		mockGenerateText.mockResolvedValueOnce(noImageResult()).mockResolvedValueOnce(imageResult([5]));
 		const out = await generateImage('p', new Uint8Array());
 		expect(Array.from(out)).toEqual([5]);
 		expect(mockGenerateText).toHaveBeenCalledTimes(2);

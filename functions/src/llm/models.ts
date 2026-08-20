@@ -3,7 +3,9 @@ import { wrapLanguageModel, defaultSettingsMiddleware } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { AI_MODELS, PIPELINE_MODELS } from '../constants/ai.constants.js';
-import { usageRecorder } from './usage-recorder.js';
+import { usageRecorder, withUsageRecording } from './usage-recorder.js';
+
+export { withUsageRecording };
 
 // 全 Sonnet 利用経路が共有する解決済みモデル。
 // thinking 無効（4.6 挙動維持）を1定義に集約し、各エージェントに散らさない。
@@ -22,12 +24,6 @@ export const sonnet: LanguageModel = wrapLanguageModel({
 		usageRecorder
 	]
 });
-
-// 使用量記録を後付けする。getPipelineModel を通さず provider から直に解決している呼び出し
-// （grounding 検索を伴う3箇所）で使う。
-export const withUsageRecording = (
-	model: Parameters<typeof wrapLanguageModel>[0]['model']
-): LanguageModel => wrapLanguageModel({ model, middleware: usageRecorder });
 
 // 意欲評価・気づき検出のコスト比較対象（検証の結果 不採用。本番経路では使わない）。
 // thinking は 4.5 系では budget_tokens 指定時のみ働くため、無効化の middleware を挟まず素で解決する

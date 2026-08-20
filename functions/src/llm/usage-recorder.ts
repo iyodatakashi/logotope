@@ -21,6 +21,8 @@
  *         cacheWrite: map(.cacheWrite) | add, output: map(.output) | add})'
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { wrapLanguageModel } from 'ai';
+import type { LanguageModel } from 'ai';
 import type { LanguageModelV3Middleware } from '@ai-sdk/provider';
 
 const taskContext = new AsyncLocalStorage<string>();
@@ -62,3 +64,11 @@ export const usageRecorder: LanguageModelV3Middleware = {
 		return result;
 	}
 };
+
+/**
+ * 既存のモデルに使用量記録を後付けする。models.ts の `getPipelineModel` を通さず
+ * provider から直にモデルを解決している箇所（取材・事実調査・FC grounding・アバター画像）で使う。
+ */
+export const withUsageRecording = (
+	model: Parameters<typeof wrapLanguageModel>[0]['model']
+): LanguageModel => wrapLanguageModel({ model, middleware: usageRecorder });
