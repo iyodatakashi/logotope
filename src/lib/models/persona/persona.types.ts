@@ -76,6 +76,8 @@ export type PersonaForFirestore = {
 	occupation: string;
 	background: string;
 	interests: string;
+	// 暮らす都道府県（正式表記）。姓の地域性はここから決まる。日本国外に暮らす人物は空文字。
+	homePrefecture: string;
 	nationality: string;
 	engagementLevel?: EngagementLevel;
 	gender: PersonaGender;
