@@ -145,6 +145,42 @@ match /editedIntroClosing/{docId} {
 
 ---
 
+## Authentication（コンソール設定 — コードに現れない）
+
+管理画面の認証は `@14ch/svelte-firebase-auth` に委譲している。**コードだけでは決まらず、Firebase コンソールの設定と対で成立する項目**が3つある。片方だけ変えると、画面と実挙動が食い違う。
+
+設定場所: https://console.firebase.google.com/project/_/authentication/settings
+
+### 自由登録の可否は「コンソール」が決める。コードは入口の出し分けだけ
+
+| | 場所 | 何を止めるか |
+|---|---|---|
+| **Authentication → Settings → User actions** | Firebase サーバ側 | **登録 API そのもの**。塞ぐと `auth/admin-restricted-operation` が返る |
+| `ADMIN_AUTH_CONFIG.selfRegistration` | `src/lib/models/auth/admin-auth.constants.ts` | **画面に登録の入口を出すかどうかだけ** |
+
+**この2つは連動しない。**コードはコンソールの状態を読まない（`store.canSelfRegister` は渡した固定値を返すだけ）。API キーは公開されているため、コンソールを開けたままコード側を `false` にしても、REST を直接叩けばアカウントは作れる。**防御はコンソール側のみ**で、コード側は体験の話。
+
+**登録を開けるときは影響範囲を確認する。** `firestore.rules` は管理データを `if request.auth != null` で守っている。つまり**登録できた人＝管理データを全て読み書きできる人**になる。登録を開けるなら、ルール側の条件も併せて設計し直すこと。
+
+登録の経路（`/admin/signup`）を実在させるかも、コードだけで決まる。モジュールの `SignUp` は `canSelfRegister` を見ずに無条件でフォームを描画するため、**経路を作った時点で URL 直打ちで到達できる**。閉じるときはフラグを戻すだけでなく経路も消す。
+
+### 承認済みドメインは `VITE_APP_ORIGIN` と一致させる
+
+パスワード再設定メールには戻り先 URL（`AuthConfig.continueUrl` = `${VITE_APP_ORIGIN}/admin/login`）が埋まる。そのホストが **Authentication → Settings → Authorized domains** に無いと、**メールの送信自体**が `auth/unauthorized-continue-uri` で失敗する（画面は成功したように見える）。
+
+| 環境 | `VITE_APP_ORIGIN` の供給元 | 承認済みドメインに要るホスト |
+|---|---|---|
+| 開発 | `.env` | `localhost` |
+| 本番 | `apphosting.yaml`（BUILD 変数） | `logotope--logotope14.asia-east1.hosted.app` |
+
+`VITE_APP_ORIGIN` を変えたら、承認済みドメインも必ず揃える。ズレると**本番でだけ再設定メールが飛ばない**という気づきにくい壊れ方をする。開発サーバーを既定と違うポートで起動したときも同様にズレる。
+
+### 管理者アカウントはコンソールで作る
+
+自由登録を塞いでいる前提のため、管理者の追加は **Authentication → Users → ユーザーを追加** で行う運用とする。`emailVerification: false`（確認を求めない設計）なので、**メールアドレスが実在し到達するかは作成時に人が確かめる**。
+
+---
+
 ## ID 生成
 
 ```typescript
