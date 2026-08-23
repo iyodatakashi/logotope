@@ -44,6 +44,14 @@ describe('公開挙動の非回帰', () => {
 		expect(offending).toEqual([]);
 	});
 
+	it('公開トップの経路が認証モジュールと到達の制御を読み込まない', () => {
+		const offending = PUBLIC_SOURCES.filter(({ source }) =>
+			/svelte-firebase-auth|AuthGate|adminAuth/.test(source)
+		).map(({ path }) => path);
+
+		expect(offending).toEqual([]);
+	});
+
 	it('公開トップが管理用のストア・コンポーネントを流用しない', () => {
 		const offending = PUBLIC_SOURCES.filter(({ source }) =>
 			/features\/admin|topicsStore|\$lib\/stores\//.test(source)

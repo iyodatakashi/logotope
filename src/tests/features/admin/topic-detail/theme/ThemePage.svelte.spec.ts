@@ -11,13 +11,10 @@ const { mockSave, mockApproveTheme, mockFetchSourceContents, mockGoto } = vi.hoi
 
 vi.mock('$app/navigation', () => ({ goto: mockGoto }));
 
-vi.mock('$lib/stores/auth.svelte.js', () => ({
-	authStore: {
-		logout: vi.fn(),
-		user: { uid: 'test-user' },
-		isLoggedIn: true
-	}
-}));
+vi.mock('$lib/stores/adminAuth.svelte.js', () => {
+	const store = { signOut: vi.fn(), user: { uid: 'test-user' }, isLoggedIn: true };
+	return { getAdminAuthStore: () => store };
+});
 
 let phase = 'theme';
 let sourceUrls: string[] = [];

@@ -33,9 +33,10 @@ const { goto, spies, state } = vi.hoisted(() => ({
 
 vi.mock('$app/navigation', () => ({ goto }));
 
-vi.mock('$lib/stores/auth.svelte.js', () => ({
-	authStore: { logout: vi.fn(), user: { uid: 'test-user' }, isLoggedIn: true }
-}));
+vi.mock('$lib/stores/adminAuth.svelte.js', () => {
+	const store = { signOut: vi.fn(), user: { uid: 'test-user' }, isLoggedIn: true };
+	return { getAdminAuthStore: () => store };
+});
 
 vi.mock('$lib/stores/currentTopic.svelte.js', () => ({
 	currentTopicStore: {

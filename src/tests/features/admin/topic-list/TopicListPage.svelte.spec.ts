@@ -2,13 +2,10 @@ import { page } from 'vitest/browser';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
-vi.mock('$lib/stores/auth.svelte.js', () => ({
-	authStore: {
-		logout: vi.fn(),
-		user: { uid: 'test-user' },
-		isLoggedIn: true
-	}
-}));
+vi.mock('$lib/stores/adminAuth.svelte.js', () => {
+	const store = { signOut: vi.fn(), user: { uid: 'test-user' }, isLoggedIn: true };
+	return { getAdminAuthStore: () => store };
+});
 
 vi.mock('$app/navigation', () => ({ goto: vi.fn() }));
 
