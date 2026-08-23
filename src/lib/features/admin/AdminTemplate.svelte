@@ -1,25 +1,25 @@
 <script lang="ts">
-	import { page } from '$app/state';
 	import type { Snippet } from 'svelte';
-	import { authStore } from '$lib/stores/auth.svelte';
+	import { getAdminAuthStore } from '$lib/stores/adminAuth.svelte';
 	import { Button } from '@14ch/svelte-ui';
 
 	let { children }: { children: Snippet } = $props();
 
-	const isLoginPage = $derived(page.url.pathname === '/admin/login');
+	const store = getAdminAuthStore();
 </script>
 
 <div class="admin-template">
 	<div class="admin-template__header">
 		<a href="/admin/topics" class="admin-template__logo">logotope</a>
-		{#if authStore.isLoggedIn}
-			<Button variant="ghost" onclick={() => authStore.logout()}>ログアウト</Button>
+		{#if store.isLoggedIn}
+			<div class="admin-template__account">
+				<a href="/admin/account" class="admin-template__account-link">パスワードの変更</a>
+				<Button variant="ghost" onclick={() => store.signOut()}>ログアウト</Button>
+			</div>
 		{/if}
 	</div>
 
-	{#if authStore.user || isLoginPage}
-		{@render children()}
-	{/if}
+	{@render children()}
 </div>
 
 <style>

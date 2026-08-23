@@ -1,26 +1,25 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { authStore } from '$lib/stores/auth.svelte';
-	import { topicsStore } from '$lib/stores/topics.svelte';
-	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
+	import { AuthGate, createAuthStore } from '@14ch/svelte-firebase-auth';
+	import { auth } from '$lib/firebase';
+	import { ADMIN_AUTH_CONFIG } from '$lib/models/auth/admin-auth.constants';
+	import { setAdminAuthStore } from '$lib/stores/adminAuth.svelte';
 
 	let { children }: { children: Snippet } = $props();
-	const isLoginPage = $derived(page.url.pathname === '/admin/login');
+
+	const store = createAuthStore(auth, ADMIN_AUTH_CONFIG);
+	setAdminAuthStore(store);
 
 	$effect(() => {
-		if (authStore.user) {
-			topicsStore.start();
-			return () => topicsStore.stop();
-		}
-	});
-
-	// 認証ストアの状態変化に反応するガード。未認証なら現在のパスを保持してログインへ誘導する
-	$effect(() => {
-		if (!authStore.loading && !authStore.user && !isLoginPage) {
-			goto(`/admin/login?redirect=${encodeURIComponent(page.url.pathname)}`);
-		}
+		store.start();
+		return () => store.stop();
 	});
 </script>
 
-{@render children()}
+{#snippet pending()}
+	<p class="admin-layout__pending">読み込み中</p>
+{/snippet}
+
+<AuthGate {store} {pending}>
+	{@render children()}
+</AuthGate>
