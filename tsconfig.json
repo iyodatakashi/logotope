@@ -10,7 +10,18 @@
 		"skipLibCheck": true,
 		"sourceMap": true,
 		"strict": true,
-		"moduleResolution": "bundler"
+		"moduleResolution": "bundler",
+		// link: で取り込んだ @14ch/svelte-firebase-auth は自身の node_modules に svelte を持つため、
+		// 型解決だけが二重化して Snippet が別型になる（実行時は vite の resolve.dedupe が担う）。
+		// 解決先を1つに固定する。paths は生成側（.svelte-kit/tsconfig.json）を上書きするため、
+		// 生成される項目もここに書き写している。公開版へ切り替えたら丸ごと削除できる
+		"paths": {
+			"svelte": ["./node_modules/svelte"],
+			"svelte/*": ["./node_modules/svelte/*"],
+			"$lib": ["./src/lib"],
+			"$lib/*": ["./src/lib/*"],
+			"$app/types": ["./.svelte-kit/types/index.d.ts"]
+		}
 	},
 	"exclude": ["src/dataconnect-generated"]
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias

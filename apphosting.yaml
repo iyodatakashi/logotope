@@ -33,3 +33,18 @@ env:
     value: "1:233351764077:web:ef97e8b9399adb90eac764"
     availability:
       - BUILD
+
+  # AuthConfig.continueUrl の組み立てに使うアプリのオリジン。
+  # 確認・再設定の完了後の戻り先がこのオリジンになるため、
+  # Firebase Authentication の承認済みドメインに含まれている必要がある
+  - variable: VITE_APP_ORIGIN
+    value: "https://logotope--logotope14.asia-east1.hosted.app"
+    availability:
+      - BUILD
+
+  # 管理画面の自前登録を許すか。画面の入口・登録経路の到達可否をこの1つから導く。
+  # 登録 API 自体は Firebase コンソールの User actions でしか塞げない（防御はそちら）
+  - variable: VITE_SELF_REGISTRATION
+    value: "false"
+    availability:
+      - BUILD
