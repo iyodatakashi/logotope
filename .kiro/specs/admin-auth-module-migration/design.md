@@ -165,6 +165,7 @@ src/
 │       └── auth/
 │           ├── AdminAuthTemplate.svelte    # 認証画面の共通の枠（名乗りと幅）
 │           ├── AdminSignInPage.svelte      # SignIn の差し込み
+│           ├── AdminSignUpPage.svelte      # SignUp の差し込み
 │           ├── AdminPasswordResetPage.svelte
 │           ├── AdminVerifyEmailPage.svelte
 │           └── AdminPasswordChangePage.svelte  # PasswordChange の差し込み
@@ -172,12 +173,14 @@ src/
     ├── +layout.svelte                     # ストアの生成・寿命・AuthGate の配置
     ├── +layout.ts                         # 変更なし（ssr = false）
     ├── login/+page.svelte                 # AdminSignInPage の最小ラッパー
+    ├── signup/+page.svelte
+    ├── signup/+page.ts                    # スイッチが許さないときサインインへ振り替える
     ├── password-reset/+page.svelte
     ├── verify-email/+page.svelte
     └── password-change/+page.svelte
 ```
 
-`login` / `password-reset` / `verify-email` / `password-change` の `+page.svelte` は同じ形（対応する feature コンポーネントを1つ差し込むだけ）。
+`login` / `signup` / `password-reset` / `verify-email` / `password-change` の `+page.svelte` は同じ形（対応する feature コンポーネントを1つ差し込むだけ）。
 
 ### Modified Files
 
@@ -287,6 +290,7 @@ sequenceDiagram
 | AdminDataScope | features | 管理データの購読の寿命 | 4.7, 6.4 | topicsStore (P0) | State |
 | AdminAuthTemplate | features | 認証画面の共通の枠（名乗りと体裁）を1か所に持つ | 3.8 | なし | — |
 | AdminSignInPage | features | `SignIn` の差し込み | 3.6–3.9, 9.6 | AdminAuthAccessor (P0), AdminAuthTemplate (P0) | — |
+| AdminSignUpPage | features | `SignUp` の差し込み（到達可否は経路の load で決まる） | 7.1 | AdminAuthAccessor (P0), AdminAuthTemplate (P0) | — |
 | AdminPasswordResetPage | features | `PasswordReset` の差し込み | 9.1–9.2 | AdminAuthAccessor (P0), AdminAuthTemplate (P0) | — |
 | AdminVerifyEmailPage | features | `VerifyEmail` の差し込み（到達しない） | 8.2 | AdminAuthAccessor (P0), AdminAuthTemplate (P0) | — |
 | AdminPasswordChangePage | features | `PasswordChange` の差し込み | 9.3–9.5 | AdminAuthAccessor (P0), AdminAuthTemplate (P0) | — |
@@ -307,7 +311,9 @@ sequenceDiagram
 - `AuthConfig` の4項目すべてを、実行時の分岐を要さない確定値として持つ（要件 2.4）
 - 経路は URL に現れるとおりの `pathname` を書く。判定は問い合わせ文字列を無視した完全一致である（要件 3.4）
 - **`continueUrl` は管理画面のサインインの経路を指す**（要件 2.5）。Firebase の既定のアクションハンドラを経た利用者がここへ着地する。サイトの根を与えると、パスワードを再設定した管理者が公開の記事一覧へ放り出される。オリジンだけが環境で変わるため、環境変数はオリジンを持ち、経路はここで足す
-- **`selfRegistration: false` / `emailVerification: false` を確定値として持つ。**分岐や上書きの余地を作らない
+- **自前登録を許すかは、ビルド時のスイッチ1つ（`VITE_SELF_REGISTRATION`）から導く。** 画面の入口・`routes.signUp` の値・登録の経路の到達可否は、すべてこの1つから決まる。実行時に切り替える余地は作らない
+- **これは防御ではなく体験の設定である。** 登録の API そのものは Firebase コンソールの User actions でしか塞げない（要件 7.2 → `.kiro/steering/firebase.md`）
+- **`emailVerification: false` は確定値として持つ。**分岐や上書きの余地を作らない
 
 **Dependencies**
 
@@ -320,13 +326,18 @@ sequenceDiagram
 ```typescript
 import type { AuthConfig } from '@14ch/svelte-firebase-auth';
 
+const SIGN_IN_ROUTE = '/admin/login';
+
+export const SELF_REGISTRATION = import.meta.env.VITE_SELF_REGISTRATION === 'true';
+
 export const ADMIN_AUTH_CONFIG: AuthConfig = {
-	selfRegistration: false,
+	selfRegistration: SELF_REGISTRATION,
 	emailVerification: false,
-	continueUrl: `${import.meta.env.VITE_APP_ORIGIN}/admin/login`,
+	continueUrl: `${import.meta.env.VITE_APP_ORIGIN}${SIGN_IN_ROUTE}`,
 	routes: {
-		signIn: '/admin/login',
-		signUp: '/admin/login',
+		signIn: SIGN_IN_ROUTE,
+		// 許さないときはサインインを重ね、モジュールに登録への導線を作らせない
+		signUp: SELF_REGISTRATION ? '/admin/signup' : SIGN_IN_ROUTE,
 		verifyEmail: '/admin/verify-email',
 		passwordReset: '/admin/password-reset',
 		afterSignIn: '/admin/topics'
@@ -334,10 +345,10 @@ export const ADMIN_AUTH_CONFIG: AuthConfig = {
 };
 ```
 
-- **到達しない経路の扱いは、到達しない理由で分ける。** `AuthRoutes` は全項目必須だが、`signUp` と `verifyEmail` はどちらも本設計では到達しない。理由が違うため扱いも分ける。
-  - **`verifyEmail` は経路を実在させ、画面を置く。** 到達しないのは `emailVerification: false` という設定の帰結にすぎず、設定を反転すれば到達する。実在させておけば切り替えに何も足さずに済む
-  - **`signUp` は経路を実在させず、`signIn` の値を重ねる。** 到達しないのではなく**到達させてはならない**（要件 7.1「登録の入口を画面に出さない」）。`signed-out` の段階では `resolveAuthGuard` が登録の経路への到達を許すため、経路を実在させると URL を直接開いた者に登録フォームが出る。**モジュールの `SignUp` は `canSelfRegister` を見ずに無条件でフォームを描画する**（実装で確認済み）ため、画面側の出し分けには頼れない
-  - 値を重ねても `matchesAny` / `isAuthRoute` はサインインの経路として扱うため、振り替えの循環は生じない
+- **経路は常に実在させ、到達可否はスイッチから導く。** `AuthRoutes` は全項目必須で、`signUp` と `verifyEmail` は既定の設定では到達しない。それでもどちらも経路と画面を置き、設定を反転したときに何も足さずに済ませる。
+  - **`verifyEmail`** が到達しないのは `emailVerification: false` の帰結にすぎない。設定を反転すれば到達する
+  - **`signUp` は経路を実在させ、塞ぐのは経路の `load` で行う。** `signed-out` の段階では `resolveAuthGuard` が登録の経路への到達を許し、**モジュールの `SignUp` は `canSelfRegister` を見ずに無条件でフォームを描画する**（実装で確認済み）ため、画面側の出し分けには頼れない。`src/routes/admin/signup/+page.ts` の `load` が `SELF_REGISTRATION` を見て、許さないときはサインインへ 307 で振り替える（要件 7.1「登録の入口を画面に出さない」）
+  - **`routes.signUp` は、許さないときだけ `signIn` の値を重ねる。** 値を重ねればモジュールが登録への導線を作らない。重ねても `matchesAny` / `isAuthRoute` はサインインの経路として扱うため、振り替えの循環は生じない
 - **`afterSignIn` は `/admin/topics`。** `/admin` には `+page.svelte` が無く 404 になる（現行の `sanitizeAdminRedirect` はここへ落としていた）
 - **不変条件**: `routes` の全項目が `/admin` 配下であること。`AuthGate` の適用範囲の外の経路を書くと、振り替え先がゲートの外になり判定が働かない
 
@@ -456,7 +467,7 @@ export const getAdminAuthStore: () => AuthStore;
 
 ### features
 
-`AdminSignInPage` / `AdminPasswordResetPage` / `AdminVerifyEmailPage` / `AdminPasswordChangePage` は同じ形を採る。`getAdminAuthStore()` でストアを取り、対応する画面へ `store` を渡し、`AdminAuthTemplate` で包む。文言の差し替えは logotope 固有の呼称に限る（要件 3.8）。**コールバックは存在しない**ため、遷移の配線は書かない（要件 3.7）。
+`AdminSignInPage` / `AdminSignUpPage` / `AdminPasswordResetPage` / `AdminVerifyEmailPage` / `AdminPasswordChangePage` は同じ形を採る。`getAdminAuthStore()` でストアを取り、対応する画面へ `store` を渡し、`AdminAuthTemplate` で包む。文言の差し替えは logotope 固有の呼称に限る（要件 3.8）。**コールバックは存在しない**ため、遷移の配線は書かない（要件 3.7）。
 
 **名乗りはモジュールへ渡さず、外側の枠が持つ。** `AuthBaseProps` は `store` / `messages` / `onCompleted` のみで、見出しを差し込む口を持たない。各画面に `<h1>` を書き写すと名乗りと体裁が散るため、`AdminAuthTemplate` を1つ置いてそこだけが持つ。
 
@@ -575,7 +586,7 @@ Firestore のスキーマとセキュリティルールは変更しない（要�
 ### Unit Tests
 
 - `AdminAuthAccessor` — 登録したストアが取得できること。未登録の階層で呼ぶと例外を投げること
-- `AdminAuthConfig` — `routes` の全項目が `/admin` 配下であること。`selfRegistration` と `emailVerification` が `false` であること。**`continueUrl` が `/admin/login` で終わること**（公開の根を指していないこと）
+- `AdminAuthConfig` — `routes` の全項目が `/admin` 配下であること。`emailVerification` が `false` であること。**`continueUrl` が `routes.signIn` で終わること**（公開の根を指していないこと）。`selfRegistration` と `routes.signUp` が `SELF_REGISTRATION` に従い、真偽値の直書きがソースに無いこと
 
 ### Component Tests（Vitest browser）
 
@@ -588,7 +599,7 @@ Firestore のスキーマとセキュリティルールは変更しない（要�
 - **`AuthGate` が `src/routes/admin/+layout.svelte` にのみ現れること**を検査する。公開側のレイアウトに混入していないこと（要件 4.1 / 4.2）
 - **`src/routes/admin/+layout.svelte` に段階を見た条件式（`stage` / `isResolved` / `user` の分岐）が無いこと**を検査する（要件 4.7）
 - **`AdminDataScope.svelte` に認証への参照（`stage` / `isLoggedIn` / `getAdminAuthStore`）が無いこと**を検査する（要件 4.7）
-- **`src/routes/admin/` に `signup` の経路が存在しないこと**を検査する（要件 7.1）
+- **`src/routes/admin/signup/+page.ts` が存在し、`SELF_REGISTRATION` で塞ぐ形になっていること**を検査する。`routes.signUp` の値がスイッチと一致すること（要件 7.1）
 - `authStore` / `sanitizeAdminRedirect` / `?redirect=` の参照が残っていないこと（要件 1.2 / 1.3 / 5.3）
 
 判定の正しさ（`resolveAuthGuard` の振る舞い）は**モジュール側の単体試験が担保する**。logotope で再検証しない（`.kiro/steering/spec-dependencies.md`「受け入れ基準は依存元のものを使う」）。
@@ -607,7 +618,7 @@ Firestore のスキーマとセキュリティルールは変更しない（要�
 ## Security Considerations
 
 - **`AuthGate` は防御ではない。** ブラウザでのみ働き、包み忘れれば働かない。到達の制御をモジュールへ移したことを理由に Firestore のセキュリティルールを緩めない（要件 10.1）
-- **登録の遮断は二重に行う。** `selfRegistration: false` が塞ぐのは画面の入口だけで、登録の API は Firebase コンソールの設定でしか塞げない（要件 7.2）
+- **登録の遮断は二重に行う。** `selfRegistration` が塞ぐのは画面の入口だけ（経路の `load` を足しても、塞ぐのはブラウザでの到達まで）で、登録の API は Firebase コンソールの設定でしか塞げない（要件 7.2）
 - **オープンリダイレクトの防止はモジュールへ移る。** `sanitizeAdminRedirect` を削除する代わり、モジュールの `isSafeReturnTo` が根からの相対パスのみを受け入れ、`//evil.example` と `/\evil.example` を弾く
 - **メールアドレスの到達性は運用が担保する。** `emailVerification: false` を選んだため、管理者アカウントの作成時に運営者が確認する（要件 8.5）
 - Functions 側の `requireAuth` と Firestore のルールは変更しない（要件 10.1 / 10.2）
