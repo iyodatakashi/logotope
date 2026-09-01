@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AdminAuthTemplate from './AdminAuthTemplate.svelte';
 	import { goto } from '$app/navigation';
 	import { PasswordChange } from '@14ch/svelte-firebase-auth';
 	import { getAdminAuthStore } from '$lib/stores/adminAuth.svelte';
@@ -12,7 +13,6 @@
 	};
 </script>
 
-<div class="admin-password-change-page">
-	<h1 class="admin-password-change-page__title">logotope</h1>
+<AdminAuthTemplate>
 	<PasswordChange {store} onCompleted={returnToAdmin} />
-</div>
+</AdminAuthTemplate>

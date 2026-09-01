@@ -163,7 +163,8 @@ src/
 │       ├── AdminDataScope.svelte          # AuthGate の内側。管理データの購読の寿命だけを持つ
 │       ├── AdminTemplate.svelte           # ログアウトのみ残す。出し分けは AuthGate へ移す
 │       └── auth/
-│           ├── AdminSignInPage.svelte     # SignIn の差し込み + 名乗り
+│           ├── AdminAuthTemplate.svelte    # 認証画面の共通の枠（名乗りと幅）
+│           ├── AdminSignInPage.svelte      # SignIn の差し込み
 │           ├── AdminPasswordResetPage.svelte
 │           ├── AdminVerifyEmailPage.svelte
 │           └── AdminPasswordChangePage.svelte  # PasswordChange の差し込み
@@ -284,10 +285,11 @@ sequenceDiagram
 | AdminAuthAccessor | stores | `AuthStore` を `/admin` 配下へ配る | 2.1, 10.4 | svelte context (P0) | Service |
 | AdminLayout | routes | ストアの生成・寿命・`AuthGate` の配置 | 1.1, 2.1–2.3, 2.7, 4.1–4.4, 4.7 | firebase.ts (P0), モジュール (P0) | State |
 | AdminDataScope | features | 管理データの購読の寿命 | 4.7, 6.4 | topicsStore (P0) | State |
-| AdminSignInPage | features | `SignIn` の差し込みと名乗り | 3.6–3.9, 9.6 | AdminAuthAccessor (P0) | — |
-| AdminPasswordResetPage | features | `PasswordReset` の差し込み | 9.1–9.2 | AdminAuthAccessor (P0) | — |
-| AdminVerifyEmailPage | features | `VerifyEmail` の差し込み（到達しない） | 8.2 | AdminAuthAccessor (P0) | — |
-| AdminPasswordChangePage | features | `PasswordChange` の差し込み | 9.3–9.5 | AdminAuthAccessor (P0) | — |
+| AdminAuthTemplate | features | 認証画面の共通の枠（名乗りと体裁）を1か所に持つ | 3.8 | なし | — |
+| AdminSignInPage | features | `SignIn` の差し込み | 3.6–3.9, 9.6 | AdminAuthAccessor (P0), AdminAuthTemplate (P0) | — |
+| AdminPasswordResetPage | features | `PasswordReset` の差し込み | 9.1–9.2 | AdminAuthAccessor (P0), AdminAuthTemplate (P0) | — |
+| AdminVerifyEmailPage | features | `VerifyEmail` の差し込み（到達しない） | 8.2 | AdminAuthAccessor (P0), AdminAuthTemplate (P0) | — |
+| AdminPasswordChangePage | features | `PasswordChange` の差し込み | 9.3–9.5 | AdminAuthAccessor (P0), AdminAuthTemplate (P0) | — |
 | AdminTemplate | features | サインアウトの操作 | 6.1–6.3, 4.7 | AdminAuthAccessor (P0) | — |
 | BuildConfig | infra | 依存の解決とバンドル | 1.6–1.8 | pnpm, Vite (P0) | — |
 
@@ -454,22 +456,23 @@ export const getAdminAuthStore: () => AuthStore;
 
 ### features
 
-`AdminSignInPage` / `AdminPasswordResetPage` / `AdminVerifyEmailPage` / `AdminPasswordChangePage` は同じ形を採る。`getAdminAuthStore()` でストアを取り、対応する画面へ `store` と `header`（logotope の名乗り）を渡す。文言の差し替えは logotope 固有の呼称に限る（要件 3.8）。**コールバックは存在しない**ため、遷移の配線は書かない（要件 3.7）。
+`AdminSignInPage` / `AdminPasswordResetPage` / `AdminVerifyEmailPage` / `AdminPasswordChangePage` は同じ形を採る。`getAdminAuthStore()` でストアを取り、対応する画面へ `store` を渡し、`AdminAuthTemplate` で包む。文言の差し替えは logotope 固有の呼称に限る（要件 3.8）。**コールバックは存在しない**ため、遷移の配線は書かない（要件 3.7）。
+
+**名乗りはモジュールへ渡さず、外側の枠が持つ。** `AuthBaseProps` は `store` / `messages` / `onCompleted` のみで、見出しを差し込む口を持たない。各画面に `<h1>` を書き写すと名乗りと体裁が散るため、`AdminAuthTemplate` を1つ置いてそこだけが持つ。
 
 ```svelte
-<!-- 4画面に共通する形 -->
+<!-- 各画面に共通する形 -->
 <script lang="ts">
+	import AdminAuthTemplate from './AdminAuthTemplate.svelte';
 	import { SignIn } from '@14ch/svelte-firebase-auth';
 	import { getAdminAuthStore } from '$lib/stores/adminAuth.svelte';
 
 	const store = getAdminAuthStore();
 </script>
 
-{#snippet header()}
-	<h1 class="admin-sign-in-page__title">logotope</h1>
-{/snippet}
-
-<SignIn {store} {header} />
+<AdminAuthTemplate>
+	<SignIn {store} />
+</AdminAuthTemplate>
 ```
 
 - **`AdminVerifyEmailPage` は `emailVerification: false` のため到達しない。** 設定を `true` へ変えたときに何も足さずに済むよう置く（→ `research.md` の決定）
