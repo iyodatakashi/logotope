@@ -19,7 +19,7 @@ const { goto, changePassword, store } = vi.hoisted(() => {
 vi.mock('$app/navigation', () => ({ goto }));
 vi.mock('$lib/stores/adminAuth.svelte.js', () => ({ getAdminAuthStore: () => store }));
 
-import AdminAccountPage from '$lib/features/admin/auth/AdminAccountPage.svelte';
+import AdminPasswordChangePage from '$lib/features/admin/auth/AdminPasswordChangePage.svelte';
 
 const submit = async (current: string, next: string) => {
 	await page.getByLabelText('現在のパスワード').fill(current);
@@ -27,7 +27,7 @@ const submit = async (current: string, next: string) => {
 	await page.getByRole('button', { name: '変更する' }).click();
 };
 
-describe('AdminAccountPage.svelte', () => {
+describe('AdminPasswordChangePage.svelte', () => {
 	it('検査に使う経路が実際の設定と一致している', () => {
 		expect(store.routes.afterSignIn).toBe(ADMIN_AUTH_CONFIG.routes.afterSignIn);
 	});
@@ -35,7 +35,7 @@ describe('AdminAccountPage.svelte', () => {
 	it('変更に成功すると既定の行き先へ戻る', async () => {
 		goto.mockClear();
 		changePassword.mockResolvedValueOnce({ ok: true });
-		render(AdminAccountPage);
+		render(AdminPasswordChangePage);
 
 		await submit('current-pass', 'next-pass-1');
 
@@ -48,7 +48,7 @@ describe('AdminAccountPage.svelte', () => {
 			ok: false,
 			error: { kind: 'invalid-credential', detail: '', unmetPasswordRequirements: [] }
 		});
-		render(AdminAccountPage);
+		render(AdminPasswordChangePage);
 
 		await submit('wrong-pass', 'next-pass-1');
 

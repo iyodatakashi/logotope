@@ -95,7 +95,7 @@
   - 現在のパスワードによる再認証に失敗したときは変更が行われず、案内が表示される
   - サインイン済みの管理者がパスワードを変更でき、完了後に既定の行き先へ戻る
   - _Requirements: 3.3, 9.3, 9.4, 9.5_
-  - _Boundary: AdminAccountPage_
+  - _Boundary: AdminPasswordChangePage_
   - _Depends: 2.1, 2.2_
 
 - [x] 3.6 (P) 確認待ちの画面を置く

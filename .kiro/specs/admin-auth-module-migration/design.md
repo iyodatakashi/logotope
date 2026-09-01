@@ -166,17 +166,17 @@ src/
 │           ├── AdminSignInPage.svelte     # SignIn の差し込み + 名乗り
 │           ├── AdminPasswordResetPage.svelte
 │           ├── AdminVerifyEmailPage.svelte
-│           └── AdminAccountPage.svelte    # PasswordChange の差し込み
+│           └── AdminPasswordChangePage.svelte  # PasswordChange の差し込み
 └── routes/admin/
     ├── +layout.svelte                     # ストアの生成・寿命・AuthGate の配置
     ├── +layout.ts                         # 変更なし（ssr = false）
     ├── login/+page.svelte                 # AdminSignInPage の最小ラッパー
     ├── password-reset/+page.svelte
     ├── verify-email/+page.svelte
-    └── account/+page.svelte
+    └── password-change/+page.svelte
 ```
 
-`login` / `password-reset` / `verify-email` / `account` の `+page.svelte` は同じ形（対応する feature コンポーネントを1つ差し込むだけ）。
+`login` / `password-reset` / `verify-email` / `password-change` の `+page.svelte` は同じ形（対応する feature コンポーネントを1つ差し込むだけ）。
 
 ### Modified Files
 
@@ -272,7 +272,7 @@ sequenceDiagram
 | 7.1–7.4 | 登録の抑止 | AdminAuthConfig | `AuthConfig.selfRegistration` | — |
 | 8.1–8.5 | 確認を求めない | AdminAuthConfig, AdminVerifyEmailPage | `AuthConfig.emailVerification` | 到達の制御 |
 | 9.1–9.2 | 再設定 | AdminPasswordResetPage | `AuthBaseProps` | — |
-| 9.3–9.6 | 変更と失敗の扱い | AdminAccountPage | `AuthBaseProps` | — |
+| 9.3–9.6 | 変更と失敗の扱い | AdminPasswordChangePage | `AuthBaseProps` | — |
 | 10.1–10.2 | 防御の維持 | — | — | — |
 | 10.3–10.6 | 不変条件 | TestSuite | — | — |
 
@@ -287,7 +287,7 @@ sequenceDiagram
 | AdminSignInPage | features | `SignIn` の差し込みと名乗り | 3.6–3.9, 9.6 | AdminAuthAccessor (P0) | — |
 | AdminPasswordResetPage | features | `PasswordReset` の差し込み | 9.1–9.2 | AdminAuthAccessor (P0) | — |
 | AdminVerifyEmailPage | features | `VerifyEmail` の差し込み（到達しない） | 8.2 | AdminAuthAccessor (P0) | — |
-| AdminAccountPage | features | `PasswordChange` の差し込み | 9.3–9.5 | AdminAuthAccessor (P0) | — |
+| AdminPasswordChangePage | features | `PasswordChange` の差し込み | 9.3–9.5 | AdminAuthAccessor (P0) | — |
 | AdminTemplate | features | サインアウトの操作 | 6.1–6.3, 4.7 | AdminAuthAccessor (P0) | — |
 | BuildConfig | infra | 依存の解決とバンドル | 1.6–1.8 | pnpm, Vite (P0) | — |
 
@@ -454,7 +454,7 @@ export const getAdminAuthStore: () => AuthStore;
 
 ### features
 
-`AdminSignInPage` / `AdminPasswordResetPage` / `AdminVerifyEmailPage` / `AdminAccountPage` は同じ形を採る。`getAdminAuthStore()` でストアを取り、対応する画面へ `store` と `header`（logotope の名乗り）を渡す。文言の差し替えは logotope 固有の呼称に限る（要件 3.8）。**コールバックは存在しない**ため、遷移の配線は書かない（要件 3.7）。
+`AdminSignInPage` / `AdminPasswordResetPage` / `AdminVerifyEmailPage` / `AdminPasswordChangePage` は同じ形を採る。`getAdminAuthStore()` でストアを取り、対応する画面へ `store` と `header`（logotope の名乗り）を渡す。文言の差し替えは logotope 固有の呼称に限る（要件 3.8）。**コールバックは存在しない**ため、遷移の配線は書かない（要件 3.7）。
 
 ```svelte
 <!-- 4画面に共通する形 -->
@@ -473,7 +473,7 @@ export const getAdminAuthStore: () => AuthStore;
 ```
 
 - **`AdminVerifyEmailPage` は `emailVerification: false` のため到達しない。** 設定を `true` へ変えたときに何も足さずに済むよう置く（→ `research.md` の決定）
-- **`AdminAccountPage` は認証の経路ではない。** `resolveAuthGuard` の `isAuthRoute` に含まれないため、サインイン済みの利用者が追い出されない（要件 9.4）
+- **`AdminPasswordChangePage` は認証の経路ではない。** `resolveAuthGuard` の `isAuthRoute` に含まれないため、サインイン済みの利用者が追い出されない（要件 9.4）
 - **`PasswordChange` は完了時に `goto(routes.afterSignIn)` を行う。** ダイアログとして開くと遷移が噛み合わないため、独立した経路に置く
 
 #### AdminTemplate（変更）
@@ -598,7 +598,7 @@ Firestore のスキーマとセキュリティルールは変更しない（要�
 2. サインアウトでサインインへ戻り、管理画面の内容が描画されないこと
 3. 公開ページ（`/`・`/articles/{id}`）が未サインインで表示されること
 4. パスワードの再設定の要求が受け付けられること（メールの到達はエミュレータのログで確認）。**リンクを開いた先が管理画面のサインインであること**（公開の記事一覧でないこと）
-5. `/admin/account` でパスワードを変更でき、完了後に `/admin/topics` へ戻ること
+5. `/admin/password-change` でパスワードを変更でき、完了後に `/admin/topics` へ戻ること
 6. 判定の完了前に管理画面の内容が一瞬でも見えないこと（要件 4.3）
 
 ## Security Considerations

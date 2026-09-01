@@ -13,7 +13,7 @@
 		<a href="/admin/topics" class="admin-template__logo">logotope</a>
 		{#if store.isLoggedIn}
 			<div class="admin-template__account">
-				<a href="/admin/account" class="admin-template__account-link">パスワードの変更</a>
+				<a href="/admin/password-change" class="admin-template__account-link">パスワードの変更</a>
 				<Button variant="ghost" onclick={() => store.signOut()}>ログアウト</Button>
 			</div>
 		{/if}

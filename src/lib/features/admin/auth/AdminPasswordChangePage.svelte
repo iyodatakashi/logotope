@@ -12,7 +12,7 @@
 	};
 </script>
 
-<div class="admin-account-page">
-	<h1 class="admin-account-page__title">logotope</h1>
+<div class="admin-password-change-page">
+	<h1 class="admin-password-change-page__title">logotope</h1>
 	<PasswordChange {store} onCompleted={returnToAdmin} />
 </div>
