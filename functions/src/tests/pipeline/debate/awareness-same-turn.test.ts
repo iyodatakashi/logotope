@@ -46,7 +46,7 @@ const makePersona = (id: string, name: string, over: Partial<Persona> = {}): Per
 	role: '市民',
 	background: '背景',
 	interests: '関心',
-	nationality: '日本',
+	country: '日本',
 	engagementLevel: 'moderate',
 	selected: true,
 	sortOrder: 0,

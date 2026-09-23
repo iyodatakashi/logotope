@@ -10,7 +10,8 @@
  *   - トピックをまたぐ再出現: 同じ姓が別トピックで何度も出ていないか
  *   - 同一トピック内の重複: 1回の生成の中で姓が衝突していないか
  *   - 禁止姓（プロンプトで明示的に避けさせている姓）が残っていないか
- *   - 地域性: 居住地（homePrefecture）が地域色の強い県の人物に、その地域の姓が付いているか
+ *   - 地域性: 都道府県（prefecture）が地域色の強い県の人物に、その地域の姓が付いているか
+ *   - 出自の別: 日本語の姓名と、それ以外の表記（中黒区切り）がどの割合で出ているか・国の内訳
  *   - 姓の後付け可否: 背景文が自分の姓に言及していないか（していなければコード側で姓を差し替えられる）
  *
  * 実行:
@@ -71,10 +72,16 @@ type NameRow = {
 	name: string;
 	surname: string;
 	givenName: string;
-	/** 居住都道府県。地域色の強い県でなければ null として扱う */
+	/** 都道府県。持たない人物もいる */
+	prefecture: string | null;
+	/** 姓の地域区分を持つ県のときだけ都道府県名。地域色の弱い県・未設定は null */
 	region: string | null;
 	/** 背景・関心事が自分の姓を含むか */
 	selfReferencesSurname: boolean;
+	/** 日本語の姓名か（中黒区切りの表記でないか）。所在ではなく表記で判定する */
+	isJapaneseName: boolean;
+	/** その人物の国。持たない人物もいる */
+	country: string | null;
 };
 
 const main = async (): Promise<void> => {
@@ -103,6 +110,7 @@ const main = async (): Promise<void> => {
 	printBanned(rows);
 	printRealWorldHeadCoverage(rows);
 	printRegionalFit(rows);
+	printOriginBreakdown(rows);
 	printSurnameSelfReference(rows);
 	printSeparatorViolations(rows);
 	printGivenNames(rows, topN);
@@ -128,8 +136,16 @@ const resolveNames = (personas: PersonaForFirestore[]): NameRow[] => {
 		const name = persona.name.trim();
 		const topicId = persona.topicId ?? '(topicId不明)';
 		const prose = `${persona.background ?? ''}\n${persona.interests ?? ''}`;
-		const region = REGIONAL_POOL[persona.homePrefecture] ? persona.homePrefecture : null;
-		const base = { topicId, name, region };
+		const prefecture = persona.prefecture ?? '';
+		const region = REGIONAL_POOL[prefecture] ? prefecture : null;
+		const base = {
+			topicId,
+			name,
+			prefecture: persona.prefecture ?? null,
+			region,
+			isJapaneseName: !name.includes('・'),
+			country: persona.country ?? null
+		};
 		const withSurname = (surname: string, givenName: string): NameRow => ({
 			...base,
 			surname,
@@ -221,7 +237,7 @@ const printRoster = (rows: NameRow[], personas: PersonaForFirestore[]): void => 
 	console.log('\n=== 名簿 ===');
 	rows.forEach((row, index) => {
 		const persona = personas[index];
-		const where = persona.homePrefecture || `(国外: ${persona.nationality})`;
+		const where = [persona.country, persona.prefecture].filter(Boolean).join(' / ') || '(所在なし)';
 		console.log(`  ${row.name}\t${where}\t${persona.role}`);
 	});
 };
@@ -253,6 +269,27 @@ const printRegionalFit = (rows: NameRow[]): void => {
 	for (const row of regional) {
 		const mark = REGIONAL_POOL[row.region!].has(row.surname) ? '○' : '×';
 		console.log(`  ${mark} ${row.region}\t${row.name}`);
+	}
+};
+
+/**
+ * 出自の別の分布。日本語の姓名に閉じていないかを見る。姓の語彙テーブルを持つのは日本語名だけで、
+ * それ以外の氏名は LLM が決めるため分布が狭まりうる（語彙化は本仕様の Non-Goals・測れる状態にする）。
+ * 所在ではなく表記で日本語名を判定する（国を持たない日本語名の人物がいるため）。
+ */
+const printOriginBreakdown = (rows: NameRow[]): void => {
+	const japanese = rows.filter((row) => row.isJapaneseName);
+	const others = rows.filter((row) => !row.isJapaneseName);
+	console.log(
+		`\n=== 氏名の出自: 日本語の姓名 ${japanese.length}体 / それ以外の表記 ${others.length}体（全 ${rows.length}体）===`
+	);
+	for (const [country, count] of tally(others.map((row) => row.country ?? '(国なし)'))) {
+		console.log(`  ${country}\t${count}`);
+	}
+	const withPrefecture = rows.filter((row) => row.prefecture);
+	console.log(`\n=== 都道府県別の人数（都道府県を持つ ${withPrefecture.length}体）===`);
+	for (const [prefecture, count] of tally(withPrefecture.map((row) => row.prefecture!))) {
+		console.log(`  ${prefecture}\t${count}`);
 	}
 };
 

@@ -6,7 +6,7 @@ const sample: AvatarVariation = {
 	genderPresentation: 'feminine',
 	occupation: '弁護士',
 	specificRole: '刑事事件専門の弁護士',
-	nationality: '日本',
+	country: '日本',
 	background: '都内在住。企業を早期退職して独立し、生活は安定している。',
 	interests: '登山',
 	hair: 'ショートボブ',
@@ -50,11 +50,20 @@ describe('buildAvatarPrompt', () => {
 		expect(prompt).toContain('ふさわしい');
 		expect(prompt).toContain('一律に'); // 一律スーツも一律カジュアルもしない
 		expect(prompt).toContain(sample.specificRole);
-		expect(prompt).toContain(sample.nationality);
+		expect(prompt).toContain('（日本）');
 		expect(prompt).toContain(sample.interests);
 		expect(prompt).toContain(sample.background);
 		// 背景を渡しても情景・小物は描かせない
 		expect(prompt).toContain('情景は描かない');
+	});
+
+	it('国を持たない人物では括弧書きを出さない（空文字で欠損を埋めない）', () => {
+		const { country: _country, ...withoutCountry } = sample;
+		const prompt = buildAvatarPrompt(withoutCountry);
+
+		expect(prompt).toContain(`立場: ${sample.specificRole}。`);
+		expect(prompt).not.toContain('（）');
+		expect(prompt).not.toContain('()');
 	});
 
 	it('髪型・体型・メガネは可変軸で指示する（向き・ポーズは指示しない）', () => {
@@ -96,7 +105,9 @@ describe('buildAvatarPrompt', () => {
 			'ulzzang style'
 		);
 		// null（「なし」）のときは審美観の行を足さない
-		expect(buildAvatarPrompt({ ...sample, aestheticKeyword: null })).not.toContain('英語キーワード');
+		expect(buildAvatarPrompt({ ...sample, aestheticKeyword: null })).not.toContain(
+			'英語キーワード'
+		);
 	});
 
 	it('プロンプト全体のスナップショット', () => {

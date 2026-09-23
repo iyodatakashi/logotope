@@ -60,7 +60,7 @@ const seedPersona = (extra: Record<string, unknown> = {}) =>
 		age: 42,
 		occupation: '医師',
 		role: '救急医',
-		nationality: '日本',
+		country: '日本',
 		background: '地方の総合病院に勤務。',
 		interests: 'ランニング',
 		stakeholderRole: '医療従事者',
@@ -105,11 +105,29 @@ describe('runAvatarCore — 成功', () => {
 			genderPresentation: 'feminine',
 			occupation: '医師',
 			specificRole: '救急医',
-			nationality: '日本',
+			country: '日本',
 			background: '地方の総合病院に勤務。',
 			interests: 'ランニング'
 		});
 		expect('gender' in mockGenerate.mock.calls[0][0]).toBe(false);
+	});
+
+	it('国を持たない人物では country を空文字で埋めずに渡さない', async () => {
+		holder.mock!.store.set(personaPath, {
+			age: 33,
+			occupation: '通訳',
+			role: '在留資格の更新を待つ通訳者',
+			background: '背景',
+			interests: '関心',
+			stakeholderRole: '移民労働者',
+			gender: 'female',
+			genderPresentation: 'feminine'
+		});
+		mockGenerate.mockResolvedValueOnce({ ok: true, asset: new Uint8Array([0]) });
+
+		await runAvatarCore(TOPIC_ID, PERSONA_ID);
+
+		expect(mockGenerate.mock.calls[0][0].country).toBeUndefined();
 	});
 });
 

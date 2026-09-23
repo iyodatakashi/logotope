@@ -50,7 +50,7 @@ const spec = (
 	genderPresentation,
 	occupation,
 	specificRole: occupation,
-	nationality: '日本',
+	country: '日本',
 	background: '',
 	interests: '',
 	...extra

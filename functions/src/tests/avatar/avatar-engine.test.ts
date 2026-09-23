@@ -31,7 +31,7 @@ const baseSpec: AvatarSpec = {
 	genderPresentation: 'masculine',
 	occupation: '弁護士',
 	specificRole: '弁護士',
-	nationality: '日本',
+	country: '日本',
 	background: '都内在住。企業法務を専門とする。',
 	interests: '読書'
 };

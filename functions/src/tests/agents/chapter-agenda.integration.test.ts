@@ -72,7 +72,7 @@ const mockPersona: Persona = {
 	role: '会社員',
 	background: '',
 	interests: '',
-	nationality: '日本',
+	country: '日本',
 	engagementLevel: 'moderate',
 	selected: true,
 	sortOrder: 0,
@@ -197,9 +197,8 @@ describe('Task 5.2: 開幕発言に論点1が反映される（論点あり章�
 
 describe('Task 5.2: 介入経路で未提示論点が渡され introduced へ更新される', () => {
 	it('progressAgenda が未提示論点を introduce 行動へ渡し、投入後 introduced になる', async () => {
-		const { assessActiveAgendaItem, generateInterventionUtterance } = await import(
-			'../../agents/facilitator-agent.js'
-		);
+		const { assessActiveAgendaItem, generateInterventionUtterance } =
+			await import('../../agents/facilitator-agent.js');
 		const assessSpy = vi
 			.mocked(assessActiveAgendaItem)
 			.mockResolvedValueOnce({ ok: true, value: { verdict: 'exhausted' } });

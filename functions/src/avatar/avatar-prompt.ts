@@ -17,7 +17,8 @@ export interface AvatarVariation extends Variation {
 	genderPresentation: Presentation;
 	occupation: string;
 	specificRole: string;
-	nationality: string;
+	/** その人物が属する国。テーマが国を決めていない人物は持たない（服装の手がかりとしてのみ使う）。 */
+	country?: string;
 	background: string;
 	interests: string;
 }
@@ -39,7 +40,7 @@ export const buildAvatarPrompt = (v: AvatarVariation): string => {
 		'- 髪・衣服・体の輪郭は黒基調でベタ塗りのシルエットにする（グレー・写実的な陰影にしない）。',
 		'- 白髪を描く場合は、髪を黒く塗ったうえに白い細い筋（毛流れ）を入れて表す。',
 		'- 服装は、この人物の立場・職業・暮らしぶり（年代・経済状況・生活実態・関心事）にふさわしいものにする。スーツや制服が自然な立場（弁護士・会社員・医師・教員・接客業など）はきちんとした服・スーツ・制服を着せ、そうでない立場（学生・退職者・主婦・農業や肉体労働・自由業など）は実態に合った普段着・作業着にする。全員を一律にスーツにも、一律にカジュアルにもしない。',
-		`  立場: ${v.specificRole || v.occupation}（${v.nationality}）。関心事: ${v.interests}。背景: ${v.background}`,
+		`  立場: ${v.specificRole || v.occupation}${v.country ? `（${v.country}）` : ''}。関心事: ${v.interests}。背景: ${v.background}`,
 		'  ※立場・関心事・背景は服装・年代・雰囲気の判断にだけ使い、小物・場面・情景は描かない（背景は白一色のまま／顔も描かない）。',
 		`- 変えるのは人物を別人にすることと、次だけ。髪型は次のとおり: ${v.hair} 体型は「${v.body}」にする。メガネ${v.glasses ? `（形状は${v.glassesShape}・${v.glassesRim}）をかける（レンズ内と目は描かない）` : 'はかけない'}。`
 	];

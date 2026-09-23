@@ -33,9 +33,26 @@ describe('createStakeholdersStore', () => {
 		const store = createStakeholdersStore('topic1');
 		store.start();
 		const stored = [
-			{ id: 'sid-a', role: '医師', reason: '専門家', mainInterests: [], minorityLevel: 'low' },
-			{ id: 'sid-b', role: '患者', reason: '当事者', mainInterests: [], minorityLevel: 'high' }
-		];
+			{
+				id: 'sid-a',
+				role: '救急外来の当直医',
+				stakeReason: '搬送を受け入れる側として判断を迫られている',
+				mainInterests: [],
+				country: '日本',
+				stakeLevel: 'high',
+				minorityLevel: 'low',
+				engagementLevel: 'high'
+			},
+			{
+				id: 'sid-b',
+				role: '搬送を断られた経験のある患者',
+				stakeReason: '受け入れ先が決まらず待たされた当事者',
+				mainInterests: [],
+				stakeLevel: 'high',
+				minorityLevel: 'high',
+				engagementLevel: 'low'
+			}
+		] satisfies StakeholderForFirestore[];
 		fire(stored);
 		// 表示専用ストア: 永続データをそのまま保持する（selected 解決や書き換えをしない）。
 		expect(store.stakeholders).toEqual(stored);

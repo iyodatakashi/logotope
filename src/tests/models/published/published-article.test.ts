@@ -325,19 +325,27 @@ describe('fetchPublishedArticle — personas を PersonaForDisplay へ写す（3
 	it('role を直参照し、未移行（specificRole/総称のみ）へフォールバックしない（移行フォールバック撤去・5.3）', async () => {
 		setup({
 			topic: publishedTopic,
-			personas: [{ id: 'p1', data: { name: 'Alice', specificRole: '医師', stakeholderRole: '医療' } }]
+			personas: [
+				{ id: 'p1', data: { name: 'Alice', specificRole: '医師', stakeholderRole: '医療' } }
+			]
 		});
 		const article = await fetchPublishedArticle('t1');
 		expect(article?.personas.get('p1')?.role).toBeUndefined();
 	});
 
-	it('管理専用フィールド（stakeholderRole・nationality 等）を公開表示型へ持ち込まない', async () => {
+	it('管理専用フィールド（stakeholderRole・所在 等）を公開表示型へ持ち込まない', async () => {
 		setup({
 			topic: publishedTopic,
 			personas: [
 				{
 					id: 'p1',
-					data: { name: 'Alice', role: '救急医', stakeholderRole: 'X', nationality: '日本' }
+					data: {
+						name: 'Alice',
+						role: '救急医',
+						stakeholderRole: 'X',
+						country: '日本',
+						prefecture: '東京都'
+					}
 				}
 			]
 		});

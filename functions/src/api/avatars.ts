@@ -39,14 +39,14 @@ export const runAvatarCore = async (topicId: string, personaId: string): Promise
 		await ref.update({ avatarGeneratedAt: FieldValue.delete() });
 
 		// gender（性自認）は渡さない。エンジンが使うのは外観（genderPresentation）のみ（Req 3.7）。
-		// 服装・雰囲気を実態に合わせるため、立場・国籍・背景・関心事も渡す（顔は描かないので装い等に効く）。
-		// 旧ペルソナで未設定のフィールドは空文字で埋める。
+		// 服装・雰囲気を実態に合わせるため、立場・国・背景・関心事も渡す（顔は描かないので装い等に効く）。
+		// 国は任意項目。持たない人物はそのまま渡さない（空文字で埋めて欠損を隠さない）。
 		const spec: AvatarSpec = {
 			age: persona.age,
 			genderPresentation: persona.genderPresentation,
 			occupation: persona.occupation ?? '',
 			specificRole: persona.role,
-			nationality: persona.nationality ?? '',
+			country: persona.country,
 			background: persona.background ?? '',
 			interests: persona.interests ?? ''
 		};

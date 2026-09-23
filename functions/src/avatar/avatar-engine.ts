@@ -23,7 +23,8 @@ export interface AvatarSpec {
 	occupation: string;
 	// 服装・雰囲気をペルソナの実態に合わせるための具体プロフィール（顔は描かないので装い等にだけ効く）。
 	specificRole: string;
-	nationality: string;
+	/** その人物が属する国。持たない人物もいる（prompt 層で括弧書きごと落ちる）。 */
+	country?: string;
 	background: string;
 	interests: string;
 }
@@ -53,7 +54,7 @@ export const generateAvatarAsset = async (spec: AvatarSpec): Promise<GenerateRes
 			genderPresentation: presentation,
 			occupation: spec.occupation,
 			specificRole: spec.specificRole,
-			nationality: spec.nationality,
+			country: spec.country,
 			background: spec.background,
 			interests: spec.interests
 		});

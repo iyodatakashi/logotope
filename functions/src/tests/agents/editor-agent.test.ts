@@ -25,7 +25,7 @@ const mockPersona: Persona = {
 	role: 'エンジニア',
 	background: '',
 	interests: '',
-	nationality: '日本',
+	country: '日本',
 	engagementLevel: 'moderate',
 	selected: true,
 	sortOrder: 0,

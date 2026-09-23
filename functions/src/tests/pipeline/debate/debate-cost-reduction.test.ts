@@ -71,7 +71,7 @@ const makePersona = (id: string, name: string, llmType: string): Persona =>
 		role: '市民',
 		background: '背景',
 		interests: '関心',
-		nationality: '日本',
+		country: '日本',
 		engagementLevel: 'moderate',
 		llmType,
 		selected: true,

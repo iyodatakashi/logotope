@@ -85,7 +85,7 @@ describe('persona.types - Firestore 型とアプリ型', () => {
 		expect(interview.status).toBe('completed');
 	});
 
-	it('PersonaForFirestore は role 必須・nationality を持ち、beliefs/awarenesses を ForFirestore 型で持つ', () => {
+	it('PersonaForFirestore は role 必須・所在を任意項目で持ち、beliefs/awarenesses を ForFirestore 型で持つ', () => {
 		const persona: PersonaForFirestore = {
 			id: 'p1',
 			topicId: 't1',
@@ -97,8 +97,8 @@ describe('persona.types - Firestore 型とアプリ型', () => {
 			occupation: '会社員',
 			background: '背景',
 			interests: '関心',
-			homePrefecture: '東京都',
-			nationality: '日本',
+			country: '日本',
+			prefecture: '東京都',
 			gender: 'male',
 			genderPresentation: 'masculine',
 			colorKey: 'blue',
@@ -124,12 +124,13 @@ describe('persona.types - Firestore 型とアプリ型', () => {
 			]
 		};
 		expect(persona.role).toBe('医師');
-		expect(persona.nationality).toBe('日本');
+		expect(persona.country).toBe('日本');
+		expect(persona.prefecture).toBe('東京都');
 		expect(persona.beliefs[0].createdAt).toBeInstanceOf(Timestamp);
 		expect(persona.awarenesses?.[0].createdAt).toBeInstanceOf(Timestamp);
 	});
 
-	it('Persona は role 必須・nationality を持ち、beliefs/awarenesses をアプリ型（createdAt: Date）で持つ', () => {
+	it('Persona は role 必須・所在を任意項目で持ち、beliefs/awarenesses をアプリ型（createdAt: Date）で持つ', () => {
 		const persona: Persona = {
 			id: 'p1',
 			topicId: 't1',
@@ -141,8 +142,8 @@ describe('persona.types - Firestore 型とアプリ型', () => {
 			occupation: '会社員',
 			background: '背景',
 			interests: '関心',
-			homePrefecture: '東京都',
-			nationality: '日本',
+			country: '日本',
+			prefecture: '東京都',
 			gender: 'male',
 			genderPresentation: 'masculine',
 			colorKey: 'blue',
@@ -168,7 +169,8 @@ describe('persona.types - Firestore 型とアプリ型', () => {
 			]
 		};
 		expect(persona.role).toBe('医師');
-		expect(persona.nationality).toBe('日本');
+		expect(persona.country).toBe('日本');
+		expect(persona.prefecture).toBe('東京都');
 		expect(persona.beliefs[0].createdAt).toBeInstanceOf(Date);
 		expect(persona.awarenesses?.[0].createdAt).toBeInstanceOf(Date);
 	});
@@ -186,8 +188,8 @@ describe('toPersonaForDisplay - 表示用の軽量写像', () => {
 		occupation: '会社員',
 		background: '背景',
 		interests: '関心',
-		homePrefecture: '東京都',
-		nationality: '日本',
+		country: '日本',
+		prefecture: '東京都',
 		engagementLevel: 'high',
 		gender: 'male',
 		genderPresentation: 'masculine',
@@ -210,7 +212,34 @@ describe('toPersonaForDisplay - 表示用の軽量写像', () => {
 		});
 	});
 
-	it('管理専用フィールド・nationality を含めない（描画に不要な最小形）。topicId はアバターパス用に保持する', () => {
+	it('所在は国・都道府県のいずれも持たない状態を許す（空文字で不在を表さない）', () => {
+		const persona: PersonaForFirestore = {
+			id: 'p2',
+			topicId: 't1',
+			stakeholderRole: '移民労働者',
+			stakeholderId: 'sid-2',
+			role: '在留資格の更新を待つ通訳者',
+			name: 'マリア・シルバ',
+			age: 33,
+			occupation: '通訳',
+			background: '背景',
+			interests: '関心',
+			engagementLevel: 'medium',
+			gender: 'female',
+			genderPresentation: 'feminine',
+			colorKey: 'green',
+			selected: true,
+			sortOrder: 1,
+			beliefs: []
+		};
+
+		expect(persona.country).toBeUndefined();
+		expect(persona.prefecture).toBeUndefined();
+		expect('homePrefecture' in persona).toBe(false);
+		expect('nationality' in persona).toBe(false);
+	});
+
+	it('管理専用フィールド・所在（country/prefecture）を含めない（描画に不要な最小形）。topicId はアバターパス用に保持する', () => {
 		const display = toPersonaForDisplay(fullPersona());
 		expect(Object.keys(display).sort()).toEqual([
 			'avatarGeneratedAt',
@@ -220,7 +249,8 @@ describe('toPersonaForDisplay - 表示用の軽量写像', () => {
 			'role',
 			'topicId'
 		]);
-		expect('nationality' in display).toBe(false);
+		expect('country' in display).toBe(false);
+		expect('prefecture' in display).toBe(false);
 		expect('background' in display).toBe(false);
 		expect('stakeholderRole' in display).toBe(false);
 		// topicId はアバター画像パス構築に必要なため含める

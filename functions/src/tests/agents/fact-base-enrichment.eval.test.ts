@@ -79,7 +79,7 @@ const makePersona = (over: Partial<Persona>): Persona => ({
 	role: '一般市民',
 	background: '',
 	interests: '',
-	nationality: '日本',
+	country: '日本',
 	engagementLevel: 'moderate',
 	selected: true,
 	sortOrder: 0,

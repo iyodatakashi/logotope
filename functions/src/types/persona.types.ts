@@ -1,5 +1,5 @@
 import type { Timestamp } from 'firebase-admin/firestore';
-import type { EngagementLevel } from './stakeholder.types.js';
+import type { EngagementLevel, Prefecture } from './stakeholder.types.js';
 
 // 性のあり方は「性自認（その人が誰か）」と「外見表現（どう見えるか）」の2軸で持ち、1つに畳まない。
 // 畳むと、性自認と外見が一致しない人を実際とは異なる姿で描いてしまう。
@@ -76,9 +76,11 @@ export type PersonaForFirestore = {
 	role: string;
 	background: string;
 	interests: string;
-	// 暮らす都道府県（正式表記）。姓の地域性はここから決まる。日本国外に暮らす人物は空文字。
-	homePrefecture: string;
-	nationality: string;
+	// 所在。テーマが決めている範囲だけ値を持ち、決まっていない項目は持たない（空文字で不在を表さない）。
+	// 市区町村・州や、国籍と居住国が異なる来歴は background の自然文が受け持つ。
+	country?: string;
+	// 暮らす都道府県。姓の地域性はここから決まる。
+	prefecture?: Prefecture;
 	engagementLevel: EngagementLevel;
 	gender: PersonaGender;
 	genderPresentation: PersonaGenderPresentation;

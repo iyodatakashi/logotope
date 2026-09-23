@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
-import type { EngagementLevel } from '$lib/models/stakeholder/stakeholder.types';
+import type { EngagementLevel, Prefecture } from '$lib/models/stakeholder/stakeholder.types';
 
 // 不変の信念のみ（interview が version 0 を書き、討論は上書きしない）
 export type BeliefForFirestore = {
@@ -76,9 +76,11 @@ export type PersonaForFirestore = {
 	occupation: string;
 	background: string;
 	interests: string;
-	// 暮らす都道府県（正式表記）。姓の地域性はここから決まる。日本国外に暮らす人物は空文字。
-	homePrefecture: string;
-	nationality: string;
+	// 所在。テーマが決めている範囲だけ値を持ち、決まっていない項目は持たない（空文字で不在を表さない）。
+	// 市区町村・州や、国籍と居住国が異なる来歴は background の自然文が受け持つ。
+	country?: string;
+	// 暮らす都道府県。姓の地域性はここから決まる。
+	prefecture?: Prefecture;
 	engagementLevel?: EngagementLevel;
 	gender: PersonaGender;
 	genderPresentation: PersonaGenderPresentation;
@@ -105,7 +107,7 @@ export type Persona = Omit<
 };
 
 // Admin・公開が共通で使う軽量な表示用ペルソナ型。発言アイテム（PersonaPostItem）などの描画に必要な
-// 最小フィールドのみを持つ。管理専用フィールド・nationality は含めない（描画に不要・payload 純度を保つ）。
+// 最小フィールドのみを持つ。管理専用フィールド・所在（country/prefecture）は含めない（描画に不要・payload 純度を保つ）。
 // topicId/id/avatarGeneratedAt はアバター画像パス（topics/{topicId}/avatars/{id}）の構築に PersonaAvatar が使う。
 export type PersonaForDisplay = {
 	id: string;

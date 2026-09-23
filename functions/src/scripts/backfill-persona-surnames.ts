@@ -1,4 +1,9 @@
 /**
+ * 【実行済みの記録。現行スキーマでは動作しない】
+ * homePrefecture を持っていた時代の移行スクリプト。所在は country? / prefecture? の任意2項目へ
+ * 改名済みで（topic-intent-fidelity）、この処理の対象データはもう存在しない。討論本文まで含めて
+ * 姓を差し替える手順を残すために保存しており、再実行はしない。
+ *
  * Migration: 既存ペルソナの姓を、居住地に応じた新しい割り当てに揃える。
  *
  * 姓の決定を LLM から取り上げる前に生成されたペルソナは、モデルの偏った語彙から姓が付いている
@@ -166,7 +171,7 @@ const planRenames = (
 ): Rename[] => {
 	// 日本人ペルソナだけが対象。外国人ペルソナ（中黒表記）は姓を割り当てない
 	const targets = personas.map((persona) =>
-		!persona.name.includes('・') && persona.name.includes(' ') ? persona.homePrefecture : null
+		!persona.name.includes('・') && persona.name.includes(' ') ? (persona.prefecture ?? null) : null
 	);
 	const surnames = assignSurnames(targets, seededRandom(topicId));
 

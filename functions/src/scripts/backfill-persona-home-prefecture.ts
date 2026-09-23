@@ -1,5 +1,11 @@
 /**
- * Migration: 既存ペルソナへ居住都道府県（homePrefecture）を付与する。
+ * 【実行済みの記録。現行スキーマでは動作しない】
+ * homePrefecture / nationality を持っていた時代の移行スクリプト。所在は country? / prefecture? の
+ * 任意2項目へ改名済みで（topic-intent-fidelity）、この処理の対象データはもう存在しない。
+ * 当時どの根拠で土地を確定したか（背景文の地名・手動確定）を残すために保存しており、再実行はしない。
+ * 現行スキーマへの改名そのものは backfill-persona-location.ts が行う。
+ *
+ * Migration: 既存ペルソナへ居住都道府県を付与する。
  *
  * homePrefecture は姓の地域性を決める入力として新設したフィールド。既存ペルソナは姓を持つが
  * 居住地を構造として持たないため、背景文に既に書かれている土地を明示化して揃える。
@@ -178,7 +184,7 @@ const main = async (): Promise<void> => {
 	const batch = db.batch();
 	for (const row of resolved) {
 		batch.update(db.doc(`topics/${row.topicId}/personas/${row.personaId}`), {
-			homePrefecture: row.prefecture
+			prefecture: row.prefecture
 		});
 	}
 	await batch.commit();
@@ -194,8 +200,8 @@ const decide = (
 	if (manual !== undefined) return { prefecture: manual, reason: '手動確定' };
 
 	// 日本国外に暮らす人物。居住地が都道府県でないことを空文字で表す
-	if (persona.nationality && !persona.nationality.includes('日本')) {
-		return { prefecture: '', reason: `国籍 ${persona.nationality}` };
+	if (persona.country && !persona.country.includes('日本')) {
+		return { prefecture: '', reason: `国 ${persona.country}` };
 	}
 
 	const prose = `${persona.background ?? ''}\n${persona.interests ?? ''}\n${persona.occupation ?? ''}`;

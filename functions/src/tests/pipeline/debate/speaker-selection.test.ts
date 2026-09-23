@@ -45,7 +45,7 @@ const makePersonas = (ids: string[]): Persona[] =>
 		role: '市民',
 		background: '',
 		interests: '',
-		nationality: '日本',
+		country: '日本',
 		engagementLevel: 'moderate' as const,
 		selected: true,
 		sortOrder: 0

@@ -43,7 +43,7 @@ const mockPersona: Persona = {
 	role: '会社員',
 	background: '',
 	interests: '',
-	nationality: '日本',
+	country: '日本',
 	engagementLevel: 'moderate',
 	selected: true,
 	sortOrder: 0,
@@ -96,7 +96,11 @@ describe('assessActiveAgendaItem - 出尽くし判定（判定のみ・行動な
 
 		for (const verdict of ['exhausted', 'drifted', 'ongoing'] as const) {
 			generateObject.mockResolvedValueOnce(makeObjectResult({ verdict }));
-			const result = await assessActiveAgendaItem('アクティブ論点', [makeTurn('発言')], [mockPersona]);
+			const result = await assessActiveAgendaItem(
+				'アクティブ論点',
+				[makeTurn('発言')],
+				[mockPersona]
+			);
 			expect(result.ok).toBe(true);
 			if (result.ok) {
 				expect(result.value).toEqual({ verdict });
@@ -108,7 +112,11 @@ describe('assessActiveAgendaItem - 出尽くし判定（判定のみ・行動な
 		generateObject.mockResolvedValueOnce(makeObjectResult({ verdict: 'exhausted' }));
 
 		const { assessActiveAgendaItem } = await import('../../agents/facilitator-agent.js');
-		const result = await assessActiveAgendaItem('アクティブ論点', [makeTurn('発言')], [mockPersona]);
+		const result = await assessActiveAgendaItem(
+			'アクティブ論点',
+			[makeTurn('発言')],
+			[mockPersona]
+		);
 
 		expect(result.ok).toBe(true);
 		if (result.ok) {
@@ -148,7 +156,11 @@ describe('assessActiveAgendaItem - 出尽くし判定（判定のみ・行動な
 		generateObject.mockRejectedValueOnce(new Error('API error'));
 
 		const { assessActiveAgendaItem } = await import('../../agents/facilitator-agent.js');
-		const result = await assessActiveAgendaItem('アクティブ論点', [makeTurn('発言')], [mockPersona]);
+		const result = await assessActiveAgendaItem(
+			'アクティブ論点',
+			[makeTurn('発言')],
+			[mockPersona]
+		);
 
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
@@ -171,7 +183,11 @@ describe('generateInterventionUtterance - 行動（発言生成）の独立', ()
 		const capturedArgs: unknown[] = [];
 		generateObject.mockImplementationOnce(async (args: unknown) => {
 			capturedArgs.push(args);
-			return makeObjectResult({ targetPersonaId: 'p1', content: '発言', selectedAgendaItemIndex: 0 });
+			return makeObjectResult({
+				targetPersonaId: 'p1',
+				content: '発言',
+				selectedAgendaItemIndex: 0
+			});
 		});
 		await fn();
 		const callArgs = capturedArgs[0] as { messages: Array<{ content: string }> };

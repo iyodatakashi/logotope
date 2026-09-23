@@ -69,8 +69,11 @@ export const SURNAME_REGION_OF_PREFECTURE: Record<string, SurnameRegion> = {
 	高知県: '中国四国'
 };
 
-/** 都道府県の正式表記。居住地の妥当性判定と、日本人ペルソナかどうかの判定に使う */
-export const PREFECTURES: readonly string[] = [
+/**
+ * 都道府県の正式表記。47件の有限集合として型に出す（Prefecture）。生成スキーマが enum として
+ * 直接受け取るため、表記ゆれを吸収する正規化を生成経路に置く必要がない。
+ */
+export const PREFECTURES = [
 	'北海道',
 	'青森県',
 	'岩手県',
@@ -118,17 +121,4 @@ export const PREFECTURES: readonly string[] = [
 	'宮崎県',
 	'鹿児島県',
 	'沖縄県'
-];
-
-/**
- * LLM が返した居住地を都道府県の正式表記へ揃える。「沖縄」「大阪」のように接尾辞を落とした表記が
- * 返ることがあり、そのまま弾くと日本人ペルソナが外国人扱いになって姓が付かない。
- * 都道府県として解釈できなければ null。
- */
-export const normalizePrefecture = (value: string): string | null => {
-	const trimmed = value.trim();
-	if (!trimmed) return null;
-	if (PREFECTURES.includes(trimmed)) return trimmed;
-	const bare = trimmed.replace(/[都道府県]$/, '');
-	return PREFECTURES.find((prefecture) => prefecture.replace(/[都道府県]$/, '') === bare) ?? null;
-};
+] as const;

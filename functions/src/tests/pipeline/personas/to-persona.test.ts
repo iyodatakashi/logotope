@@ -15,7 +15,7 @@ const doc = (over: Record<string, unknown>): PersonaForFirestore =>
 		stakeholderId: 's1',
 		background: '',
 		interests: '',
-		nationality: '日本',
+		country: '日本',
 		engagementLevel: 'high',
 		gender: 'male',
 		genderPresentation: 'masculine',
@@ -37,7 +37,10 @@ describe('toPersona — role 直参照（移行フォールバック撤去後の
 	});
 
 	it('interview オブジェクトは interviewRecord へ平坦化する', () => {
-		const persona = toPersona('p1', doc({ role: 'x', interview: { status: 'completed', interviewRecord: '記録' } }));
+		const persona = toPersona(
+			'p1',
+			doc({ role: 'x', interview: { status: 'completed', interviewRecord: '記録' } })
+		);
 		expect(persona.interviewRecord).toBe('記録');
 	});
 });

@@ -3,9 +3,8 @@ import { nanoid } from 'nanoid';
 import { generateStakeholders as runStakeholderGeneration } from '../../agents/stakeholder-agent.js';
 import {
 	generatePersonas as runPersonaGeneration,
-	sourceTagForIndex
+	resolveSourceStakeholder
 } from '../../agents/persona-generator-agent.js';
-import type { GeneratedPersona } from '../../agents/persona-generator-agent.js';
 import { getTopicContext } from '../topics/topic-context.js';
 import { runInterviewCore } from '../../api/interviews.js';
 import { runAvatarCore } from '../../api/avatars.js';
@@ -35,21 +34,6 @@ const isPersonaRunActive = async (topicId: string, runId: string): Promise<boole
 const readTopicTitle = async (topicId: string): Promise<string> => {
 	const snap = await db().doc(`topics/${topicId}`).get();
 	return (snap.data() as { title?: string })?.title ?? '';
-};
-
-// 生成結果のエコー用タグから由来ステークホルダーの id を解決する（出力順非依存）。
-// タグ欠落/不正時は、出力位置（k 番目）と役割名照合でフォールバックする。
-const resolveStakeholderId = (
-	persona: GeneratedPersona,
-	outputIndex: number,
-	stakeholders: Stakeholder[]
-): string => {
-	const byTag = stakeholders.find((_, i) => sourceTagForIndex(i) === persona.sourceTag);
-	if (byTag) return byTag.id;
-	const byPosition = stakeholders[outputIndex];
-	if (byPosition) return byPosition.id;
-	const byRole = stakeholders.find((stakeholder) => stakeholder.role === persona.stakeholderRole);
-	return (byRole ?? stakeholders[0]).id;
 };
 
 /**
@@ -102,7 +86,7 @@ const runPersonasStage = async (topicId: string): Promise<string[]> => {
 		const { id, sourceTag: _sourceTag, ...rest } = persona;
 		batch.set(db().doc(`topics/${topicId}/personas/${id}`), {
 			...rest,
-			stakeholderId: resolveStakeholderId(persona, index, stakeholders),
+			stakeholderId: resolveSourceStakeholder(persona, index, stakeholders).id,
 			sortOrder: index,
 			colorKey: colorKeys[index],
 			selected: true,
