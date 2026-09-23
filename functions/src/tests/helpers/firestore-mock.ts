@@ -30,7 +30,30 @@ export const createFirestoreMock = () => {
 		else node[leaf] = value;
 	};
 
+	/**
+	 * 本番 Firestore は undefined を値として受け付けず、1フィールドでも混じると書き込みが
+	 * 丸ごと弾かれる。モックが黙って受け入れると「任意項目の未設定を undefined で置いてしまう」
+	 * 実装ミスがテストを素通りするため、同じ制約をここで課す。
+	 * 「未設定」はキーを置かないことで表す（FieldValue.delete は削除の指示なので対象外）。
+	 */
+	const rejectUndefined = (path: string, data: DocData) => {
+		const walk = (value: unknown, field: string): void => {
+			if (value === undefined) {
+				throw new Error(
+					`Cannot use "undefined" as a Firestore value (found in field "${field}") at ${path}`
+				);
+			}
+			if (Array.isArray(value)) {
+				value.forEach((item, i) => walk(item, `${field}[${i}]`));
+			} else if (value && typeof value === 'object' && (value as object).constructor === Object) {
+				for (const [k, v] of Object.entries(value as DocData)) walk(v, `${field}.${k}`);
+			}
+		};
+		for (const [key, value] of Object.entries(data)) walk(value, key);
+	};
+
 	const applyUpdate = (path: string, patch: DocData) => {
+		rejectUndefined(path, patch);
 		const cur: DocData = { ...(store.get(path) ?? {}) };
 		for (const [k, v] of Object.entries(patch)) {
 			if (k.includes('.')) setNested(cur, k, v);
@@ -46,7 +69,10 @@ export const createFirestoreMock = () => {
 
 	const applySet = (path: string, val: DocData, merge?: boolean) => {
 		if (merge) applyUpdate(path, val);
-		else store.set(path, { ...val });
+		else {
+			rejectUndefined(path, val);
+			store.set(path, { ...val });
+		}
 	};
 
 	const makeDocRef = (path: string) => ({
