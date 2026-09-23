@@ -16,16 +16,12 @@ vi.mock('../../constants/ai.constants.js', () => ({
 	}
 }));
 
-vi.mock('../../utils/prompt-formatters.js', () => ({
+// 共通前提の整形は共有の実体をそのまま使う。方向性が最優先として提示されることは
+// この工程のプロンプト期待値で検査する対象なので、差し替えると検査が空回りする（6.5 の退行検知）。
+vi.mock('../../utils/prompt-formatters.js', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../../utils/prompt-formatters.js')>()),
 	formatPersonas: vi.fn(() => '- p1: テスト'),
-	currentDateString: vi.fn(() => '2026-06-19'),
-	// 事実節整形の実体は prompt-formatters.test.ts で検証する。ここでは chapter-agent が
-	// これを呼び出して結果をプロンプトに含める配線だけを検証するため、最小の整形を返す。
-	formatFactBaseSection: vi.fn((factBase?: { facts: { statement: string }[] }) =>
-		factBase?.facts?.length
-			? `\n\n【確定した客観的事実（共通前提）】\n${factBase.facts.map((f) => f.statement).join('\n')}`
-			: ''
-	)
+	currentDateString: vi.fn(() => '2026-06-19')
 }));
 
 vi.mock('../../agents/facilitator-agent.js', () => ({
@@ -48,7 +44,7 @@ const mockPersona: Persona = {
 	role: '会社員',
 	background: '',
 	interests: '',
-	nationality: '日本',
+	country: '日本',
 	engagementLevel: 'moderate',
 	selected: true,
 	sortOrder: 0,
@@ -201,6 +197,9 @@ describe('generateChapters - topicContext対応', () => {
 			(m: unknown) => (m as { role: string }).role === 'user'
 		) as { content: string };
 		expect(msg.content).toContain('テーマの詳細説明テキスト');
+		// 6.5 の退行検知。共有整形へ置き換えても方向性は最優先として提示され続ける
+		expect(msg.content).toContain('【テーマの方向性（最優先）】');
+		expect(msg.content).toContain('方向性から外れた切り口は避けて');
 	});
 
 	it('topicContext.descriptionをpersonaIssuesプロンプトに含める', async () => {

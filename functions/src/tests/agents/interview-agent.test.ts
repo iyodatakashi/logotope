@@ -45,7 +45,7 @@ const mockPersona: Persona = {
 	role: '会社員',
 	background: '東京在住',
 	interests: 'テクノロジー',
-	nationality: '日本',
+	country: '日本',
 	engagementLevel: 'moderate',
 	selected: true,
 	sortOrder: 0,
@@ -295,14 +295,21 @@ describe('runInterview', () => {
 			expect(prompt).toContain('記事Bの内容');
 		});
 
-		it('sourceContentsを3000文字で切り詰める', async () => {
+		it('sourceContents を切り詰めない（上限は取り込み時に決まっている）', async () => {
 			setupSuccessfulMocks();
 			const context: TopicContext = { sourceContents: ['x'.repeat(5000)] };
 			await runInterview('AIと社会', mockPersona, context);
 			const args = mockGenerateObject.mock.calls[0][0] as { messages: Array<{ content: string }> };
 			const prompt = args.messages[0].content;
-			expect(prompt).toContain('x'.repeat(3000));
-			expect(prompt).not.toContain('x'.repeat(3001));
+			expect(prompt).toContain('x'.repeat(5000));
+		});
+
+		it('共通前提を共有整形で載せ、方向性を最優先として提示する', async () => {
+			setupSuccessfulMocks();
+			const context: TopicContext = { description: 'AIが雇用を代替する問題' };
+			await runInterview('AIと社会', mockPersona, context);
+			const args = mockGenerateObject.mock.calls[0][0] as { messages: Array<{ content: string }> };
+			expect(args.messages[0].content).toContain('【テーマの方向性（最優先）】');
 		});
 
 		it('共有事実基盤を Phase1（ドラフト）に共通前提として注入する', async () => {

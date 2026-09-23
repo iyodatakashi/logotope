@@ -1,6 +1,6 @@
 import { generateText } from 'ai';
 import { sonnet } from '../llm/models.js';
-import { formatFactBaseSection } from '../utils/prompt-formatters.js';
+import { formatTopicContextSection } from '../utils/prompt-formatters.js';
 import { NARRATIVE_STYLE } from '../constants/writing-style.constants.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 import type { TopicContext } from '../types/topic.types.js';
@@ -11,8 +11,6 @@ import { llmTask } from '../llm/usage-recorder.js';
 // イントロ（読む前の読者を惹きつけるフック）とアウトロ（読了後の読者への短い結び）を独立生成する。
 // ネタバレ防止のため、章要約・各人の立場・信念変化は渡さない（先回りの要約・なぞり返しを構造的に防ぐ）。
 // 由来ターンID・構造検証は持たない。討論は読み取りのみ。書き込み・保存はステップ層の責務。
-
-const MAX_SOURCE_CHARS = 3_000;
 
 export interface IntroOutroInput {
 	digest: DebateDigest; // 圧縮済みの討論（全文は渡さない）
@@ -93,21 +91,6 @@ const formatDigestFull = (digest: DebateDigest): string => {
 		})
 		.join('\n');
 	return `【テーマ】${digest.topicTitle}\n\n【章ごとの要約】\n${chapters}\n\n【参加者と立場】\n${personas}`;
-};
-
-const formatTopicContextSection = (topicContext: TopicContext): string => {
-	const parts: string[] = [];
-	if (topicContext.description) {
-		parts.push(`\n【テーマの詳細説明】\n${topicContext.description}`);
-	}
-	if (topicContext.sourceContents?.length) {
-		const sources = topicContext.sourceContents
-			.map((content, i) => `--- 参考資料 ${i + 1} ---\n${content.slice(0, MAX_SOURCE_CHARS)}`)
-			.join('\n\n');
-		parts.push(`\n【参考資料】\n${sources}`);
-	}
-	parts.push(formatFactBaseSection(topicContext.factBase));
-	return parts.join('\n');
 };
 
 const generate = llmTask(

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
 	formatTurns,
 	formatFactBaseSection,
+	formatTopicContextSection,
 	formatAwarenessSection,
 	formatJapaneseDate,
 	currentDateString
@@ -20,7 +21,7 @@ const makePersona = (id: string, name: string, role: string, stakeholderRole = '
 	role,
 	background: '背景',
 	interests: '関心',
-	nationality: '日本',
+	country: '日本',
 	engagementLevel: 'moderate',
 	selected: true,
 	sortOrder: 0
@@ -112,6 +113,75 @@ describe('formatFactBaseSection', () => {
 		const section = formatFactBaseSection(factBase([{ statement: '事実のみ', sources: [] }]));
 		expect(section).toContain('事実のみ');
 		expect(section).not.toContain('出典:');
+	});
+});
+
+describe('formatTopicContextSection（共通前提の唯一の整形）', () => {
+	const longSource = 'あ'.repeat(5_000);
+
+	it('topicContext 未指定なら空文字を返す', () => {
+		expect(formatTopicContextSection(undefined)).toBe('');
+	});
+
+	it('詳細説明・参考資料・事実基盤のいずれも無ければ空文字へ縮退する', () => {
+		expect(formatTopicContextSection({})).toBe('');
+		expect(formatTopicContextSection({ sourceContents: [] })).toBe('');
+	});
+
+	it('詳細説明を最優先の方向性として提示する', () => {
+		const section = formatTopicContextSection({ description: '開発当事者の危機認識を聞きたい' });
+
+		expect(section).toContain('【テーマの方向性（最優先）】');
+		expect(section).toContain('開発当事者の危機認識を聞きたい');
+		expect(section).toContain('方向性から外れた切り口は避けて');
+	});
+
+	it('本文に工程固有の語を含めない（どの工程に載せても文脈が合う一般形）', () => {
+		const section = formatTopicContextSection({ description: '方向性' });
+
+		expect(section).not.toContain('論点');
+		expect(section).not.toContain('章立て');
+		expect(section).not.toContain('取材');
+		expect(section).not.toContain('立場');
+	});
+
+	it('参考資料を切り詰めずそのまま載せる（上限は取り込み時に決まっている）', () => {
+		const section = formatTopicContextSection({ sourceContents: [longSource] });
+
+		expect(section).toContain('【参考資料】');
+		expect(section).toContain('--- 参考資料 1 ---');
+		expect(section).toContain(longSource);
+	});
+
+	it('参考資料が未設定なら参考資料の節を出さない', () => {
+		expect(formatTopicContextSection({ description: '方向性' })).not.toContain('【参考資料】');
+	});
+
+	it('事実基盤を確定した客観的事実の節として併せて載せる', () => {
+		const section = formatTopicContextSection({
+			factBase: {
+				facts: [{ statement: '日本は1回戦で敗退した', sources: [] }],
+				generatedAt: new Date('2026-07-03T00:00:00Z')
+			}
+		});
+
+		expect(section).toContain('【確定した客観的事実（共通前提）】');
+		expect(section).toContain('日本は1回戦で敗退した');
+	});
+
+	it('同一の入力に対して常に同一の文字列を返す（呼び出し元で内容が変わらない）', () => {
+		const topicContext = {
+			description: '方向性',
+			sourceContents: ['資料1', '資料2'],
+			factBase: { facts: [{ statement: '事実', sources: [] }], generatedAt: new Date(0) }
+		};
+
+		expect(formatTopicContextSection(topicContext)).toBe(formatTopicContextSection(topicContext));
+	});
+
+	it('返り値は空文字か、節の区切り（空行）で始まる', () => {
+		expect(formatTopicContextSection({ description: '方向性' }).startsWith('\n\n')).toBe(true);
+		expect(formatTopicContextSection({ sourceContents: ['資料'] }).startsWith('\n\n')).toBe(true);
 	});
 });
 

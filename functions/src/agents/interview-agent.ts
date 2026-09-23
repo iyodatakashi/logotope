@@ -3,13 +3,11 @@ import { z } from 'zod';
 import { getPipelineModel, getGoogleProvider, withUsageRecording } from '../llm/models.js';
 import { PIPELINE_MODELS } from '../constants/ai.constants.js';
 import { extractSources, resolveSourceUrls, type GroundingMetadata } from '../search/grounding.js';
-import { formatFactBaseSection } from '../utils/prompt-formatters.js';
+import { formatFactBaseSection, formatTopicContextSection } from '../utils/prompt-formatters.js';
 import type { Persona, DraftBelief, SearchSource } from '../types/persona.types.js';
 import type { TopicContext } from '../types/topic.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 import { llmTask } from '../llm/usage-recorder.js';
-
-const MAX_SOURCE_CHARS = 3_000;
 
 export type InterviewOutput = {
 	draftBelief: DraftBelief;
@@ -78,7 +76,7 @@ const generateDraftBelief = async (
 	persona: Persona,
 	topicContext?: TopicContext
 ): Promise<Result<DraftBelief, PipelineError>> => {
-	const contextSection = buildTopicContextSection(topicContext);
+	const contextSection = formatTopicContextSection(topicContext);
 	try {
 		const result = await generateObject({
 			model: getPipelineModel('personaInterview'),
@@ -310,23 +308,4 @@ ${verificationReport}
 			}
 		};
 	}
-};
-
-const buildTopicContextSection = (topicContext?: TopicContext): string => {
-	if (!topicContext) return '';
-	const parts: string[] = [];
-	if (topicContext.description) {
-		parts.push(`\n【テーマの詳細説明】\n${topicContext.description}`);
-	}
-	if (topicContext.sourceContents?.length) {
-		const sources = topicContext.sourceContents
-			.map(
-				(sourceContent, i) =>
-					`--- 参考資料 ${i + 1} ---\n${sourceContent.slice(0, MAX_SOURCE_CHARS)}`
-			)
-			.join('\n\n');
-		parts.push(`\n【参考資料】\n${sources}`);
-	}
-	parts.push(formatFactBaseSection(topicContext.factBase));
-	return parts.join('\n');
 };

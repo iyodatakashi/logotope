@@ -2,31 +2,13 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { sonnet } from '../llm/models.js';
-import { formatPersonas, formatFactBaseSection } from '../utils/prompt-formatters.js';
+import { formatPersonas, formatTopicContextSection } from '../utils/prompt-formatters.js';
 import { buildNeutralitySystemPrompt } from './facilitator-agent.js';
 import type { Chapter, Issue, IssueGroup } from '../types/chapter.types.js';
 import type { Persona } from '../types/persona.types.js';
 import type { Result, PipelineError } from '../types/common.types.js';
 import type { TopicContext } from '../types/topic.types.js';
 import { llmTask } from '../llm/usage-recorder.js';
-
-const buildTopicContextSection = (topicContext?: TopicContext): string => {
-	if (!topicContext) return '';
-	const parts: string[] = [];
-	if (topicContext.description) {
-		parts.push(
-			`\n\n【テーマの方向性（最優先）】\n以下はこのテーマで設定者が意図した方向性・重視する観点です。論点・章立ては必ずこの方向性に沿って生成し、方向性から外れた切り口は避けてください。\n${topicContext.description}`
-		);
-	}
-	if (topicContext.sourceContents?.length) {
-		const sources = topicContext.sourceContents
-			.map((sourceContent, i) => `--- 参考資料 ${i + 1} ---\n${sourceContent}`)
-			.join('\n\n');
-		parts.push(`\n\n【参考資料】\n${sources}`);
-	}
-	parts.push(formatFactBaseSection(topicContext.factBase));
-	return parts.join('');
-};
 
 const SCORE_THRESHOLD = 7;
 
@@ -104,7 +86,7 @@ const buildScoringPrompt = (
 	issues: Issue[],
 	topicContext?: TopicContext
 ): string => {
-	const contextSection = buildTopicContextSection(topicContext);
+	const contextSection = formatTopicContextSection(topicContext);
 	const issueList = issues.map((issue, i) => `${i}. [${issue.source}] ${issue.text}`).join('\n');
 	return `テーマ「${topicTitle}」について、以下の論点をすべて相対評価し、各論点に0〜10のスコアと採点理由を付与してください。
 
@@ -161,7 +143,7 @@ const buildDedupePrompt = (
 	issues: Issue[],
 	topicContext?: TopicContext
 ): string => {
-	const contextSection = buildTopicContextSection(topicContext);
+	const contextSection = formatTopicContextSection(topicContext);
 	const issueList = issues.map((issue, i) => `${i}. [${issue.source}] ${issue.text}`).join('\n');
 	return `テーマ「${topicTitle}」について挙がった以下の論点には、表現は違っても実質的に同じことを問うている重複が含まれます。重複している論点を洗い出してグループにまとめてください。
 
@@ -257,7 +239,7 @@ const buildGroupingPrompt = (
 	selectedIssues: Issue[],
 	topicContext?: TopicContext
 ): string => {
-	const contextSection = buildTopicContextSection(topicContext);
+	const contextSection = formatTopicContextSection(topicContext);
 	const issueList = selectedIssues
 		.map((issue, i) => `${i}. [${issue.source}] ${issue.text}`)
 		.join('\n');
@@ -317,7 +299,7 @@ const buildBuildingPrompt = (
 	issues: Issue[],
 	topicContext?: TopicContext
 ): string => {
-	const contextSection = buildTopicContextSection(topicContext);
+	const contextSection = formatTopicContextSection(topicContext);
 	const groupList = issueGroups
 		.map((group, i) => {
 			const issueTexts = group.issueIndexes
@@ -374,7 +356,7 @@ export const generateChapters = llmTask(
 		onProgress?: (progress: ChapterProgress) => void | Promise<void>
 	): Promise<Result<Chapter[], PipelineError>> => {
 		try {
-			const contextSection = buildTopicContextSection(topicContext);
+			const contextSection = formatTopicContextSection(topicContext);
 			const [generalIssuesResult, personaIssuesResult] = await Promise.all([
 				generateObject({
 					model: sonnet,
