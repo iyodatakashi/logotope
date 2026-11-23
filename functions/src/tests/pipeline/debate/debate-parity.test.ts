@@ -196,9 +196,7 @@ describe('行動等価性: 旧 while ループ vs 新 per-turn チェーン', ()
 	});
 
 	it('論点あり単一章（未消化継続保護）: ターン列ゴールデン', async () => {
-		const chapters: SeedChapter[] = [
-			{ id: 'ch1', chapterIndex: 0, agenda: ['論点A', '論点B'] }
-		];
+		const chapters: SeedChapter[] = [{ id: 'ch1', chapterIndex: 0, agenda: ['論点A', '論点B'] }];
 		// 低意欲でも、論点が消化されない間は継続保護（非LLM）で早期終了せず cap まで進む
 		mockEvaluateEngagements.mockImplementation(async () => [
 			{ personaId: 'p1', score: 2, mode: 'opinion' },

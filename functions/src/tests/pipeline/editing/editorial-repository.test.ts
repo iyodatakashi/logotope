@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createFirestoreMock } from '../../helpers/firestore-mock.js';
-import type {
-	EditorialStatus,
-	ImpressionForFirestore
-} from '../../../types/editorial.types.js';
+import type { EditorialStatus, ImpressionForFirestore } from '../../../types/editorial.types.js';
 
 const { holder } = vi.hoisted(() => ({
 	holder: {
@@ -68,7 +65,12 @@ describe('readEditorial', () => {
 		await setImpression('t1', 'p1', impression(0, 'finished', 'pd', 'pf'));
 		const editorial = await readEditorial('t1');
 		expect(editorial.intro).toEqual({ status: 'finished', draft: 'd', final: 'f' });
-		expect(editorial.impressions.p1).toEqual({ sortOrder: 0, status: 'finished', draft: 'pd', final: 'pf' });
+		expect(editorial.impressions.p1).toEqual({
+			sortOrder: 0,
+			status: 'finished',
+			draft: 'pd',
+			final: 'pf'
+		});
 	});
 });
 
@@ -109,7 +111,12 @@ describe('setIntro / setOutro（部分上書き・他要素不変）', () => {
 		const editorial = await readEditorial('t1');
 		expect(editorial.intro).toEqual({ status: 'finished', draft: '導入原本', final: '導入編集後' });
 		expect(editorial.outro).toEqual({ status: 'finished', draft: '締め原本', final: '締め編集後' });
-		expect(editorial.impressions.p1).toEqual({ sortOrder: 0, status: 'finished', draft: '所感原本', final: '所感編集後' });
+		expect(editorial.impressions.p1).toEqual({
+			sortOrder: 0,
+			status: 'finished',
+			draft: '所感原本',
+			final: '所感編集後'
+		});
 	});
 });
 
@@ -124,8 +131,18 @@ describe('setImpression（参加者単位の部分上書き・他要素不変）
 	it('1人分の更新は当該ペルソナのみ変え、他ペルソナ・intro を変えない', async () => {
 		await setImpression('t1', 'p1', impression(0, 'finished', 'p1原本改', 'p1編集後改'));
 		const editorial = await readEditorial('t1');
-		expect(editorial.impressions.p1).toEqual({ sortOrder: 0, status: 'finished', draft: 'p1原本改', final: 'p1編集後改' });
-		expect(editorial.impressions.p2).toEqual({ sortOrder: 1, status: 'finished', draft: 'p2原本', final: 'p2編集後' });
+		expect(editorial.impressions.p1).toEqual({
+			sortOrder: 0,
+			status: 'finished',
+			draft: 'p1原本改',
+			final: 'p1編集後改'
+		});
+		expect(editorial.impressions.p2).toEqual({
+			sortOrder: 1,
+			status: 'finished',
+			draft: 'p2原本',
+			final: 'p2編集後'
+		});
 		expect(editorial.intro).toEqual({ status: 'finished', draft: '導入原本', final: '導入編集後' });
 	});
 });
@@ -138,14 +155,22 @@ describe('narrationWriter（段階書き込み: 生成中→整え中→完了�
 	it('begin は生成中にし内容を破棄する（再生成での旧内容破棄）', async () => {
 		await setIntro('t1', { status: 'finished', draft: '旧原本', final: '旧編集後' });
 		await narrationWriter('t1', 'intro').markEditorialGenerating();
-		expect((await readEditorial('t1')).intro).toEqual({ status: 'generating', draft: null, final: null });
+		expect((await readEditorial('t1')).intro).toEqual({
+			status: 'generating',
+			draft: null,
+			final: null
+		});
 	});
 
 	it('toEditing は整え中にし原本のみ保存する（final は据え置き）', async () => {
 		const writer = narrationWriter('t1', 'intro');
 		await writer.markEditorialGenerating();
 		await writer.markEditorialEditing('原本');
-		expect((await readEditorial('t1')).intro).toEqual({ status: 'editing', draft: '原本', final: null });
+		expect((await readEditorial('t1')).intro).toEqual({
+			status: 'editing',
+			draft: '原本',
+			final: null
+		});
 	});
 
 	it('finish は完了で内容を確定する（編集済み/編集失敗/生成失敗）', async () => {
@@ -165,12 +190,27 @@ describe('impressionWriter（sortOrder を保った段階書き込み）', () =>
 	it('begin→toEditing→finish で sortOrder を保ったまま段階を書く', async () => {
 		const writer = impressionWriter('t1', 'p1', 3);
 		await writer.markEditorialGenerating();
-		expect((await readEditorial('t1')).impressions.p1).toEqual({ sortOrder: 3, status: 'generating', draft: null, final: null });
+		expect((await readEditorial('t1')).impressions.p1).toEqual({
+			sortOrder: 3,
+			status: 'generating',
+			draft: null,
+			final: null
+		});
 
 		await writer.markEditorialEditing('原本');
-		expect((await readEditorial('t1')).impressions.p1).toEqual({ sortOrder: 3, status: 'editing', draft: '原本', final: null });
+		expect((await readEditorial('t1')).impressions.p1).toEqual({
+			sortOrder: 3,
+			status: 'editing',
+			draft: '原本',
+			final: null
+		});
 
 		await writer.markEditorialFinished({ draft: '原本', final: '編集後' });
-		expect((await readEditorial('t1')).impressions.p1).toEqual({ sortOrder: 3, status: 'finished', draft: '原本', final: '編集後' });
+		expect((await readEditorial('t1')).impressions.p1).toEqual({
+			sortOrder: 3,
+			status: 'finished',
+			draft: '原本',
+			final: '編集後'
+		});
 	});
 });

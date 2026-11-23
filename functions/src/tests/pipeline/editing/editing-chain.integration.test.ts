@@ -69,7 +69,7 @@ const seedTopic = () => {
 		name: 'p1',
 		selected: true,
 		sortOrder: 0,
-		stakeholderRole: '一般',
+		stakeholderRole: '一般'
 	});
 	mock.store.set('topics/t1/chapters/c1', {
 		chapterIndex: 0,
@@ -84,14 +84,18 @@ const seedTopic = () => {
 		chapterIndex: 1,
 		title: '第2章',
 		agenda: ['論点'],
-		turns: [{ id: 't2a', speakerType: 'persona', personaId: 'p1', content: '発言2a', createdAt: 'TS' }]
+		turns: [
+			{ id: 't2a', speakerType: 'persona', personaId: 'p1', content: '発言2a', createdAt: 'TS' }
+		]
 	});
 };
 
 // 章編集の generateObject をプロンプト内の原本ターンID で振り分ける（本物の editChapter＋構造検証を通す）。
 const chapterEdit = (id: string, sourceTurnIds: string[]) =>
 	({
-		object: { turns: [{ sourceTurnIds, speakerType: 'persona', personaId: 'p1', content: `${id}編集後` }] }
+		object: {
+			turns: [{ sourceTurnIds, speakerType: 'persona', personaId: 'p1', content: `${id}編集後` }]
+		}
 	}) as never;
 
 const seedGenerateObject = () => {
@@ -152,10 +156,23 @@ describe('編集チェーンの通し実行（impressions → chapter → intro-
 		expect(holder.log.map((p) => p.stepKind)).toEqual(['chapter', 'chapter', 'intro-outro']);
 
 		// 所感が統合保存へ status＋draft/final で揃う
-		expect(editorial().impressions.p1).toEqual({ sortOrder: 0, status: 'finished', draft: '所感原本', final: '所感編集後' });
+		expect(editorial().impressions.p1).toEqual({
+			sortOrder: 0,
+			status: 'finished',
+			draft: '所感原本',
+			final: '所感編集後'
+		});
 		// 導入・締めが status＋draft/final で揃う
-		expect(editorial().intro).toEqual({ status: 'finished', draft: '整えテキスト', final: '整えテキスト' });
-		expect(editorial().outro).toEqual({ status: 'finished', draft: '整えテキスト', final: '整えテキスト' });
+		expect(editorial().intro).toEqual({
+			status: 'finished',
+			draft: '整えテキスト',
+			final: '整えテキスト'
+		});
+		expect(editorial().outro).toEqual({
+			status: 'finished',
+			draft: '整えテキスト',
+			final: '整えテキスト'
+		});
 		// 本体（章）は editedChapters に completed
 		expect(holder.mock!.store.get(editedChapterPath('c1'))).toMatchObject({ status: 'completed' });
 		expect(holder.mock!.store.get(editedChapterPath('c2'))).toMatchObject({ status: 'completed' });
@@ -206,7 +223,11 @@ describe('やり直し・リセット整合（全記事の作り直し）', () =
 	it('再実行（startEditingRun）で旧記事（editedChapters ＋ editorial）が即時破棄され、新世代 runId になる', async () => {
 		seedTopic();
 		holder.mock!.store.set('topics/t1', { phase: 'editing', phaseStatus: 'stopped', runId: 'old' });
-		holder.mock!.store.set(editedChapterPath('c1'), { chapterIndex: 0, status: 'failed', turns: [] });
+		holder.mock!.store.set(editedChapterPath('c1'), {
+			chapterIndex: 0,
+			status: 'failed',
+			turns: []
+		});
 		holder.mock!.store.set(EDITORIAL_PATH, {
 			intro: { draft: '旧導入', final: '旧導入編集後' },
 			outro: { draft: null, final: null },
@@ -231,7 +252,11 @@ describe('やり直し・リセット整合（全記事の作り直し）', () =
 
 	it('討論 reset で編集記事（editedChapters ＋ editorial）が破棄される（原本経路の本物を通す）', async () => {
 		seedTopic();
-		holder.mock!.store.set(editedChapterPath('c1'), { chapterIndex: 0, status: 'completed', turns: [] });
+		holder.mock!.store.set(editedChapterPath('c1'), {
+			chapterIndex: 0,
+			status: 'completed',
+			turns: []
+		});
 		holder.mock!.store.set(EDITORIAL_PATH, {
 			intro: { draft: '導入', final: '導入編集後' },
 			outro: { draft: null, final: null },
@@ -250,7 +275,11 @@ describe('やり直し・リセット整合（全記事の作り直し）', () =
 
 	it('clearEditedArtifact は原本（chapters）を変更しない', async () => {
 		seedTopic();
-		holder.mock!.store.set(editedChapterPath('c1'), { chapterIndex: 0, status: 'completed', turns: [] });
+		holder.mock!.store.set(editedChapterPath('c1'), {
+			chapterIndex: 0,
+			status: 'completed',
+			turns: []
+		});
 
 		await clearEditedArtifact('t1');
 

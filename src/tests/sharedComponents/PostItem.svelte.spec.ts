@@ -2,9 +2,9 @@ import { page } from 'vitest/browser';
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import { createRawSnippet } from 'svelte';
-import PostItem from '$lib/sharedComponents/PostItem.svelte';
-import type { PersonaForDisplay } from '$lib/models/persona/persona.types';
-import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
+import PostItem from '#lib/sharedComponents/PostItem.svelte';
+import type { PersonaForDisplay } from '#lib/models/persona/persona.types.ts';
+import { FACILITATOR_NAME } from '#lib/models/turn/turn.constants.ts';
 
 // content は Snippet。テストでは本文だけを描画する軽量スニペットで代用する。
 const text = (value: string) => createRawSnippet(() => ({ render: () => `<span>${value}</span>` }));

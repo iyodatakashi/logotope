@@ -90,7 +90,10 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	holder.mock = createFirestoreMock();
 	// ペルソナ本体はサーバが id で読むため、文書に基本フィールドを持たせておく。
-	holder.mock.store.set(`topics/${TOPIC_ID}/personas/${PERSONA_ID}`, { sortOrder: 0, ...mockPersona });
+	holder.mock.store.set(`topics/${TOPIC_ID}/personas/${PERSONA_ID}`, {
+		sortOrder: 0,
+		...mockPersona
+	});
 	mockGetTopicContext.mockResolvedValue({});
 });
 

@@ -9,13 +9,13 @@ import {
 	Timestamp
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '$lib/firebase';
+import { db, functions } from '#lib/stores/firebase.ts';
 import {
 	toPersonaForDisplay,
 	type PersonaForFirestore,
 	type Persona,
 	type PersonaForDisplay
-} from '$lib/models/persona/persona.types';
+} from '#lib/models/persona/persona.types.ts';
 
 const toPersona = (id: string, raw: PersonaForFirestore): Persona => ({
 	...raw,
@@ -41,6 +41,7 @@ export const createPersonasStore = (topicId: string) => {
 
 	// 話者名/役割・指名先などを描画時に id から解決するための Map。各画面での重複導出を避ける。
 	// Map 自体は公開せず、getPersona / getPersonaForDisplay 経由でのみ解決させる（描画側は id 参照のまま持つ）。
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity -- personas が変わるたびに作り直し、変更しない
 	const personaMap = $derived(new Map(personas.map((persona) => [persona.id, persona])));
 
 	// id からランタイム Persona を引く（ファシリテーター等で id が無い場合は undefined）。

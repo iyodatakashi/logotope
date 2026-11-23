@@ -7,7 +7,7 @@
 - **Firebase エミュレータは使わず、本番 Cloud Functions（asia-northeast1）に直結している。** フロントは `VITE_USE_EMULATOR=true` のときだけ localhost に繋ぐ設定だが、実運用では本番直結で動作確認する。functions/ の TypeScript を変更したら `tsc` ビルドだけでは本番に反映されない — `firebase deploy --only functions` が必要。「エミュレータ再起動で済む」と案内しない。
   - **デプロイは絶対に Claude 側で実行しない。** ユーザーが自分でやる。Claude はコマンドを案内するだけ。
 - **`onTaskDispatched`（Cloud Tasks 起動、例 `runChapter`）の実質タイムアウト上限は 30 分（1800 秒）。** 関数側 `timeoutSeconds` を 60 分にしても、Cloud Tasks の dispatch deadline が 30 分でディスパッチ失敗扱い＋リトライを投げるため超えられない。`onCall`/`onRequest`（HTTP 系）は最大 60 分（3600 秒）で別物。steering の tech.md「Functions v2 最大 60 分」は HTTP 系の話でタスク系には当てはまらない。長時間化は最大 1800 秒まで、それ以上は処理分割（チェックポイント化）が必要。
-- **公開 SSR 読み取り（`$lib/firebase-public` / `publicDb`）は SSR(Node) 実行時に必ず本番 Firestore を読む。** エミュレータ接続は `typeof window !== 'undefined'` ガードでクライアント限定のため、サーバ側にエミュレータ経路は無い。未認証 SSR の `where('published','==',true)` が通るには**本番にデプロイ済みの firestore.rules** の公開読み取り許可が必要。デプロイは手動なので、リポの firestore.rules と本番デプロイ済み rules がズレると `permission-denied` になる（`firebase deploy --only firestore:rules` で解消）。permission-denied が出たら**まずデプロイ済み rules ≠ リポ rules を疑う**。
+- **公開 SSR 読み取り（`#lib/stores/firebasePublic.ts` / `publicDb`）は SSR(Node) 実行時に必ず本番 Firestore を読む。** エミュレータ接続は `typeof window !== 'undefined'` ガードでクライアント限定のため、サーバ側にエミュレータ経路は無い。未認証 SSR の `where('published','==',true)` が通るには**本番にデプロイ済みの firestore.rules** の公開読み取り許可が必要。デプロイは手動なので、リポの firestore.rules と本番デプロイ済み rules がズレると `permission-denied` になる（`firebase deploy --only firestore:rules` で解消）。permission-denied が出たら**まずデプロイ済み rules ≠ リポ rules を疑う**。
 
 ## LLM・モデル
 

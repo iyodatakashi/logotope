@@ -6,7 +6,7 @@ import type {
 	MinorityLevel,
 	EngagementLevel,
 	Prefecture
-} from '$lib/models/stakeholder/stakeholder.types';
+} from '#lib/models/stakeholder/stakeholder.types.ts';
 
 // functions/src/types/stakeholder.types.ts のミラー。BE 型と形が一致することを型で固定する
 // （svelte-check がこのファイルを型検査するため、ズレればビルドで落ちる）。

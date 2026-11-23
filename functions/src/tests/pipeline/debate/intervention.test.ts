@@ -24,10 +24,7 @@ const makeTurn = (speakerType: 'persona' | 'facilitator', id: string): DebateTur
 	createdAt: ''
 });
 
-const makeState = (
-	turns: DebateTurn[] = [],
-	agenda: DebateState['agenda'] = []
-): DebateState => ({
+const makeState = (turns: DebateTurn[] = [], agenda: DebateState['agenda'] = []): DebateState => ({
 	turns: [...turns],
 	lastSpeakerId: undefined,
 	silenceMap: new Map(),
@@ -299,9 +296,8 @@ describe('progressAgenda - クールダウン→3値判定→行動', () => {
 		const state = cooldownReady([{ point: '論点A', status: 'introduced', introducedOrder: 1 }]);
 		await run(state);
 
-		const { setPendingTurn, clearPendingTurn } = await import(
-			'../../../pipeline/debate/pending-turn.js'
-		);
+		const { setPendingTurn, clearPendingTurn } =
+			await import('../../../pipeline/debate/pending-turn.js');
 		expect(vi.mocked(setPendingTurn)).toHaveBeenCalledTimes(1);
 		const pending = vi.mocked(setPendingTurn).mock.calls[0][0].pendingTurn;
 		expect(pending.personaId).toBeUndefined();

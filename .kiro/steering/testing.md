@@ -2,25 +2,11 @@
 
 ## ディレクトリ構成
 
-テストファイル・spec ファイルはソースと**同一ディレクトリに置かない**。
-必ず専用の `tests/` ディレクトリに、ソース構造をミラーして配置する。
+テストファイル・spec ファイルはソースと**同一ディレクトリに置かない**。専用の `tests/` ディレクトリに、ソース構造をミラーして配置する。
 
 ### フロントエンド（`src/`）
 
-```
-src/
-├── lib/
-│   ├── stores/chapters.svelte.ts
-│   └── features/admin/debate/GenerateDebatePage.svelte
-└── tests/                                         # テストはここに集約
-    ├── stores/chapters.test.ts
-    └── features/admin/debate/GenerateDebatePage.svelte.spec.ts
-```
-
-インポートは `$lib/` エイリアスを使う（相対パス禁止）：
-```typescript
-import { createChaptersStore } from '$lib/stores/chapters.svelte';
-```
+置き場所と import は全 SvelteKit 共通のルール（`~/.claude/rules/sveltekit-structure.md` の「テスト」）に従う。`src/tests/` に `src/lib` と同じ並びで置き、`#lib/` で import する（例外は `.kiro/steering/structure.md`）。
 
 ### バックエンド（`functions/src/`）
 
@@ -52,7 +38,7 @@ functions/src/
 
 ## モック方針
 
-- Firestore（`$lib/firebase`・`firebase/firestore`）は必ずモックする
+- Firestore（`#lib/stores/firebase.ts`・`firebase/firestore`）は必ずモックする
 - テスト対象のモジュール自体はモックしない
 - `vi.mock` はファイル先頭、`import` より前に書く
 - `beforeEach` で `vi.clearAllMocks()` とコールバック変数をリセットする

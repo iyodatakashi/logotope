@@ -57,10 +57,7 @@ const makeTurn = (speakerType: 'persona' | 'facilitator', id: string): DebateTur
 	createdAt: ''
 });
 
-const makeState = (
-	turns: DebateTurn[],
-	agenda: DebateState['agenda']
-): DebateState =>
+const makeState = (turns: DebateTurn[], agenda: DebateState['agenda']): DebateState =>
 	({
 		turns: [...turns],
 		lastSpeakerId: undefined,

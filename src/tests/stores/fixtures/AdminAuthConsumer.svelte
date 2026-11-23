@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { getAdminAuthStore } from '$lib/stores/adminAuth.svelte';
+	import { getAdminAuthStore } from '#lib/stores/adminAuth.ts';
 
 	let { onresolve }: { onresolve: (store: unknown) => void } = $props();
 

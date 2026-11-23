@@ -1,5 +1,5 @@
 <script lang="ts">
-	import PublishedArticleListPage from '$lib/features/public/article-list/PublishedArticleListPage.svelte';
+	import PublishedArticleListPage from '#lib/features/publishedArticles/publishedArticleList/PublishedArticleListPage.svelte';
 	import type { PageData } from './$types';
 
 	let {

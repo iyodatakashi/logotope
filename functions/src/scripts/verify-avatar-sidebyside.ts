@@ -32,9 +32,27 @@ interface Case {
 
 // 同一年齢帯×性別（middle・masculine）。seed も出力も middle 男性で揃うべき集合。
 const CASES: Case[] = [
-	{ id: 'mid_m_1', personaId: 'v-mid-m-a', age: 38, presentation: 'masculine', occupation: '営業職' },
-	{ id: 'mid_m_2', personaId: 'v-mid-m-b', age: 45, presentation: 'masculine', occupation: '工場勤務' },
-	{ id: 'mid_m_3', personaId: 'v-mid-m-c', age: 34, presentation: 'masculine', occupation: 'デザイナー' }
+	{
+		id: 'mid_m_1',
+		personaId: 'v-mid-m-a',
+		age: 38,
+		presentation: 'masculine',
+		occupation: '営業職'
+	},
+	{
+		id: 'mid_m_2',
+		personaId: 'v-mid-m-b',
+		age: 45,
+		presentation: 'masculine',
+		occupation: '工場勤務'
+	},
+	{
+		id: 'mid_m_3',
+		personaId: 'v-mid-m-c',
+		age: 34,
+		presentation: 'masculine',
+		occupation: 'デザイナー'
+	}
 ];
 
 const SEED_DIR = fileURLToPath(new URL('../../seeds', import.meta.url));
@@ -106,7 +124,11 @@ const buildMontage = async (ids: string[]): Promise<void> => {
 	await sharp({ create: { width, height, channels: 3, background: '#ffffff' } })
 		.composite([
 			...tiles,
-			{ input: Buffer.from(`<svg width="${width}" height="${height}">${lines}</svg>`), top: 0, left: 0 }
+			{
+				input: Buffer.from(`<svg width="${width}" height="${height}">${lines}</svg>`),
+				top: 0,
+				left: 0
+			}
 		])
 		.png()
 		.toFile(join(OUT_DIR, 'input-vs-full.png'));
@@ -143,7 +165,9 @@ const main = async () => {
 
 	await buildMontage(done);
 	console.log(`\n出力: ${OUT_DIR}`);
-	console.log('  input_*.png（送った画像・左=seed/右=空白） / full_*.png（出力） / input-vs-full.png（比較）');
+	console.log(
+		'  input_*.png（送った画像・左=seed/右=空白） / full_*.png（出力） / input-vs-full.png（比較）'
+	);
 };
 
 main().catch((err) => {

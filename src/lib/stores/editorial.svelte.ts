@@ -1,12 +1,12 @@
 import { onSnapshot, doc } from 'firebase/firestore';
-import { db } from '$lib/firebase';
+import { db } from '#lib/stores/firebase.ts';
 import type {
 	EditorialForFirestore,
 	EditorialStatus,
 	Narration,
 	ImpressionForFirestore,
 	Impression
-} from '$lib/models/editorial/editorial.types';
+} from '#lib/models/editorial/editorial.types.ts';
 
 // 統合保存 editorial/outputs（導入・締め・所感）を購読し、記事要素を進捗ステータス付きで公開する。
 // 導入/締め/所感を1ドキュメントに集約した唯一のストア（旧 intro/outro・所感の各ストアはこれに統合済み）。
@@ -21,12 +21,14 @@ export const createEditorialStore = (topicId: string) => {
 
 	const normalizeNarration = (part: Partial<Narration> | undefined): Narration =>
 		part
-			? { status: normalizeStatus(part.status), draft: part.draft ?? null, final: part.final ?? null }
+			? {
+					status: normalizeStatus(part.status),
+					draft: part.draft ?? null,
+					final: part.final ?? null
+				}
 			: { status: 'finished', draft: null, final: null };
 
-	const toImpressions = (
-		map: Record<string, ImpressionForFirestore> | undefined
-	): Impression[] =>
+	const toImpressions = (map: Record<string, ImpressionForFirestore> | undefined): Impression[] =>
 		Object.entries(map ?? {})
 			.map(([personaId, part]) => ({
 				personaId,
@@ -84,5 +86,3 @@ export const createEditorialStore = (topicId: string) => {
 		stop
 	};
 };
-
-export type EditorialStore = ReturnType<typeof createEditorialStore>;

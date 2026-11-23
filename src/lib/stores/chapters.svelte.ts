@@ -8,9 +8,9 @@ import {
 	addDoc,
 	writeBatch
 } from 'firebase/firestore';
-import { db } from '$lib/firebase';
-import type { Turn, TurnForFirestore } from '$lib/models/turn/turn.types';
-import type { ChapterForFirestore, Chapter } from '$lib/models/chapter/chapter.types';
+import { db } from '#lib/stores/firebase.ts';
+import type { Turn, TurnForFirestore } from '#lib/models/turn/turn.types.ts';
+import type { ChapterForFirestore, Chapter } from '#lib/models/chapter/chapter.types.ts';
 
 export const createChaptersStore = (topicId: string) => {
 	let chapters = $state<Chapter[]>([]);
@@ -106,5 +106,3 @@ export const createChaptersStore = (topicId: string) => {
 		reorderChapters
 	};
 };
-
-export type ChaptersStore = ReturnType<typeof createChaptersStore>;

@@ -87,10 +87,7 @@ const makeChapter = (agenda: string[] = []): Chapter => ({
 	agenda
 });
 
-const makeState = (
-	turns: DebateTurn[] = [],
-	agenda: DebateState['agenda'] = []
-): DebateState => ({
+const makeState = (turns: DebateTurn[] = [], agenda: DebateState['agenda'] = []): DebateState => ({
 	turns: [...turns],
 	lastSpeakerId: undefined,
 	silenceMap: new Map(),
@@ -394,7 +391,10 @@ describe('performTurnStep - 最後の論点消化のみ（committed-no-turn・Ta
 			content: '導入',
 			createdAt: ''
 		};
-		const state = makeState([opening], [{ point: '論点A', status: 'introduced', introducedOrder: 1 }]);
+		const state = makeState(
+			[opening],
+			[{ point: '論点A', status: 'introduced', introducedOrder: 1 }]
+		);
 		const chapterDoc: ChapterEntry = {
 			id: 'ch1',
 			chapterIndex: 0,
@@ -431,9 +431,7 @@ describe('末尾評価の配線（コミット後・自己修復・章クロー�
 	});
 
 	const committedTurnIds = (): string[] =>
-		vi
-			.mocked(evaluateReactionsForCommittedTurn)
-			.mock.calls.map((call) => call[0].committedTurnId);
+		vi.mocked(evaluateReactionsForCommittedTurn).mock.calls.map((call) => call[0].committedTurnId);
 
 	const openingCtx = (): StepContext => {
 		const opening: DebateTurn = {
@@ -442,7 +440,10 @@ describe('末尾評価の配線（コミット後・自己修復・章クロー�
 			content: '導入',
 			createdAt: ''
 		};
-		const state = makeState([opening], [{ point: '論点A', status: 'introduced', introducedOrder: 1 }]);
+		const state = makeState(
+			[opening],
+			[{ point: '論点A', status: 'introduced', introducedOrder: 1 }]
+		);
 		const chapterDoc: ChapterEntry = {
 			id: 'ch1',
 			chapterIndex: 0,
@@ -546,7 +547,9 @@ describe('末尾評価の配線（コミット後・自己修復・章クロー�
 			chapterIndex: 0,
 			title: 'テスト章',
 			agenda: ['論点A'],
-			turns: [{ id: 't9', speakerType: 'persona', personaId: 'p1', content: '最終', createdAt: '' }],
+			turns: [
+				{ id: 't9', speakerType: 'persona', personaId: 'p1', content: '最終', createdAt: '' }
+			],
 			status: 'running'
 		};
 		const ctx = makeCtx({ chapterDoc });

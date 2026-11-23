@@ -1,4 +1,4 @@
-import type { Turn, TurnForFirestore, EditedTurn } from '$lib/models/turn/turn.types';
+import type { Turn, TurnForFirestore, EditedTurn } from '#lib/models/turn/turn.types.ts';
 
 export type ChapterProgressStatus = 'pending' | 'running' | 'completed';
 
@@ -50,7 +50,7 @@ export type IssueGroup = {
 	issueIndexes: number[];
 };
 
-export type ChapterAnalysisForFirestore = {
+export type ChapterAnalysis = {
 	issues: Issue[];
 	issueGroups?: IssueGroup[];
 };

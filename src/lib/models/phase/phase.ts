@@ -1,5 +1,5 @@
-import type { PhaseSlug, PhaseStatus, PhaseLogicalState } from '$lib/models/phase/phase.types';
-import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
+import type { PhaseSlug, PhaseStatus, PhaseLogicalState } from '#lib/models/phase/phase.types.ts';
+import { PHASE_DEFS } from '#lib/models/phase/phase.constants.ts';
 
 // 配列位置。未知キーは不正入力として 0（先頭）にフォールバックする。
 export const phaseOrder = (key: PhaseSlug): number => {

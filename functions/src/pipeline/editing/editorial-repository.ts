@@ -76,7 +76,10 @@ export const narrationWriter = (topicId: string, kind: 'intro' | 'outro'): Edito
 	return {
 		markEditorialGenerating: () => set(topicId, { status: 'generating', draft: null, final: null }),
 		markEditorialEditing: async (draft) => {
-			await editorialRef(topicId).update({ [`${kind}.status`]: 'editing', [`${kind}.draft`]: draft });
+			await editorialRef(topicId).update({
+				[`${kind}.status`]: 'editing',
+				[`${kind}.draft`]: draft
+			});
 		},
 		markEditorialFinished: ({ draft, final }) => set(topicId, { status: 'finished', draft, final })
 	};
@@ -89,7 +92,12 @@ export const impressionWriter = (
 	sortOrder: number
 ): EditorialWriter => ({
 	markEditorialGenerating: () =>
-		setImpression(topicId, personaId, { sortOrder, status: 'generating', draft: null, final: null }),
+		setImpression(topicId, personaId, {
+			sortOrder,
+			status: 'generating',
+			draft: null,
+			final: null
+		}),
 	markEditorialEditing: async (draft) => {
 		await editorialRef(topicId).update({
 			[`impressions.${personaId}.status`]: 'editing',

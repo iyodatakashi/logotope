@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ThemePage from '$lib/features/admin/topic-detail/theme/ThemePage.svelte';
+	import ThemePage from '#lib/features/topics/topicDetail/theme/ThemePage.svelte';
 </script>
 
 <ThemePage />

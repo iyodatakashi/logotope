@@ -1,6 +1,6 @@
 import { onSnapshot, doc } from 'firebase/firestore';
-import { db } from '$lib/firebase';
-import type { Stakeholder } from '$lib/models/stakeholder/stakeholder.types';
+import { db } from '#lib/stores/firebase.ts';
+import type { Stakeholder } from '#lib/models/stakeholder/stakeholder.types.ts';
 
 export const createStakeholdersStore = (topicId: string) => {
 	let stakeholders = $state<Stakeholder[]>([]);

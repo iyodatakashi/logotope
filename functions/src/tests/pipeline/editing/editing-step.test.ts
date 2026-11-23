@@ -20,7 +20,9 @@ vi.mock('firebase-admin/firestore', () => ({
 
 vi.mock('ai', () => ({ generateObject: vi.fn() }));
 vi.mock('../../../llm/models.js', () => ({ sonnet: 'mock-model' }));
-vi.mock('../../../pipeline/editing/editorial-builders.js', () => ({ buildImpressionPart: vi.fn() }));
+vi.mock('../../../pipeline/editing/editorial-builders.js', () => ({
+	buildImpressionPart: vi.fn()
+}));
 
 import { generateObject } from 'ai';
 import { buildImpressionPart } from '../../../pipeline/editing/editorial-builders.js';
@@ -135,7 +137,10 @@ describe('reinsertProtectedTurns', () => {
 
 	it('落ちた保護ターンを原本のまま時系列位置に埋め戻す', () => {
 		// LLM が t2（保護・fact）を除外。t1 と t3 だけ残した。
-		const drafts = [makeDraft(['t1']), makeDraft(['t3'], { speakerType: 'facilitator', personaId: null })];
+		const drafts = [
+			makeDraft(['t1']),
+			makeDraft(['t3'], { speakerType: 'facilitator', personaId: null })
+		];
 		const result = reinsertProtectedTurns(drafts, raw, new Set(['t2']));
 
 		expect(result.map((draft) => draft.sourceTurnIds)).toEqual([['t1'], ['t2'], ['t3']]);
@@ -212,7 +217,12 @@ describe('runChapterEditStep', () => {
 		mockGenerateObject.mockResolvedValueOnce({
 			object: {
 				turns: [
-					{ sourceTurnIds: ['t1', 't2'], speakerType: 'facilitator', personaId: 'wrong', content: '連結' }
+					{
+						sourceTurnIds: ['t1', 't2'],
+						speakerType: 'facilitator',
+						personaId: 'wrong',
+						content: '連結'
+					}
 				]
 			}
 		} as never);
@@ -299,19 +309,26 @@ describe('runImpressionsStep', () => {
 			chapterIndex: 0,
 			title: '第1章',
 			agenda: [],
-			turns: [{ id: 't1', speakerType: 'persona', personaId: 'p1', content: '発言', createdAt: 'TS' }]
+			turns: [
+				{ id: 't1', speakerType: 'persona', personaId: 'p1', content: '発言', createdAt: 'TS' }
+			]
 		});
 	});
 
 	const editorial = () =>
-		holder.mock!.store.get('topics/t1/editorial/outputs') as {
-			impressions?: Record<string, unknown>;
-		} | undefined;
+		holder.mock!.store.get('topics/t1/editorial/outputs') as
+			| {
+					impressions?: Record<string, unknown>;
+			  }
+			| undefined;
 
 	// build（本物）は writer 経由で段階書き込みする。ここでは finish で完了確定を代行する。
 	const finishAs = (final: string | null) =>
 		mockBuildImpressionPart.mockImplementation(async (persona, _turns, _personas, writer) => {
-			await writer.markEditorialFinished({ draft: `${persona.id}原本`, final: final === null ? null : `${persona.id}編集後` });
+			await writer.markEditorialFinished({
+				draft: `${persona.id}原本`,
+				final: final === null ? null : `${persona.id}編集後`
+			});
 		});
 
 	it('承認済みペルソナごとに所感を統合保存へ部分上書きし、未承認は対象外にする', async () => {
@@ -348,7 +365,9 @@ describe('runImpressionsStep', () => {
 		holder.mock!.store.set('topics/t1/editorial/outputs', {
 			intro: { status: 'pending', draft: null, final: null },
 			outro: { status: 'pending', draft: null, final: null },
-			impressions: { p1: { sortOrder: 0, status: 'finished', draft: '既存p1原本', final: '既存p1編集後' } }
+			impressions: {
+				p1: { sortOrder: 0, status: 'finished', draft: '既存p1原本', final: '既存p1編集後' }
+			}
 		});
 		finishAs('編集後');
 
@@ -362,6 +381,11 @@ describe('runImpressionsStep', () => {
 			draft: '既存p1原本',
 			final: '既存p1編集後'
 		});
-		expect(editorial()!.impressions!.p2).toEqual({ sortOrder: 1, status: 'finished', draft: 'p2原本', final: 'p2編集後' });
+		expect(editorial()!.impressions!.p2).toEqual({
+			sortOrder: 1,
+			status: 'finished',
+			draft: 'p2原本',
+			final: 'p2編集後'
+		});
 	});
 });

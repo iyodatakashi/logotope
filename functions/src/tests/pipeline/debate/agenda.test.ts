@@ -15,8 +15,7 @@ import {
 import type { DebateState } from '../../../types/debate.types.js';
 import type { AgendaItemState } from '../../../types/chapter.types.js';
 
-const makeState = (points: AgendaItemState[]): DebateState =>
-	({ agenda: points }) as DebateState;
+const makeState = (points: AgendaItemState[]): DebateState => ({ agenda: points }) as DebateState;
 
 describe('getActiveAgendaItem', () => {
 	it('提示済み論点が複数あるとき提示連番が最大の1件を返す', () => {

@@ -30,9 +30,7 @@ const nonEmpty = (value?: string): boolean => value != null && value.trim() !== 
  * 既に非空の role を持つペルソナは対象にしない（冪等）。role の値は specificRole（非空）優先、
  * 欠落・空なら stakeholderRole。どちらも空なら書き込まない（空の role を作らない）。
  */
-export const planRoleBackfill = (
-	personas: PersonaForBackfill[]
-): { id: string; role: string }[] =>
+export const planRoleBackfill = (personas: PersonaForBackfill[]): { id: string; role: string }[] =>
 	personas.flatMap((persona) => {
 		if (nonEmpty(persona.role)) return [];
 		const role = nonEmpty(persona.specificRole)

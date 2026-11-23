@@ -46,7 +46,7 @@ export default defineConfig({
 					name: 'integration',
 					environment: 'node',
 					include: ['src/**/*.integration.{test,spec}.{js,ts}'],
-					setupFiles: ['src/tests/setup/firebase-emulators.ts']
+					setupFiles: ['src/tests/setup/firebaseEmulators.ts']
 				}
 			}
 		]

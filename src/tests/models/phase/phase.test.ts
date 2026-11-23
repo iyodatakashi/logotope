@@ -6,9 +6,9 @@ import {
 	phaseLogicalState,
 	phaseDisplayLabel,
 	phaseEditable
-} from '$lib/models/phase/phase';
-import { PHASE_DEFS } from '$lib/models/phase/phase.constants';
-import type { PhaseSlug, PhaseStatus, PhaseLogicalState } from '$lib/models/phase/phase.types';
+} from '#lib/models/phase/phase.ts';
+import { PHASE_DEFS } from '#lib/models/phase/phase.constants.ts';
+import type { PhaseSlug, PhaseStatus, PhaseLogicalState } from '#lib/models/phase/phase.types.ts';
 
 // 正準 slug リスト（順序込み）— FE/BE 両側の唯一の基準。
 const CANONICAL_PHASE_KEYS = [
@@ -241,8 +241,12 @@ describe('phaseLogicalState', () => {
 	});
 
 	it('停止は全フェーズで導出できる（討論の running/stopped も同じ規則）', () => {
-		expect(phaseLogicalState({ phase: 'debate', phaseStatus: 'running' }, 'debate')).toBe('running');
-		expect(phaseLogicalState({ phase: 'debate', phaseStatus: 'stopped' }, 'debate')).toBe('stopped');
+		expect(phaseLogicalState({ phase: 'debate', phaseStatus: 'running' }, 'debate')).toBe(
+			'running'
+		);
+		expect(phaseLogicalState({ phase: 'debate', phaseStatus: 'stopped' }, 'debate')).toBe(
+			'stopped'
+		);
 		expect(phaseLogicalState({ phase: 'personas', phaseStatus: 'stopped' }, 'personas')).toBe(
 			'stopped'
 		);
@@ -290,7 +294,10 @@ describe('phaseDisplayLabel', () => {
 	];
 
 	it.each(cases)('(%s, %s) → %s / %s', (phase, phaseStatus, label, styleKey) => {
-		expect(phaseDisplayLabel({ phase, phaseStatus, published: false })).toEqual({ label, styleKey });
+		expect(phaseDisplayLabel({ phase, phaseStatus, published: false })).toEqual({
+			label,
+			styleKey
+		});
 	});
 
 	it('publish は published を直読みして公開中/未公開を導出する（phaseStatus を見ない）', () => {
@@ -310,7 +317,14 @@ describe('phaseEditable', () => {
 	});
 
 	it('publish 以外は公開中のみ編集不可', () => {
-		for (const target of ['theme', 'fact-research', 'personas', 'chapters', 'debate', 'editing'] as const) {
+		for (const target of [
+			'theme',
+			'fact-research',
+			'personas',
+			'chapters',
+			'debate',
+			'editing'
+		] as const) {
 			expect(phaseEditable({ published: true }, target)).toBe(false);
 			expect(phaseEditable({ published: false }, target)).toBe(true);
 		}

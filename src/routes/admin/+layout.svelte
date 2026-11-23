@@ -1,9 +1,9 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { AuthGate, AuthSession, createAuthStore } from '@14ch/svelte-firebase-auth';
-	import { auth } from '$lib/firebase';
-	import { ADMIN_AUTH_CONFIG } from '$lib/models/auth/admin-auth.constants';
-	import { setAdminAuthStore } from '$lib/stores/adminAuth.svelte';
+	import { auth } from '#lib/stores/firebase.ts';
+	import { ADMIN_AUTH_CONFIG } from '#lib/models/adminAuth/adminAuth.constants.ts';
+	import { setAdminAuthStore } from '#lib/stores/adminAuth.ts';
 
 	let { children }: { children: Snippet } = $props();
 

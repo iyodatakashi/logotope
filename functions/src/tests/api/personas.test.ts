@@ -60,7 +60,10 @@ const seedDownstream = () => {
 	holder.mock!.store.set(`topics/${TOPIC_ID}/personas/p1`, { name: 'A' });
 	holder.mock!.store.set(`topics/${TOPIC_ID}/chapters/c1`, { chapterIndex: 0, turns: [] });
 	holder.mock!.store.set(`topics/${TOPIC_ID}/chapterAnalysis/0`, { issues: [] });
-	holder.mock!.store.set(`topics/${TOPIC_ID}/editedChapters/c1`, { chapterIndex: 0, status: 'completed' });
+	holder.mock!.store.set(`topics/${TOPIC_ID}/editedChapters/c1`, {
+		chapterIndex: 0,
+		status: 'completed'
+	});
 	holder.mock!.store.set(`topics/${TOPIC_ID}/editorial/outputs`, {
 		intro: { status: 'finished', draft: 'x', final: 'y' },
 		outro: { status: 'pending', draft: null, final: null },
@@ -141,7 +144,9 @@ describe('startPersonaGeneration handler（サーバ権威の再生成）', () =
 	it('破棄パリティ: 自層＋下流のみ削除し、上流 factBase は残す', async () => {
 		holder.mock!.store.set(`topics/${TOPIC_ID}`, { phase: 'editing', phaseStatus: 'approved' });
 		// 上流（keep）
-		holder.mock!.store.set(`topics/${TOPIC_ID}/factBase/0`, { facts: [{ statement: 'x', sources: [] }] });
+		holder.mock!.store.set(`topics/${TOPIC_ID}/factBase/0`, {
+			facts: [{ statement: 'x', sources: [] }]
+		});
 		// 自層（delete）
 		holder.mock!.store.set(`topics/${TOPIC_ID}/stakeholders/0`, { stakeholders: [] });
 		holder.mock!.store.set(`topics/${TOPIC_ID}/personas/p1`, { name: 'A' });

@@ -42,7 +42,11 @@ describe('backfillTopicOutputs', () => {
 
 	it('editorial/outputs が既にあればスキップし上書きしない（冪等・再実行安全）', async () => {
 		holder.mock!.store.set(LEGACY_PATH, editorial());
-		const existing = { intro: { status: 'finished', draft: '既存', final: '既存' }, outro: editorial().outro, impressions: {} };
+		const existing = {
+			intro: { status: 'finished', draft: '既存', final: '既存' },
+			outro: editorial().outro,
+			impressions: {}
+		};
 		holder.mock!.store.set(OUTPUTS_PATH, existing);
 
 		const result = await backfillTopicOutputs('t1', true);

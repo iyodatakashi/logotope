@@ -9,10 +9,10 @@ import {
 	getDocs,
 	Timestamp
 } from 'firebase/firestore';
-import { db } from '$lib/firebase';
+import { db } from '#lib/stores/firebase.ts';
 import { nanoid } from 'nanoid';
-import type { Topic, TopicForFirestore } from '$lib/models/topic/topic.types';
-import { createTopicStates, type TopicStates } from '$lib/models/topic/createTopic.svelte';
+import type { Topic, TopicForFirestore, TopicStates } from '#lib/models/topic/topic.types.ts';
+import { createTopic } from '#lib/models/topic/createTopic.svelte.ts';
 
 // Firestore 永続形からアプリ層型へ（Timestamp → Date 変換）。利用箇所は当ストアのみ。
 const toTopic = (topicDoc: TopicForFirestore): Topic => ({
@@ -39,9 +39,7 @@ const create = () => {
 		const q = query(collection(db, 'topics'), orderBy('createdAt', 'desc'));
 		unsubscribe = onSnapshot(q, (snap) => {
 			topics = snap.docs.map((docSnapshot) =>
-				createTopicStates(
-					toTopic({ ...docSnapshot.data(), id: docSnapshot.id } as TopicForFirestore)
-				)
+				createTopic(toTopic({ ...docSnapshot.data(), id: docSnapshot.id } as TopicForFirestore))
 			);
 			isLoaded = true;
 		});

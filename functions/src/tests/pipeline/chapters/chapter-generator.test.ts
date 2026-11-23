@@ -100,7 +100,12 @@ describe('planChapters', () => {
 	});
 
 	it('issues_generated イベントで chapterAnalysis/0 に issues を set する', async () => {
-		const topic: TopicForFirestore = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		const topic: TopicForFirestore = {
+			id: 'topic1',
+			title: 'テーマ',
+			createdAt: '',
+			updatedAt: ''
+		};
 		mockGetTopicById.mockResolvedValue(topic);
 
 		await planChapters('topic1');
@@ -128,7 +133,12 @@ describe('planChapters', () => {
 	});
 
 	it('issues_scored イベントで chapterAnalysis/0 の issues を update する', async () => {
-		const topic: TopicForFirestore = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		const topic: TopicForFirestore = {
+			id: 'topic1',
+			title: 'テーマ',
+			createdAt: '',
+			updatedAt: ''
+		};
 		mockGetTopicById.mockResolvedValue(topic);
 
 		await planChapters('topic1');
@@ -143,7 +153,12 @@ describe('planChapters', () => {
 	});
 
 	it('issues_grouped イベントで chapterAnalysis/0 の issueGroups を update する', async () => {
-		const topic: TopicForFirestore = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		const topic: TopicForFirestore = {
+			id: 'topic1',
+			title: 'テーマ',
+			createdAt: '',
+			updatedAt: ''
+		};
 		mockGetTopicById.mockResolvedValue(topic);
 
 		await planChapters('topic1');
@@ -154,7 +169,12 @@ describe('planChapters', () => {
 	});
 
 	it('章生成完了後に chapters コレクションに各章を chapterIndex 付きで set する', async () => {
-		const topic: TopicForFirestore = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		const topic: TopicForFirestore = {
+			id: 'topic1',
+			title: 'テーマ',
+			createdAt: '',
+			updatedAt: ''
+		};
 		mockGetTopicById.mockResolvedValue(topic);
 
 		await planChapters('topic1');
@@ -170,7 +190,12 @@ describe('planChapters', () => {
 	});
 
 	it('sessions/0 ドキュメントを作成・更新しない', async () => {
-		const topic: TopicForFirestore = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		const topic: TopicForFirestore = {
+			id: 'topic1',
+			title: 'テーマ',
+			createdAt: '',
+			updatedAt: ''
+		};
 		mockGetTopicById.mockResolvedValue(topic);
 
 		await planChapters('topic1');
@@ -182,7 +207,12 @@ describe('planChapters', () => {
 	});
 
 	it('getTopicContext の結果（空）をそのまま generateChapters に渡す（後方互換）', async () => {
-		const topic: TopicForFirestore = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		const topic: TopicForFirestore = {
+			id: 'topic1',
+			title: 'テーマ',
+			createdAt: '',
+			updatedAt: ''
+		};
 		mockGetTopicById.mockResolvedValue(topic);
 		mockGetTopicContext.mockResolvedValue({});
 
@@ -197,7 +227,12 @@ describe('planChapters', () => {
 	});
 
 	it('BE 権威経路 getTopicContext で合成した共有コンテキスト（説明・事実基盤）を generateChapters に渡す', async () => {
-		const topic: TopicForFirestore = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		const topic: TopicForFirestore = {
+			id: 'topic1',
+			title: 'テーマ',
+			createdAt: '',
+			updatedAt: ''
+		};
 		mockGetTopicById.mockResolvedValue(topic);
 		mockGetTopicContext.mockResolvedValue({
 			description: 'テーマの詳細説明',
@@ -222,7 +257,12 @@ describe('planChapters', () => {
 	});
 
 	it('generateChapters 失敗時は error メッセージを throw する', async () => {
-		const topic: TopicForFirestore = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		const topic: TopicForFirestore = {
+			id: 'topic1',
+			title: 'テーマ',
+			createdAt: '',
+			updatedAt: ''
+		};
 		mockGetTopicById.mockResolvedValue(topic);
 		mockGenerateChapters.mockResolvedValue({
 			ok: false,
@@ -233,7 +273,12 @@ describe('planChapters', () => {
 	});
 
 	it('プレースホルダー削除・件数不一致フォールバックが廃止されている（delete が呼ばれない）', async () => {
-		const topic: TopicForFirestore = { id: 'topic1', title: 'テーマ', createdAt: '', updatedAt: '' };
+		const topic: TopicForFirestore = {
+			id: 'topic1',
+			title: 'テーマ',
+			createdAt: '',
+			updatedAt: ''
+		};
 		mockGetTopicById.mockResolvedValue(topic);
 
 		await planChapters('topic1');
