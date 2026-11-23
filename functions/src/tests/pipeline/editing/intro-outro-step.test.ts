@@ -57,8 +57,16 @@ describe('runIntroOutroStep', () => {
 	it('導入・締めを build（段階書き込み）で intro/outro へ書き、終端スイープの後 finalize を返す', async () => {
 		const result = await runIntroOutroStep('t1', 'r1');
 
-		expect(editorial().intro).toEqual({ status: 'finished', draft: '導入原本', final: '導入編集後' });
-		expect(editorial().outro).toEqual({ status: 'finished', draft: '締め原本', final: '締め編集後' });
+		expect(editorial().intro).toEqual({
+			status: 'finished',
+			draft: '導入原本',
+			final: '導入編集後'
+		});
+		expect(editorial().outro).toEqual({
+			status: 'finished',
+			draft: '締め原本',
+			final: '締め編集後'
+		});
 		expect(mockSweep).toHaveBeenCalledWith('t1'); // 終端スイープ
 		expect(mockFinalize).toHaveBeenCalledWith('t1', 'r1');
 		expect(result).toBe('generated');
@@ -101,6 +109,10 @@ describe('runIntroOutroStep', () => {
 		// intro はスキップ、outro のみ生成
 		expect(mockBuildNarration).toHaveBeenCalledTimes(1);
 		expect(mockBuildNarration).toHaveBeenCalledWith('outro', expect.anything(), expect.anything());
-		expect(editorial().intro).toEqual({ status: 'finished', draft: '既存導入', final: '既存導入編集後' });
+		expect(editorial().intro).toEqual({
+			status: 'finished',
+			draft: '既存導入',
+			final: '既存導入編集後'
+		});
 	});
 });

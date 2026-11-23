@@ -1,15 +1,15 @@
 import { onSnapshot, doc } from 'firebase/firestore';
-import { db } from '$lib/firebase';
-import type { ChapterAnalysisForFirestore } from '$lib/models/chapter/chapter.types';
+import { db } from '#lib/stores/firebase.ts';
+import type { ChapterAnalysis } from '#lib/models/chapter/chapter.types.ts';
 
 export const createChapterAnalysisStore = (topicId: string) => {
-	let data = $state<ChapterAnalysisForFirestore | null>(null);
+	let data = $state<ChapterAnalysis | null>(null);
 	let isLoaded = $state(false);
 	let unsubscribe: (() => void) | null = null;
 
 	const start = () => {
 		unsubscribe = onSnapshot(doc(db, 'topics', topicId, 'chapterAnalysis', '0'), (snap) => {
-			data = snap.exists() ? (snap.data() as ChapterAnalysisForFirestore) : null;
+			data = snap.exists() ? (snap.data() as ChapterAnalysis) : null;
 			isLoaded = true;
 		});
 	};

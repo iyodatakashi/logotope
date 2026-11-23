@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { EditedChapterForFirestore } from '$lib/models/chapter/chapter.types';
+import type { EditedChapterForFirestore } from '#lib/models/chapter/chapter.types.ts';
 
 let snapshotCb: ((snap: unknown) => void) | null = null;
 
-vi.mock('$lib/firebase.js', () => ({ db: {} }));
+vi.mock('#lib/stores/firebase.ts', () => ({ db: {} }));
 vi.mock('firebase/firestore', () => ({
 	onSnapshot: vi.fn((_q: unknown, cb: (snap: unknown) => void) => {
 		snapshotCb = cb;
@@ -14,7 +14,7 @@ vi.mock('firebase/firestore', () => ({
 	orderBy: vi.fn()
 }));
 
-import { createEditedChaptersStore } from '$lib/stores/editedChapters.svelte';
+import { createEditedChaptersStore } from '#lib/stores/editedChapters.svelte.ts';
 
 const makeEdited = (
 	overrides: Partial<EditedChapterForFirestore> & { id?: string } = {}

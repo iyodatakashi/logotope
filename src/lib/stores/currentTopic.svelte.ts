@@ -1,13 +1,13 @@
 import { page } from '$app/state';
-import { topicsStore } from '$lib/stores/topics.svelte';
-import { createChaptersStore } from '$lib/stores/chapters.svelte';
-import { createEditedChaptersStore } from '$lib/stores/editedChapters.svelte';
-import { createEditorialStore } from '$lib/stores/editorial.svelte';
-import { createChapterAnalysisStore } from '$lib/stores/chapterAnalysis.svelte';
-import { createPersonasStore } from '$lib/stores/personas.svelte';
-import { createEngagementsStore } from '$lib/stores/engagements.svelte';
-import { createStakeholdersStore } from '$lib/stores/stakeholders.svelte';
-import { createFactBaseStore } from '$lib/stores/factBase.svelte';
+import { topicsStore } from '#lib/stores/topics.svelte.ts';
+import { createChaptersStore } from '#lib/stores/chapters.svelte.ts';
+import { createEditedChaptersStore } from '#lib/stores/editedChapters.svelte.ts';
+import { createEditorialStore } from '#lib/stores/editorial.svelte.ts';
+import { createChapterAnalysisStore } from '#lib/stores/chapterAnalysis.svelte.ts';
+import { createPersonasStore } from '#lib/stores/personas.svelte.ts';
+import { createEngagementsStore } from '#lib/stores/engagements.svelte.ts';
+import { createStakeholdersStore } from '#lib/stores/stakeholders.svelte.ts';
+import { createFactBaseStore } from '#lib/stores/factBase.svelte.ts';
 
 const create = () => {
 	let factBaseStore = $state(createFactBaseStore(''));

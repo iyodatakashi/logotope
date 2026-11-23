@@ -49,8 +49,18 @@ describe('personaTaskKey', () => {
 	});
 
 	it('avatar 段も personaId まで鍵に含める（per-persona に1本・interview と別種別）', () => {
-		const a = personaTaskKey({ topicId: 't1', runId: 'run-A', stepKind: 'avatar', personaId: 'p1' });
-		const b = personaTaskKey({ topicId: 't1', runId: 'run-A', stepKind: 'avatar', personaId: 'p2' });
+		const a = personaTaskKey({
+			topicId: 't1',
+			runId: 'run-A',
+			stepKind: 'avatar',
+			personaId: 'p1'
+		});
+		const b = personaTaskKey({
+			topicId: 't1',
+			runId: 'run-A',
+			stepKind: 'avatar',
+			personaId: 'p2'
+		});
 		const interview = personaTaskKey({
 			topicId: 't1',
 			runId: 'run-A',

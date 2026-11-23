@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('$lib/firebase.js', () => ({ db: {} }));
+vi.mock('#lib/stores/firebase.ts', () => ({ db: {} }));
 vi.mock('nanoid', () => ({ nanoid: vi.fn(() => 'new-id') }));
 
 const mockBatchDelete = vi.fn();
@@ -26,7 +26,7 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 import { setDoc, getDocs } from 'firebase/firestore';
-import { topicsStore } from '$lib/stores/topics.svelte';
+import { topicsStore } from '#lib/stores/topics.svelte.ts';
 
 describe('toTopic 読み込み境界 - published 正規化', () => {
 	const ts = { toDate: () => new Date(2026, 0, 1) };

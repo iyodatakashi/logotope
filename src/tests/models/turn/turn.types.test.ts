@@ -7,7 +7,7 @@ import type {
 	FactCheckVerdict,
 	FactCheckFinding,
 	TurnFactCheckTrace
-} from '$lib/models/turn/turn.types';
+} from '#lib/models/turn/turn.types.ts';
 
 describe('turn.types', () => {
 	it('FactCheckVerdict は incorrect / unverifiable', () => {

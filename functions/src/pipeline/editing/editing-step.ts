@@ -9,11 +9,7 @@ import { buildImpressionPart } from './editorial-builders.js';
 import { FACILITATOR_NAME } from '../../constants/debate.constants.js';
 import type { EditedTurnDraft } from '../../agents/editor-agent.js';
 import type { EditedChapterForFirestore } from '../../types/chapter.types.js';
-import type {
-	DebateTurn,
-	EditedTurnForFirestore,
-	NonEmptyArray
-} from '../../types/turn.types.js';
+import type { DebateTurn, EditedTurnForFirestore, NonEmptyArray } from '../../types/turn.types.js';
 import type { Persona } from '../../types/persona.types.js';
 import type { Result, PipelineError } from '../../types/common.types.js';
 
@@ -257,9 +253,7 @@ export const runChapterEditStep = async (
 		{ title: chapter.title, agenda: chapter.agenda, turns: chapter.turns },
 		personas,
 		protectedTurnIds,
-		chapters
-			.slice(0, chapterIndex)
-			.map((prior) => ({ title: prior.title, agenda: prior.agenda }))
+		chapters.slice(0, chapterIndex).map((prior) => ({ title: prior.title, agenda: prior.agenda }))
 	);
 	if (!result.ok) throw new Error(pipelineErrorMessage(result.error));
 

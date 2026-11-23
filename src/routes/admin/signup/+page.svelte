@@ -1,5 +1,5 @@
 <script lang="ts">
-	import AdminSignUpPage from '$lib/features/admin/auth/AdminSignUpPage.svelte';
+	import AdminSignUpPage from '#lib/features/adminAuth/adminSignUp/AdminSignUpPage.svelte';
 </script>
 
 <AdminSignUpPage />

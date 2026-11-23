@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { InlineDiffSegment } from '$lib/utils/inlineDiff';
+	import type { InlineDiffSegment } from '#lib/utils/inlineDiff.ts';
 
 	let { segments }: { segments: InlineDiffSegment[] } = $props();
 </script>

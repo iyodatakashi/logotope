@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { EngagementHistoryEntry } from '$lib/models/engagement/engagement.types';
+import type { EngagementHistoryEntry } from '#lib/models/engagement/engagement.types.ts';
 
 let snapshotCbs: Array<(snap: unknown) => void> = [];
 
-vi.mock('$lib/firebase.js', () => ({ db: {} }));
+vi.mock('#lib/stores/firebase.ts', () => ({ db: {} }));
 vi.mock('firebase/firestore', () => ({
 	onSnapshot: vi.fn((_ref: unknown, cb: (snap: unknown) => void) => {
 		snapshotCbs.push(cb);
@@ -17,7 +17,7 @@ import {
 	buildEngagementsMap,
 	createEngagementStore,
 	createEngagementsStore
-} from '$lib/stores/engagements.svelte';
+} from '#lib/stores/engagements.svelte.ts';
 import { onSnapshot, getDocs } from 'firebase/firestore';
 
 type EngagementDocInput = { personaId: string; history: Record<string, EngagementHistoryEntry> };

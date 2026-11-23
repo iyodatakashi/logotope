@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { StakeholderForFirestore } from '$lib/models/stakeholder/stakeholder.types';
+import type { StakeholderForFirestore } from '#lib/models/stakeholder/stakeholder.types.ts';
 
 let snapshotCb: ((snap: unknown) => void) | null = null;
 
-vi.mock('$lib/firebase.js', () => ({ db: {} }));
+vi.mock('#lib/stores/firebase.ts', () => ({ db: {} }));
 vi.mock('firebase/firestore', () => ({
 	onSnapshot: vi.fn((_ref: unknown, cb: (snap: unknown) => void) => {
 		snapshotCb = cb;
@@ -12,7 +12,7 @@ vi.mock('firebase/firestore', () => ({
 	doc: vi.fn()
 }));
 
-import { createStakeholdersStore } from '$lib/stores/stakeholders.svelte';
+import { createStakeholdersStore } from '#lib/stores/stakeholders.svelte.ts';
 
 const fire = (stakeholders: StakeholderForFirestore[] | null) => {
 	snapshotCb?.({

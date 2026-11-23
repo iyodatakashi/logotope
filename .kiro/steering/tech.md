@@ -4,7 +4,7 @@
 
 Firebase App Hosting 上の SvelteKit（SSR）＋ Firebase Functions v2（AI パイプライン専用）＋ Firestore の構成。
 
-- **公開ページ**（`/`・`/debate/[id]`）: SvelteKit SSR で配信し SEO に対応
+- **公開ページ**（`/`・`/articles/[topicId]`）: SvelteKit SSR で配信し SEO に対応
 - **管理画面**（`/admin/**`）: Firebase Auth 保護のクライアントサイド SPA
 - **データ読み書き**: Firestore Client SDK を直接使用（`src/lib/stores/` に集約）
 - **長時間 AI 処理**: Firebase Functions v2 に委譲（最大60分タイムアウト）
@@ -12,7 +12,7 @@ Firebase App Hosting 上の SvelteKit（SSR）＋ Firebase Functions v2（AI パ
 ```
 [Browser]
     ↓ page request
-[Firebase App Hosting — SvelteKit adapter-auto]
+[Firebase App Hosting — SvelteKit adapter-node]
     ↓ onSnapshot（stores）          ↓ AI pipeline call（admin）
 [Firestore]                [Firebase Functions v2 (AI Pipeline)]
                                          ↓
@@ -24,7 +24,7 @@ Firebase App Hosting 上の SvelteKit（SSR）＋ Firebase Functions v2（AI パ
 ## Core Technologies
 
 - **Language**: TypeScript（フロントエンド・Functions 共通、strict mode）
-- **Framework**: SvelteKit 2.x（`@sveltejs/adapter-auto` で Firebase App Hosting にデプロイ）
+- **Framework**: SvelteKit 2.x（`@sveltejs/adapter-node` で Firebase App Hosting にデプロイ）
 - **Runtime**: Node.js 24（Firebase Functions v2）
 - **Package Manager**: pnpm（ワークスペース構成）
 
@@ -89,10 +89,10 @@ Firebase App Hosting 上の SvelteKit（SSR）＋ Firebase Functions v2（AI パ
 
 ## Key Technical Decisions
 
-- **SSRホスティング**: SvelteKit は `adapter-auto` で Firebase App Hosting にデプロイ。公開ページは `+page.server.ts` でSSR配信しSEOを確保する。管理画面はクライアントサイドSPAとして動作する
-- **API層の分担**: 短時間の読み取り操作は SvelteKit `+server.ts` に実装。長時間AI処理（討論生成・取材など）のみ Firebase Functions v2（最大60分）に委譲する
+- **SSRホスティング**: SvelteKit は `adapter-node` で Firebase App Hosting にデプロイ。公開ページは `+page.ts` の `load`（features の `loadXxx` が stores の取得を呼ぶ）でSSR配信しSEOを確保する。管理画面はクライアントサイドSPAとして動作する
+- **API層の分担**: 読み書きは Firestore Client SDK で stores から直接行う（`+server.ts` は持たない）。長時間AI処理（討論生成・取材など）のみ Firebase Functions v2（最大60分）に委譲する
 - **AI処理の非同期化**: 討論生成などの長時間処理はFirebase Functions v2で非同期実行し、Firestoreで進捗を管理する
-- **UI**: `@14ch/svelte-ui` を標準コンポーネントとして使用し、プロジェクト独自の追加コンポーネントは `src/lib/components/` に配置する
+- **UI**: `@14ch/svelte-ui` を標準コンポーネントとして使用し、画面に依存しない共通部品だけを `src/lib/sharedComponents/` に置く（画面固有の部品は `src/lib/features/`）
 
 ---
 _Document standards and patterns, not every dependency_

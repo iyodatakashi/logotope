@@ -96,7 +96,12 @@ const BANGS: readonly Option[] = [
 		w: { feminine: 1.5, neutral: 1.5 },
 		needsHairline: true
 	},
-	{ name: '流し前髪（サイドへ流す）', lengths: LENGTHS, w: { masculine: 1.5 }, needsHairline: true },
+	{
+		name: '流し前髪（サイドへ流す）',
+		lengths: LENGTHS,
+		w: { masculine: 1.5 },
+		needsHairline: true
+	},
 	{
 		name: '触覚（顔まわりに長い束）',
 		lengths: ['B', 'M', 'SL', 'L'],
@@ -306,14 +311,22 @@ const DENSITIES: readonly Density[] = [
 		name: '生え際後退',
 		desc: '生え際が後退している',
 		lengths: LENGTHS,
-		w: { masculine: { middle: 0.25, senior: 0.9, elder: 1.1 }, feminine: {}, neutral: { senior: 0.25, elder: 0.4 } },
+		w: {
+			masculine: { middle: 0.25, senior: 0.9, elder: 1.1 },
+			feminine: {},
+			neutral: { senior: 0.25, elder: 0.4 }
+		},
 		noHairline: true
 	},
 	{
 		name: '頭頂部の薄毛',
 		desc: '頭頂部の毛量が減って地肌がのぞく',
 		lengths: ['VS', 'S', 'B', 'M'],
-		w: { masculine: { senior: 0.5, elder: 0.9 }, feminine: { elder: 0.12 }, neutral: { elder: 0.25 } }
+		w: {
+			masculine: { senior: 0.5, elder: 0.9 },
+			feminine: { elder: 0.12 },
+			neutral: { elder: 0.25 }
+		}
 	},
 	{
 		name: '著しい薄毛',
@@ -324,8 +337,10 @@ const DENSITIES: readonly Density[] = [
 	}
 ];
 
-const descOf = (arr: readonly { name: string; desc: string | null }[], name: string): string | null =>
-	arr.find((x) => x.name === name)?.desc ?? null;
+const descOf = (
+	arr: readonly { name: string; desc: string | null }[],
+	name: string
+): string | null => arr.find((x) => x.name === name)?.desc ?? null;
 
 /**
  * その毛量と両立する肢か（ハード制約）。生え際が無い毛量に前髪あり・マッシュを許すと
@@ -428,9 +443,19 @@ const ALL_PRESENTATIONS: readonly Presentation[] = ['masculine', 'feminine', 'ne
 const YOUNG: readonly Generation[] = ['child', 'young'];
 const ADULT: readonly Generation[] = ['middle', 'senior', 'elder'];
 const AESTHETIC_CODES: readonly Aesthetic[] = [
-	{ keyword: 'ulzzang style', presentations: ['feminine', 'neutral'], generations: ['young'], trendy: true },
+	{
+		keyword: 'ulzzang style',
+		presentations: ['feminine', 'neutral'],
+		generations: ['young'],
+		trendy: true
+	},
 	{ keyword: 'Y2K style', presentations: ALL_PRESENTATIONS, generations: YOUNG, trendy: true },
-	{ keyword: 'street fashion style', presentations: ALL_PRESENTATIONS, generations: ['young', 'middle'], trendy: true },
+	{
+		keyword: 'street fashion style',
+		presentations: ALL_PRESENTATIONS,
+		generations: ['young', 'middle'],
+		trendy: true
+	},
 	{ keyword: 'French casual style', presentations: ALL_PRESENTATIONS },
 	{ keyword: 'clean minimal style', presentations: ALL_PRESENTATIONS },
 	{ keyword: 'neutral cool style', presentations: ALL_PRESENTATIONS },

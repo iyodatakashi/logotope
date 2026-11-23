@@ -5,15 +5,14 @@
 ```
 フロントエンド（Firebase Client SDK）
   ├── 読み込み・CRUD書き込み → src/lib/stores/（onSnapshot + setDoc/addDoc等）→ Firestore
-  └── AI処理起動 → src/lib/api/（httpsCallable）→ Cloud Functions (onCall)
+  └── AI処理起動 → src/lib/stores/ のメソッド（httpsCallable）→ Cloud Functions (onCall)
 
 Cloud Functions（firebase-admin）
   └── AI パイプラインのみ（長時間処理・サーバーサイドAI SDK）
         ↓ 内部で repository.ts を使って Firestore に書き込む
 ```
 
-**Firestore へのアクセスは `src/lib/stores/` に集約する。**
-`src/lib/api/` は Cloud Functions 呼び出し（httpsCallable）のみとする。
+**Firestore・Cloud Functions へのアクセスは `src/lib/stores/` に集約する。** 例外は、取得済みのトピック1件に保存・状態遷移・AI 処理の起動を載せた `models/topic/createTopic.svelte.ts`（共通ルールの `create<Domain>.svelte.ts`）。
 
 ---
 
@@ -78,14 +77,14 @@ topics/{topicId}/sessions/0
 ### 基本構造
 ```typescript
 export const createXxxStore = (topicId: string) => {
-  let data = $state<XxxDoc | null>(null);
+  let data = $state<Xxx | null>(null);
   let isLoaded = $state(false);
   let unsubscribe: (() => void) | null = null;
 
   const start = () => {
     const ref = doc(db, 'topics', topicId);
     unsubscribe = onSnapshot(ref, (snap) => {
-      data = snap.exists() ? ({ id: snap.id, ...snap.data() } as XxxDoc) : null;
+      data = snap.exists() ? ({ id: snap.id, ...snap.data() } as Xxx) : null;
       isLoaded = true;  // ドキュメントの存在有無にかかわらず、初回スナップショット受信で true
     });
   };
@@ -156,7 +155,7 @@ match /editedIntroClosing/{docId} {
 | | 場所 | 何を止めるか |
 |---|---|---|
 | **Authentication → Settings → User actions** | Firebase サーバ側 | **登録 API そのもの**。塞ぐと `auth/admin-restricted-operation` が返る |
-| `ADMIN_AUTH_CONFIG.selfRegistration` | `src/lib/models/auth/admin-auth.constants.ts` | **画面に登録の入口を出すかどうかだけ** |
+| `ADMIN_AUTH_CONFIG.selfRegistration` | `src/lib/models/adminAuth/adminAuth.constants.ts` | **画面に登録の入口を出すかどうかだけ** |
 
 **この2つは連動しない。**コードはコンソールの状態を読まない（`store.canSelfRegister` は渡した固定値を返すだけ）。API キーは公開されているため、コンソールを開けたままコード側を `false` にしても、REST を直接叩けばアカウントは作れる。**防御はコンソール側のみ**で、コード側は体験の話。
 

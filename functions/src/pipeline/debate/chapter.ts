@@ -1,9 +1,5 @@
 import { getFirestore, Timestamp, FieldValue } from 'firebase-admin/firestore';
-import type {
-	AgendaItemState,
-	ChapterProgress,
-	ChapterEntry
-} from '../../types/chapter.types.js';
+import type { AgendaItemState, ChapterProgress, ChapterEntry } from '../../types/chapter.types.js';
 import type { DebateTurn } from '../../types/turn.types.js';
 import type { Chapter } from '../../types/chapter.types.js';
 

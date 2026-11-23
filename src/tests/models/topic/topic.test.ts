@@ -9,7 +9,7 @@ const { mockBatch } = vi.hoisted(() => ({
 	}
 }));
 
-vi.mock('$lib/firebase.js', () => ({ db: {}, functions: {} }));
+vi.mock('#lib/stores/firebase.ts', () => ({ db: {}, functions: {} }));
 vi.mock('firebase/functions', () => ({
 	httpsCallable: vi.fn(() => vi.fn().mockResolvedValue({ data: {} }))
 }));
@@ -30,12 +30,12 @@ vi.mock('firebase/firestore', () => ({
 
 import { httpsCallable } from 'firebase/functions';
 import { updateDoc, setDoc, getDoc, getDocs } from 'firebase/firestore';
-import { createTopicStates } from '$lib/models/topic/createTopic.svelte';
+import { createTopic } from '#lib/models/topic/createTopic.svelte.ts';
 
 const TOPIC_PATH = { path: 'topics/t1' };
 const mockTimestamp = { toDate: () => new Date() };
 const makeTopic = (extra: Record<string, unknown> = {}) =>
-	createTopicStates({
+	createTopic({
 		id: 't1',
 		createdAt: mockTimestamp,
 		updatedAt: mockTimestamp,
@@ -44,7 +44,7 @@ const makeTopic = (extra: Record<string, unknown> = {}) =>
 const updateCallsFor = (path: string) =>
 	vi.mocked(updateDoc).mock.calls.filter((c) => (c[0] as { path: string }).path === path);
 
-describe('createTopicStates', () => {
+describe('createTopic', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(getDoc).mockResolvedValue({ exists: () => false, data: () => undefined } as never);
@@ -207,7 +207,6 @@ describe('createTopicStates', () => {
 			});
 			expect(callable).toHaveBeenCalledWith({ topicId: 't1' });
 		});
-
 	});
 
 	describe('生成の2軸遷移（生成のみ。旧データ削除は reset が担う）', () => {

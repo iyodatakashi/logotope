@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { toAsset } from '../../avatar/avatar-postprocess';
 import { ASSET_SIZE } from '../../avatar/avatar-constants';
 
-const fixture = (name: string): string => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
+const fixture = (name: string): string =>
+	fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 
 interface Decoded {
 	data: Buffer;

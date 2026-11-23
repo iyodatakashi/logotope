@@ -1,9 +1,9 @@
 import { onSnapshot, collection, getDocs } from 'firebase/firestore';
-import { db } from '$lib/firebase';
+import { db } from '#lib/stores/firebase.ts';
 import type {
 	EngagementHistoryEntry,
 	EngagementHistoryEntryWithPersona
-} from '$lib/models/engagement/engagement.types';
+} from '#lib/models/engagement/engagement.types.ts';
 
 export const buildEngagementsMap = (
 	rawDocs: Array<{ personaId: string; history: Record<string, EngagementHistoryEntry> }>
@@ -52,10 +52,8 @@ export const createEngagementStore = (topicId: string, chapterId: string) => {
 	};
 };
 
-export type EngagementStore = ReturnType<typeof createEngagementStore>;
-
 export const createEngagementsStore = (topicId: string) => {
-	let engagements = $state<EngagementStore[]>([]);
+	let engagements = $state<ReturnType<typeof createEngagementStore>[]>([]);
 	const engagementsMap = $derived.by(() => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity
 		const merged = new Map<string, EngagementHistoryEntryWithPersona[]>();
@@ -96,5 +94,3 @@ export const createEngagementsStore = (topicId: string) => {
 		stop
 	};
 };
-
-export type EngagementsStore = ReturnType<typeof createEngagementsStore>;

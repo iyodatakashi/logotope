@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import type { ChapterAnalysisForFirestore } from '$lib/models/chapter/chapter.types';
+import type { ChapterAnalysis } from '#lib/models/chapter/chapter.types.ts';
 
 let snapshotCb: ((snap: unknown) => void) | null = null;
 
-vi.mock('$lib/firebase.js', () => ({ db: {} }));
+vi.mock('#lib/stores/firebase.ts', () => ({ db: {} }));
 vi.mock('firebase/firestore', () => ({
 	onSnapshot: vi.fn((_ref: unknown, cb: (snap: unknown) => void) => {
 		snapshotCb = cb;
@@ -12,9 +12,9 @@ vi.mock('firebase/firestore', () => ({
 	doc: vi.fn()
 }));
 
-import { createChapterAnalysisStore } from '$lib/stores/chapterAnalysis.svelte';
+import { createChapterAnalysisStore } from '#lib/stores/chapterAnalysis.svelte.ts';
 
-const fire = (data: ChapterAnalysisForFirestore | null) => {
+const fire = (data: ChapterAnalysis | null) => {
 	snapshotCb?.({ exists: () => data !== null, data: () => data });
 };
 

@@ -1,5 +1,6 @@
-import { Timestamp } from 'firebase/firestore';
-import type { PhaseSlug, PhaseStatus } from '$lib/models/phase/phase.types';
+import type { Timestamp } from 'firebase/firestore';
+import type { createTopic } from '#lib/models/topic/createTopic.svelte.ts';
+import type { PhaseSlug, PhaseStatus } from '#lib/models/phase/phase.types.ts';
 
 // 参考URLから取得した本文1件。
 export type FetchedSourceContentForFirestore = {
@@ -32,7 +33,7 @@ export type TopicForFirestore = {
 	publishedAt?: Timestamp;
 };
 
-// トピックのアプリ層型（Timestamp → Date 変換済み）。createTopicStates の入力となる。
+// トピックのアプリ層型（Timestamp → Date 変換済み）。createTopic の入力となる。
 export type Topic = {
 	id: string;
 	title: string;
@@ -49,3 +50,6 @@ export type Topic = {
 	published: boolean;
 	publishedAt?: Date;
 };
+
+// 画面が扱う「生きたトピック」。アプリ層型 Topic に $state と各種操作を載せたもの。
+export type TopicStates = ReturnType<typeof createTopic>;

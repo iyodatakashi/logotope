@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 
-import PersonaAvatar from '$lib/sharedComponents/PersonaAvatar.svelte';
-import { firebaseConfig } from '$lib/firebase-config';
+import PersonaAvatar from '#lib/sharedComponents/PersonaAvatar.svelte';
+import { firebaseConfig } from '#lib/stores/firebaseConfig.ts';
 
 describe('PersonaAvatar', () => {
 	it('生成済みアバターは配色キー由来の色と Storage 画像URLを描画変数へ反映する（Req 5.1）', async () => {
@@ -16,7 +16,9 @@ describe('PersonaAvatar', () => {
 		expect(root.style.getPropertyValue('--persona-avatar-background-color')).toBe(
 			'var(--blue-100-transparent)'
 		);
-		expect(image.style.getPropertyValue('--persona-avatar-silhouette-color')).toBe('var(--blue-600)');
+		expect(image.style.getPropertyValue('--persona-avatar-silhouette-color')).toBe(
+			'var(--blue-600)'
+		);
 
 		// パスは id/topicId から導出、avatarGeneratedAt はキャッシュバスター（v=）。
 		const path = encodeURIComponent('topics/t1/avatars/p1');

@@ -135,7 +135,11 @@ const resolveDebateDigest = async (
 	try {
 		await writeDigestCache(topicId, built.value);
 	} catch (err) {
-		console.warn('[buildIntroOutroInput] digest cache write failed (best-effort)', { topicId }, err);
+		console.warn(
+			'[buildIntroOutroInput] digest cache write failed (best-effort)',
+			{ topicId },
+			err
+		);
 	}
 	return built;
 };

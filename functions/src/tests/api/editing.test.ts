@@ -14,12 +14,14 @@ const { mockStartRun, mockStopRun, mockAdvance, mockEnqueue } = vi.hoisted(() =>
 	mockEnqueue: vi.fn().mockResolvedValue(undefined)
 }));
 
-const { mockRegenChapter, mockRegenIntro, mockRegenOutro, mockRegenImpression } = vi.hoisted(() => ({
-	mockRegenChapter: vi.fn().mockResolvedValue(undefined),
-	mockRegenIntro: vi.fn().mockResolvedValue(undefined),
-	mockRegenOutro: vi.fn().mockResolvedValue(undefined),
-	mockRegenImpression: vi.fn().mockResolvedValue(undefined)
-}));
+const { mockRegenChapter, mockRegenIntro, mockRegenOutro, mockRegenImpression } = vi.hoisted(
+	() => ({
+		mockRegenChapter: vi.fn().mockResolvedValue(undefined),
+		mockRegenIntro: vi.fn().mockResolvedValue(undefined),
+		mockRegenOutro: vi.fn().mockResolvedValue(undefined),
+		mockRegenImpression: vi.fn().mockResolvedValue(undefined)
+	})
+);
 
 vi.mock('firebase-functions/v2/https', () => ({
 	onCall: vi.fn((_opts: unknown, handler: unknown) => handler),
@@ -45,7 +47,9 @@ vi.mock('../../utils/auth.js', () => ({ requireAuth: vi.fn() }));
 vi.mock('../../pipeline/topics/topics.js', () => ({ getTopicById: mockGetTopicById }));
 vi.mock('../../pipeline/debate/chapter.js', () => ({ getChaptersByTopicId: mockGetChapters }));
 vi.mock('../../pipeline/editing/editing-orchestrator.js', () => ({ advanceEditing: mockAdvance }));
-vi.mock('../../pipeline/editing/enqueue-editing-step.js', () => ({ enqueueEditingStep: mockEnqueue }));
+vi.mock('../../pipeline/editing/enqueue-editing-step.js', () => ({
+	enqueueEditingStep: mockEnqueue
+}));
 vi.mock('../../pipeline/editing/editing-lifecycle.js', () => ({
 	startEditingRun: mockStartRun,
 	stopEditingRun: mockStopRun
@@ -68,7 +72,10 @@ const taskHandler = runEditingStep as unknown as (req: unknown) => Promise<unkno
 const regenHandler = regenerateArticleElement as unknown as (req: unknown) => Promise<unknown>;
 const makeRequest = (data: unknown) => ({ data, auth: { uid: 'user1' } });
 
-const settledTopic = () => ({ exists: true, data: () => ({ phase: 'editing', phaseStatus: 'stopped' }) });
+const settledTopic = () => ({
+	exists: true,
+	data: () => ({ phase: 'editing', phaseStatus: 'stopped' })
+});
 
 beforeEach(() => {
 	vi.clearAllMocks();

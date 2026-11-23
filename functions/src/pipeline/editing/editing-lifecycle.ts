@@ -62,7 +62,10 @@ export const finalizePendingEditorials = async (topicId: string): Promise<void> 
 	for (const kind of ['intro', 'outro'] as const) {
 		const part = editorial[kind];
 		if (part.status !== 'finished') {
-			await narrationWriter(topicId, kind).markEditorialFinished({ draft: part.draft, final: part.final });
+			await narrationWriter(topicId, kind).markEditorialFinished({
+				draft: part.draft,
+				final: part.final
+			});
 		}
 	}
 

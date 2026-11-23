@@ -1,8 +1,8 @@
 <script lang="ts">
-	import type { PersonaForDisplay } from '$lib/models/persona/persona.types';
-	import PersonaAvatar from '$lib/sharedComponents/PersonaAvatar.svelte';
+	import type { PersonaForDisplay } from '#lib/models/persona/persona.types.ts';
+	import PersonaAvatar from '#lib/sharedComponents/PersonaAvatar.svelte';
 	import type { Snippet } from 'svelte';
-	import { FACILITATOR_NAME } from '$lib/models/turn/turn.constants';
+	import { FACILITATOR_NAME } from '#lib/models/turn/turn.constants.ts';
 
 	// Admin・公開共通の発言アイテム。表示型 PersonaForDisplay を受け取り、名前・役割・アバターを描画する。
 	// persona 欠落＝ファシリテーターは既定名へ縮退し、欠落し得る外見フィールドは PersonaAvatar が既定へ倒す。

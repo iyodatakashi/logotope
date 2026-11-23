@@ -1,10 +1,10 @@
 import { onSnapshot, collection, query, orderBy } from 'firebase/firestore';
-import { db } from '$lib/firebase';
+import { db } from '#lib/stores/firebase.ts';
 import type {
 	EditedChapter,
 	EditedChapterForFirestore,
 	EditedChapterDisplayStatus
-} from '$lib/models/chapter/chapter.types';
+} from '#lib/models/chapter/chapter.types.ts';
 
 // editedChapters を chapterIndex 順に購読し、章別に編集成果物と表示状態を公開する。
 // 編集後ターンは Timestamp を持たない（原本を参照）ため永続形をそのまま実行時形として使う。
@@ -50,5 +50,3 @@ export const createEditedChaptersStore = (topicId: string) => {
 		stop
 	};
 };
-
-export type EditedChaptersStore = ReturnType<typeof createEditedChaptersStore>;

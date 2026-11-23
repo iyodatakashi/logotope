@@ -3,7 +3,11 @@ import { getPersonasByTopicId } from '../personas/personas.js';
 import { getDebateTurnsByTopicId } from '../debate/chapter.js';
 import { pipelineErrorMessage } from '../debate/utils.js';
 import { narrationWriter, impressionWriter } from './editorial-repository.js';
-import { buildImpressionPart, buildNarrationPart, buildIntroOutroInput } from './editorial-builders.js';
+import {
+	buildImpressionPart,
+	buildNarrationPart,
+	buildIntroOutroInput
+} from './editorial-builders.js';
 import { readRawChapters, runChapterEditStep } from './editing-step.js';
 import { finalizeEditingRun } from './editing-lifecycle.js';
 
@@ -31,10 +35,12 @@ export const regenerateImpression = async (topicId: string, personaId: string): 
 };
 
 /** 導入を作り直す。生成中（内容破棄）→段階を経て完了で確定する（intro のみ部分上書き） */
-export const regenerateIntro = (topicId: string): Promise<void> => regenerateNarration(topicId, 'intro');
+export const regenerateIntro = (topicId: string): Promise<void> =>
+	regenerateNarration(topicId, 'intro');
 
 /** 締めを作り直す。生成中（内容破棄）→段階を経て完了で確定する（outro のみ部分上書き） */
-export const regenerateOutro = (topicId: string): Promise<void> => regenerateNarration(topicId, 'outro');
+export const regenerateOutro = (topicId: string): Promise<void> =>
+	regenerateNarration(topicId, 'outro');
 
 /**
  * 導入・締め共通の再生成。まず「生成中への切替（旧内容クリア）」を単一書き込み・非トランザクションで行い、

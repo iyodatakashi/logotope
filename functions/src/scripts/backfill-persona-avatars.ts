@@ -48,7 +48,9 @@ const main = async (): Promise<void> => {
 				skipped++;
 				continue;
 			}
-			console.log(`  ${apply ? 'GEN ' : 'PLAN'} ${doc.id} (${data.name}) ${data.age}歳 ${data.occupation}`);
+			console.log(
+				`  ${apply ? 'GEN ' : 'PLAN'} ${doc.id} (${data.name}) ${data.age}歳 ${data.occupation}`
+			);
 			if (!apply) continue;
 
 			await runAvatarCore(topic.id, doc.id);

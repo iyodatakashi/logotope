@@ -68,7 +68,9 @@ describe('startEditingRun', () => {
 		holder.mock!.store.set('topics/t1/editorial/outputs', {
 			intro: { status: 'finished', draft: '旧導入', final: '旧導入編集後' },
 			outro: { status: 'pending', draft: null, final: null },
-			impressions: { p1: { sortOrder: 0, status: 'finished', draft: '旧所感', final: '旧所感編集後' } }
+			impressions: {
+				p1: { sortOrder: 0, status: 'finished', draft: '旧所感', final: '旧所感編集後' }
+			}
 		});
 
 		await startEditingRun('t1');
@@ -178,8 +180,18 @@ describe('finalizePendingEditorials（終端スイープ）', () => {
 		const editorial = holder.mock!.store.get(EDITORIAL_PATH) as {
 			impressions: Record<string, unknown>;
 		};
-		expect(editorial.impressions.p1).toEqual({ sortOrder: 0, status: 'finished', draft: null, final: null });
-		expect(editorial.impressions.p2).toEqual({ sortOrder: 1, status: 'finished', draft: null, final: null });
+		expect(editorial.impressions.p1).toEqual({
+			sortOrder: 0,
+			status: 'finished',
+			draft: null,
+			final: null
+		});
+		expect(editorial.impressions.p2).toEqual({
+			sortOrder: 1,
+			status: 'finished',
+			draft: null,
+			final: null
+		});
 		expect(editorial.impressions.p3).toBeUndefined(); // 未承認は対象外
 	});
 
@@ -216,7 +228,12 @@ describe('stopEditingRun（停止＋終端スイープ）', () => {
 			impressions: Record<string, unknown>;
 		};
 		expect(editorial.intro).toEqual({ status: 'finished', draft: null, final: null });
-		expect(editorial.impressions.p1).toEqual({ sortOrder: 0, status: 'finished', draft: null, final: null });
+		expect(editorial.impressions.p1).toEqual({
+			sortOrder: 0,
+			status: 'finished',
+			draft: null,
+			final: null
+		});
 	});
 
 	it('停止が成立しない（runId 不一致）ならスイープしない', async () => {
@@ -230,6 +247,8 @@ describe('stopEditingRun（停止＋終端スイープ）', () => {
 		await stopEditingRun('t1', 'stale');
 
 		expect(holder.mock!.store.get('topics/t1')).toMatchObject({ phaseStatus: 'running' });
-		expect((holder.mock!.store.get(EDITORIAL_PATH) as { intro: { status: string } }).intro.status).toBe('pending');
+		expect(
+			(holder.mock!.store.get(EDITORIAL_PATH) as { intro: { status: string } }).intro.status
+		).toBe('pending');
 	});
 });

@@ -2,13 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { Timestamp } from 'firebase/firestore';
 import type {
 	ChapterForFirestore,
-	ChapterAnalysisForFirestore,
+	ChapterAnalysis,
 	PendingTurn,
 	PendingTurnStatus,
 	Issue,
 	IssueGroup
-} from '$lib/models/chapter/chapter.types';
-import type { TurnForFirestore } from '$lib/models/turn/turn.types';
+} from '#lib/models/chapter/chapter.types.ts';
+import type { TurnForFirestore } from '#lib/models/turn/turn.types.ts';
 
 describe('chapter.types - チャプタードキュメント型定義', () => {
 	it('ChapterForFirestore は章メタ・ターン配列・進行ステータスを持つ', () => {
@@ -96,8 +96,8 @@ describe('chapter.types - チャプタードキュメント型定義', () => {
 		expect(chapter.pendingTurn).toBeUndefined();
 	});
 
-	it('ChapterAnalysisForFirestore は issues 配列と任意の issueGroups を持つ', () => {
-		const analysis: ChapterAnalysisForFirestore = {
+	it('ChapterAnalysis は issues 配列と任意の issueGroups を持つ', () => {
+		const analysis: ChapterAnalysis = {
 			issues: [
 				{ id: 'i1', text: '一般的切り口', source: 'general' },
 				{ id: 'i2', text: 'ペルソナ別切り口', source: 'persona' }

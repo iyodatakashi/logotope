@@ -17,14 +17,10 @@ export const initAgendaItems = (chapter: Chapter): AgendaItemState[] =>
  * 提示済みが無ければ undefined を返す（純関数・state 不変）。
  */
 const getActiveAgendaItemState = (state: DebateState): AgendaItemState | undefined => {
-	const introduced = state.agenda.filter(
-		(agendaItem) => agendaItem.status === 'introduced'
-	);
+	const introduced = state.agenda.filter((agendaItem) => agendaItem.status === 'introduced');
 	if (introduced.length === 0) return undefined;
 	return introduced.reduce((latest, agendaItem) =>
-		(agendaItem.introducedOrder ?? 0) > (latest.introducedOrder ?? 0)
-			? agendaItem
-			: latest
+		(agendaItem.introducedOrder ?? 0) > (latest.introducedOrder ?? 0) ? agendaItem : latest
 	);
 };
 
@@ -41,14 +37,10 @@ export const getActiveAgendaItem = (state: DebateState): string | undefined =>
  */
 export const markIntroduced = (state: DebateState, index: number | undefined): void => {
 	if (index === undefined) return;
-	const untouched = state.agenda.filter(
-		(agendaItem) => agendaItem.status === 'untouched'
-	);
+	const untouched = state.agenda.filter((agendaItem) => agendaItem.status === 'untouched');
 	const target =
 		untouched[index] !== undefined
-			? state.agenda.find(
-					(agendaItem) => agendaItem.point === untouched[index].point
-				)
+			? state.agenda.find((agendaItem) => agendaItem.point === untouched[index].point)
 			: undefined;
 	if (!target) return;
 	// 直近に提示された論点を一意に追えるよう、提示のたびに単調増加の順序を採番する

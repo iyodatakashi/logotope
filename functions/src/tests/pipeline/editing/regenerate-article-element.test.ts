@@ -32,7 +32,9 @@ vi.mock('../../../pipeline/editing/editing-step.js', () => ({
 	readRawChapters: h.readRawChapters,
 	runChapterEditStep: h.runChapterEditStep
 }));
-vi.mock('../../../pipeline/editing/editing-lifecycle.js', () => ({ finalizeEditingRun: h.finalize }));
+vi.mock('../../../pipeline/editing/editing-lifecycle.js', () => ({
+	finalizeEditingRun: h.finalize
+}));
 
 import {
 	regenerateImpression,
@@ -98,13 +100,21 @@ describe('regenerateIntro / regenerateOutro', () => {
 	it('intro: intro の writer を作り build に渡す', async () => {
 		await regenerateIntro('t1');
 		expect(h.narrationWriter).toHaveBeenCalledWith('t1', 'intro');
-		expect(h.buildNarrationPart).toHaveBeenCalledWith('intro', { digest: {}, topicContext: {} }, INTRO_WRITER);
+		expect(h.buildNarrationPart).toHaveBeenCalledWith(
+			'intro',
+			{ digest: {}, topicContext: {} },
+			INTRO_WRITER
+		);
 	});
 
 	it('outro: outro の writer を作り build に渡す', async () => {
 		await regenerateOutro('t1');
 		expect(h.narrationWriter).toHaveBeenCalledWith('t1', 'outro');
-		expect(h.buildNarrationPart).toHaveBeenCalledWith('outro', { digest: {}, topicContext: {} }, OUTRO_WRITER);
+		expect(h.buildNarrationPart).toHaveBeenCalledWith(
+			'outro',
+			{ digest: {}, topicContext: {} },
+			OUTRO_WRITER
+		);
 	});
 
 	it('生成中への切替（markEditorialGenerating）を重い前処理（buildIntroOutroInput）より前に呼ぶ（R1.2/R4.2）', async () => {
@@ -122,14 +132,20 @@ describe('regenerateIntro / regenerateOutro', () => {
 	});
 
 	it('ダイジェスト構築失敗は throw せず生成失敗（空）で確定する（build しない・旧内容は破棄）', async () => {
-		h.buildInput.mockResolvedValueOnce({ ok: false, error: { code: 'NOT_FOUND', message: 'no digest' } });
+		h.buildInput.mockResolvedValueOnce({
+			ok: false,
+			error: { code: 'NOT_FOUND', message: 'no digest' }
+		});
 		await expect(regenerateOutro('t1')).resolves.toBeUndefined();
 		expect(h.buildNarrationPart).not.toHaveBeenCalled();
 		expect(OUTRO_WRITER.markEditorialFinished).toHaveBeenCalledWith({ draft: null, final: null });
 	});
 
 	it('intro もダイジェスト失敗時は生成失敗（空）で確定する', async () => {
-		h.buildInput.mockResolvedValueOnce({ ok: false, error: { code: 'NOT_FOUND', message: 'no digest' } });
+		h.buildInput.mockResolvedValueOnce({
+			ok: false,
+			error: { code: 'NOT_FOUND', message: 'no digest' }
+		});
 		await expect(regenerateIntro('t1')).resolves.toBeUndefined();
 		expect(h.buildNarrationPart).not.toHaveBeenCalled();
 		expect(INTRO_WRITER.markEditorialFinished).toHaveBeenCalledWith({ draft: null, final: null });

@@ -1,6 +1,6 @@
 <script lang="ts">
-	import DefaultAvatar from '$lib/assets/images/avatars/female_middle_1.png';
-	import { firebaseConfig } from '$lib/firebase-config';
+	import DefaultAvatar from '#lib/assets/images/avatars/female_middle_1.png';
+	import { firebaseConfig } from '#lib/stores/firebaseConfig.ts';
 
 	// 外見の解決（配色キー→濃淡・画像 URL の組み立て）をこの部品の中に集約する。
 	// 呼び出し側はペルソナを渡すだけで、色や URL を組み立てない。公開・管理で同一のこの部品を使う。

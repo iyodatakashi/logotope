@@ -11,7 +11,7 @@ import {
 	type PersonaForFirestore,
 	type Persona,
 	type PersonaForDisplay
-} from '$lib/models/persona/persona.types';
+} from '#lib/models/persona/persona.types.ts';
 
 describe('persona.types - Firestore 型とアプリ型', () => {
 	it('BeliefForFirestore は信念のみ（id/version/content/createdAt）を持つ', () => {

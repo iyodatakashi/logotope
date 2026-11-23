@@ -36,12 +36,16 @@ vi.mock('../../../agents/editor-agent.js', () => ({
 	editIntro: mockEditIntro,
 	editOutro: mockEditOutro
 }));
-vi.mock('../../../pipeline/debate/debate-digest.js', () => ({ buildDebateDigest: mockBuildDigest }));
+vi.mock('../../../pipeline/debate/debate-digest.js', () => ({
+	buildDebateDigest: mockBuildDigest
+}));
 vi.mock('../../../pipeline/editing/digest-cache-repository.js', () => ({
 	readDigestCache: mockReadDigestCache,
 	writeDigestCache: mockWriteDigestCache
 }));
-vi.mock('../../../pipeline/topics/topic-context.js', () => ({ getTopicContext: mockGetTopicContext }));
+vi.mock('../../../pipeline/topics/topic-context.js', () => ({
+	getTopicContext: mockGetTopicContext
+}));
 
 import {
 	buildImpressionPart,
@@ -51,10 +55,14 @@ import {
 
 const persona = { id: 'p1', name: 'p1' } as unknown as Persona;
 const ok = <T>(value: T) => ({ ok: true, value }) as const;
-const err = () => ({ ok: false, error: { code: 'AI_API_ERROR', message: 'x', retryable: true } }) as const;
+const err = () =>
+	({ ok: false, error: { code: 'AI_API_ERROR', message: 'x', retryable: true } }) as const;
 
 // 段階書き込みを記録する擬似 writer。呼ばれた順に (op, 内容) を残し、段階遷移を検証する。
-type Step = ['markEditorialGenerating'] | ['markEditorialEditing', string] | ['markEditorialFinished', { draft: string | null; final: string | null }];
+type Step =
+	| ['markEditorialGenerating']
+	| ['markEditorialEditing', string]
+	| ['markEditorialFinished', { draft: string | null; final: string | null }];
 const recordingWriter = () => {
 	const steps: Step[] = [];
 	const writer: EditorialWriter = {
@@ -88,7 +96,9 @@ describe('buildImpressionPart（段階書き込み）', () => {
 	});
 
 	it('原本生成を最大3回リトライし、途中成功なら回復する', async () => {
-		mockGenerateImpression.mockResolvedValueOnce(err()).mockResolvedValueOnce(ok({ personaId: 'p1', content: '原本' }));
+		mockGenerateImpression
+			.mockResolvedValueOnce(err())
+			.mockResolvedValueOnce(ok({ personaId: 'p1', content: '原本' }));
 		mockEditImpression.mockResolvedValueOnce(ok('編集後'));
 
 		const { writer, steps } = recordingWriter();
@@ -102,7 +112,10 @@ describe('buildImpressionPart（段階書き込み）', () => {
 		const { writer, steps } = recordingWriter();
 		await buildImpressionPart(persona, [], [persona], writer);
 		expect(mockGenerateImpression).toHaveBeenCalledTimes(3);
-		expect(steps).toEqual([['markEditorialGenerating'], ['markEditorialFinished', { draft: null, final: null }]]);
+		expect(steps).toEqual([
+			['markEditorialGenerating'],
+			['markEditorialFinished', { draft: null, final: null }]
+		]);
 	});
 
 	it('整えに失敗しても原本を保持して完了（編集失敗）で確定する', async () => {
@@ -150,7 +163,10 @@ describe('buildNarrationPart（段階書き込み・生成中への切替は呼�
 
 		const { writer, steps } = recordingWriter();
 		await buildNarrationPart('outro', input, writer);
-		expect(steps.at(-1)).toEqual(['markEditorialFinished', { draft: '締め原本', final: '締め編集後' }]);
+		expect(steps.at(-1)).toEqual([
+			'markEditorialFinished',
+			{ draft: '締め原本', final: '締め編集後' }
+		]);
 	});
 
 	it('生成失敗なら完了（空＝生成失敗）で確定する（切替・toEditing なし）', async () => {

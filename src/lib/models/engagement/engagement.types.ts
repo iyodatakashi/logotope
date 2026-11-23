@@ -10,3 +10,9 @@ export type EngagementHistoryEntryWithPersona = EngagementHistoryEntry & {
 	turnId: string;
 	personaId: string;
 };
+
+export type EngagementStyle = {
+	label: string;
+	color: string;
+	bg: string;
+};

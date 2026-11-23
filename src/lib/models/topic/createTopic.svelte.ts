@@ -8,13 +8,13 @@ import {
 	deleteField
 } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { db, functions } from '$lib/firebase';
+import { db, functions } from '#lib/stores/firebase.ts';
 import type { Topic } from './topic.types';
-import type { ArticleElement } from '$lib/models/editorial/editorial.types';
-import type { PhaseSlug, PhaseStatus } from '$lib/models/phase/phase.types';
-import { nextPhase } from '$lib/models/phase/phase';
+import type { ArticleElement } from '#lib/models/editorial/editorial.types.ts';
+import type { PhaseSlug, PhaseStatus } from '#lib/models/phase/phase.types.ts';
+import { nextPhase } from '#lib/models/phase/phase.ts';
 
-export const createTopicStates = (topicDoc: Topic) => {
+export const createTopic = (topicDoc: Topic) => {
 	const id: string = $state(topicDoc.id);
 	// 題名・説明・参考URLは画面から直接編集できる（bind 可能）。永続化は save を明示的に呼ぶ。
 	// 未設定は空文字・空配列で表す（Firestore 上のフィールド不在は save が deleteField で表現する）。
@@ -177,10 +177,11 @@ export const createTopicStates = (topicDoc: Topic) => {
 	// フェーズの running 化・runId 発行・最初の段の投入はサーバ責務（在席非依存）。FE は起動を呼ぶだけ。
 	// 再生成では呼び出し側が先に下流を reset してからこれを呼ぶ（新 runId で旧タスク id 衝突を回避）。
 	const startPersonaGeneration = async (): Promise<void> => {
-		const startPersonaGenerationCallable = httpsCallable<
-			{ topicId: string },
-			{ topicId: string }
-		>(functions, 'startPersonaGeneration', { timeout: 60000 });
+		const startPersonaGenerationCallable = httpsCallable<{ topicId: string }, { topicId: string }>(
+			functions,
+			'startPersonaGeneration',
+			{ timeout: 60000 }
+		);
 		await startPersonaGenerationCallable({ topicId: id });
 	};
 
@@ -289,6 +290,3 @@ export const createTopicStates = (topicDoc: Topic) => {
 		unpublishDebate
 	};
 };
-
-// 画面が扱う「生きたトピック」。アプリ層型 Topic に $state と各種操作を載せたもの。
-export type TopicStates = ReturnType<typeof createTopicStates>;

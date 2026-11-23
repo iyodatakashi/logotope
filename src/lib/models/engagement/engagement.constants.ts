@@ -1,10 +1,5 @@
-import type { EngagementLevel } from '$lib/models/stakeholder/stakeholder.types';
-
-type EngagementStyle = {
-	label: string;
-	color: string;
-	bg: string;
-};
+import type { EngagementLevel } from '#lib/models/stakeholder/stakeholder.types.ts';
+import type { EngagementStyle } from '#lib/models/engagement/engagement.types.ts';
 
 const STYLES: Record<EngagementLevel, EngagementStyle> = {
 	high: { label: '専門・意識 高', color: '#b71c1c', bg: '#ffebee' },

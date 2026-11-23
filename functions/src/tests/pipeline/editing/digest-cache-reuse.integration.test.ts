@@ -17,8 +17,12 @@ const { holder, mockBuildDigest, mockGetTopicContext } = vi.hoisted(() => ({
 }));
 
 vi.mock('firebase-admin/firestore', () => ({ getFirestore: () => holder.mock!.firestore }));
-vi.mock('../../../pipeline/debate/debate-digest.js', () => ({ buildDebateDigest: mockBuildDigest }));
-vi.mock('../../../pipeline/topics/topic-context.js', () => ({ getTopicContext: mockGetTopicContext }));
+vi.mock('../../../pipeline/debate/debate-digest.js', () => ({
+	buildDebateDigest: mockBuildDigest
+}));
+vi.mock('../../../pipeline/topics/topic-context.js', () => ({
+	getTopicContext: mockGetTopicContext
+}));
 
 import { buildIntroOutroInput } from '../../../pipeline/editing/editorial-builders.js';
 import { clearEditedArtifact } from '../../../pipeline/editing/edited-repository.js';

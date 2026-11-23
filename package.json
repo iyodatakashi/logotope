@@ -3,6 +3,9 @@
 	"private": true,
 	"version": "0.0.1",
 	"type": "module",
+	"imports": {
+		"#lib/*": "./src/lib/*"
+	},
 	"packageManager": "pnpm@11.9.0",
 	"scripts": {
 		"dev": "vite dev",
@@ -48,7 +51,7 @@
 	},
 	"dependencies": {
 		"@14ch/color-palette-generator": "^1.0.2",
-		"@14ch/svelte-firebase-auth": "^0.0.1",
+		"@14ch/svelte-firebase-auth": "^0.0.6",
 		"@14ch/svelte-ui": "^0.0.61",
 		"dayjs": "^1.11.21",
 		"diff-match-patch": "^1.0.5",

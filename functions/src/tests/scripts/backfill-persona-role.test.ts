@@ -24,7 +24,9 @@ describe('planRoleBackfill — specificRole → role の冪等移行', () => {
 
 	it('既に非空の role を持つペルソナはスキップする（冪等・再実行しても二重変換しない）', () => {
 		expect(
-			planRoleBackfill([{ id: 'p1', role: '救急医', specificRole: '旧値', stakeholderRole: '医療' }])
+			planRoleBackfill([
+				{ id: 'p1', role: '救急医', specificRole: '旧値', stakeholderRole: '医療' }
+			])
 		).toEqual([]);
 	});
 

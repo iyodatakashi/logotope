@@ -1,5 +1,5 @@
-import { Timestamp } from 'firebase/firestore';
-import type { EngagementLevel, Prefecture } from '$lib/models/stakeholder/stakeholder.types';
+import type { Timestamp } from 'firebase/firestore';
+import type { EngagementLevel, Prefecture } from '#lib/models/stakeholder/stakeholder.types.ts';
 
 // 不変の信念のみ（interview が version 0 を書き、討論は上書きしない）
 export type BeliefForFirestore = {

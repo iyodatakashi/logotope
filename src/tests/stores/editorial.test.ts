@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 let snapshotCb: ((snap: unknown) => void) | null = null;
 
-vi.mock('$lib/firebase.js', () => ({ db: {} }));
+vi.mock('#lib/stores/firebase.ts', () => ({ db: {} }));
 vi.mock('firebase/firestore', () => ({
 	onSnapshot: vi.fn((_ref: unknown, cb: (snap: unknown) => void) => {
 		snapshotCb = cb;
@@ -11,7 +11,7 @@ vi.mock('firebase/firestore', () => ({
 	doc: vi.fn()
 }));
 
-import { createEditorialStore } from '$lib/stores/editorial.svelte';
+import { createEditorialStore } from '#lib/stores/editorial.svelte.ts';
 
 // 単一ドキュメント editorial/0 のスナップショットを模す（exists()/data() を持つ）。
 const emit = (store: ReturnType<typeof createEditorialStore>, data: unknown | null) => {

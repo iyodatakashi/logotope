@@ -11,7 +11,7 @@ const { mockBatch } = vi.hoisted(() => ({
 let snapshotCb: ((snap: unknown) => void) | null = null;
 let topicDocData: Record<string, unknown> = {};
 
-vi.mock('$lib/firebase.js', () => ({ db: {}, functions: {} }));
+vi.mock('#lib/stores/firebase.ts', () => ({ db: {}, functions: {} }));
 vi.mock('firebase/functions', () => ({
 	httpsCallable: vi.fn(() => vi.fn().mockResolvedValue({ data: {} }))
 }));
@@ -30,9 +30,9 @@ vi.mock('firebase/firestore', () => ({
 	Timestamp: { now: vi.fn(() => 'NOW') }
 }));
 
-import { updateDoc, getDoc } from 'firebase/firestore';
+import { updateDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { createPersonasStore } from '$lib/stores/personas.svelte';
+import { createPersonasStore } from '#lib/stores/personas.svelte.ts';
 
 const TOPIC_PATH = { path: 'topics/t1' };
 

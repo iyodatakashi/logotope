@@ -71,9 +71,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	calls.length = 0;
 	mockGetTopicById.mockResolvedValue({ id: TOPIC_ID });
-	mockGetChaptersByTopicId.mockResolvedValue([
-		{ id: 'c1', chapterIndex: 0, status: 'pending' }
-	]);
+	mockGetChaptersByTopicId.mockResolvedValue([{ id: 'c1', chapterIndex: 0, status: 'pending' }]);
 	mockUpdateDebatePhaseStatus.mockImplementation(async (_t: string, status: string) => {
 		calls.push(`phase:${status}`);
 		return 'newrun';

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import EditingPage from '$lib/features/admin/topic-detail/editing/EditingPage.svelte';
+	import EditingPage from '#lib/features/topics/topicDetail/editing/EditingPage.svelte';
 </script>
 
 <EditingPage />
