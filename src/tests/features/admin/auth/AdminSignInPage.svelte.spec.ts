@@ -27,7 +27,7 @@ describe('AdminSignInPage.svelte', () => {
 		render(AdminSignInPage);
 
 		await expect
-			.element(page.getByRole('button', { name: 'アカウントを作成する' }))
+			.element(page.getByRole('button', { name: 'サインアップ' }))
 			.toBeInTheDocument();
 	});
 
@@ -36,6 +36,6 @@ describe('AdminSignInPage.svelte', () => {
 		render(AdminSignInPage);
 
 		await expect.element(page.getByRole('button', { name: 'サインイン' })).toBeInTheDocument();
-		expect(page.getByRole('button', { name: 'アカウントを作成する' }).elements()).toHaveLength(0);
+		expect(page.getByRole('button', { name: 'サインアップ' }).elements()).toHaveLength(0);
 	});
 });

@@ -26,5 +26,6 @@ export const ADMIN_AUTH_CONFIG: AuthConfig = {
 		verifyEmail: '/admin/verify-email',
 		passwordReset: '/admin/password-reset',
 		afterSignIn: '/admin/topics'
-	}
+	},
+	multiAccount: false
 };

@@ -48,7 +48,7 @@
 	},
 	"dependencies": {
 		"@14ch/color-palette-generator": "^1.0.2",
-		"@14ch/svelte-firebase-auth": "^0.0.1",
+		"@14ch/svelte-firebase-auth": "^0.0.6",
 		"@14ch/svelte-ui": "^0.0.61",
 		"dayjs": "^1.11.21",
 		"diff-match-patch": "^1.0.5",

@@ -15,8 +15,8 @@ importers:
         specifier: ^1.0.2
         version: 1.0.2
       '@14ch/svelte-firebase-auth':
-        specifier: link:../../../../workspace/SvelteFirebaseAuth/svelte-firebase-auth
-        version: link:../../../../workspace/SvelteFirebaseAuth/svelte-firebase-auth
+        specifier: ^0.0.6
+        version: 0.0.6(@14ch/svelte-ui@0.0.61(svelte@5.55.1))(@sveltejs/kit@2.70.3(@sveltejs/vite-plugin-svelte@6.2.4(svelte@5.55.1)(vite@7.3.1(@types/node@20.19.39)(sass@1.100.0)))(svelte@5.55.1)(typescript@5.9.3)(vite@7.3.1(@types/node@20.19.39)(sass@1.100.0)))(firebase@12.18.0)(svelte@5.55.1)
       '@14ch/svelte-ui':
         specifier: ^0.0.61
         version: 0.0.61(svelte@5.55.1)
@@ -116,6 +116,14 @@ packages:
 
   '@14ch/color-palette-generator@1.0.2':
     resolution: {integrity: sha512-FRgQf4brHLdHqKpq/9aQ9NgTj1KdayC//oqagPmVQjjsd6h4CaDy402mSejoLzfFD/YWjWItULt6X21oOVFvEw==}
+
+  '@14ch/svelte-firebase-auth@0.0.6':
+    resolution: {integrity: sha512-gdL6PC/eM/PlxxqZhlWqQaCw5cnfTdusLJBqrXZS7wrI63+8xD72r5rQdwn+k8xLmektMy63osFkg+ezICqbUw==}
+    peerDependencies:
+      '@14ch/svelte-ui': 0.0.x
+      '@sveltejs/kit': ^2.63.0 || ^3.0.0
+      firebase: ^12.18.0
+      svelte: ^5.0.0
 
   '@14ch/svelte-ui@0.0.61':
     resolution: {integrity: sha512-GVqdQUov/dd/zIiBmbdy9+RXhh0Rn2YCn39D0hVB+PnhZFIboKsxmg5p21XkbjG+3sFXOEao2MGxSjtFvn6iaQ==}
@@ -2120,6 +2128,13 @@ snapshots:
   '@14ch/color-palette-generator@1.0.2':
     dependencies:
       culori: 4.0.2
+
+  '@14ch/svelte-firebase-auth@0.0.6(@14ch/svelte-ui@0.0.61(svelte@5.55.1))(@sveltejs/kit@2.70.3(@sveltejs/vite-plugin-svelte@6.2.4(svelte@5.55.1)(vite@7.3.1(@types/node@20.19.39)(sass@1.100.0)))(svelte@5.55.1)(typescript@5.9.3)(vite@7.3.1(@types/node@20.19.39)(sass@1.100.0)))(firebase@12.18.0)(svelte@5.55.1)':
+    dependencies:
+      '@14ch/svelte-ui': 0.0.61(svelte@5.55.1)
+      '@sveltejs/kit': 2.70.3(@sveltejs/vite-plugin-svelte@6.2.4(svelte@5.55.1)(vite@7.3.1(@types/node@20.19.39)(sass@1.100.0)))(svelte@5.55.1)(typescript@5.9.3)(vite@7.3.1(@types/node@20.19.39)(sass@1.100.0))
+      firebase: 12.18.0
+      svelte: 5.55.1
 
   '@14ch/svelte-ui@0.0.61(svelte@5.55.1)':
     dependencies:
